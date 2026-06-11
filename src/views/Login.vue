@@ -4,7 +4,7 @@
       <div class="login-header">
         <h1>BPHS</h1>
         <h2>Attendance Checker</h2>
-        <p>Bacoor Parañaque High School</p>
+        <p>Baguio Patriotic High School</p>
       </div>
       <form @submit.prevent="handleLogin">
         <div class="form-group">

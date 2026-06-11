@@ -167,4 +167,24 @@ router.put('/:recordId/unlock', (req, res) => {
   res.json({ success: true })
 })
 
+router.delete('/:recordId', (req, res) => {
+  const { recordId } = req.params
+  const userId = req.query.userId
+  const userRole = req.query.userRole
+
+  const records = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+  if (records.length === 0) {
+    return res.status(404).json({ error: 'Record not found' })
+  }
+
+  if (userRole !== 'admin' && records[0].created_by !== userId) {
+    return res.status(403).json({ error: 'Only the owner or an admin can delete this record' })
+  }
+
+  run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
+  run('DELETE FROM attendance_records WHERE id = ?', [recordId])
+
+  res.json({ success: true })
+})
+
 export default router

@@ -1,7 +1,10 @@
 <template>
-  <div id="app">
+  <div id="app" :data-theme="'light'">
+    <div class="bg-orb bg-orb--1"></div>
+    <div class="bg-orb bg-orb--2"></div>
+    <div class="bg-orb bg-orb--3"></div>
     <nav v-if="auth.user" class="top-nav">
-      <div class="nav-brand">BPHS Attendance System</div>
+      <div class="nav-brand">BPHS Attendance</div>
       <div class="nav-links">
         <span class="nav-user">{{ auth.user.name }} ({{ auth.user.role }})</span>
         <router-link v-if="auth.isAdmin" to="/admin">Dashboard</router-link>

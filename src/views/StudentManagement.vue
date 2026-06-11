@@ -12,13 +12,16 @@
         </div>
         <div class="form-group">
           <label>Grade</label>
-          <select v-model="form.grade" required>
+          <select v-model="form.grade" @change="form.section = ''" required>
             <option v-for="g in grades" :key="g">{{ g }}</option>
           </select>
         </div>
         <div class="form-group">
           <label>Section</label>
-          <input v-model="form.section" required />
+          <select v-model="form.section" required>
+            <option value="" disabled>Select section</option>
+            <option v-for="s in availableSections" :key="s">{{ s }}</option>
+          </select>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : (editingStudent ? 'Update' : 'Save') }}</button>
@@ -28,11 +31,14 @@
     </div>
 
     <div class="filters">
-      <select v-model="filterGrade" @change="loadStudents">
+      <select v-model="filterGrade" @change="filterSection = ''; loadStudents()">
         <option value="">All Grades</option>
         <option v-for="g in grades" :key="g">{{ g }}</option>
       </select>
-      <input v-model="filterSection" @input="loadStudents" placeholder="Filter by section" />
+      <select v-model="filterSection" @change="loadStudents" class="section-filter">
+        <option value="">All Sections</option>
+        <option v-for="s in filterSections" :key="s">{{ s }}</option>
+      </select>
     </div>
 
     <table class="data-table" v-if="students.length">
@@ -63,11 +69,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAttendanceStore } from '../stores/attendance'
 
 const store = useAttendanceStore()
-const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']
+const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
+const sectionsByGrade = {
+  'Grade 7': ['Pine', 'Molave'],
+  'Grade 8': ['Cypress'],
+  'Grade 9': ['Kamagong', 'Mahogany'],
+  'Grade 10': ['Acacia', 'Yakal']
+}
+const availableSections = computed(() => sectionsByGrade[form.value.grade] || [])
+const filterSections = computed(() => filterGrade.value ? (sectionsByGrade[filterGrade.value] || []) : [])
 const showForm = ref(false)
 const editingStudent = ref(null)
 const saving = ref(false)

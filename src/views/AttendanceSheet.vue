@@ -10,13 +10,16 @@
           </div>
           <div class="form-group">
             <label>Grade</label>
-            <select v-model="form.grade" required>
+            <select v-model="form.grade" @change="form.section = ''" required>
               <option v-for="g in grades" :key="g">{{ g }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>Section</label>
-            <input v-model="form.section" required placeholder="e.g. St. John" />
+            <select v-model="form.section" required>
+              <option value="" disabled>Select section</option>
+              <option v-for="s in availableSections" :key="s">{{ s }}</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Adviser</label>
@@ -47,7 +50,10 @@
               <td>{{ r.section }}</td>
               <td>{{ r.adviser }}</td>
               <td>{{ r.created_by_name || '—' }}</td>
-              <td><button @click="loadRecord(r)" class="btn-sm">Open</button></td>
+              <td>
+                <button @click="loadRecord(r)" class="btn-sm">Open</button>
+                <button @click="deleteSavedRecord(r)" class="btn-sm btn-danger">Delete</button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -56,10 +62,10 @@
 
     <div v-else class="sheet-container">
       <div class="sheet-header">
-        <div class="logo-placeholder">[Logo]</div>
+        <img src="/bphs-logo.jpg" alt="BPHS" class="school-logo" />
         <div class="school-info">
-          <h1>BACOOR PARAÑAQUE HIGH SCHOOL</h1>
-          <p>Bacoor, Parañaque City</p>
+          <h1>BAGUIO PATRIOTIC HIGH SCHOOL</h1>
+          <p>Baguio City</p>
         </div>
       </div>
 
@@ -96,6 +102,9 @@
             </tr>
           </thead>
           <tbody>
+            <tr v-if="!record.entries || record.entries.length === 0">
+              <td colspan="15" class="empty">No students found. Add students in Student Management first.</td>
+            </tr>
             <tr v-for="(entry, idx) in record.entries" :key="entry.studentId"
                 :class="{ 'selected-row': selectedStudent?.studentId === entry.studentId }">
               <td>{{ idx + 1 }}</td>
@@ -182,13 +191,20 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 
 const store = useAttendanceStore()
 const auth = useAuthStore()
-const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']
+const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
+const sectionsByGrade = {
+  'Grade 7': ['Pine', 'Molave'],
+  'Grade 8': ['Cypress'],
+  'Grade 9': ['Kamagong', 'Mahogany'],
+  'Grade 10': ['Acacia', 'Yakal']
+}
+const availableSections = computed(() => sectionsByGrade[form.grade] || [])
 const amPeriods = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6']
 const pmPeriods = ['pm1', 'pm2', 'pm3', 'pm4']
 const allPeriods = [...amPeriods, ...pmPeriods]
@@ -262,6 +278,16 @@ function goBack() {
 
 function selectStudent(entry) {
   selectedStudent.value = entry
+}
+
+async function deleteSavedRecord(r) {
+  if (!confirm('Delete this attendance record for ' + r.date + ' (' + r.grade + ' - ' + r.section + ')?')) return
+  try {
+    await store.deleteRecord(r.id, auth.user?.id, auth.user?.role)
+    savedRecords.value = savedRecords.value.filter(x => x.id !== r.id)
+  } catch (e) {
+    alert(e.message)
+  }
 }
 
 async function updatePeriodCell(entry, periodKey, value) {

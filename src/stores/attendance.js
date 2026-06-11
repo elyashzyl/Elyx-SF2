@@ -108,6 +108,21 @@ export const useAttendanceStore = defineStore('attendance', () => {
         } else if (result && result.id) {
           record.id = result.id
         }
+      } else if (!record.entries || record.entries.length === 0) {
+        // Existing record has no entries — populate from current students
+        const students = await getStudents({ grade, section })
+        record.entries = students.map(s => ({
+          studentId: s.id,
+          name: s.name,
+          periods: {
+            am1: '', am2: '', am3: '', am4: '', am5: '', am6: '',
+            pm1: '', pm2: '', pm3: '', pm4: ''
+          },
+          reason: '',
+          excused: false,
+          unexcused: false
+        }))
+        await saveRecord(record, user)
       }
       return record
     } catch (e) {
@@ -140,9 +155,16 @@ export const useAttendanceStore = defineStore('attendance', () => {
     }
   }
 
+  async function deleteRecord(recordId, userId, userRole) {
+    const params = new URLSearchParams({ userId, userRole }).toString()
+    return await fetchJson(`${API}/attendance/${recordId}?${params}`, {
+      method: 'DELETE'
+    })
+  }
+
   return {
     getStudents, addStudent, updateStudent, deleteStudent,
     getRecord, saveRecord, getOrCreateRecord,
-    updateEntry, unlockRecord, getAllRecords
+    updateEntry, unlockRecord, getAllRecords, deleteRecord
   }
 })
