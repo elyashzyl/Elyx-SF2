@@ -55,8 +55,24 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function addStudents(data) {
+    return await fetchJson(`${API}/students/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+  }
+
   async function deleteStudent(id) {
     await fetchJson(`${API}/students/${id}`, { method: 'DELETE' })
+  }
+
+  async function deleteStudents(ids) {
+    return await fetchJson(`${API}/students/bulk-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    })
   }
 
   async function getRecord(date, grade, section) {
@@ -108,21 +124,26 @@ export const useAttendanceStore = defineStore('attendance', () => {
         } else if (result && result.id) {
           record.id = result.id
         }
-      } else if (!record.entries || record.entries.length === 0) {
-        // Existing record has no entries — populate from current students
+      } else {
         const students = await getStudents({ grade, section })
-        record.entries = students.map(s => ({
-          studentId: s.id,
-          name: s.name,
-          periods: {
-            am1: '', am2: '', am3: '', am4: '', am5: '', am6: '',
-            pm1: '', pm2: '', pm3: '', pm4: ''
-          },
-          reason: '',
-          excused: false,
-          unexcused: false
-        }))
-        await saveRecord(record, user)
+        const existingIds = new Set(record.entries.map(e => e.studentId))
+        const missing = students.filter(s => !existingIds.has(s.id))
+        if (missing.length > 0) {
+          for (const s of missing) {
+            record.entries.push({
+              studentId: s.id,
+              name: s.name,
+              periods: {
+                am1: '', am2: '', am3: '', am4: '', am5: '', am6: '',
+                pm1: '', pm2: '', pm3: '', pm4: ''
+              },
+              reason: '',
+              excused: false,
+              unexcused: false
+            })
+          }
+          await saveRecord(record, user)
+        }
       }
       return record
     } catch (e) {
@@ -162,9 +183,19 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function fetchMonthly(grade, section, month, year) {
+    try {
+      const params = new URLSearchParams({ grade, section, month, year }).toString()
+      return await fetchJson(`${API}/attendance/monthly?${params}`)
+    } catch {
+      return null
+    }
+  }
+
   return {
-    getStudents, addStudent, updateStudent, deleteStudent,
+    getStudents, addStudent, addStudents, updateStudent, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
-    updateEntry, unlockRecord, getAllRecords, deleteRecord
+    updateEntry, unlockRecord, getAllRecords, deleteRecord,
+    fetchMonthly
   }
 })

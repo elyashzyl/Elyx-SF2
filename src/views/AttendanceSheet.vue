@@ -1,8 +1,16 @@
 <template>
   <div class="attendance-page">
     <div v-if="!record" class="select-screen">
-      <h1>Daily Attendance Record</h1>
-      <div class="form-card">
+      <div class="page-header">
+        <h1>Attendance Record</h1>
+        <p>View daily or monthly attendance reports.</p>
+      </div>
+      <div class="tab-bar">
+        <button :class="['tab-btn', { active: activeTab === 'daily' }]" @click="activeTab = 'daily'">Daily</button>
+        <button :class="['tab-btn', { active: activeTab === 'monthly' }]" @click="activeTab = 'monthly'">Monthly</button>
+      </div>
+
+      <div v-if="activeTab === 'daily'" class="form-card">
         <div class="form-row">
           <div class="form-group">
             <label>Date</label>
@@ -26,11 +34,111 @@
             <input v-model="form.adviser" placeholder="Teacher name" />
           </div>
         </div>
-        <button @click="openRecord" class="btn-primary">Open Attendance Sheet</button>
+        <button @click="openRecord" class="btn-primary" :disabled="loading">
+          <span v-if="loading" class="spinner"></span>
+          {{ loading ? 'Loading...' : 'Open Attendance Sheet' }}
+        </button>
         <p v-if="loadError" class="error-msg">{{ loadError }}</p>
       </div>
 
-      <div v-if="savedRecords.length" class="saved-records">
+      <div v-if="activeTab === 'monthly'" class="form-card">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Month</label>
+            <select v-model="monthlyForm.month">
+              <option v-for="m in 12" :key="m" :value="m">{{ monthNames[m-1] }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Year</label>
+            <select v-model="monthlyForm.year">
+              <option v-for="y in yearRange" :key="y">{{ y }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Grade</label>
+            <select v-model="monthlyForm.grade" @change="monthlyForm.section = ''">
+              <option v-for="g in grades" :key="g">{{ g }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Section</label>
+            <select v-model="monthlyForm.section">
+              <option value="" disabled>Select section</option>
+              <option v-for="s in monthlySections" :key="s">{{ s }}</option>
+            </select>
+          </div>
+        </div>
+        <button @click="generateMonthly" class="btn-primary" :disabled="monthlyLoading">
+          <span v-if="monthlyLoading" class="spinner"></span>
+          {{ monthlyLoading ? 'Loading...' : 'Generate Report' }}
+        </button>
+      </div>
+
+      <div v-if="monthlyData" class="monthly-report">
+        <div class="monthly-header">
+          <h2>MONTHLY ATTENDANCE REPORT</h2>
+          <p>{{ monthlyData.grade }} - {{ monthlyData.section }} &middot; {{ monthNames[monthlyForm.month-1] }} {{ monthlyForm.year }}</p>
+        </div>
+        <div class="monthly-legend">
+          <span><strong>1</strong> - Present</span>
+          <span><strong>2</strong> - Late</span>
+          <span><strong>3</strong> - Unexcused</span>
+          <span><strong>4</strong> - Excused</span>
+          <span><strong>5</strong> - NLS (No Longer Studied)</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="monthly-table">
+            <thead>
+              <tr>
+                <th rowspan="2">No.</th>
+                <th rowspan="2">NAME (Last Name, First Name, Middle Name)</th>
+                <th v-for="d in monthlyData.dates" :key="d.date" :colspan="1">{{ d.day }}</th>
+                <th rowspan="2">Total for the Month</th>
+                <th rowspan="2">REMARKS</th>
+              </tr>
+              <tr>
+                <th v-for="d in monthlyData.dates" :key="'d-'+d.date">{{ d.dayName }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="group in monthlyGrouped" :key="group.label">
+                <tr class="gender-sep-row"><td :colspan="monthlyColspan">{{ group.label }}</td></tr>
+                <tr v-for="(row, ri) in group.rows" :key="row.studentId">
+                  <td>{{ ri + 1 }}</td>
+                  <td class="name-cell">{{ row.name }}</td>
+                  <td v-for="d in monthlyData.dates" :key="d.date" class="status-cell">
+                    {{ row.dayStatus[d.date] || '' }}
+                  </td>
+                  <td class="total-cell">{{ row.totalPresent }}</td>
+                  <td class="remark-cell">{{ row.remark }}</td>
+                </tr>
+                <tr class="total-row">
+                  <td :colspan="2">Total Present ({{ group.label }})</td>
+                  <td v-for="d in monthlyData.dates" :key="'t-'+d.date" class="status-cell">
+                    {{ groupTotals(group.rows, d.date) }}
+                  </td>
+                  <td class="total-cell">{{ groupTotalPresent(group.rows) }}</td>
+                  <td></td>
+                </tr>
+              </template>
+              <tr class="total-row grand-total">
+                <td :colspan="2">Total Present (Overall)</td>
+                <td v-for="d in monthlyData.dates" :key="'gt-'+d.date" class="status-cell">
+                  {{ groupTotals(monthlyData.rows, d.date) }}
+                </td>
+                <td class="total-cell">{{ groupTotalPresent(monthlyData.rows) }}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sheet-actions">
+          <button @click="printMonthly" class="btn-primary">Print</button>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'daily' && savedRecords.length" class="saved-records">
         <h3>Recent Records</h3>
         <table class="data-table">
           <thead>
@@ -52,6 +160,7 @@
               <td>{{ r.created_by_name || '—' }}</td>
               <td>
                 <button @click="loadRecord(r)" class="btn-sm">Open</button>
+                <button @click="openEditRecord(r)" class="btn-sm btn-secondary">Edit</button>
                 <button @click="deleteSavedRecord(r)" class="btn-sm btn-danger">Delete</button>
               </td>
             </tr>
@@ -60,104 +169,102 @@
       </div>
     </div>
 
-    <div v-else class="sheet-container">
+    <div v-else>
+      <div class="page-header screen-only">
+        <h1>Daily Attendance Record</h1>
+        <p>{{ record.grade }} - {{ record.section }} &middot; {{ record.date }} &middot; Adviser: {{ record.adviser }}</p>
+      </div>
+      <div class="sheet-container">
       <div class="sheet-header">
         <img src="/bphs-logo.jpg" alt="BPHS" class="school-logo" />
         <div class="school-info">
           <h1>BAGUIO PATRIOTIC HIGH SCHOOL</h1>
-          <p>Baguio City</p>
+          <p>#21 Harrison Road, Baguio City, Philippines</p>
         </div>
       </div>
 
-      <div v-if="!isOwner" class="readonly-banner">
-        Read Only — Recorded by {{ record.created_by_name || 'Unknown' }}
-        <button v-if="auth.isAdmin" @click="handleUnlock" class="btn-sm">Take Ownership</button>
+      <div v-if="auth.isTeacher && !isOwner" class="readonly-banner">
+        You can only edit your assigned period(s) for this date.
+      </div>
+      <div v-if="auth.isAdmin && !isOwner" class="readonly-banner">
+        Recorded by {{ record.created_by_name || 'Unknown' }}
+        <button @click="handleUnlock" class="btn-sm">Take Ownership</button>
       </div>
 
-      <div class="sheet-date">Date: {{ record.date }}</div>
+      <div class="sheet-date">{{ record.date }}</div>
       <h2 class="sheet-title">DAILY ATTENDANCE RECORD</h2>
       <div class="sheet-info">
-        <span>Grade: {{ record.grade }}</span>
-        <span>Section: {{ record.section }}</span>
-        <span>Adviser: {{ record.adviser }}</span>
-        <span v-if="record.created_by_name" class="created-by">Created by: {{ record.created_by_name }}</span>
+        <span class="sheet-info-left">Grade: {{ gradeNum(record.grade) }}</span>
+        <span class="sheet-info-center">Section: {{ record.section }}</span>
+        <span class="sheet-info-right">Adviser: {{ record.adviser }}</span>
       </div>
-
       <div class="table-wrapper">
         <table class="attendance-table">
           <thead>
             <tr>
               <th rowspan="2">No.</th>
               <th rowspan="2">NAMES</th>
-              <th colspan="6">AM</th>
-              <th colspan="4">PM</th>
+              <th :colspan="visibleAmPeriods.length">AM</th>
+              <th :colspan="visiblePmPeriods.length">PM</th>
               <th rowspan="2">Reason for Absence / Tardiness</th>
               <th rowspan="2">Excused</th>
               <th rowspan="2">Unexcused</th>
               <th rowspan="2">HD</th>
             </tr>
             <tr>
-              <th v-for="p in 6" :key="'am'+p">{{ p }}</th>
-              <th v-for="p in 4" :key="'pm'+p">{{ p }}</th>
+              <th v-for="pk in visibleAmPeriods" :key="pk">{{ pk.replace('am', '') }}</th>
+              <th v-for="pk in visiblePmPeriods" :key="pk">{{ pk.replace('pm', '') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!record.entries || record.entries.length === 0">
-              <td colspan="15" class="empty">No students found. Add students in Student Management first.</td>
+              <td :colspan="colspan" class="empty">No students found. Add students in Student Management first.</td>
             </tr>
-            <tr v-for="(entry, idx) in record.entries" :key="entry.studentId"
-                :class="{ 'selected-row': selectedStudent?.studentId === entry.studentId }">
-              <td>{{ idx + 1 }}</td>
-              <td class="name-cell clickable"
-                  @click="selectStudent(entry)">
-                {{ entry.name }}
-              </td>
-              <td v-for="pk in amPeriods" :key="pk" class="period-cell">
-                <select :value="entry.periods[pk] || ''" @change="updatePeriodCell(entry, pk, $event.target.value)" class="period-select">
-                  <option value=""></option>
-                  <option value="E">E</option>
-                  <option value="T">T</option>
-                  <option value="A">A</option>
-                  <option value="E/T">E/T</option>
-                  <option value="A/S">A/S</option>
-                  <option value="NIPS">NIPS</option>
-                  <option value="NIPU:White w/ print">NIPU:W/P</option>
-                  <option value="NIPU:Polo w/o logo">NIPU:POL</option>
-                  <option value="NIPU:No logo">NIPU:NOL</option>
-                  <option value="NIPU:Make up (girls)">NIPU:MAK</option>
-                  <option value="NIPHC">NIPHC</option>
-                </select>
-              </td>
-              <td v-for="pk in pmPeriods" :key="pk" class="period-cell">
-                <select :value="entry.periods[pk] || ''" @change="updatePeriodCell(entry, pk, $event.target.value)" class="period-select">
-                  <option value=""></option>
-                  <option value="E">E</option>
-                  <option value="T">T</option>
-                  <option value="A">A</option>
-                  <option value="E/T">E/T</option>
-                  <option value="A/S">A/S</option>
-                  <option value="NIPS">NIPS</option>
-                  <option value="NIPU:White w/ print">NIPU:W/P</option>
-                  <option value="NIPU:Polo w/o logo">NIPU:POL</option>
-                  <option value="NIPU:No logo">NIPU:NOL</option>
-                  <option value="NIPU:Make up (girls)">NIPU:MAK</option>
-                  <option value="NIPHC">NIPHC</option>
-                </select>
-              </td>
-              <td>
-                <input v-model="entry.reason" @change="saveEntry(entry)"
-                       class="reason-input" />
-              </td>
-              <td class="check-cell">
-                <input type="checkbox" v-model="entry.excused"
-                       @change="saveEntry(entry)" />
-              </td>
-              <td class="check-cell">
-                <input type="checkbox" v-model="entry.unexcused"
-                       @change="saveEntry(entry)" />
-              </td>
-              <td class="hd-cell">{{ isHalfDay(entry) ? '✓' : '' }}</td>
-            </tr>
+            <template v-else>
+              <template v-for="(item, idx) in sortedEntries" :key="item.isSep ? 'sep-' + idx : item.studentId">
+                <tr v-if="item.isSep" class="gender-sep-row"><td :colspan="colspan">{{ item.label }}</td></tr>
+                <tr v-else :class="{ 'selected-row': selectedStudent?.studentId === item.studentId }">
+                  <td>{{ item._num }}</td>
+                  <td class="name-cell clickable" @click="selectStudent(item)">{{ item.name }}</td>
+                  <td v-for="pk in visibleAmPeriods" :key="pk" class="period-cell">
+                    <select :value="item.periods[pk] || ''" @change="updatePeriodCell(item, pk, $event.target.value)" class="period-select" :disabled="!canEditPeriod(pk)">
+                      <option value=""></option>
+                      <option value="E">E</option>
+                      <option value="T">T</option>
+                      <option value="A">A</option>
+                      <option value="E/T">E/T</option>
+                      <option value="A/S">A/S</option>
+                      <option value="NIPS">NIPS</option>
+                      <option value="NIPU:White w/ print">NIPU:W/P</option>
+                      <option value="NIPU:Polo w/o logo">NIPU:POL</option>
+                      <option value="NIPU:No logo">NIPU:NOL</option>
+                      <option value="NIPU:Make up (girls)">NIPU:MAK</option>
+                      <option value="NIPHC">NIPHC</option>
+                    </select>
+                  </td>
+                  <td v-for="pk in visiblePmPeriods" :key="pk" class="period-cell">
+                    <select :value="item.periods[pk] || ''" @change="updatePeriodCell(item, pk, $event.target.value)" class="period-select" :disabled="!canEditPeriod(pk)">
+                      <option value=""></option>
+                      <option value="E">E</option>
+                      <option value="T">T</option>
+                      <option value="A">A</option>
+                      <option value="E/T">E/T</option>
+                      <option value="A/S">A/S</option>
+                      <option value="NIPS">NIPS</option>
+                      <option value="NIPU:White w/ print">NIPU:W/P</option>
+                      <option value="NIPU:Polo w/o logo">NIPU:POL</option>
+                      <option value="NIPU:No logo">NIPU:NOL</option>
+                      <option value="NIPU:Make up (girls)">NIPU:MAK</option>
+                      <option value="NIPHC">NIPHC</option>
+                    </select>
+                  </td>
+                  <td><input v-model="item.reason" @change="saveEntry(item)" class="reason-input" /></td>
+                  <td class="check-cell"><input type="checkbox" v-model="item.excused" @change="saveEntry(item)" /></td>
+                  <td class="check-cell"><input type="checkbox" v-model="item.unexcused" @change="saveEntry(item)" /></td>
+                  <td class="hd-cell">{{ isHalfDay(item) ? '✓' : '' }}</td>
+                </tr>
+              </template>
+            </template>
           </tbody>
         </table>
       </div>
@@ -180,13 +287,50 @@
           <p>White w/ print | Polo w/o logo | No logo | Make up (girls)</p>
         </div>
       </div>
+      <div v-if="record.created_by_name" class="created-by">Created by: {{ record.created_by_name }}</div>
 
       <div class="sheet-actions">
         <button @click="printSheet" class="btn-primary">Print</button>
         <button @click="goBack" class="btn-secondary">Back</button>
       </div>
     </div>
+    </div>
 
+    <div v-if="showEditRecord" class="modal-overlay" @click.self="closeEditRecord">
+      <div class="form-card schedule-form">
+        <h3>Edit Record Details</h3>
+        <form @submit.prevent="handleSaveRecord">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date</label>
+              <input v-model="editRecordForm.date" type="date" required />
+            </div>
+            <div class="form-group">
+              <label>Grade</label>
+              <select v-model="editRecordForm.grade" required>
+                <option v-for="g in grades" :key="g">{{ g }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Section</label>
+              <select v-model="editRecordForm.section" required>
+                <option v-for="s in sectionsByGrade[editRecordForm.grade] || []" :key="s">{{ s }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Adviser</label>
+              <input v-model="editRecordForm.adviser" required />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" :disabled="savingRecord">{{ savingRecord ? 'Saving...' : 'Save' }}</button>
+            <button type="button" @click="closeEditRecord" class="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -194,9 +338,12 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
 
 const store = useAttendanceStore()
 const auth = useAuthStore()
+const { addToast } = useToast()
+const loading = ref(false)
 const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
 const sectionsByGrade = {
   'Grade 7': ['Pine', 'Molave'],
@@ -207,7 +354,25 @@ const sectionsByGrade = {
 const availableSections = computed(() => sectionsByGrade[form.grade] || [])
 const amPeriods = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6']
 const pmPeriods = ['pm1', 'pm2', 'pm3', 'pm4']
-const allPeriods = [...amPeriods, ...pmPeriods]
+const dayPeriods = ref([])
+
+const visibleAmPeriods = computed(() => amPeriods)
+const visiblePmPeriods = computed(() => pmPeriods)
+
+function canEditPeriod(pk) {
+  if (auth.isAdmin) return true
+  if (!dayPeriods.value.length) return false
+  return dayPeriods.value.includes(pk)
+}
+const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function gradeNum(g) {
+  return (g || '').replace('Grade ', '')
+}
+
+function getDayOfWeek(dateStr) {
+  return daysOfWeek[new Date(dateStr + 'T00:00:00').getDay()]
+}
 
 const form = reactive({
   date: new Date().toISOString().split('T')[0],
@@ -221,6 +386,157 @@ const loadError = ref('')
 const savedRecords = ref([])
 const isOwner = ref(true)
 const selectedStudent = ref(null)
+const studentGenderMap = ref({})
+const showEditRecord = ref(false)
+const savingRecord = ref(false)
+const editRecordForm = reactive({ id: '', date: '', grade: '', section: '', adviser: '' })
+
+const activeTab = ref('daily')
+const monthlyForm = reactive({
+  month: new Date().getMonth() + 1,
+  year: new Date().getFullYear(),
+  grade: 'Grade 7',
+  section: ''
+})
+const monthlyData = ref(null)
+const monthlyLoading = ref(false)
+const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const yearRange = computed(() => {
+  const cy = new Date().getFullYear()
+  return Array.from({ length: 6 }, (_, i) => cy - 2 + i)
+})
+const monthlySections = computed(() => sectionsByGrade[monthlyForm.grade] || [])
+
+const monthlyColspan = computed(() => {
+  if (!monthlyData.value) return 4
+  return 2 + monthlyData.value.dates.length + 2
+})
+
+const monthlyGrouped = computed(() => {
+  if (!monthlyData.value) return []
+  const rows = monthlyData.value.rows
+  const boys = rows.filter(r => r.gender === 'Male')
+  const girls = rows.filter(r => r.gender === 'Female')
+  const unknown = rows.filter(r => r.gender !== 'Male' && r.gender !== 'Female')
+  const groups = []
+  if (boys.length) groups.push({ label: 'BOYS', rows: boys })
+  if (girls.length) groups.push({ label: 'GIRLS', rows: girls })
+  if (unknown.length) groups.push({ label: 'OTHER', rows: unknown })
+  return groups
+})
+
+function groupTotals(rows, date) {
+  const present = rows.filter(r => (r.dayStatus[date] || 0) === 1).length
+  return present || ''
+}
+
+function groupTotalPresent(rows) {
+  return rows.reduce((sum, r) => sum + (r.totalPresent || 0), 0)
+}
+
+async function generateMonthly() {
+  if (!monthlyForm.month || !monthlyForm.year || !monthlyForm.grade || !monthlyForm.section) return
+  monthlyLoading.value = true
+  monthlyData.value = await store.fetchMonthly(
+    monthlyForm.grade,
+    monthlyForm.section,
+    monthlyForm.month,
+    monthlyForm.year
+  )
+  monthlyLoading.value = false
+}
+
+function printMonthly() {
+  window.print()
+}
+
+function openEditRecord(r) {
+  editRecordForm.id = r.id
+  editRecordForm.date = r.date
+  editRecordForm.grade = r.grade
+  editRecordForm.section = r.section
+  editRecordForm.adviser = r.adviser
+  showEditRecord.value = true
+}
+
+function closeEditRecord() {
+  showEditRecord.value = false
+}
+
+async function handleSaveRecord() {
+  savingRecord.value = true
+  try {
+    const res = await fetch('/api/attendance/' + editRecordForm.id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: editRecordForm.date,
+        grade: editRecordForm.grade,
+        section: editRecordForm.section,
+        adviser: editRecordForm.adviser
+      })
+    })
+    const data = await res.json()
+    if (!data.success) throw new Error(data.error || 'Failed to save')
+    addToast('Record updated', 'success')
+    closeEditRecord()
+    const all = await store.getAllRecords()
+    savedRecords.value = all.slice(-10).reverse()
+  } catch {
+    addToast('Failed to update record', 'error')
+  } finally {
+    savingRecord.value = false
+  }
+}
+
+const colspan = computed(() => 4 + visibleAmPeriods.value.length + visiblePmPeriods.value.length)
+
+const sortedEntries = computed(() => {
+  if (!record.value?.entries) return []
+  const withGender = record.value.entries.map(e => ({
+    ...e,
+    gender: studentGenderMap.value[e.studentId] || ''
+  }))
+  const boys = withGender.filter(e => e.gender === 'Male')
+  const girls = withGender.filter(e => e.gender === 'Female')
+  const unknown = withGender.filter(e => e.gender !== 'Male' && e.gender !== 'Female')
+  let num = 0
+  const flat = []
+  if (boys.length) {
+    flat.push({ isSep: true, label: 'BOYS' })
+    for (const b of boys) { b._num = ++num; flat.push(b) }
+  }
+  if (girls.length) {
+    flat.push({ isSep: true, label: 'GIRLS' })
+    for (const g of girls) { g._num = ++num; flat.push(g) }
+  }
+  if (unknown.length) {
+    flat.push({ isSep: true, label: 'OTHER' })
+    for (const u of unknown) { u._num = ++num; flat.push(u) }
+  }
+  return flat
+})
+
+async function loadStudentGenderMap() {
+  if (!record.value) return
+  try {
+    const students = await store.getStudents({ grade: record.value.grade, section: record.value.section })
+    const map = {}
+    for (const s of students) map[s.id] = s.gender || ''
+    studentGenderMap.value = map
+  } catch {}
+}
+
+async function loadDaySchedule() {
+  dayPeriods.value = []
+  if (!auth.isTeacher || !auth.user?.id || !record.value) return
+  try {
+    const res = await fetch('/api/schedules/' + auth.user.id)
+    const sched = await res.json()
+    const today = getDayOfWeek(record.value.date)
+    dayPeriods.value = sched.filter(s => s.day_of_week === today).map(s => s.period)
+  } catch {}
+}
 
 onMounted(async () => {
   const all = await store.getAllRecords()
@@ -233,6 +549,7 @@ async function openRecord() {
     return
   }
   loadError.value = ''
+  loading.value = true
   record.value = await store.getOrCreateRecord(
     form.date,
     form.grade,
@@ -240,7 +557,10 @@ async function openRecord() {
     form.adviser || 'TBA',
     auth.user
   )
+  loading.value = false
   updateCanEdit()
+  await loadDaySchedule()
+  await loadStudentGenderMap()
 }
 
 async function loadRecord(r) {
@@ -248,14 +568,17 @@ async function loadRecord(r) {
   form.grade = r.grade
   form.section = r.section
   form.adviser = r.adviser
+  loading.value = true
   record.value = await store.getOrCreateRecord(r.date, r.grade, r.section, r.adviser, auth.user)
+  loading.value = false
   updateCanEdit()
+  await loadDaySchedule()
+  await loadStudentGenderMap()
 }
 
 function updateCanEdit() {
   if (!record.value) return
-  isOwner.value = auth.isAdmin ||
-    !record.value.created_by ||
+  isOwner.value = !record.value.created_by ||
     String(record.value.created_by) === String(auth.user?.id)
 }
 
@@ -266,8 +589,9 @@ async function handleUnlock() {
     record.value.created_by = auth.user?.id
     record.value.created_by_name = auth.user?.name
     isOwner.value = true
+    addToast('Ownership transferred to you', 'success')
   } catch (e) {
-    alert(e.message)
+    addToast(e.message, 'error')
   }
 }
 
@@ -281,12 +605,12 @@ function selectStudent(entry) {
 }
 
 async function deleteSavedRecord(r) {
-  if (!confirm('Delete this attendance record for ' + r.date + ' (' + r.grade + ' - ' + r.section + ')?')) return
   try {
     await store.deleteRecord(r.id, auth.user?.id, auth.user?.role)
     savedRecords.value = savedRecords.value.filter(x => x.id !== r.id)
+    addToast('Record deleted', 'success')
   } catch (e) {
-    alert(e.message)
+    addToast(e.message, 'error')
   }
 }
 
@@ -302,11 +626,10 @@ async function saveEntry(entry) {
 }
 
 function isHalfDay(entry) {
-  const absentCount = amPeriods.filter(pk => {
-    const val = entry.periods[pk] || ''
-    return val === 'A'
-  }).length
-  return absentCount >= 2
+  const amValues = visibleAmPeriods.value.map(pk => entry.periods[pk] || '')
+  const absentCount = amValues.filter(v => v === 'A').length
+  const enteredCount = amValues.filter(v => v === 'E').length
+  return absentCount >= 2 && enteredCount >= 1
 }
 
 function printSheet() {

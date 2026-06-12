@@ -33,6 +33,12 @@ const routes = [
     name: 'StudentManagement',
     component: () => import('../views/StudentManagement.vue'),
     meta: { role: 'admin' }
+  },
+  {
+    path: '/schedule',
+    name: 'Schedule',
+    component: () => import('../views/Schedule.vue'),
+    meta: { role: ['admin', 'teacher'] }
   }
 ]
 
