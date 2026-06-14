@@ -25,3 +25,7 @@ dist-ssr
 
 # Database
 attendance.db
+
+# Generated export files
+sf2_*.html
+server.log

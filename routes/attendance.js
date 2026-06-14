@@ -92,20 +92,31 @@ router.post('/', (req, res) => {
 })
 
 function getAttendanceStatus(entry) {
-  if (entry.nls) return 5
-  if (entry.excused) return 4
-  if (entry.unexcused) return 3
   const periodKeys = ['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4']
-  let hasTardy = false
-  let hasAbsent = false
+  const amKeys = ['am1','am2','am3','am4','am5','am6']
+  let hasAnyA = false
+  let hasAnyT = false
+  let amAbsentCount = 0
+  let amEnteredCount = 0
   for (const pk of periodKeys) {
     const v = (entry[pk] || '').trim()
-    if (v === 'T') hasTardy = true
-    if (v === 'A') hasAbsent = true
+    if (v === 'A' || v === 'A/S') {
+      hasAnyA = true
+      if (amKeys.includes(pk)) amAbsentCount++
+    }
+    if (v === 'T') hasAnyT = true
+    if (v === 'E' && amKeys.includes(pk)) amEnteredCount++
   }
-  if (hasAbsent) return 3
-  if (hasTardy) return 2
-  return 1
+  const isHalfDay = amAbsentCount >= 2 && amEnteredCount >= 1
+  if (isHalfDay) {
+    if (hasAnyT) return 'th'
+    return 'hd'
+  }
+  if (hasAnyA) return 'x'
+  if (entry.excused) return 'x'
+  if (entry.unexcused) return 'x'
+  if (hasAnyT) return 't'
+  return ''
 }
 
 router.get('/monthly', (req, res) => {
@@ -139,6 +150,8 @@ router.get('/monthly', (req, res) => {
     dayName: getDayAbbr(d)
   }))
 
+  const totalSchoolDays = dates.length
+
   const rows = students.map(s => {
     const dayStatus = {}
     const reasons = []
@@ -152,20 +165,219 @@ router.get('/monthly', (req, res) => {
         if (match.nls) nls = true
       }
     }
-    const totalPresent = Object.values(dayStatus).filter(v => v === 1).length
-    const remark = reasons.map(r => `${r.date}: ${r.text}`).join('; ')
+    const absentCount = Object.values(dayStatus).reduce((sum, v) => {
+      if (v === 'x') return sum + 1
+      if (v === 'hd' || v === 'th') return sum + 0.5
+      return sum
+    }, 0)
+    const presentCount = totalSchoolDays - absentCount
+    const remark = nls ? 'NLS' : reasons.map(r => `${r.date}: ${r.text}`).join('; ')
     return {
       studentId: s.id,
       name: s.name,
       gender: s.gender || '',
       dayStatus,
-      totalPresent,
+      absentCount,
+      presentCount,
       nls,
       remark
     }
   })
 
-  res.json({ grade, section, month, year, dates, rows })
+  res.json({ grade, section, month, year, dates, totalSchoolDays, rows })
+})
+
+router.get('/monthly/excel', async (req, res) => {
+  const { grade, section, month, year } = req.query
+  if (!grade || !section || !month || !year) {
+    return res.status(400).json({ error: 'grade, section, month, and year are required' })
+  }
+
+  const m = String(month).padStart(2, '0')
+  const prefix = `${year}-${m}`
+  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? ORDER BY name', [grade, section])
+  const records = query(
+    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? ORDER BY date',
+    [grade, section, prefix + '%']
+  )
+
+  const dateSet = [...new Set(records.map(r => r.date))].sort()
+  const entriesByRecord = {}
+  for (const r of records) {
+    entriesByRecord[r.id] = query('SELECT * FROM attendance_entries WHERE record_id = ?', [r.id])
+  }
+
+  const dayAbbr = { 'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'TH','Friday':'F','Saturday':'SA','Sunday':'SU' }
+  function getDayAbbr(dateStr) {
+    return dayAbbr[['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(dateStr + 'T00:00:00').getDay()]]
+  }
+
+  const dates = dateSet.map(d => ({
+    date: d,
+    day: parseInt(d.split('-')[2], 10),
+    dayName: getDayAbbr(d)
+  }))
+
+  const totalSchoolDays = dates.length
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const monthName = monthNames[parseInt(month) - 1].toUpperCase()
+  const sy = `${year}-${parseInt(year) + 1}`
+
+  const rows = students.map(s => {
+    const dayStatus = {}
+    const reasons = []
+    let nls = false
+    for (const r of records) {
+      const recEntries = entriesByRecord[r.id] || []
+      const match = recEntries.find(e => e.student_id === s.id)
+      if (match) {
+        dayStatus[r.date] = getAttendanceStatus(match)
+        if (match.reason) reasons.push({ date: r.date, text: match.reason })
+        if (match.nls) nls = true
+      }
+    }
+    const absentCount = Object.values(dayStatus).reduce((sum, v) => {
+      if (v === 'x') return sum + 1
+      if (v === 'hd' || v === 'th') return sum + 0.5
+      return sum
+    }, 0)
+    const presentCount = totalSchoolDays - absentCount
+    const remark = nls ? 'NLS' : reasons.map(r => `${r.date}: ${r.text}`).join('; ')
+    return { name: s.name, dayStatus, absentCount, presentCount, remark }
+  })
+
+  try {
+    const xlsxMod = await import('xlsx')
+    const XLSX = xlsxMod.default || xlsxMod
+    const wb = XLSX.utils.book_new()
+
+    const maxCol = 1 + 1 + dates.length + 2 + 1 // No + NAME + dates + ABSENT+PRESENT + REMARKS
+
+    // Build sheet rows
+    const wsData = []
+
+    // Row 0: Title (merged across all columns)
+    const r0 = Array(maxCol).fill(null)
+    r0[0] = 'School Form 2 (SF2) Daily Attendance Report of Learners'
+    wsData.push(r0)
+
+    // Row 1: Subtitle (merged across all columns)
+    const r1 = Array(maxCol).fill(null)
+    r1[0] = '(This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)'
+    wsData.push(r1)
+
+    // Row 2: School ID, School Year, Month
+    const r2 = Array(maxCol).fill(null)
+    r2[0] = 'School ID:'
+    r2[1] = '406219'
+    r2[3] = 'School Year:'
+    r2[4] = sy
+    r2[6] = 'Month:'
+    r2[7] = monthName
+    wsData.push(r2)
+
+    // Row 3: Name of School, Grade Level, Section
+    const r3 = Array(maxCol).fill(null)
+    r3[0] = 'Name of School:'
+    r3[1] = 'BAGUIO PATRIOTIC HIGH SCHOOL'
+    r3[4] = 'Grade Level:'
+    r3[5] = grade.replace('Grade ', '')
+    r3[7] = 'Section:'
+    r3[8] = section
+    wsData.push(r3)
+
+    // Row 4: Table header row 1 - No. | NAME | [dates] | Total for the Month (merged) | REMARKS (maybe merged)
+    const colNo = 0
+    const colName = 1
+    const colFirstDate = 2
+    const colLastDate = colFirstDate + dates.length - 1
+    const colTotal = colLastDate + 1
+    const colAbsent = colTotal
+    const colPresent = colTotal + 1
+    const colRemarks = colTotal + 2
+
+    const r4 = Array(maxCol).fill(null)
+    r4[colNo] = 'No.'
+    r4[colName] = 'NAME (Last Name, First Name, Middle Name)'
+    for (let i = 0; i < dates.length; i++) {
+      r4[colFirstDate + i] = dates[i].day
+    }
+    r4[colTotal] = 'Total for the Month'
+    r4[colRemarks] = 'REMARKS (If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)'
+    wsData.push(r4)
+
+    // Row 5: Table header row 2 - (blank) | (blank) | [day abbr] | ABSENT | PRESENT | (blank)
+    const r5 = Array(maxCol).fill(null)
+    for (let i = 0; i < dates.length; i++) {
+      r5[colFirstDate + i] = dates[i].dayName
+    }
+    r5[colAbsent] = 'ABSENT'
+    r5[colPresent] = 'PRESENT'
+    wsData.push(r5)
+
+    // Student data rows
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]
+      const row = Array(maxCol).fill(null)
+      row[colNo] = `${i + 1}.`
+      row[colName] = r.name
+      for (let j = 0; j < dates.length; j++) {
+        const status = r.dayStatus[dates[j].date] || ''
+        row[colFirstDate + j] = status === 'x' ? 'x' : ''
+      }
+      const ac = r.absentCount % 1 === 0 ? r.absentCount : r.absentCount.toFixed(1)
+      const pc = r.presentCount % 1 === 0 ? r.presentCount : r.presentCount.toFixed(1)
+      row[colAbsent] = ac
+      row[colPresent] = pc
+      row[colRemarks] = r.remark
+      wsData.push(row)
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // Merged cells
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: maxCol - 1 } },   // Title
+      { s: { r: 1, c: 0 }, e: { r: 1, c: maxCol - 1 } },   // Subtitle
+      { s: { r: 4, c: colTotal }, e: { r: 4, c: colPresent } },  // Total for the Month spanning ABSENT+PRESENT
+    ]
+
+    // Column widths
+    const cols = Array(maxCol).fill(null)
+    cols[colNo] = { wch: 5 }
+    cols[colName] = { wch: 42 }
+    for (let i = colFirstDate; i <= colLastDate; i++) cols[i] = { wch: 5 }
+    cols[colAbsent] = { wch: 8 }
+    cols[colPresent] = { wch: 8 }
+    cols[colRemarks] = { wch: 35 }
+    ws['!cols'] = cols
+
+    // Cell styling - bold headers
+    for (let c = 0; c < maxCol; c++) {
+      if (wsData[4][c] !== null && wsData[4][c] !== '') {
+        const addr = XLSX.utils.encode_cell({ r: 4, c })
+        if (!ws[addr]) ws[addr] = {}
+        ws[addr].s = { font: { bold: true } }
+      }
+    }
+    // Bold ABSENT, PRESENT
+    ;[colAbsent, colPresent].forEach(c => {
+      const addr = XLSX.utils.encode_cell({ r: 5, c })
+      if (!ws[addr]) ws[addr] = {}
+      ws[addr].s = { font: { bold: true } }
+    })
+
+    XLSX.utils.book_append_sheet(wb, ws, 'SF2')
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    const fname = `SF2_${grade.replace(' ', '_')}_${section}_${monthName}_${year}.xlsx`
+    res.setHeader('Content-Disposition', `attachment; filename="${fname}"`)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.send(buf)
+  } catch (err) {
+    console.error('Excel export error:', err)
+    res.status(500).json({ error: 'Failed to generate Excel file' })
+  }
 })
 
 router.get('/:id', (req, res) => {

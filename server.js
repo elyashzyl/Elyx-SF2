@@ -19,6 +19,17 @@ app.use(cors())
 app.use(express.json())
 
 app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  const _writeHead = res.writeHead
+  res.writeHead = function (...args) {
+    if (this.getHeader('Expires')) this.removeHeader('Expires')
+    if (this.getHeader('X-Frame-Options')) this.removeHeader('X-Frame-Options')
+    return _writeHead.apply(this, args)
+  }
+  next()
+})
+
+app.use((req, res, next) => {
   if (req.path === '/api/health') return next()
   if (!dbReady) {
     return res.status(503).json({ error: 'Server is starting up, please wait' })

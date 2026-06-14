@@ -76,65 +76,55 @@
       </div>
 
       <div v-if="monthlyData" class="monthly-report">
-        <div class="monthly-header">
-          <h2>MONTHLY ATTENDANCE REPORT</h2>
-          <p>{{ monthlyData.grade }} - {{ monthlyData.section }} &middot; {{ monthNames[monthlyForm.month-1] }} {{ monthlyForm.year }}</p>
-        </div>
-        <div class="monthly-legend">
-          <span><strong>1</strong> - Present</span>
-          <span><strong>2</strong> - Late</span>
-          <span><strong>3</strong> - Unexcused</span>
-          <span><strong>4</strong> - Excused</span>
-          <span><strong>5</strong> - NLS (No Longer Studied)</span>
+        <div class="sf2-header">
+          <h2>School Form 2 (SF2) Daily Attendance Report of Learners</h2>
+          <p class="sf2-sub">(This replaces Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
+          <div class="sf2-info">
+            <span><strong>School ID:</strong> 406219</span>
+            <span><strong>School Year:</strong> {{ schoolYear(monthlyForm.year) }}</span>
+            <span><strong>Month:</strong> {{ monthNames[monthlyForm.month-1].toUpperCase() }}</span>
+          </div>
+          <div class="sf2-info">
+            <span><strong>Name of School:</strong> BAGUIO PATRIOTIC HIGH SCHOOL</span>
+            <span><strong>Grade Level:</strong> {{ gradeNum(monthlyData.grade) }}</span>
+            <span><strong>Section:</strong> {{ monthlyData.section }}</span>
+          </div>
         </div>
         <div class="table-wrapper">
           <table class="monthly-table">
             <thead>
               <tr>
                 <th rowspan="2">No.</th>
-                <th rowspan="2">NAME (Last Name, First Name, Middle Name)</th>
-                <th v-for="d in monthlyData.dates" :key="d.date" :colspan="1">{{ d.day }}</th>
-                <th rowspan="2">Total for the Month</th>
-                <th rowspan="2">REMARKS</th>
+                <th rowspan="2">NAME<br/>(Last Name, First Name, Middle Name)</th>
+                <th v-for="d in monthlyData.dates" :key="d.date">{{ d.day }}</th>
+                <th colspan="2">Total for the Month</th>
+                <th rowspan="2">REMARKS<br/>(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</th>
               </tr>
               <tr>
                 <th v-for="d in monthlyData.dates" :key="'d-'+d.date">{{ d.dayName }}</th>
+                <th>ABSENT</th>
+                <th>PRESENT</th>
               </tr>
             </thead>
             <tbody>
-              <template v-for="group in monthlyGrouped" :key="group.label">
-                <tr class="gender-sep-row"><td :colspan="monthlyColspan">{{ group.label }}</td></tr>
-                <tr v-for="(row, ri) in group.rows" :key="row.studentId">
-                  <td>{{ ri + 1 }}</td>
-                  <td class="name-cell">{{ row.name }}</td>
-                  <td v-for="d in monthlyData.dates" :key="d.date" class="status-cell">
-                    {{ row.dayStatus[d.date] || '' }}
-                  </td>
-                  <td class="total-cell">{{ row.totalPresent }}</td>
-                  <td class="remark-cell">{{ row.remark }}</td>
-                </tr>
-                <tr class="total-row">
-                  <td :colspan="2">Total Present ({{ group.label }})</td>
-                  <td v-for="d in monthlyData.dates" :key="'t-'+d.date" class="status-cell">
-                    {{ groupTotals(group.rows, d.date) }}
-                  </td>
-                  <td class="total-cell">{{ groupTotalPresent(group.rows) }}</td>
-                  <td></td>
-                </tr>
-              </template>
-              <tr class="total-row grand-total">
-                <td :colspan="2">Total Present (Overall)</td>
-                <td v-for="d in monthlyData.dates" :key="'gt-'+d.date" class="status-cell">
-                  {{ groupTotals(monthlyData.rows, d.date) }}
+              <tr v-for="(row, ri) in monthlyData.rows" :key="row.studentId">
+                <td>{{ ri + 1 }}.</td>
+                <td class="name-cell">{{ row.name }}</td>
+                <td v-for="d in monthlyData.dates" :key="d.date" class="status-cell">
+                  <span v-if="row.dayStatus[d.date] === 'x'" class="absent-mark">x</span>
+                  <span v-if="row.dayStatus[d.date] === 'hd' || row.dayStatus[d.date] === 'th'" class="hd-mark"></span>
+                  <span v-if="row.dayStatus[d.date] === 't' || row.dayStatus[d.date] === 'th'" class="tardy-mark"></span>
                 </td>
-                <td class="total-cell">{{ groupTotalPresent(monthlyData.rows) }}</td>
-                <td></td>
+                <td class="absent-cell">{{ formatNum(row.absentCount) }}</td>
+                <td class="present-cell">{{ formatNum(row.presentCount) }}</td>
+                <td class="remark-cell">{{ row.remark }}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="sheet-actions">
-          <button @click="printMonthly" class="btn-primary">Print</button>
+          <button @click="exportMonthlyExcel" class="btn-primary">Export Excel</button>
+          <button @click="printMonthly" class="btn-secondary">Print</button>
         </div>
       </div>
 
@@ -407,31 +397,17 @@ const yearRange = computed(() => {
 })
 const monthlySections = computed(() => sectionsByGrade[monthlyForm.grade] || [])
 
-const monthlyColspan = computed(() => {
-  if (!monthlyData.value) return 4
-  return 2 + monthlyData.value.dates.length + 2
-})
 
-const monthlyGrouped = computed(() => {
-  if (!monthlyData.value) return []
-  const rows = monthlyData.value.rows
-  const boys = rows.filter(r => r.gender === 'Male')
-  const girls = rows.filter(r => r.gender === 'Female')
-  const unknown = rows.filter(r => r.gender !== 'Male' && r.gender !== 'Female')
-  const groups = []
-  if (boys.length) groups.push({ label: 'BOYS', rows: boys })
-  if (girls.length) groups.push({ label: 'GIRLS', rows: girls })
-  if (unknown.length) groups.push({ label: 'OTHER', rows: unknown })
-  return groups
-})
 
-function groupTotals(rows, date) {
-  const present = rows.filter(r => (r.dayStatus[date] || 0) === 1).length
-  return present || ''
+function schoolYear(year) {
+  const y = parseInt(year)
+  return `${y}-${y + 1}`
 }
 
-function groupTotalPresent(rows) {
-  return rows.reduce((sum, r) => sum + (r.totalPresent || 0), 0)
+function formatNum(n) {
+  if (n === 0 || n === '0') return '0'
+  if (n % 1 === 0) return n.toString()
+  return n.toFixed(1)
 }
 
 async function generateMonthly() {
@@ -444,6 +420,31 @@ async function generateMonthly() {
     monthlyForm.year
   )
   monthlyLoading.value = false
+}
+
+async function exportMonthlyExcel() {
+  if (!monthlyData.value) return
+  try {
+    const params = new URLSearchParams({
+      grade: monthlyForm.grade,
+      section: monthlyForm.section,
+      month: monthlyForm.month,
+      year: monthlyForm.year
+    }).toString()
+    const res = await fetch(`/api/attendance/monthly/excel?${params}`)
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `SF2_${monthlyForm.grade}_${monthlyForm.section}_${monthNames[monthlyForm.month-1]}_${monthlyForm.year}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    addToast('Failed to export Excel', 'error')
+  }
 }
 
 function printMonthly() {
