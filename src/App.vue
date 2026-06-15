@@ -23,15 +23,19 @@
           <router-link v-if="auth.isAdmin" to="/admin">Dashboard</router-link>
           <router-link v-if="auth.isTeacher" to="/teacher">Dashboard</router-link>
           <router-link to="/attendance">Attendance</router-link>
+          <router-link to="/monthly">Monthly</router-link>
           <router-link to="/schedule">Schedule</router-link>
           <router-link v-if="auth.isAdmin" to="/users">Users</router-link>
           <router-link v-if="auth.isAdmin" to="/students">Students</router-link>
         </div>
       </aside>
-      <main>
+      <main class="main-with-sidebar">
         <router-view />
       </main>
     </div>
+    <main v-else class="main-full">
+      <router-view />
+    </main>
 
     <div v-if="showNotifications" class="notif-panel">
       <div class="notif-header">Notifications</div>

@@ -249,7 +249,8 @@ body {
 }
 
 /* ---- MAIN ---- */
-.app-body main {
+.app-body main,
+.main-full {
   flex: 1;
   padding: 20px 24px;
   position: relative; z-index: 1;
@@ -1095,14 +1096,7 @@ body {
   accent-color: var(--primary);
 }
 
-.hd-cell {
-  font-weight: 800;
-  font-size: .6rem;
-}
 
-.hd-cell:not(:empty) {
-  color: var(--red);
-}
 
 .gender-sep-row td {
   background: var(--bg-alt) !important;
@@ -1157,6 +1151,29 @@ body {
   display: flex;
   gap: 10px;
   margin-top: 20px;
+  flex-wrap: wrap;
+}
+.export-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+}
+.sheet-select {
+  padding: 8px 12px;
+  border: 1.5px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  font-family: inherit;
+  font-size: .85rem;
+  color: var(--text);
+  cursor: pointer;
+  min-width: 160px;
+}
+.sheet-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-bg);
 }
 
 .saved-records {
@@ -1575,11 +1592,6 @@ body {
   accent-color: var(--primary);
 }
 
-.hd-cell {
-  font-weight: 800;
-  font-size: .6rem;
-}
-
 .gender-sep-row td {
   background: var(--bg-alt) !important;
   font-weight: 800;
@@ -1591,9 +1603,6 @@ body {
   text-align: left;
 }
 
-.hd-cell:not(:empty) {
-  color: var(--red);
-}
 
 /* ---- LEGENDS ---- */
 .legends {
@@ -2538,4 +2547,125 @@ body {
     background: white;
     color: black;
   }
+}
+
+/* ---- MONTHLY ATTENDANCE ---- */
+.name-col {
+  text-align: left;
+  min-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  font-size: 0.78rem;
+}
+
+.weekend {
+  background: rgba(0,0,0,.03) !important;
+  opacity: .4;
+}
+
+.day-cell {
+  padding: 3px 2px;
+  min-width: 28px;
+}
+
+.day-select {
+  width: 100%;
+  border: 1.5px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  font-family: inherit;
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  padding: 2px 0;
+  color: var(--text);
+  transition: all .2s;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  line-height: 1;
+}
+.day-select::-ms-expand { display: none; }
+
+.day-select:hover {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+}
+
+.day-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+.day-select option[value="E"] { color: var(--green); }
+.day-select option[value="A"] { color: var(--red); }
+.day-select option[value="◤"] { color: var(--yellow); }
+.day-select option[value="◢"] { color: var(--orange); }
+/* Backward compat for old data */
+.day-select option[value="T"] { color: var(--yellow); }
+.day-select option[value="H"] { color: var(--orange); }
+
+.total-cell {
+  font-weight: 700;
+  font-size: .82rem;
+}
+
+.total-cell.present { color: var(--green); }
+.total-cell.absent { color: var(--red); }
+
+.remarks-input {
+  width: 100%;
+  min-width: 140px;
+  border: 1.5px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  font-size: .7rem;
+  font-family: inherit;
+  padding: 4px 6px;
+  color: var(--text);
+  transition: all .2s;
+}
+
+.remarks-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+.legend-note {
+  margin-top: 8px;
+  font-size: .75rem;
+  color: var(--text-sub);
+  font-style: italic;
+}
+
+.monthly-table th {
+  font-size: .6rem;
+}
+
+.summary-row td {
+  border-top: 2px solid var(--text);
+  font-weight: 700;
+  background: var(--bg-sub) !important;
+}
+
+.summary-row.combined td {
+  border-top: 3px double var(--text);
+}
+
+.summary-label {
+  text-align: left !important;
+  padding-left: 10px !important;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.day-total {
+  font-weight: 700;
+  font-size: .78rem;
 }

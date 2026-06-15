@@ -199,7 +199,6 @@
               <th rowspan="2">Reason for Absence / Tardiness</th>
               <th rowspan="2">Excused</th>
               <th rowspan="2">Unexcused</th>
-              <th rowspan="2">HD</th>
             </tr>
             <tr>
               <th v-for="pk in visibleAmPeriods" :key="pk">{{ pk.replace('am', '') }}</th>
@@ -251,7 +250,6 @@
                   <td><input v-model="item.reason" @change="saveEntry(item)" class="reason-input" /></td>
                   <td class="check-cell"><input type="checkbox" v-model="item.excused" @change="saveEntry(item)" /></td>
                   <td class="check-cell"><input type="checkbox" v-model="item.unexcused" @change="saveEntry(item)" /></td>
-                  <td class="hd-cell">{{ isHalfDay(item) ? '✓' : '' }}</td>
                 </tr>
               </template>
             </template>
@@ -270,7 +268,6 @@
           <span><strong>E/T</strong> - Entered but Tardy</span>
           <span><strong>A/S</strong> - Suspended</span>
           <span><strong>NIPHC</strong> - Not in Proper Hair Cut</span>
-          <span><strong>HD</strong> - Half Day (2+ absent in AM)</span>
         </div>
         <div class="nipu-subtypes">
           <p><strong>NIPU Subtypes:</strong></p>
@@ -626,12 +623,6 @@ async function saveEntry(entry) {
   await store.updateEntry(record.value.id, entry.studentId, 'unexcused', entry.unexcused, auth.user?.id, auth.user?.role)
 }
 
-function isHalfDay(entry) {
-  const amValues = visibleAmPeriods.value.map(pk => entry.periods[pk] || '')
-  const absentCount = amValues.filter(v => v === 'A').length
-  const enteredCount = amValues.filter(v => v === 'E').length
-  return absentCount >= 2 && enteredCount >= 1
-}
 
 function printSheet() {
   window.print()

@@ -39,6 +39,12 @@ const routes = [
     name: 'Schedule',
     component: () => import('../views/Schedule.vue'),
     meta: { role: ['admin', 'teacher'] }
+  },
+  {
+    path: '/monthly',
+    name: 'MonthlyAttendance',
+    component: () => import('../views/MonthlyAttendance.vue'),
+    meta: { role: ['admin', 'teacher'] }
   }
 ]
 

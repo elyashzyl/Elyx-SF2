@@ -149,6 +149,35 @@ export async function initDatabase() {
 
   try { db.run("ALTER TABLE attendance_entries ADD COLUMN nls INTEGER DEFAULT 0") } catch {}
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS monthly_records (
+      id TEXT PRIMARY KEY,
+      month INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      grade TEXT NOT NULL,
+      section TEXT NOT NULL,
+      adviser TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      created_by_name TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS monthly_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      student_name TEXT NOT NULL,
+      days TEXT DEFAULT '{}',
+      present INTEGER DEFAULT 0,
+      absent INTEGER DEFAULT 0,
+      tardy INTEGER DEFAULT 0,
+      remarks TEXT DEFAULT '',
+      FOREIGN KEY (record_id) REFERENCES monthly_records(id)
+    )
+  `)
+
   const row = db.exec("SELECT COUNT(*) as cnt FROM users")
   const count = row[0]?.values[0][0] || 0
   if (count === 0) {

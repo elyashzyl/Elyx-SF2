@@ -186,16 +186,40 @@ export const useAttendanceStore = defineStore('attendance', () => {
   async function fetchMonthly(grade, section, month, year) {
     try {
       const params = new URLSearchParams({ grade, section, month, year }).toString()
-      return await fetchJson(`${API}/attendance/monthly?${params}`)
+      return await fetchJson(`${API}/monthly?${params}`)
     } catch {
       return null
     }
+  }
+
+  async function saveMonthly(data, user) {
+    return await fetchJson(`${API}/monthly`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, created_by: user?.id || '', created_by_name: user?.name || '' })
+    })
+  }
+
+  async function updateMonthlyEntry(recordId, studentId, day, status, userId, userRole) {
+    return await fetchJson(`${API}/monthly/${recordId}/entry`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId, day, status, userId, userRole })
+    })
+  }
+
+  async function updateMonthlyRemarks(recordId, studentId, remarks) {
+    return await fetchJson(`${API}/monthly/${recordId}/remarks`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId, remarks })
+    })
   }
 
   return {
     getStudents, addStudent, addStudents, updateStudent, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
     updateEntry, unlockRecord, getAllRecords, deleteRecord,
-    fetchMonthly
+    fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlyRemarks
   }
 })

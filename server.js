@@ -9,6 +9,8 @@ import scheduleRoutes from './routes/schedules.js'
 import settingsRoutes from './routes/settings.js'
 import eventRoutes from './routes/events.js'
 import dashboardRoutes from './routes/dashboard.js'
+import monthlyRoutes from './routes/monthly.js'
+import exportRoutes from './routes/export.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -45,6 +47,8 @@ app.use('/api/schedules', scheduleRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/monthly', monthlyRoutes)
+app.use('/api/export', exportRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: dbReady ? 'ok' : 'starting' })
