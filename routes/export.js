@@ -1,5 +1,5 @@
 import express from 'express'
-import XLSX from 'xlsx'
+import XLSX from 'xlsx-js-style'
 import path from 'path'
 import fs from 'fs'
 
@@ -28,103 +28,170 @@ router.post('/sheets', (req, res) => {
 
 router.post('/sf2', (req, res) => {
   try {
-    const { sheetName, entries, month, year, grade, section, templatePath } = req.body
+    const { sheetName, entries, month, year, grade, section, templatePath, summary_data, excluded_dates } = req.body
     if (!sheetName) return res.status(400).json({ error: 'sheetName is required' })
     if (!entries || !entries.length) return res.status(400).json({ error: 'No entries provided' })
 
     const tp = resolveTemplate(templatePath)
     if (!tp) return res.status(400).json({ error: 'Template file not found' })
 
-    const wb = XLSX.readFile(tp)
+    const wb = XLSX.readFile(tp, { cellStyles: true })
     const sheetIndex = wb.SheetNames.indexOf(sheetName)
     if (sheetIndex === -1) return res.status(400).json({ error: `Sheet "${sheetName}" not found in template` })
 
     const ws = wb.Sheets[wb.SheetNames[sheetIndex]]
     if (!ws['!ref']) return res.status(400).json({ error: 'Sheet is empty' })
 
-    // Template layout:
-    //   Row 2: School Year (K10), Month (U20)
-    //   Row 3: Grade (U20), Section (AD29)
-    //   Row 5: Date numbers in cols E-T (4-19)
-    //   Row 7-23: Male student rows
-    //   Row 25: MALE TOTAL row
-    //   Row 26-27: date/day headers repeated
-    //   Row 28-46: Female student rows
-    //   Row 48: FEMALE TOTAL row
-    //   Row 49: Combined TOTAL row
-    //   Row 50+: Guidelines
-    const MALE_START = 7
-    const MALE_END = 23
-    const FEMALE_START = 28
-    const FEMALE_END = 46
-    const MALE_TOTAL_ROW = 25
-    const FEMALE_TOTAL_ROW = 48
-    const COMBINED_TOTAL_ROW = 49
+    // Preserve the summary/footer section (r:50+) from the template
+    const preservedCells = {}
+    const preservedMerges = (ws['!merges'] || []).filter(m => m.s.r >= 50)
+    for (const key of Object.keys(ws)) {
+      if (key === '!ref' || key === '!merges' || key === '!cols' || key === '!rows' || key === '!autofilter') continue
+      const cell = ws[key]
+      // Parse cell reference to get row
+      const match = key.match(/^([A-Z]+)(\d+)$/)
+      if (match) {
+        const row = parseInt(match[2], 10) - 1  // Convert Excel row to 0-indexed
+        if (row >= 50) preservedCells[key] = JSON.parse(JSON.stringify(cell))
+      }
+    }
 
-    const NAME_COL = 2
-    const NUM_COL = 0
-    const ABSENT_COL = 29
-    const PRESENT_COL = 31
-    const REMARKS_COL = 33
+    // Build a fresh worksheet for rows 0-49
+    const newWs = {}
+    newWs['!merges'] = JSON.parse(JSON.stringify(preservedMerges))
+    const THIN_BORDER = {
+      top: { style: 'thin', color: { rgb: 'FF000000' } },
+      bottom: { style: 'thin', color: { rgb: 'FF000000' } },
+      left: { style: 'thin', color: { rgb: 'FF000000' } },
+      right: { style: 'thin', color: { rgb: 'FF000000' } }
+    }
 
-    // ── Update metadata headers ──
-    // School Year (K10): compute from year + month
-    const syNum = (month >= 7) ? year : year - 1
+    const VALUE_STYLE = {
+      font: { name: 'Calibri', sz: 11, bold: true },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: THIN_BORDER
+    }
+    const LABEL_STYLE = {
+      font: { name: 'Calibri', sz: 11 },
+      alignment: { horizontal: 'right', vertical: 'center' },
+      border: THIN_BORDER,
+      fill: { fgColor: { rgb: 'D9D9D9' }, patternType: 'solid' }
+    }
+    const PLAIN_LABEL_STYLE = {
+      font: { name: 'Calibri', sz: 11 },
+      alignment: { horizontal: 'right', vertical: 'center' }
+    }
+    const TITLE_STYLE = {
+      font: { name: 'Calibri', sz: 12, bold: true },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {}
+    }
+    const SUBTITLE_STYLE = {
+      font: { name: 'Calibri', sz: 9, italic: true },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {}
+    }
+    function applyStyle(newWs, r, c, style) {
+      const addr = XLSX.utils.encode_cell({ r, c })
+      if (!newWs[addr]) newWs[addr] = { t: 's', v: '' }
+      newWs[addr].s = style
+    }
+    function setVal(newWs, r, c, type, value) {
+      const addr = XLSX.utils.encode_cell({ r, c })
+      if (newWs[addr]) { newWs[addr].v = value; newWs[addr].t = type; delete newWs[addr].f }
+      else newWs[addr] = { t: type, v: value }
+    }
+    function delCell(newWs, r, c) {
+      const addr = XLSX.utils.encode_cell({ r, c })
+      if (newWs[addr]) { newWs[addr].v = ''; newWs[addr].t = 's'; delete newWs[addr].f }
+    }
+
+    function addMerge(newWs, r1, c1, r2, c2) {
+      if (!newWs['!merges']) newWs['!merges'] = []
+      newWs['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } })
+    }
+
+    // ── Row 1 (r:0): Title ──
+    addMerge(newWs, 0, 0, 0, 37)
+    setVal(newWs, 0, 0, 's', 'School Form 2 (SF2) Daily Attendance Report of Learners')
+    applyStyle(newWs, 0, 0, TITLE_STYLE)
+
+    // ── Row 2 (r:1): Subtitle ──
+    addMerge(newWs, 1, 0, 1, 37)
+    setVal(newWs, 1, 0, 's', '(This replaces Form 1, Form 2 & STS Form 4: Absenteeism and Dropout Profile)')
+    applyStyle(newWs, 1, 0, SUBTITLE_STYLE)
+
+    // ── Row 3 (r:2): Empty gap ──
+
+    // ── Bordered information table (Rows 4-6 = r:3-r:5) ──
+
+    // School Year, Month values
+    const syNum = parseInt(year, 10) || 0
     const schoolYear = `${syNum}-${syNum + 1}`
-    ws[XLSX.utils.encode_cell({ r: 2, c: 10 })] = { t: 's', v: schoolYear }
+    const monthNames = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER']
+    const monthName = monthNames[month - 1]
+    const gradeNum = grade ? (parseInt(grade.replace(/\D/g, ''), 10) || 0) : ''
+    const sectionVal = section ? section.toUpperCase() : ''
 
-    // Month name (U20)
-    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
-    ws[XLSX.utils.encode_cell({ r: 2, c: 20 })] = { t: 's', v: monthNames[month - 1] }
+    // Row 4 (r:3): First Info Row
+    // School ID(A-D) (E-g) | School Year(h-j) (k-o) | Month(p-s) (u-z)
+    addMerge(newWs, 3, 0, 3, 3);  setVal(newWs, 3, 0, 's', 'School ID');  applyStyle(newWs, 3, 0, PLAIN_LABEL_STYLE)
+    addMerge(newWs, 3, 4, 3, 6);  setVal(newWs, 3, 4, 's', '406219');  applyStyle(newWs, 3, 4, VALUE_STYLE)
+    addMerge(newWs, 3, 7, 3, 9);  setVal(newWs, 3, 7, 's', 'School Year');  applyStyle(newWs, 3, 7, PLAIN_LABEL_STYLE)
+    addMerge(newWs, 3, 10, 3, 14); setVal(newWs, 3, 10, 's', schoolYear);  applyStyle(newWs, 3, 10, VALUE_STYLE)
+    addMerge(newWs, 3, 15, 3, 18); setVal(newWs, 3, 15, 's', 'Month');  applyStyle(newWs, 3, 15, PLAIN_LABEL_STYLE)
+    addMerge(newWs, 3, 20, 3, 25); setVal(newWs, 3, 20, 's', monthName);  applyStyle(newWs, 3, 20, VALUE_STYLE)
 
-    // Grade (U20 on row 3) - extract number from "Grade 9"
-    if (grade) {
-      const gradeNum = parseInt(grade.replace(/\D/g, ''), 10) || 0
-      ws[XLSX.utils.encode_cell({ r: 3, c: 20 })] = { t: 'n', v: gradeNum }
-    }
+    // Row 5 (r:4): Second Info Row
+    // School Name(a-d)(e-o) | Grade Level(p-t)(u-z) | Section(aa-ac)(ad-ak)
+    addMerge(newWs, 4, 0, 4, 3);  setVal(newWs, 4, 0, 's', 'Name of School');  applyStyle(newWs, 4, 0, PLAIN_LABEL_STYLE)
+    addMerge(newWs, 4, 4, 4, 14); setVal(newWs, 4, 4, 's', 'Baguio Patriotic High School');  applyStyle(newWs, 4, 4, VALUE_STYLE)
+    addMerge(newWs, 4, 15, 4, 19); setVal(newWs, 4, 15, 's', 'Grade Level');  applyStyle(newWs, 4, 15, PLAIN_LABEL_STYLE)
+    addMerge(newWs, 4, 20, 4, 25); setVal(newWs, 4, 20, 's', gradeNum !== '' ? String(gradeNum) : '');  applyStyle(newWs, 4, 20, VALUE_STYLE)
+    addMerge(newWs, 4, 26, 4, 28); setVal(newWs, 4, 26, 's', 'Section');  applyStyle(newWs, 4, 26, PLAIN_LABEL_STYLE)
+    addMerge(newWs, 4, 29, 4, 36); setVal(newWs, 4, 29, 's', sectionVal);  applyStyle(newWs, 4, 29, VALUE_STYLE)
 
-    // Section (AD29 on row 3)
-    if (section) {
-      ws[XLSX.utils.encode_cell({ r: 3, c: 29 })] = { t: 's', v: section.toUpperCase() }
-    }
+    // ── Column headers at Row 7 (r:6) ──
+    // "No." (c0-c1), "NAME" (c2-c3), "Total for the" (c29-c32), "REMARKS" (c33-c37)
+    // "ABSENT" (c29) and "PRESENT" (c31) labels below on date rows
+    const COL_HEADER_ROW = 6
+    // No. and NAME merge vertically to match date rows height
+    addMerge(newWs, COL_HEADER_ROW, 0, COL_HEADER_ROW + 2, 1)
+    setVal(newWs, COL_HEADER_ROW, 0, 's', 'No.')
+    addMerge(newWs, COL_HEADER_ROW, 2, COL_HEADER_ROW + 2, 3)
+    setVal(newWs, COL_HEADER_ROW, 2, 's', 'NAME\n(Last Name, First Name, Middle Name)')
 
-    // ── Helpers to preserve existing cell formatting ──
-    function setCell(ws, r, c, type, value) {
-      const addr = XLSX.utils.encode_cell({ r, c })
-      if (ws[addr]) { ws[addr].v = value; ws[addr].t = type; delete ws[addr].f }
-      else ws[addr] = { t: type, v: value }
-    }
-    function delCell(ws, r, c) {
-      const addr = XLSX.utils.encode_cell({ r, c })
-      if (ws[addr]) { ws[addr].v = ''; ws[addr].t = 's'; delete ws[addr].f }
-    }
+    // Total for the at r:6, c29-c32
+    addMerge(newWs, COL_HEADER_ROW, 29, COL_HEADER_ROW, 32)
+    setVal(newWs, COL_HEADER_ROW, 29, 's', 'Total for the')
 
-    // ── Remove merged cells in the student/total area (prevent template merge interference) ──
-    if (ws['!merges']) {
-      ws['!merges'] = ws['!merges'].filter(m => {
-        const s = m.s.r, e = m.e.r
-        // Keep merges in header rows (1-6) and footer (50+), strip everything in between
-        return (s >= 1 && e <= 6) || (s >= 50)
-      })
-    }
+    // REMARKS at r:6, c33-c37, merging down
+    addMerge(newWs, COL_HEADER_ROW, 33, COL_HEADER_ROW + 2, 37)
+    setVal(newWs, COL_HEADER_ROW, 33, 's', 'REMARKS\n(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)')
+
+    // ABSENT / PRESENT labels on the date rows
+    // r:7 (date numbers row) has Month | label and absent/present columns
+    // r:8 (day abbreviations row) has ABSENT/PRESENT labels
 
     // ── Update date columns to match the selected month ──
     const DATE_COL_START = 4
     const MAX_DATE_COLS = 22
     const DAY_ABBR = { 0: 'Sun', 1: 'M', 2: 'T', 3: 'W', 4: 'TH', 5: 'F', 6: 'Sat' }
 
-    function computeSchoolDays(mon, yr) {
+    function computeSchoolDays(mon, yr, excl) {
       const days = []
       const dim = new Date(yr, mon, 0).getDate()
+      const excluded = excl || []
       for (let d = 1; d <= dim; d++) {
         const dow = new Date(yr, mon - 1, d).getDay()
         if (dow === 0 || dow === 6) continue
+        if (excluded.includes(d)) continue
         days.push({ day: d, weekday: dow })
       }
       return days
     }
 
-    const schoolDays = computeSchoolDays(month, year)
+    const schoolDays = computeSchoolDays(month, year, excluded_dates)
     const dateColMap = {}
     const numDateCols = Math.min(schoolDays.length, MAX_DATE_COLS)
 
@@ -132,97 +199,83 @@ router.post('/sf2', (req, res) => {
     for (let ci = 0; ci < numDateCols; ci++)
       dateColMap[schoolDays[ci].day] = DATE_COL_START + ci
 
-    // Write male date headers (row 5-6) — always at the template position
+    // Date headers at r:7 (date numbers) and r:8 (day abbreviations)
+    const DATE_NUM_ROW = 7
+    const DATE_ABBR_ROW = 8
+
+    // Write month and class days count in date header row (r:7)
+    setVal(newWs, DATE_NUM_ROW, 29, 's', `Month  |`)
+    setVal(newWs, DATE_NUM_ROW, 32, 'n', numDateCols)
+
+    // Write ABSENT / PRESENT labels on day abbreviation row (r:8)
+    setVal(newWs, DATE_ABBR_ROW, 29, 's', 'ABSENT')
+    setVal(newWs, DATE_ABBR_ROW, 31, 's', 'PRESENT')
+
+    // Clear and write date headers (r:7-r:8)
     for (let ci = 0; ci < MAX_DATE_COLS; ci++) {
-      delCell(ws, 5, DATE_COL_START + ci)
-      delCell(ws, 6, DATE_COL_START + ci)
+      delCell(newWs, DATE_NUM_ROW, DATE_COL_START + ci)
+      delCell(newWs, DATE_ABBR_ROW, DATE_COL_START + ci)
     }
     for (let ci = 0; ci < numDateCols; ci++) {
       const sd = schoolDays[ci]
-      setCell(ws, 5, DATE_COL_START + ci, 'n', sd.day)
-      setCell(ws, 6, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
+      setVal(newWs, DATE_NUM_ROW, DATE_COL_START + ci, 'n', sd.day)
+      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
     }
 
-    // ── Count genders and compute dynamic section rows ──
+    // ── Count genders ──
     const maleEntriesAll = entries.filter(e => (e.gender || '').toLowerCase() !== 'female')
     const femaleEntriesAll = entries.filter(e => (e.gender || '').toLowerCase() === 'female')
     const maleCount = maleEntriesAll.length
     const femaleCount = femaleEntriesAll.length
 
-    const MALE_SECTION_START = 7
-    const maleSectionEnd = MALE_SECTION_START + maleCount - 1
-    const maleTotalRow = maleSectionEnd + 2
-    const femaleHeaderRow = maleTotalRow + 1
-    const femaleSectionStart = femaleHeaderRow + 2
-    const femaleSectionEnd = femaleSectionStart + femaleCount - 1
-    const femaleTotalRow = femaleSectionEnd + 2
-    const combinedTotalRow = femaleTotalRow + 1
+    const NAME_COL = 2
+    const NUM_COL = 0
+    const ABSENT_COL = 29
+    const PRESENT_COL = 31
+    const REMARKS_COL = 33
 
-    // ── Clear all old student/total data from the full area ──
+    // ── Clear all student/total area ──
     function clearRowData(r) {
-      setCell(ws, r, NAME_COL, 's', '')
-      setCell(ws, r, ABSENT_COL, 'n', 0)
-      setCell(ws, r, PRESENT_COL, 'n', 0)
-      setCell(ws, r, REMARKS_COL, 's', '')
-      delCell(ws, r, NUM_COL)
-      for (let c = DATE_COL_START; c < DATE_COL_START + MAX_DATE_COLS; c++)
-        delCell(ws, r, c)
-    }
-    const clearEnd = Math.max(55, combinedTotalRow + 5)
-    for (let r = 7; r <= clearEnd; r++) clearRowData(r)
-
-    // ── Write female date headers at computed position ──
-    for (let ci = 0; ci < MAX_DATE_COLS; ci++) {
-      delCell(ws, femaleHeaderRow, DATE_COL_START + ci)
-      delCell(ws, femaleHeaderRow + 1, DATE_COL_START + ci)
-    }
-    for (let ci = 0; ci < numDateCols; ci++) {
-      const sd = schoolDays[ci]
-      setCell(ws, femaleHeaderRow, DATE_COL_START + ci, 'n', sd.day)
-      setCell(ws, femaleHeaderRow + 1, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
-    }
-
-    // ── Write male students ──
-    let row = MALE_SECTION_START
-    for (let i = 0; i < maleCount; i++) {
-      const entry = maleEntriesAll[i]
-      setCell(ws, row, NUM_COL, 'n', i + 1)
-      setCell(ws, row, NAME_COL, 's', entry.name)
-      const days = entry.days || {}
-      for (const [dayStr, status] of Object.entries(days)) {
-        const dayNum = parseInt(dayStr, 10)
-        const col = dateColMap[dayNum]
-        if (col === undefined || !status) continue
-        setCell(ws, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
+      for (let c = 0; c <= 37; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        delete newWs[addr]
       }
-      setCell(ws, row, ABSENT_COL, 'n', entry.absent || 0)
-      setCell(ws, row, PRESENT_COL, 'n', numDateCols - (entry.absent || 0))
-      if (entry.remarks) setCell(ws, row, REMARKS_COL, 's', entry.remarks)
-      row++
     }
 
-    // ── Write female students ──
-    row = femaleSectionStart
-    for (let i = 0; i < femaleCount; i++) {
-      const entry = femaleEntriesAll[i]
-      setCell(ws, row, NUM_COL, 'n', i + 1)
-      setCell(ws, row, NAME_COL, 's', entry.name)
-      const days = entry.days || {}
-      for (const [dayStr, status] of Object.entries(days)) {
-        const dayNum = parseInt(dayStr, 10)
-        const col = dateColMap[dayNum]
-        if (col === undefined || !status) continue
-        setCell(ws, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
+    // Compute row positions matching MonthlyAttendance.vue layout:
+    //   BOYS label → male students → BOYS TOTAL → GIRLS label → female students → GIRLS TOTAL → COMBINED TOTAL
+    // Student data starts at row 9 (Excel Row 10) - after titles (2 rows), gap (1), info table (3 rows), column headers (1), dates (2)
+    let nextRow = 9
+    const boysLabelRow = nextRow++
+    const maleSectionStart = nextRow
+    nextRow += maleCount
+    const maleSectionEnd = nextRow - 1
+    const maleTotalRow = nextRow++
+    const girlsLabelRow = nextRow++
+    const femaleSectionStart = femaleCount > 0 ? nextRow : -1
+    nextRow += femaleCount
+    const femaleSectionEnd = femaleCount > 0 ? nextRow - 1 : -1
+    const femaleTotalRow = nextRow++
+    const combinedTotalRow = nextRow++
+
+    const clearEnd = Math.min(Math.max(combinedTotalRow + 5, 55), 49)
+    for (let r = 9; r <= clearEnd; r++) clearRowData(r)
+
+    // Reset !ref to prevent xlsx from writing empty cells from template range
+    newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(clearEnd, 70), c: 37 } })
+
+    // ── Helpers ──
+    function calcEntryPresent(entry) {
+      let p = 0
+      for (const [dayStr, s] of Object.entries(entry.days || {})) {
+        if (dateColMap[parseInt(dayStr, 10)] === undefined) continue
+        if (s === 'E') p++
+        else if (s === '◤' || s === '◢' || s === 'T' || s === 'H') p += 0.5
       }
-      setCell(ws, row, ABSENT_COL, 'n', entry.absent || 0)
-      setCell(ws, row, PRESENT_COL, 'n', numDateCols - (entry.absent || 0))
-      if (entry.remarks) setCell(ws, row, REMARKS_COL, 's', entry.remarks)
-      row++
+      return p
     }
-
-    // ── Write summary rows ──
     function sumAbsent(el) { return el.reduce((s, e) => s + (e.absent || 0), 0) }
-    function sumPresent(el) { return el.reduce((s, e) => s + (numDateCols - (e.absent || 0)), 0) }
+    function sumPresent(el) { return el.reduce((s, e) => s + calcEntryPresent(e), 0) }
     function daySum(el, dn) {
       let count = 0
       for (const e of el) {
@@ -233,42 +286,188 @@ router.post('/sf2', (req, res) => {
       return count
     }
     function writeSummaryRow(r, entriesList, label, count) {
-      setCell(ws, r, NAME_COL, 's', `<=== ${label} TOTAL Per Day ===>`)
-      setCell(ws, r, NUM_COL, 'n', count)
+      setVal(newWs, r, NAME_COL, 's', `<=== ${label} TOTAL Per Day ===>`)
+      setVal(newWs, r, NUM_COL, 'n', count)
       for (const [dayNum, col] of Object.entries(dateColMap))
-        setCell(ws, r, col, 'n', daySum(entriesList, parseInt(dayNum)))
-      setCell(ws, r, ABSENT_COL, 'n', sumAbsent(entriesList))
-      setCell(ws, r, PRESENT_COL, 'n', sumPresent(entriesList))
+        setVal(newWs, r, col, 'n', daySum(entriesList, parseInt(dayNum)))
+      setVal(newWs, r, ABSENT_COL, 'n', sumAbsent(entriesList))
+      setVal(newWs, r, PRESENT_COL, 'n', sumPresent(entriesList))
     }
 
+    // ── Write gender separator rows ──
+    setVal(newWs, boysLabelRow, NAME_COL, 's', 'BOYS')
+    if (femaleCount > 0) setVal(newWs, girlsLabelRow, NAME_COL, 's', 'GIRLS')
+
+    // ── Write male students ──
+    let row = maleSectionStart
+    for (let i = 0; i < maleCount; i++) {
+      const entry = maleEntriesAll[i]
+      setVal(newWs, row, NUM_COL, 'n', i + 1)
+      setVal(newWs, row, NAME_COL, 's', entry.name)
+      const days = entry.days || {}
+      for (const [dayStr, status] of Object.entries(days)) {
+        const dayNum = parseInt(dayStr, 10)
+        const col = dateColMap[dayNum]
+        if (col === undefined || !status) continue
+        setVal(newWs, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
+      }
+      setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
+      setVal(newWs, row, PRESENT_COL, 'n', calcEntryPresent(entry))
+      if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
+      row++
+    }
+
+    // ── Write BOYS TOTAL ──
     writeSummaryRow(maleTotalRow, maleEntriesAll, `MALE | ${maleCount}`, maleCount)
-    writeSummaryRow(femaleTotalRow, femaleEntriesAll, `FEMALE | ${femaleCount}`, femaleCount)
-    // Combined total uses different label format (no arrows)
-    setCell(ws, combinedTotalRow, NAME_COL, 's', `Combined TOTAL Per Day`)
-    setCell(ws, combinedTotalRow, NUM_COL, 'n', maleCount + femaleCount)
+
+    // ── Write female students (only if any exist) ──
+    if (femaleCount > 0) {
+      row = femaleSectionStart
+      for (let i = 0; i < femaleCount; i++) {
+        const entry = femaleEntriesAll[i]
+        setVal(newWs, row, NUM_COL, 'n', i + 1)
+        setVal(newWs, row, NAME_COL, 's', entry.name)
+        const days = entry.days || {}
+        for (const [dayStr, status] of Object.entries(days)) {
+          const dayNum = parseInt(dayStr, 10)
+          const col = dateColMap[dayNum]
+          if (col === undefined || !status) continue
+          setVal(newWs, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
+        }
+        setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
+        setVal(newWs, row, PRESENT_COL, 'n', calcEntryPresent(entry))
+        if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
+        row++
+      }
+      // ── Write GIRLS TOTAL ──
+      writeSummaryRow(femaleTotalRow, femaleEntriesAll, `FEMALE | ${femaleCount}`, femaleCount)
+    }
+
+    // ── Write COMBINED TOTAL ──
+    setVal(newWs, combinedTotalRow, NAME_COL, 's', `<=== COMBINED | ${numDateCols} TOTAL Per Day ===>`)
+    setVal(newWs, combinedTotalRow, NUM_COL, 'n', numDateCols)
     for (const [dayNum, col] of Object.entries(dateColMap))
-      setCell(ws, combinedTotalRow, col, 'n', daySum(entries, parseInt(dayNum)))
-    setCell(ws, combinedTotalRow, ABSENT_COL, 'n', sumAbsent(entries))
-    setCell(ws, combinedTotalRow, PRESENT_COL, 'n', sumPresent(entries))
+      setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, parseInt(dayNum)))
+    setVal(newWs, combinedTotalRow, ABSENT_COL, 'n', sumAbsent(entries))
+    setVal(newWs, combinedTotalRow, PRESENT_COL, 'n', sumPresent(entries))
 
-    setCell(ws, 5, 32, 'n', numDateCols)
+    // ── Use summary_data from request (or compute defaults) ──
+    const sd = summary_data || {}
+    const totalCount = maleCount + femaleCount
+    const mTotalPresent = sumPresent(maleEntriesAll)
+    const fTotalPresent = sumPresent(femaleEntriesAll)
+    const mADA = sd.ada_m != null ? sd.ada_m : (numDateCols > 0 ? Math.round((mTotalPresent / numDateCols) * 10) / 10 : 0)
+    const fADA = sd.ada_f != null ? sd.ada_f : (numDateCols > 0 ? Math.round((fTotalPresent / numDateCols) * 10) / 10 : 0)
+    const tADA = sd.ada_t != null ? sd.ada_t : (numDateCols > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols) * 10) / 10 : 0)
+    const mPct = sd.pct_m != null ? sd.pct_m : (maleCount > 0 ? Math.round((mTotalPresent / numDateCols / maleCount) * 100) : 0)
+    const fPct = sd.pct_f != null ? sd.pct_f : (femaleCount > 0 ? Math.round((fTotalPresent / numDateCols / femaleCount) * 100) : 0)
+    const tPct = sd.pct_t != null ? sd.pct_t : (totalCount > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols / totalCount) * 100) : 0)
 
-    // ── Set column widths to make date cells square ──
+    // ── Update summary section ──
+    const SUMMARY_COL_M = 34  // AI
+    const SUMMARY_COL_F = 35  // AJ
+    const SUMMARY_COL_T = 36  // AK
+
+    // "No. of Days of Classes: N" at row 51 (template AG51)
+    setVal(newWs, 50, 32, 's', `No. of Days of Classes: ${numDateCols}`)
+
+    // Row 53: Enrolment = total − late (initial count)
+    // Row 55: Late enrolment
+    // Row 59: Registered Learners = total students
+    // Row 61: % of Enrolment = Registered / Enrolment × 100
+    // Row 63: ADA = Total Present / School Days
+    // Row 64: % of Attendance = ADA / Registered × 100
+    // Row 65: Absent 5+
+    // Row 66: NLS
+    // Row 68: Transferred out
+    // Row 70: Transferred in
+    const lateM = sd.late_m != null ? sd.late_m : 0
+    const lateF = sd.late_f != null ? sd.late_f : 0
+    const initM = maleCount - lateM
+    const initF = femaleCount - lateF
+    const initT = initM + initF
+    // Row 53: Enrolment
+    setVal(newWs, 52, SUMMARY_COL_M, 'n', sd.enr_m != null ? sd.enr_m : initM)
+    setVal(newWs, 52, SUMMARY_COL_F, 'n', sd.enr_f != null ? sd.enr_f : initF)
+    setVal(newWs, 52, SUMMARY_COL_T, 'n', sd.enr_t != null ? sd.enr_t : initT)
+
+    // Row 55: Late enrolment
+    setVal(newWs, 54, SUMMARY_COL_M, 'n', lateM)
+    setVal(newWs, 54, SUMMARY_COL_F, 'n', lateF)
+    setVal(newWs, 54, SUMMARY_COL_T, 'n', lateM + lateF)
+
+    // Row 59: Registered Learners
+    setVal(newWs, 58, SUMMARY_COL_M, 'n', sd.reg_m != null ? sd.reg_m : maleCount)
+    setVal(newWs, 58, SUMMARY_COL_F, 'n', sd.reg_f != null ? sd.reg_f : femaleCount)
+    setVal(newWs, 58, SUMMARY_COL_T, 'n', sd.reg_t != null ? sd.reg_t : maleCount + femaleCount)
+
+    // Row 61: Percentage of Enrolment
+    setVal(newWs, 60, SUMMARY_COL_M, 'n', sd.pct_enr_m != null ? sd.pct_enr_m : (initM > 0 ? Math.round(maleCount / initM * 100) : 0))
+    setVal(newWs, 60, SUMMARY_COL_F, 'n', sd.pct_enr_f != null ? sd.pct_enr_f : (initF > 0 ? Math.round(femaleCount / initF * 100) : 0))
+    setVal(newWs, 60, SUMMARY_COL_T, 'n', sd.pct_enr_t != null ? sd.pct_enr_t : (initT > 0 ? Math.round((maleCount + femaleCount) / initT * 100) : 0))
+
+    // Row 63: Average Daily Attendance
+    setVal(newWs, 62, SUMMARY_COL_M, 'n', sd.ada_m != null ? sd.ada_m : mADA)
+    setVal(newWs, 62, SUMMARY_COL_F, 'n', sd.ada_f != null ? sd.ada_f : fADA)
+    setVal(newWs, 62, SUMMARY_COL_T, 'n', sd.ada_t != null ? sd.ada_t : tADA)
+
+    // Row 64: Percentage of Attendance
+    setVal(newWs, 63, SUMMARY_COL_M, 'n', sd.pct_m != null ? sd.pct_m : mPct)
+    setVal(newWs, 63, SUMMARY_COL_F, 'n', sd.pct_f != null ? sd.pct_f : fPct)
+    setVal(newWs, 63, SUMMARY_COL_T, 'n', sd.pct_t != null ? sd.pct_t : tPct)
+
+    // Row 65: Number of students absent for 5 consecutive days (template AI65)
+    const abs5m = sd.abs5_m != null ? sd.abs5_m : 0
+    const abs5f = sd.abs5_f != null ? sd.abs5_f : 0
+    const abs5t = sd.abs5_t != null ? sd.abs5_t : 0
+    setVal(newWs, 64, SUMMARY_COL_M, 'n', abs5m)
+    setVal(newWs, 64, SUMMARY_COL_F, 'n', abs5f)
+    setVal(newWs, 64, SUMMARY_COL_T, 'n', abs5t)
+
+    // Row 66: NLS (template AI66)
+    setVal(newWs, 65, SUMMARY_COL_M, 'n', sd.nls_m ?? 0)
+    setVal(newWs, 65, SUMMARY_COL_F, 'n', sd.nls_f ?? 0)
+    setVal(newWs, 65, SUMMARY_COL_T, 'n', sd.nls_t ?? 0)
+
+    // Row 68: Transferred out (template AI68)
+    setVal(newWs, 67, SUMMARY_COL_M, 'n', sd.transfer_out_m ?? 0)
+    setVal(newWs, 67, SUMMARY_COL_F, 'n', sd.transfer_out_f ?? 0)
+    setVal(newWs, 67, SUMMARY_COL_T, 'n', sd.transfer_out_t ?? 0)
+
+    // Row 70: Transferred in (template AI70)
+    setVal(newWs, 69, SUMMARY_COL_M, 'n', sd.transfer_in_m ?? 0)
+    setVal(newWs, 69, SUMMARY_COL_F, 'n', sd.transfer_in_f ?? 0)
+    setVal(newWs, 69, SUMMARY_COL_T, 'n', sd.transfer_in_t ?? 0)
+
+    // ── Set column widths (merged header areas span multiple date-cols) ──
     const cols = []
     for (let c = 0; c <= 40; c++) {
-      if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 3 }
+      if (c === 0) cols[c] = { wch: 15 }  // Labels (School ID, Name of School) + No.
       else if (c === NAME_COL) cols[c] = { wch: 30 }
-      else if (c === NUM_COL) cols[c] = { wch: 5 }
+      else if (c === 3) cols[c] = { wch: 4 }
+      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 3 }
+      else if (c === 26) cols[c] = { wch: 8 }
+      else if (c === 27) cols[c] = { wch: 4 }
+      else if (c === 28) cols[c] = { wch: 4 }
+      else if (c === 29) cols[c] = { wch: 20 }  // Section value
       else if (c === REMARKS_COL) cols[c] = { wch: 18 }
-      else cols[c] = { wch: 8 }
+      else cols[c] = { wch: 4 }
     }
-    ws['!cols'] = cols
+    newWs['!cols'] = cols
 
     // Set row heights for student rows (match column width for square cells)
     const rows = []
-    for (let r = MALE_SECTION_START; r <= maleSectionEnd; r++) rows[r] = { hpt: 16 }
-    for (let r = femaleSectionStart; r <= femaleSectionEnd; r++) rows[r] = { hpt: 16 }
-    ws['!rows'] = rows
+    for (let r = maleSectionStart; r <= maleSectionEnd; r++) rows[r] = { hpt: 16 }
+    for (let r = femaleSectionStart; r <= femaleSectionEnd && r >= 0; r++) rows[r] = { hpt: 16 }
+    newWs['!rows'] = rows
+
+    // Copy preserved template summary cells back into the new worksheet
+    for (const [key, cell] of Object.entries(preservedCells)) {
+      newWs[key] = cell
+    }
+
+    // Replace the workbook sheet with our fresh worksheet
+    wb.Sheets[wb.SheetNames[sheetIndex]] = newWs
 
     // ── Write output ──
     const outFileName = `SF2_${sheetName}_${year || '2025'}.xlsx`
@@ -276,7 +475,7 @@ router.post('/sf2', (req, res) => {
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
     const outPath = path.join(outDir, outFileName)
 
-    XLSX.writeFile(wb, outPath, { bookType: 'xlsx', type: 'file' })
+    XLSX.writeFile(wb, outPath, { bookType: 'xlsx', type: 'file', cellStyles: true })
 
     res.download(outPath, outFileName, (err) => {
       if (err) console.error('Download error:', err)

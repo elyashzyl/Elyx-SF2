@@ -20,8 +20,11 @@ router.get('/', (req, res) => {
     days: JSON.parse(e.days || '{}'),
     present: e.present,
     absent: e.absent,
-    remarks: e.remarks || ''
+    remarks: e.remarks || '',
+    late_enrollee: e.late_enrollee || 0
   }))
+  record.summary_data = JSON.parse(record.summary_data || '{}')
+  record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
   res.json(record)
 })
 
@@ -42,8 +45,8 @@ router.post('/', (req, res) => {
       [recordId, month, year, grade, section, adviser, created_by || '', created_by_name || ''])
   }
   for (const entry of entries) {
-    run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [recordId, entry.studentId, entry.name, JSON.stringify(entry.days || {}), entry.present || 0, entry.absent || 0, entry.remarks || ''])
+    run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [recordId, entry.studentId, entry.name, JSON.stringify(entry.days || {}), entry.present || 0, entry.absent || 0, entry.remarks || '', entry.late_enrollee ? 1 : 0])
   }
   const updated = query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
   res.json({ id: recordId, success: true, record: updated[0] || null })
@@ -69,7 +72,10 @@ router.put('/:recordId/entry', (req, res) => {
     const s = days[d]
     if (s === 'E') present++
     else if (s === 'A') absent++
-    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H') absent += 0.5
+    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H') {
+      present += 0.5
+      absent += 0.5
+    }
   }
 
   run('UPDATE monthly_entries SET days=?, present=?, absent=? WHERE record_id=? AND student_id=?',
@@ -83,6 +89,22 @@ router.put('/:recordId/remarks', (req, res) => {
   const { studentId, remarks } = req.body
   run('UPDATE monthly_entries SET remarks=? WHERE record_id=? AND student_id=?',
     [remarks, recordId, studentId])
+  res.json({ success: true })
+})
+
+router.put('/:recordId/summary', (req, res) => {
+  const { recordId } = req.params
+  const { summary_data } = req.body
+  run('UPDATE monthly_records SET summary_data=? WHERE id=?',
+    [JSON.stringify(summary_data || {}), recordId])
+  res.json({ success: true })
+})
+
+router.put('/:recordId/excluded-dates', (req, res) => {
+  const { recordId } = req.params
+  const { excluded_dates } = req.body
+  run('UPDATE monthly_records SET excluded_dates=? WHERE id=?',
+    [JSON.stringify(excluded_dates || []), recordId])
   res.json({ success: true })
 })
 

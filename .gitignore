@@ -29,3 +29,10 @@ attendance.db
 # Generated export files
 sf2_*.html
 server.log
+exports/
+*.xlsx
+check_*.cjs
+debug_*.cjs
+test_*
+scratch.*
+check_*.js
