@@ -43,15 +43,26 @@ router.post('/sf2', (req, res) => {
     if (!ws['!ref']) return res.status(400).json({ error: 'Sheet is empty' })
 
     // Preserve the summary/footer section (r:50+) from the template
+    // Rows where we'll apply our own T-AC (c19-c28) merges — exclude these from preservation
+    const SUMMARY_MERGE_ROWS = [50, 52, 54, 58, 60, 62, 63, 64, 65, 67, 69]
+    function inSummaryMergeRange(row, col) {
+      return SUMMARY_MERGE_ROWS.includes(row) && col >= 19 && col <= 28
+    }
     const preservedCells = {}
-    const preservedMerges = (ws['!merges'] || []).filter(m => m.s.r >= 50)
+    const preservedMerges = (ws['!merges'] || []).filter(m => {
+      if (m.s.r < 50) return false
+      // Exclude any merge that overlaps with our T-AC range on summary rows
+      for (const rw of SUMMARY_MERGE_ROWS) {
+        if (rw >= m.s.r && rw <= m.e.r && !(19 > m.e.c || 28 < m.s.c)) return false
+      }
+      return true
+    })
     for (const key of Object.keys(ws)) {
       if (key === '!ref' || key === '!merges' || key === '!cols' || key === '!rows' || key === '!autofilter') continue
       const cell = ws[key]
-      // Parse cell reference to get row
       const match = key.match(/^([A-Z]+)(\d+)$/)
       if (match) {
-        const row = parseInt(match[2], 10) - 1  // Convert Excel row to 0-indexed
+        const row = parseInt(match[2], 10) - 1
         if (row >= 50) preservedCells[key] = JSON.parse(JSON.stringify(cell))
       }
     }
@@ -65,11 +76,18 @@ router.post('/sf2', (req, res) => {
       left: { style: 'thin', color: { rgb: 'FF000000' } },
       right: { style: 'thin', color: { rgb: 'FF000000' } }
     }
+    const MEDIUM_BORDER = {
+      top: { style: 'medium', color: { rgb: 'FF000000' } },
+      bottom: { style: 'medium', color: { rgb: 'FF000000' } },
+      left: { style: 'medium', color: { rgb: 'FF000000' } },
+      right: { style: 'medium', color: { rgb: 'FF000000' } }
+    }
 
     const VALUE_STYLE = {
       font: { name: 'Calibri', sz: 11, bold: true },
       alignment: { horizontal: 'center', vertical: 'center' },
-      border: THIN_BORDER
+      border: THIN_BORDER,
+      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
     }
     const LABEL_STYLE = {
       font: { name: 'Calibri', sz: 11 },
@@ -90,6 +108,12 @@ router.post('/sf2', (req, res) => {
       font: { name: 'Calibri', sz: 9, italic: true },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: {}
+    }
+    const TABLE_HEADER_STYLE = {
+      font: { name: 'Calibri', sz: 11, bold: true },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: MEDIUM_BORDER,
+      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
     }
     function applyStyle(newWs, r, c, style) {
       const addr = XLSX.utils.encode_cell({ r, c })
@@ -149,7 +173,19 @@ router.post('/sf2', (req, res) => {
     addMerge(newWs, 4, 15, 4, 19); setVal(newWs, 4, 15, 's', 'Grade Level');  applyStyle(newWs, 4, 15, PLAIN_LABEL_STYLE)
     addMerge(newWs, 4, 20, 4, 25); setVal(newWs, 4, 20, 's', gradeNum !== '' ? String(gradeNum) : '');  applyStyle(newWs, 4, 20, VALUE_STYLE)
     addMerge(newWs, 4, 26, 4, 28); setVal(newWs, 4, 26, 's', 'Section');  applyStyle(newWs, 4, 26, PLAIN_LABEL_STYLE)
-    addMerge(newWs, 4, 29, 4, 36); setVal(newWs, 4, 29, 's', sectionVal);  applyStyle(newWs, 4, 29, VALUE_STYLE)
+    addMerge(newWs, 4, 29, 4, 37); setVal(newWs, 4, 29, 's', sectionVal);  applyStyle(newWs, 4, 29, VALUE_STYLE)
+
+    // ── Apply VALUE_STYLE to every cell in each value merge range ──
+    const valueRanges = [[3,4,3,6],[3,10,3,14],[3,20,3,25],[4,4,4,14],[4,20,4,25],[4,29,4,37]]
+    for (const [r1,c1,r2,c2] of valueRanges) {
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c })
+          if (!newWs[addr]) newWs[addr] = { t: 's', v: '' }
+          newWs[addr].s = VALUE_STYLE
+        }
+      }
+    }
 
     // ── Column headers at Row 7 (r:6) ──
     // "No." (c0-c1), "NAME" (c2-c3), "Total for the" (c29-c32), "REMARKS" (c33-c37)
@@ -168,6 +204,10 @@ router.post('/sf2', (req, res) => {
     // REMARKS at r:6, c33-c37, merging down
     addMerge(newWs, COL_HEADER_ROW, 33, COL_HEADER_ROW + 2, 37)
     setVal(newWs, COL_HEADER_ROW, 33, 's', 'REMARKS\n(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)')
+
+    // Date section header at r:6, c4-c28 (E-AC)
+    addMerge(newWs, COL_HEADER_ROW, 4, COL_HEADER_ROW, 28)
+    setVal(newWs, COL_HEADER_ROW, 4, 's', '')
 
     // ABSENT / PRESENT labels on the date rows
     // r:7 (date numbers row) has Month | label and absent/present columns
@@ -204,12 +244,14 @@ router.post('/sf2', (req, res) => {
     const DATE_ABBR_ROW = 8
 
     // Write month and class days count in date header row (r:7)
-    setVal(newWs, DATE_NUM_ROW, 29, 's', `Month  |`)
+    addMerge(newWs, DATE_NUM_ROW, 29, DATE_NUM_ROW, 31)  // AD-AF
+    setVal(newWs, DATE_NUM_ROW, 29, 's', 'Month')
     setVal(newWs, DATE_NUM_ROW, 32, 'n', numDateCols)
 
     // Write ABSENT / PRESENT labels on day abbreviation row (r:8)
     setVal(newWs, DATE_ABBR_ROW, 29, 's', 'ABSENT')
-    setVal(newWs, DATE_ABBR_ROW, 31, 's', 'PRESENT')
+    addMerge(newWs, DATE_ABBR_ROW, 30, DATE_ABBR_ROW, 32)  // AE-AG
+    setVal(newWs, DATE_ABBR_ROW, 30, 's', 'PRESENT')
 
     // Clear and write date headers (r:7-r:8)
     for (let ci = 0; ci < MAX_DATE_COLS; ci++) {
@@ -220,6 +262,36 @@ router.post('/sf2', (req, res) => {
       const sd = schoolDays[ci]
       setVal(newWs, DATE_NUM_ROW, DATE_COL_START + ci, 'n', sd.day)
       setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
+    }
+
+    // ── Apply medium borders to table header cells ──
+    // Ensure empty trailing date cells exist so borders extend to AC (c28)
+    const DATE_END_COL = 28
+    for (let c = DATE_COL_START + numDateCols; c <= DATE_END_COL; c++) {
+      applyStyle(newWs, DATE_NUM_ROW, c, TABLE_HEADER_STYLE)
+      applyStyle(newWs, DATE_ABBR_ROW, c, TABLE_HEADER_STYLE)
+    }
+    const tableRanges = [
+      [COL_HEADER_ROW, 0, COL_HEADER_ROW + 2, 1],     // No.
+      [COL_HEADER_ROW, 2, COL_HEADER_ROW + 2, 3],     // NAME
+      [COL_HEADER_ROW, 4, COL_HEADER_ROW, 28],        // Date section header (E7:AC7)
+      [COL_HEADER_ROW, 29, COL_HEADER_ROW, 32],       // Total for the
+      [COL_HEADER_ROW, 33, COL_HEADER_ROW + 2, 37],   // REMARKS
+      [DATE_NUM_ROW, 29, DATE_NUM_ROW, 31],           // Month | (AD-AF merged)
+      [DATE_NUM_ROW, 32, DATE_NUM_ROW, 32],           // numDateCols
+      [DATE_ABBR_ROW, 29, DATE_ABBR_ROW, 29],         // ABSENT
+      [DATE_ABBR_ROW, 30, DATE_ABBR_ROW, 32],         // PRESENT (AE-AG merged)
+    ]
+    if (numDateCols > 0) {
+      tableRanges.push([DATE_NUM_ROW, DATE_COL_START, DATE_NUM_ROW, DATE_COL_START + numDateCols - 1])
+      tableRanges.push([DATE_ABBR_ROW, DATE_COL_START, DATE_ABBR_ROW, DATE_COL_START + numDateCols - 1])
+    }
+    for (const [r1, c1, r2, c2] of tableRanges) {
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
+        }
+      }
     }
 
     // ── Count genders ──
@@ -242,16 +314,14 @@ router.post('/sf2', (req, res) => {
       }
     }
 
-    // Compute row positions matching MonthlyAttendance.vue layout:
-    //   BOYS label → male students → BOYS TOTAL → GIRLS label → female students → GIRLS TOTAL → COMBINED TOTAL
-    // Student data starts at row 9 (Excel Row 10) - after titles (2 rows), gap (1), info table (3 rows), column headers (1), dates (2)
+    // Compute row positions:
+    //   male students → BOYS TOTAL → female students → GIRLS TOTAL → COMBINED TOTAL
+    // Student data starts at row 9 (Excel Row 10)
     let nextRow = 9
-    const boysLabelRow = nextRow++
     const maleSectionStart = nextRow
     nextRow += maleCount
     const maleSectionEnd = nextRow - 1
     const maleTotalRow = nextRow++
-    const girlsLabelRow = nextRow++
     const femaleSectionStart = femaleCount > 0 ? nextRow : -1
     nextRow += femaleCount
     const femaleSectionEnd = femaleCount > 0 ? nextRow - 1 : -1
@@ -286,23 +356,25 @@ router.post('/sf2', (req, res) => {
       return count
     }
     function writeSummaryRow(r, entriesList, label, count) {
+      addMerge(newWs, r, 0, r, 1)
+      addMerge(newWs, r, 2, r, 3)
       setVal(newWs, r, NAME_COL, 's', `<=== ${label} TOTAL Per Day ===>`)
       setVal(newWs, r, NUM_COL, 'n', count)
       for (const [dayNum, col] of Object.entries(dateColMap))
         setVal(newWs, r, col, 'n', daySum(entriesList, parseInt(dayNum)))
       setVal(newWs, r, ABSENT_COL, 'n', sumAbsent(entriesList))
-      setVal(newWs, r, PRESENT_COL, 'n', sumPresent(entriesList))
+      addMerge(newWs, r, 30, r, 32)
+      setVal(newWs, r, 30, 'n', sumPresent(entriesList))
+      addMerge(newWs, r, 33, r, 37)
     }
-
-    // ── Write gender separator rows ──
-    setVal(newWs, boysLabelRow, NAME_COL, 's', 'BOYS')
-    if (femaleCount > 0) setVal(newWs, girlsLabelRow, NAME_COL, 's', 'GIRLS')
 
     // ── Write male students ──
     let row = maleSectionStart
     for (let i = 0; i < maleCount; i++) {
       const entry = maleEntriesAll[i]
+      addMerge(newWs, row, 0, row, 1)
       setVal(newWs, row, NUM_COL, 'n', i + 1)
+      addMerge(newWs, row, 2, row, 3)
       setVal(newWs, row, NAME_COL, 's', entry.name)
       const days = entry.days || {}
       for (const [dayStr, status] of Object.entries(days)) {
@@ -312,7 +384,9 @@ router.post('/sf2', (req, res) => {
         setVal(newWs, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
-      setVal(newWs, row, PRESENT_COL, 'n', calcEntryPresent(entry))
+      addMerge(newWs, row, 30, row, 32)
+      setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
+      addMerge(newWs, row, 33, row, 37)
       if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
       row++
     }
@@ -325,7 +399,9 @@ router.post('/sf2', (req, res) => {
       row = femaleSectionStart
       for (let i = 0; i < femaleCount; i++) {
         const entry = femaleEntriesAll[i]
+        addMerge(newWs, row, 0, row, 1)
         setVal(newWs, row, NUM_COL, 'n', i + 1)
+        addMerge(newWs, row, 2, row, 3)
         setVal(newWs, row, NAME_COL, 's', entry.name)
         const days = entry.days || {}
         for (const [dayStr, status] of Object.entries(days)) {
@@ -335,7 +411,9 @@ router.post('/sf2', (req, res) => {
           setVal(newWs, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
-        setVal(newWs, row, PRESENT_COL, 'n', calcEntryPresent(entry))
+        addMerge(newWs, row, 30, row, 32)
+        setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
+        addMerge(newWs, row, 33, row, 37)
         if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
         row++
       }
@@ -344,12 +422,29 @@ router.post('/sf2', (req, res) => {
     }
 
     // ── Write COMBINED TOTAL ──
+    addMerge(newWs, combinedTotalRow, 0, combinedTotalRow, 1)
+    addMerge(newWs, combinedTotalRow, 2, combinedTotalRow, 3)
     setVal(newWs, combinedTotalRow, NAME_COL, 's', `<=== COMBINED | ${numDateCols} TOTAL Per Day ===>`)
     setVal(newWs, combinedTotalRow, NUM_COL, 'n', numDateCols)
     for (const [dayNum, col] of Object.entries(dateColMap))
       setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, parseInt(dayNum)))
     setVal(newWs, combinedTotalRow, ABSENT_COL, 'n', sumAbsent(entries))
-    setVal(newWs, combinedTotalRow, PRESENT_COL, 'n', sumPresent(entries))
+    addMerge(newWs, combinedTotalRow, 30, combinedTotalRow, 32)
+    setVal(newWs, combinedTotalRow, 30, 'n', sumPresent(entries))
+    addMerge(newWs, combinedTotalRow, 33, combinedTotalRow, 37)
+
+    // ── Extend E-AC borders to table body rows (skip label rows only) ──
+    const bodyRows = []
+    for (let r = maleSectionStart; r <= maleTotalRow; r++) bodyRows.push(r)
+    if (femaleCount > 0) {
+      for (let r = femaleSectionStart; r <= femaleTotalRow; r++) bodyRows.push(r)
+    }
+    bodyRows.push(combinedTotalRow)
+    for (const r of bodyRows) {
+      for (let c = 0; c <= 37; c++) {
+        applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
+      }
+    }
 
     // ── Use summary_data from request (or compute defaults) ──
     const sd = summary_data || {}
@@ -464,6 +559,14 @@ router.post('/sf2', (req, res) => {
     // Copy preserved template summary cells back into the new worksheet
     for (const [key, cell] of Object.entries(preservedCells)) {
       newWs[key] = cell
+    }
+
+    // ── Merge T-AC (c19-c28) on summary rows with borders (after preserved copy) ──
+    for (const r of SUMMARY_MERGE_ROWS) {
+      addMerge(newWs, r, 19, r, 28)
+      for (let c = 19; c <= 28; c++) {
+        applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
+      }
     }
 
     // Replace the workbook sheet with our fresh worksheet
