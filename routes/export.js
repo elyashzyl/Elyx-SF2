@@ -271,16 +271,24 @@ router.post('/sf2', (req, res) => {
       [DATE_ABBR_ROW, 29, DATE_ABBR_ROW, 29],         // ABSENT
       [DATE_ABBR_ROW, 30, DATE_ABBR_ROW, 32],         // PRESENT (AE-AG merged)
     ]
-    if (numDateCols > 0) {
-      tableRanges.push([DATE_NUM_ROW, DATE_COL_START, DATE_NUM_ROW, DATE_COL_START + numDateCols - 1])
-      tableRanges.push([DATE_ABBR_ROW, DATE_COL_START, DATE_ABBR_ROW, DATE_COL_START + numDateCols - 1])
-    }
     for (const [r1, c1, r2, c2] of tableRanges) {
       for (let r = r1; r <= r2; r++) {
         for (let c = c1; c <= c2; c++) {
           applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
         }
       }
+    }
+    // Date column headers: thin borders within weeks, medium at week boundaries
+    function dateBorder(ci) {
+      const left = (ci === 0 || schoolDays[ci].weekday === 1) ? { style: 'medium', color: { rgb: 'FF000000' } } : { style: 'thin', color: { rgb: 'FF000000' } }
+      const right = (ci === numDateCols - 1 || schoolDays[ci].weekday === 5) ? { style: 'medium', color: { rgb: 'FF000000' } } : { style: 'thin', color: { rgb: 'FF000000' } }
+      return { top: { style: 'medium', color: { rgb: 'FF000000' } }, bottom: { style: 'medium', color: { rgb: 'FF000000' } }, left, right }
+    }
+    for (let ci = 0; ci < numDateCols; ci++) {
+      const c = DATE_COL_START + ci
+      const b = dateBorder(ci)
+      applyStyle(newWs, DATE_NUM_ROW, c, { font: { name: 'Calibri', sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+      applyStyle(newWs, DATE_ABBR_ROW, c, { font: { name: 'Calibri', sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
     }
 
     // ── Count genders ──
@@ -442,6 +450,22 @@ router.post('/sf2', (req, res) => {
       for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
     }
 
+    // ── Date body cells: thin borders within weeks, medium at week boundaries ──
+    const bodyRows = []
+    for (let r = maleSectionStart; r <= maleSectionEnd; r++) bodyRows.push(r)
+    if (maleTotalRow !== undefined) bodyRows.push(maleTotalRow)
+    if (femaleCount > 0) {
+      for (let r = femaleSectionStart; r <= femaleSectionEnd; r++) bodyRows.push(r)
+      if (femaleTotalRow !== undefined) bodyRows.push(femaleTotalRow)
+    }
+    bodyRows.push(combinedTotalRow)
+    for (const r of bodyRows) {
+      for (let ci = 0; ci < numDateCols; ci++) {
+        const c = DATE_COL_START + ci
+        applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+      }
+    }
+
     // ── Use summary_data from request (or compute defaults) ──
     const sd = summary_data || {}
     const totalCount = maleCount + femaleCount
@@ -470,8 +494,9 @@ router.post('/sf2', (req, res) => {
       else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 3 }
       else if (c === 26) cols[c] = { wch: 8 }
       else if (c === 27) cols[c] = { wch: 4 }
-      else if (c === 28) cols[c] = { wch: 4 }
-      else if (c === 29) cols[c] = { wch: 20 }  // Section value
+      else if (c >= 19 && c <= 28) cols[c] = { wch: 9 }   // CODES / REASONS (T-AC)
+      else if (c >= 29 && c <= 33) cols[c] = { wch: 13 }  // Summary description (AD-AH)
+      else if (c >= 34 && c <= 37) cols[c] = { wch: 9 }   // M / F / TOTAL (AI-AL)
       else if (c === REMARKS_COL) cols[c] = { wch: 18 }
       else cols[c] = { wch: 4 }
     }
@@ -549,90 +574,203 @@ router.post('/sf2', (req, res) => {
     sec(newWs, 64, 0, 67, 18, '*Beginning of School Year cut-off report is every 1st Friday of the School Year', { font: { ...A8, italic: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: MEDIUM_BORDER })
 
     // ═══════════════════════════════════════════════════════════════════
-    // SECTION 4: CODES (J-S = c9-c18, rows 70-79)
+    // RIGHT PANEL: CODES (T-AC = c19-c28, rows 50-52)
     // ═══════════════════════════════════════════════════════════════════
-    const codesText = [
-      '(blank) - Present', 'X - Absent', 'T - Tardy (half day)', 'C - Cutting Classes',
-      'H - Holiday', 'V - Vacation', 'E - Educational Trip', 'D - Disaster', 'O - Other Authorized Activity'
-    ]
-    sec(newWs, 69, 9, 69, 18, '1. CODES FOR CHECKING ATTENDANCE', { font: { ...A8, bold: true }, border: THIN_BORDER, alignment: { horizontal: 'left', vertical: 'center' } })
-    for (let i = 0; i < codesText.length; i++) sec(newWs, 70 + i, 9, 70 + i, 18, codesText[i], S8_LEFT)
-    // ═══════════════════════════════════════════════════════════════════
-    // SECTION 5: REASONS/CAUSES FOR MLS (J-S = c9-c18, rows 81+)
-    // ═══════════════════════════════════════════════════════════════════
-    sec(newWs, 80, 9, 80, 18, '2. REASONS/CAUSES FOR MLS', { font: { ...A8, bold: true }, border: THIN_BORDER, alignment: { horizontal: 'left', vertical: 'center' } })
-    sec(newWs, 81, 9, 81, 18, 'A. Domestic-Related Factors', S8_BOLD_LEFT)
-    const dom = ['a.1 Had to take care of sibling', 'a.2 Early marriage/pregnancy', 'a.3 Family problems', 'a.4 Family mobility', 'a.5 Other domestic-related factors']
-    for (let i = 0; i < dom.length; i++) sec(newWs, 82 + i, 9, 82 + i, 18, dom[i], S8_LEFT)
-    sec(newWs, 88, 9, 88, 18, 'B. Individual-Related Factors', S8_BOLD_LEFT)
-    const ind = ['b.1 Illness', 'b.2 Over-age', 'b.3 Death', 'b.4 Drug Abuse', 'b.5 Poor academic performance', 'b.6 Lack of interest/distraction']
-    for (let i = 0; i < ind.length; i++) sec(newWs, 89 + i, 9, 89 + i, 18, ind[i], S8_LEFT)
-    sec(newWs, 96, 9, 96, 18, 'C. School-Related Factors', S8_BOLD_LEFT)
-    for (let i = 0; i < 3; i++) sec(newWs, 97 + i, 9, 97 + i, 18, ['c.1 Teacher Factor', 'c.2 Physical condition of classroom', 'c.3 Peer influence'][i], S8_LEFT)
-    sec(newWs, 101, 9, 101, 18, 'D. Geographic/Environmental', S8_BOLD_LEFT)
-    const geo = ['d.1 Distance between home and school', 'd.2 Armed conflict (including tribal wars/conflict)', 'd.3 Presence of disasters']
-    for (let i = 0; i < geo.length; i++) sec(newWs, 102 + i, 9, 102 + i, 18, geo[i], S8_LEFT)
-    sec(newWs, 106, 9, 106, 18, 'E. Financial-Related Factors', S8_BOLD_LEFT)
-    sec(newWs, 107, 9, 107, 18, 'e.1 Child labor/work', S8_LEFT)
-    sec(newWs, 109, 9, 109, 18, 'F. Others (Specify)', S8_BOLD_LEFT)
-    // Generated through LIS
-    sec(newWs, 113, 11, 114, 13, 'Generated through LIS', S8_THIN)
+    // CODES header
+    sec(newWs, 50, 19, 50, 28, '1. CODES FOR CHECKING ATTENDANCE', S9_BOLD_MED_LEFT)
+    // CODES description - wrap text
+    addMerge(newWs, 51, 19, 52, 28)
+    setVal(newWs, 51, 19, 's', '(blank) - Present; (x) - Absent; Tardy (half shaded = Upper for Late Comers, Lower for Cutting Classes)')
+    for (let r = 51; r <= 52; r++) for (let c = 19; c <= 28; c++) applyStyle(newWs, r, c, { font: A8, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: THIN_BORDER })
 
     // ═══════════════════════════════════════════════════════════════════
-    // SECTION 5: MONTHLY SUMMARY TABLE (far right: c19-c39)
+    // REASONS / CAUSES FOR MLS (T-AC = c19-c28, rows 53-79)
     // ═══════════════════════════════════════════════════════════════════
-    // Header row: Description | M | F | TOTAL
-    sec(newWs, 49, 19, 49, 31, 'Description', S9_GRAY_THIN)
-    sec(newWs, 49, 32, 49, 32, 'M', S9_GRAY_THIN)
-    sec(newWs, 49, 33, 49, 33, 'F', S9_GRAY_THIN)
-    sec(newWs, 49, 34, 49, 36, 'TOTAL', S9_GRAY_THIN)
-
-    // No. of Days of Classes
-    sec(newWs, 50, 19, 50, 39, `No. of Days of Classes: ${numDateCols}`, S9_THIN)
-
-    // Summary data rows
-    const summaryLabels = [
-      { label: 'Enrollment as of 1st Friday of the School Year', r: 52, keyM: 'enr_m', keyF: 'enr_f', keyT: 'enr_t', defM: initM, defF: initF, defT: initT },
-      { label: 'Late Enrollment during the month', r: 54, keyM: null, keyF: null, keyT: null, defM: lateM, defF: lateF, defT: lateM + lateF },
-      { label: 'Registered Learners as of end of the month', r: 58, keyM: 'reg_m', keyF: 'reg_f', keyT: 'reg_t', defM: maleCount, defF: femaleCount, defT: maleCount + femaleCount },
-      { label: 'Percentage of Enrollment as of end of the month', r: 60, keyM: 'pct_enr_m', keyF: 'pct_enr_f', keyT: 'pct_enr_t', defM: initM > 0 ? Math.round(maleCount / initM * 100) : 0, defF: initF > 0 ? Math.round(femaleCount / initF * 100) : 0, defT: initT > 0 ? Math.round((maleCount + femaleCount) / initT * 100) : 0 },
-      { label: 'Average Daily Attendance', r: 62, keyM: 'ada_m', keyF: 'ada_f', keyT: 'ada_t', defM: mADA, defF: fADA, defT: tADA },
-      { label: 'Percentage of Attendance for the month', r: 63, keyM: 'pct_m', keyF: 'pct_f', keyT: 'pct_t', defM: mPct, defF: fPct, defT: tPct },
-      { label: 'MLS', r: 65, keyM: 'nls_m', keyF: 'nls_f', keyT: 'nls_t', defM: 0, defF: 0, defT: 0 },
-      { label: 'Transferred Out', r: 67, keyM: 'transfer_out_m', keyF: 'transfer_out_f', keyT: 'transfer_out_t', defM: 0, defF: 0, defT: 0 },
-      { label: 'Transferred In', r: 69, keyM: 'transfer_in_m', keyF: 'transfer_in_f', keyT: 'transfer_in_t', defM: 0, defF: 0, defT: 0 },
-    ]
-    for (const s of summaryLabels) {
-      const mVal = s.keyM ? (sd[s.keyM] != null ? sd[s.keyM] : s.defM) : s.defM
-      const fVal = s.keyF ? (sd[s.keyF] != null ? sd[s.keyF] : s.defF) : s.defF
-      const tVal = s.keyT ? (sd[s.keyT] != null ? sd[s.keyT] : s.defT) : s.defT
-      sec(newWs, s.r, 19, s.r, 31, s.label, S9_THIN)
-      sec(newWs, s.r, 32, s.r, 32, '', S9_CENTER_THIN)
-      setVal(newWs, s.r, 32, 'n', mVal)
-      sec(newWs, s.r, 33, s.r, 33, '', S9_CENTER_THIN)
-      setVal(newWs, s.r, 33, 'n', fVal)
-      sec(newWs, s.r, 34, s.r, 34, '', S9_CENTER_THIN)
-      setVal(newWs, s.r, 34, 'n', tVal)
-      for (let c = 35; c <= 39; c++) applyStyle(newWs, s.r, c, S9_CENTER_THIN)
+    // Header (2 rows)
+    sec(newWs, 53, 19, 54, 28, '2. REASONS/CAUSES FOR MLS', S9_BOLD_MED_LEFT)
+    // A. Domestic-Related Factors
+    sec(newWs, 55, 19, 55, 28, 'a. Domestic-Related Factors', { font: { ...A8, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } })
+    addMerge(newWs, 56, 19, 59, 28)
+    setVal(newWs, 56, 19, 's', 'a.1 Had to take care of sibling\na.2 Early marriage/pregnancy\na.3 Parents\' attitude toward schooling\na.4 Family problems')
+    for (let r = 56; r <= 59; r++) for (let c = 19; c <= 28; c++) applyStyle(newWs, r, c, { font: A8, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } })
+    // B. Individual-Related Factors (thick top border)
+    sec(newWs, 60, 19, 60, 28, 'b. Individual-Related Factors', { font: { ...A8, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: { top: { style: 'medium', color: { rgb: 'FF000000' } }, bottom: { style: 'thin', color: { rgb: 'FF000000' } }, left: { style: 'thin', color: { rgb: 'FF000000' } }, right: { style: 'thin', color: { rgb: 'FF000000' } } } })
+    addMerge(newWs, 61, 19, 66, 28)
+    setVal(newWs, 61, 19, 's', 'b.1 Illness\nb.2 Over-age\nb.3 Death\nb.4 Drug Abuse\nb.5 Poor academic performance\nb.6 Lack of interest/Distractions')
+    for (let r = 61; r <= 66; r++) for (let c = 19; c <= 28; c++) applyStyle(newWs, r, c, { font: A8, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } })
+    // C. School-Related Factors
+    sec(newWs, 67, 19, 67, 28, 'c. School-Related Factors', { font: { ...A8, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } })
+    addMerge(newWs, 68, 19, 72, 28)
+    setVal(newWs, 68, 19, 's', 'c.1 Teacher Factor\nc.2 Physical condition of classroom\nc.3 Peer influence')
+    for (let r = 68; r <= 72; r++) for (let c = 19; c <= 28; c++) applyStyle(newWs, r, c, { font: A8, alignment: { horizontal: 'left', vertical: 'top', wrapText: true } })
+    // D. Geographic/Environmental
+    sec(newWs, 73, 19, 73, 28, 'd. Geographic/Environmental', { font: { ...A8, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } })
+    addMerge(newWs, 74, 19, 76, 28)
+    setVal(newWs, 74, 19, 's', 'd.1 Distance between home and school\nd.2 Armed conflict (incl. Tribal wars & clan feuds)\nd.3 Calamities/Disasters')
+    for (let r = 74; r <= 76; r++) for (let c = 19; c <= 28; c++) applyStyle(newWs, r, c, { font: A8, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } })
+    // E. Financial-Related
+    sec(newWs, 77, 19, 77, 28, 'e. Financial-Related', { font: { ...A8, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } })
+    sec(newWs, 78, 19, 78, 28, 'e.1 Child labor, work', { font: A8, alignment: { horizontal: 'left', vertical: 'center' } })
+    // F. Others
+    sec(newWs, 79, 19, 79, 28, 'f. Others (Specify)', { font: { ...A8, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } })
+    // Medium outside border around entire MLS section (rows 53-79, c19-c28)
+    for (let r = 53; r <= 79; r++) {
+      for (let c = 19; c <= 28; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        if (!newWs[addr]) newWs[addr] = { t: 's', v: '' }
+        if (!newWs[addr].s) newWs[addr].s = {}
+        const b = newWs[addr].s.border || {}
+        newWs[addr].s.border = {
+          top: r === 53 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.top || { style: 'thin', color: { rgb: 'FF000000' } },
+          bottom: r === 79 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.bottom || { style: 'thin', color: { rgb: 'FF000000' } },
+          left: c === 19 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.left || { style: 'thin', color: { rgb: 'FF000000' } },
+          right: c === 28 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.right || { style: 'thin', color: { rgb: 'FF000000' } },
+        }
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // SECTION 6: CERTIFICATION + SIGNATURES
+    // GENERATED THROUGH LIS (W-AB = c22-c27, rows 81-82)
     // ═══════════════════════════════════════════════════════════════════
-    const certRow = 117
-    sec(newWs, certRow, 0, certRow, 39, 'I certify that this is a true and correct report.', S9_LEFT)
-    sec(newWs, certRow + 2, 0, certRow + 2, 39, '___________________________________', S9_CENTER)
-    const advRow = certRow + 2
-    setVal(newWs, advRow, 0, 's', '___________________________________')
-    applyStyle(newWs, advRow, 0, S9_CENTER)
-    sec(newWs, advRow + 1, 0, advRow + 1, 39, '(Signature of Adviser over Printed Name)', S9_CENTER)
+    sec(newWs, 81, 22, 82, 27, 'Generated thru LIS', { font: A8, alignment: { horizontal: 'center', vertical: 'center' }, border: THIN_BORDER })
 
-    const headRow = advRow + 4
-    sec(newWs, headRow, 0, headRow, 39, '___________________________________', S9_CENTER)
-    sec(newWs, headRow + 1, 0, headRow + 1, 39, '(Signature of School Head over Printed Name)', S9_CENTER)
+    // ═══════════════════════════════════════════════════════════════════
+    // SUMMARY TABLE (AD-AL = c29-c37, rows 50-73)
+    // ═══════════════════════════════════════════════════════════════════
+    const S9_BOLD_LEFT_WRAP = { font: { ...A9, bold: true }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: THIN_BORDER }
+    const S9_ITALIC_CENTER = { font: { ...A9, italic: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: THIN_BORDER }
+    const S9_ITALIC_CENTER_WRAP = { font: { ...A9, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER }
+    const S9_BOLD_CENTER = { font: { ...A9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: THIN_BORDER }
+    const S9_VALUE_CENTER = { font: A9, alignment: { horizontal: 'center', vertical: 'center' }, border: THIN_BORDER }
+    const S9_MED_BOTTOM = { font: { ...A9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } } }
+    // Helper: full-border descriptor row (merge AD:AH across r1-r2)
+    function descRow(ws, r1, r2, label, style) {
+      addMerge(ws, r1, 29, r2, 33)
+      setVal(ws, r1, 29, 's', label)
+      for (let r = r1; r <= r2; r++) for (let c = 29; c <= 33; c++) applyStyle(ws, r, c, style)
+    }
+    // Helper: value column (merge AI, AJ, AK:AL each across r1-r2)
+    function valCols(ws, r1, r2, m, f, t) {
+      for (const [ci, v] of [[34, m], [35, f]]) {
+        if (r1 !== r2) addMerge(ws, r1, ci, r2, ci)
+        setVal(ws, r1, ci, 'n', v)
+        for (let r = r1; r <= r2; r++) applyStyle(ws, r, ci, S9_VALUE_CENTER)
+      }
+      addMerge(ws, r1, 36, r2, 37)
+      setVal(ws, r1, 36, 'n', t)
+      for (let r = r1; r <= r2; r++) for (let c = 36; c <= 37; c++) applyStyle(ws, r, c, S9_VALUE_CENTER)
+    }
+    // Header rows (50-51): Month + No. of Days + Summary
+    sec(newWs, 50, 29, 51, 31, `Month : ${monthName}`, { font: { ...A9, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: THIN_BORDER })
+    sec(newWs, 50, 32, 51, 33, `No. of Days of Classes: ${numDateCols}`, S9_BOLD_LEFT_WRAP)
+    sec(newWs, 50, 34, 50, 37, 'Summary', { font: { ...A9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: THIN_BORDER })
+    // Column headers (row 51): M | F | TOTAL with thin + medium bottom border
+    const S9_MED_BOTTOM_FULL = { font: { ...A9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'FF000000' } }, bottom: { style: 'medium', color: { rgb: 'FF000000' } }, left: { style: 'thin', color: { rgb: 'FF000000' } }, right: { style: 'thin', color: { rgb: 'FF000000' } } } }
+    sec(newWs, 51, 34, 51, 34, 'M', S9_MED_BOTTOM_FULL)
+    sec(newWs, 51, 35, 51, 35, 'F', S9_MED_BOTTOM_FULL)
+    sec(newWs, 51, 36, 51, 37, 'TOTAL', S9_MED_BOTTOM_FULL)
+    // Data rows
+    // Enrollment (rows 52-53)
+    descRow(newWs, 52, 53, '* Enrollment as of (1st Friday of the SY)', { font: A9, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: THIN_BORDER })
+    valCols(newWs, 52, 53, initM, initF, initT)
+    // Late enrolment (rows 54-56) - no borders
+    descRow(newWs, 54, 56, 'Late enrolment during the month', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } })
+    // beyond cut-off (row 57) - no borders
+    descRow(newWs, 57, 57, '(beyond cut-off)', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center' } })
+    // value columns for late enrolment - no borders
+    const noBorderCenter = { font: { name: 'Arial', sz: 9 }, alignment: { horizontal: 'center', vertical: 'center' } }
+    for (const [ci, v] of [[34, lateM], [35, lateF]]) {
+      if (54 !== 57) addMerge(newWs, 54, ci, 57, ci)
+      setVal(newWs, 54, ci, 'n', v)
+      for (let r = 54; r <= 57; r++) applyStyle(newWs, r, ci, noBorderCenter)
+    }
+    addMerge(newWs, 54, 36, 57, 37)
+    setVal(newWs, 54, 36, 'n', lateM + lateF)
+    for (let r = 54; r <= 57; r++) for (let c = 36; c <= 37; c++) applyStyle(newWs, r, c, noBorderCenter)
+    // Registered Learners (rows 58-59)
+    descRow(newWs, 58, 59, 'Registered Learners as of end of month', S9_ITALIC_CENTER_WRAP)
+    valCols(newWs, 58, 59, maleCount, femaleCount, maleCount + femaleCount)
+    // Percentage of Enrolment (rows 60-61)
+    const pctEnrM = initM > 0 ? Math.round(maleCount / initM * 100) : 0
+    const pctEnrF = initF > 0 ? Math.round(femaleCount / initF * 100) : 0
+    const pctEnrT = initT > 0 ? Math.round((maleCount + femaleCount) / initT * 100) : 0
+    descRow(newWs, 60, 61, 'Percentage of Enrolment as of end of month', S9_ITALIC_CENTER_WRAP)
+    valCols(newWs, 60, 61, `${pctEnrM}%`, `${pctEnrF}%`, `${pctEnrT}%`)
+    // ADA (rows 62-63)
+    descRow(newWs, 62, 63, 'Average Daily Attendance', S9_ITALIC_CENTER)
+    valCols(newWs, 62, 63, mADA, fADA, tADA)
+    // Percentage of Attendance (row 64 only)
+    const pctAttM2 = sd.pct_m != null ? sd.pct_m : mPct
+    const pctAttF2 = sd.pct_f != null ? sd.pct_f : fPct
+    const pctAttT2 = sd.pct_t != null ? sd.pct_t : tPct
+    descRow(newWs, 64, 64, 'Percentage of Attendance for the month', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
+    valCols(newWs, 64, 64, pctAttM2, pctAttF2, pctAttT2)
+    // Number of students absent for 5 consecutive days (row 65)
+    descRow(newWs, 65, 65, 'Number of students absent for 5 consecutive days', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
+    valCols(newWs, 65, 65, 0, 0, 0)
+    // NLS (row 66)
+    const nlsM2 = sd.nls_m != null ? sd.nls_m : 0
+    const nlsF2 = sd.nls_f != null ? sd.nls_f : 0
+    const nlsT2 = sd.nls_t != null ? sd.nls_t : 0
+    descRow(newWs, 66, 66, 'NLS', S9_BOLD_CENTER)
+    valCols(newWs, 66, 66, nlsM2, nlsF2, nlsT2)
+    // Transferred out (rows 67-68)
+    const toM2 = sd.transfer_out_m != null ? sd.transfer_out_m : 0
+    const toF2 = sd.transfer_out_f != null ? sd.transfer_out_f : 0
+    const toT2 = sd.transfer_out_t != null ? sd.transfer_out_t : 0
+    descRow(newWs, 67, 68, 'Transferred out', S9_BOLD_CENTER)
+    valCols(newWs, 67, 68, toM2, toF2, toT2)
+    // Transferred in (rows 69-71)
+    const tiM2 = sd.transfer_in_m != null ? sd.transfer_in_m : 0
+    const tiF2 = sd.transfer_in_f != null ? sd.transfer_in_f : 0
+    const tiT2 = sd.transfer_in_t != null ? sd.transfer_in_t : 0
+    descRow(newWs, 69, 71, 'Transferred in', S9_BOLD_CENTER)
+    valCols(newWs, 69, 71, tiM2, tiF2, tiT2)
+    // Apply full grid to summary range (rows 50-71), then override per spec
+    for (let r = 50; r <= 71; r++) {
+      for (let c = 29; c <= 37; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        if (!newWs[addr]) newWs[addr] = { t: 's', v: '' }
+        if (!newWs[addr].s) newWs[addr].s = { font: A9, alignment: { vertical: 'center' }, border: THIN_BORDER }
+        else if (!newWs[addr].s.border) newWs[addr].s.border = THIN_BORDER
+        // Medium top border on first row
+        if (r === 50) newWs[addr].s.border.top = { style: 'medium', color: { rgb: 'FF000000' } }
+        // Medium left/right on desc column (c29, c33) for rows 64-71
+        if (r >= 64 && c === 29) newWs[addr].s.border.left = { style: 'medium', color: { rgb: 'FF000000' } }
+        if (r >= 64 && c === 33) newWs[addr].s.border.right = { style: 'medium', color: { rgb: 'FF000000' } }
+        // Medium right on TOTAL column (c37) for all rows
+        if (c === 37) newWs[addr].s.border.right = { style: 'medium', color: { rgb: 'FF000000' } }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CERTIFICATION + SIGNATURES
+    // ═══════════════════════════════════════════════════════════════════
+    const A8_ITALIC_LEFT = { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'left', vertical: 'center' } }
+    const A8_CENTER = { font: { name: 'Arial', sz: 8 }, alignment: { horizontal: 'center', vertical: 'center' } }
+    const A8_BOLD_CENTER = { font: { name: 'Arial', sz: 8, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } }
+    const A8_CENTER_ITALIC = { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'left', vertical: 'center' } }
+    const MED_TOP_BORDER = { border: { top: { style: 'medium', color: { rgb: 'FF000000' } } } }
+    // Certification text (rows 73-74, AD74:AK75)
+    sec(newWs, 73, 29, 74, 36, 'I certify that this is a true and correct report.', A8_ITALIC_LEFT)
+    // Adviser name (row 76, AE77:AK77)
+    sec(newWs, 76, 30, 76, 36, 'LEEVIN JONES O. GOYAO', A8_CENTER)
+    // Adviser signature + designation (row 77, AE78:AK78)
+    addMerge(newWs, 77, 30, 77, 36)
+    setVal(newWs, 77, 30, 's', '(Signature of Adviser over Printed Name)')
+    for (let c = 30; c <= 36; c++) applyStyle(newWs, 77, c, { font: { name: 'Arial', sz: 8 }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'medium', color: { rgb: 'FF000000' } } } })
+    // Attested by (row 80, AD81)
+    setVal(newWs, 80, 29, 's', 'Attested by:')
+    applyStyle(newWs, 80, 29, A8_ITALIC_LEFT)
+    // School head name (row 81, AE82:AK82)
+    sec(newWs, 81, 30, 81, 36, 'MRS. MYRNA KAY - AN', A8_BOLD_CENTER)
+    // School head signature + designation (row 82, AE83:AK83)
+    addMerge(newWs, 82, 30, 82, 36)
+    setVal(newWs, 82, 30, 's', '(Signature of School Head over Printed Name)')
+    for (let c = 30; c <= 36; c++) applyStyle(newWs, 82, c, { font: { name: 'Arial', sz: 8 }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'medium', color: { rgb: 'FF000000' } } } })
 
     // Extend !ref to cover full section
-    newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: headRow + 5, c: 39 } })
+    newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 90, c: 37 } })
 
     // Replace the workbook sheet with our fresh worksheet
     wb.Sheets[wb.SheetNames[sheetIndex]] = newWs
