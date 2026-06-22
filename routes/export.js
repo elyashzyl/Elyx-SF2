@@ -379,7 +379,7 @@ router.post('/sf2', (req, res) => {
         const col = dateColMap[dayNum]
         if (col === undefined || !status) continue
         setVal(newWs, row, col, 's', status === 'T' || status === 'H' ? '█' : status)
-        applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(col - DATE_COL_START), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+        applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
       addMerge(newWs, row, 30, row, 32)
@@ -407,7 +407,7 @@ router.post('/sf2', (req, res) => {
           const col = dateColMap[dayNum]
           if (col === undefined || !status) continue
           setVal(newWs, row, col, 's', status === 'T' || status === 'H' ? '█' : status)
-          applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(col - DATE_COL_START), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+          applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
         addMerge(newWs, row, 30, row, 32)
@@ -573,7 +573,7 @@ router.post('/sf2', (req, res) => {
     sec(newWs, 59, 4, 59, 15, 'Registered Learners as of end of the month', S8_CENTER)
     sec(newWs, 58, 16, 59, 18, 'x 100', S8_CENTER)
     // Footnote
-    sec(newWs, 64, 0, 67, 18, '*Beginning of School Year cut-off report is every 1st Friday of the School Year', { font: { ...A8, italic: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: MEDIUM_BORDER })
+    sec(newWs, 64, 0, 67, 18, '*Beginning of School Year cut-off report is every 1st Friday of the School Year', { font: { ...A8, italic: true }, alignment: { horizontal: 'left', vertical: 'center' } })
 
     // ═══════════════════════════════════════════════════════════════════
     // RIGHT PANEL: CODES (T-AC = c19-c28, rows 50-52)
