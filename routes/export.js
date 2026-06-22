@@ -674,7 +674,7 @@ router.post('/sf2', (req, res) => {
     descRow(newWs, 52, 53, '* Enrollment as of (1st Friday of the SY)', { font: A9, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, 52, 53, initM, initF, initT)
     // Late enrolment (rows 54-56) - no borders
-    descRow(newWs, 54, 56, 'Late enrolment during the month', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } })
+    descRow(newWs, 54, 56, 'Late enrolment during the month (Beginning of School Year cut-off report is every 1st Friday of the School Year for this part)', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } })
     // beyond cut-off (row 57) - no borders
     descRow(newWs, 57, 57, '(beyond cut-off)', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center' } })
     // value columns for late enrolment - no borders
