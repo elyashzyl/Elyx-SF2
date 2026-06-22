@@ -72,7 +72,7 @@ router.put('/:recordId/entry', (req, res) => {
     const s = days[d]
     if (s === 'E') present++
     else if (s === 'A') absent++
-    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H') {
+    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H' || s === '⬆️' || s === '⬇️') {
       present += 0.5
       absent += 0.5
     }

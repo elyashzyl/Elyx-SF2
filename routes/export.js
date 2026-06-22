@@ -378,7 +378,7 @@ router.post('/sf2', (req, res) => {
         const dayNum = parseInt(dayStr, 10)
         const col = dateColMap[dayNum]
         if (col === undefined || !status) continue
-        setVal(newWs, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
+        setVal(newWs, row, col, 's', status === 'T' ? '⬆️' : status === 'H' ? '⬇️' : status)
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
       addMerge(newWs, row, 30, row, 32)
@@ -405,7 +405,7 @@ router.post('/sf2', (req, res) => {
           const dayNum = parseInt(dayStr, 10)
           const col = dateColMap[dayNum]
           if (col === undefined || !status) continue
-          setVal(newWs, row, col, 's', status === 'T' ? '◤' : status === 'H' ? '◢' : status)
+          setVal(newWs, row, col, 's', status === 'T' ? '⬆️' : status === 'H' ? '⬇️' : status)
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
         addMerge(newWs, row, 30, row, 32)
