@@ -59,49 +59,49 @@ router.post('/sf2', (req, res) => {
     }
 
     const VALUE_STYLE = {
-      font: { name: 'Calibri', sz: 11, bold: true },
+      font: { name: 'Trebuchet MS', sz: 11, bold: true },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: THIN_BORDER,
       fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
     }
     const LABEL_STYLE = {
-      font: { name: 'Calibri', sz: 11 },
+      font: { name: 'Trebuchet MS', sz: 11 },
       alignment: { horizontal: 'right', vertical: 'center' },
       border: THIN_BORDER,
       fill: { fgColor: { rgb: 'D9D9D9' }, patternType: 'solid' }
     }
     const PLAIN_LABEL_STYLE = {
-      font: { name: 'Calibri', sz: 11 },
+      font: { name: 'Trebuchet MS', sz: 11 },
       alignment: { horizontal: 'right', vertical: 'center' }
     }
     const TITLE_STYLE = {
-      font: { name: 'Calibri', sz: 12, bold: true },
+      font: { name: 'Trebuchet MS', sz: 12, bold: true },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: {}
     }
     const SUBTITLE_STYLE = {
-      font: { name: 'Calibri', sz: 9, italic: true },
+      font: { name: 'Trebuchet MS', sz: 9, italic: true },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: {}
     }
     const TABLE_HEADER_STYLE = {
-      font: { name: 'Calibri', sz: 11, bold: true },
+      font: { name: 'Trebuchet MS', sz: 11, bold: true },
       alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
       border: MEDIUM_BORDER,
       fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
     }
     const SUMMARY_STYLE = {
-      font: { name: 'Calibri', sz: 9 },
+      font: { name: 'Trebuchet MS', sz: 9 },
       alignment: { horizontal: 'left', vertical: 'center' }
     }
     const DATA_STYLE = {
-      font: { name: 'Calibri', sz: 11 },
+      font: { name: 'Trebuchet MS', sz: 11 },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: MEDIUM_BORDER,
       fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
     }
     const PLAIN_LEFT_STYLE = {
-      font: { name: 'Calibri', sz: 11 },
+      font: { name: 'Trebuchet MS', sz: 11 },
       alignment: { horizontal: 'left', vertical: 'center' }
     }
     function applyStyle(newWs, r, c, style) {
@@ -287,8 +287,8 @@ router.post('/sf2', (req, res) => {
     for (let ci = 0; ci < numDateCols; ci++) {
       const c = DATE_COL_START + ci
       const b = dateBorder(ci)
-      applyStyle(newWs, DATE_NUM_ROW, c, { font: { name: 'Calibri', sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
-      applyStyle(newWs, DATE_ABBR_ROW, c, { font: { name: 'Calibri', sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+      applyStyle(newWs, DATE_NUM_ROW, c, { font: { name: 'Trebuchet MS', sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+      applyStyle(newWs, DATE_ABBR_ROW, c, { font: { name: 'Trebuchet MS', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
     }
 
     // ── Count genders ──
@@ -380,7 +380,7 @@ router.post('/sf2', (req, res) => {
         if (col === undefined || !status) continue
         const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status
         setVal(newWs, row, col, 's', sym)
-        applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
       addMerge(newWs, row, 30, row, 32)
@@ -409,7 +409,7 @@ router.post('/sf2', (req, res) => {
           if (col === undefined || !status) continue
           const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status
           setVal(newWs, row, col, 's', sym)
-          applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
+          applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
         addMerge(newWs, row, 30, row, 32)
@@ -466,7 +466,7 @@ router.post('/sf2', (req, res) => {
     for (const r of bodyRows) {
       for (let ci = 0; ci < numDateCols; ci++) {
         const c = DATE_COL_START + ci
-        applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+        applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
       }
     }
     // Re-apply font 22 on triangle cells after all style overrides
@@ -474,7 +474,7 @@ router.post('/sf2', (req, res) => {
       for (let ci = 0; ci < numDateCols; ci++) {
         const c = DATE_COL_START + ci
         const addr = XLSX.utils.encode_cell({ r, c })
-        if (newWs[addr] && (newWs[addr].v === '◤' || newWs[addr].v === '◢')) applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        if (newWs[addr] && (newWs[addr].v === '◤' || newWs[addr].v === '◢')) applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
     }
 
