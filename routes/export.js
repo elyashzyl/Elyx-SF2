@@ -379,6 +379,8 @@ router.post('/sf2', (req, res) => {
         const col = dateColMap[dayNum]
         if (col === undefined || !status) continue
         setVal(newWs, row, col, 's', status === 'T' ? '▲' : status === 'H' ? '△' : status)
+        const ci = col - DATE_COL_START
+        applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
       addMerge(newWs, row, 30, row, 32)
@@ -406,6 +408,8 @@ router.post('/sf2', (req, res) => {
           const col = dateColMap[dayNum]
           if (col === undefined || !status) continue
           setVal(newWs, row, col, 's', status === 'T' ? '▲' : status === 'H' ? '△' : status)
+          const ci = col - DATE_COL_START
+          applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
         addMerge(newWs, row, 30, row, 32)
