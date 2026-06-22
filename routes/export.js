@@ -379,7 +379,7 @@ router.post('/sf2', (req, res) => {
         const col = dateColMap[dayNum]
         if (col === undefined || !status) continue
         setVal(newWs, row, col, 's', status === 'T' || status === 'H' ? '█' : status)
-        applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
       addMerge(newWs, row, 30, row, 32)
@@ -407,7 +407,7 @@ router.post('/sf2', (req, res) => {
           const col = dateColMap[dayNum]
           if (col === undefined || !status) continue
           setVal(newWs, row, col, 's', status === 'T' || status === 'H' ? '█' : status)
-          applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
+          applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
         addMerge(newWs, row, 30, row, 32)
@@ -467,6 +467,14 @@ router.post('/sf2', (req, res) => {
         applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
       }
     }
+    // Re-apply font 22 on triangle cells after all style overrides
+    for (const r of bodyRows) {
+      for (let ci = 0; ci < numDateCols; ci++) {
+        const c = DATE_COL_START + ci
+        const addr = XLSX.utils.encode_cell({ r, c })
+        if (newWs[addr] && newWs[addr].v === '█') applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
+      }
+    }
 
     // ── Use summary_data from request (or compute defaults) ──
     const sd = summary_data || {}
@@ -493,7 +501,7 @@ router.post('/sf2', (req, res) => {
       if (c === 0) cols[c] = { wch: 15 }  // Labels (School ID, Name of School) + No.
       else if (c === NAME_COL) cols[c] = { wch: 30 }
       else if (c === 3) cols[c] = { wch: 4 }
-      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 16 }  // Square attendance cells
+      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 2 }  // Square attendance cells
       else if (c === 26) cols[c] = { wch: 8 }
       else if (c === 27) cols[c] = { wch: 4 }
       else if (c >= 19 && c <= 28) cols[c] = { wch: 9 }   // CODES / REASONS (T-AC)
@@ -506,8 +514,8 @@ router.post('/sf2', (req, res) => {
 
     // Set row heights for student rows (match column width for square cells)
     const rows = []
-    for (let r = maleSectionStart; r <= maleSectionEnd; r++) rows[r] = { hpt: 16 }
-    for (let r = femaleSectionStart; r <= femaleSectionEnd && r >= 0; r++) rows[r] = { hpt: 16 }
+    for (let r = maleSectionStart; r <= maleSectionEnd; r++) rows[r] = { hpt: 15 }
+    for (let r = femaleSectionStart; r <= femaleSectionEnd && r >= 0; r++) rows[r] = { hpt: 15 }
     newWs['!rows'] = rows
 
     // ── BOTTOM SECTION STYLES (font 9 for rows 51+) ──
