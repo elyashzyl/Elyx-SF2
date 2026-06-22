@@ -706,7 +706,7 @@ router.post('/sf2', (req, res) => {
     descRow(newWs, 64, 64, 'Percentage of Attendance for the month', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, 64, 64, pctAttM2, pctAttF2, pctAttT2)
     // Number of students absent for 5 consecutive days (row 65)
-    descRow(newWs, 65, 65, 'Number of students absent for 5 consecutive days', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
+    descRow(newWs, 65, 65, 'Number of students absent for 5 consecutive days', S9_CENTER)
     valCols(newWs, 65, 65, 0, 0, 0)
     // NLS (row 66)
     const nlsM2 = sd.nls_m != null ? sd.nls_m : 0
@@ -718,7 +718,7 @@ router.post('/sf2', (req, res) => {
     const toM2 = sd.transfer_out_m != null ? sd.transfer_out_m : 0
     const toF2 = sd.transfer_out_f != null ? sd.transfer_out_f : 0
     const toT2 = sd.transfer_out_t != null ? sd.transfer_out_t : 0
-    descRow(newWs, 67, 68, 'Transferred out', S9_BOLD_CENTER)
+    descRow(newWs, 67, 68, 'Transferred out', S9_CENTER)
     valCols(newWs, 67, 68, toM2, toF2, toT2)
     // Transferred in (rows 69-71)
     const tiM2 = sd.transfer_in_m != null ? sd.transfer_in_m : 0
