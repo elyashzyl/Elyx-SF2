@@ -378,7 +378,8 @@ router.post('/sf2', (req, res) => {
         const dayNum = parseInt(dayStr, 10)
         const col = dateColMap[dayNum]
         if (col === undefined || !status) continue
-        setVal(newWs, row, col, 's', status === 'T' || status === 'H' ? '█' : status)
+        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status
+        setVal(newWs, row, col, 's', sym)
         applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
       setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
@@ -406,7 +407,8 @@ router.post('/sf2', (req, res) => {
           const dayNum = parseInt(dayStr, 10)
           const col = dateColMap[dayNum]
           if (col === undefined || !status) continue
-          setVal(newWs, row, col, 's', status === 'T' || status === 'H' ? '█' : status)
+          const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status
+          setVal(newWs, row, col, 's', sym)
           applyStyle(newWs, row, col, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
         setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
@@ -472,7 +474,7 @@ router.post('/sf2', (req, res) => {
       for (let ci = 0; ci < numDateCols; ci++) {
         const c = DATE_COL_START + ci
         const addr = XLSX.utils.encode_cell({ r, c })
-        if (newWs[addr] && newWs[addr].v === '█') applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        if (newWs[addr] && (newWs[addr].v === '◤' || newWs[addr].v === '◢')) applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 22 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
     }
 
@@ -590,7 +592,7 @@ router.post('/sf2', (req, res) => {
     sec(newWs, 50, 19, 50, 28, '1. CODES FOR CHECKING ATTENDANCE', S9_BOLD_MED_LEFT)
     // CODES description - wrap text
     addMerge(newWs, 51, 19, 52, 28)
-    setVal(newWs, 51, 19, 's', '(blank) - Present; (x) - Absent; Tardy (half shaded = Upper for Late Comers, Lower for Cutting Classes)')
+    setVal(newWs, 51, 19, 's', '(blank) - Present; (x) - Absent; ◤ = Tardy/Upper (Late Comers); ◢ = Cutting Classes')
     for (let r = 51; r <= 52; r++) for (let c = 19; c <= 28; c++) applyStyle(newWs, r, c, { font: A8, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: THIN_BORDER })
 
     // ═══════════════════════════════════════════════════════════════════
