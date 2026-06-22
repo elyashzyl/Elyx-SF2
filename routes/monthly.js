@@ -64,19 +64,32 @@ router.put('/:recordId/entry', (req, res) => {
 
   const entry = entries[0]
   const days = JSON.parse(entry.days || '{}')
-  days[day] = status
+  if (status) {
+    days[day] = status
+  } else {
+    delete days[day]
+  }
 
-  let present = 0
+  // Compute school days from record
+  const rec = records[0]
+  const dim = new Date(rec.year, rec.month, 0).getDate()
+  const excluded = JSON.parse(rec.excluded_dates || '[]')
+  let total = 0
+  for (let d = 1; d <= dim; d++) {
+    const dow = new Date(rec.year, rec.month - 1, d).getDay()
+    if (dow === 0 || dow === 6) continue
+    if (excluded.includes(d)) continue
+    total++
+  }
+
   let absent = 0
   for (const d of Object.keys(days)) {
     const s = days[d]
-    if (s === 'E') present++
-    else if (s === 'A') absent++
-    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H' || s === '█') {
-      present += 0.5
-      absent += 0.5
-    }
+    if (s === 'A' || s === '█') absent++
+    else if (s === '◢' || s === 'H') absent += 0.5
+    // ◤/T counts as full present, no deduction
   }
+  const present = total - absent
 
   run('UPDATE monthly_entries SET days=?, present=?, absent=? WHERE record_id=? AND student_id=?',
     [JSON.stringify(days), present, absent, recordId, studentId])
@@ -94,9 +107,9 @@ router.put('/:recordId/remarks', (req, res) => {
 
 router.put('/:recordId/summary', (req, res) => {
   const { recordId } = req.params
-  const { summary_data } = req.body
-  run('UPDATE monthly_records SET summary_data=? WHERE id=?',
-    [JSON.stringify(summary_data || {}), recordId])
+  const { summary_data, adviser } = req.body
+  run('UPDATE monthly_records SET summary_data=?, adviser=? WHERE id=?',
+    [JSON.stringify(summary_data || {}), adviser || '', recordId])
   res.json({ success: true })
 })
 
