@@ -464,7 +464,7 @@ router.post('/sf2', (req, res) => {
     for (const r of bodyRows) {
       for (let ci = 0; ci < numDateCols; ci++) {
         const c = DATE_COL_START + ci
-        applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+        applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
       }
     }
 
