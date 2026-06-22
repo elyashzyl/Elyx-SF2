@@ -462,7 +462,7 @@ router.post('/sf2', (req, res) => {
     for (const r of bodyRows) {
       for (let ci = 0; ci < numDateCols; ci++) {
         const c = DATE_COL_START + ci
-        applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+        applyStyle(newWs, r, c, { font: { name: 'Calibri', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci), fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
       }
     }
 
@@ -491,7 +491,7 @@ router.post('/sf2', (req, res) => {
       if (c === 0) cols[c] = { wch: 15 }  // Labels (School ID, Name of School) + No.
       else if (c === NAME_COL) cols[c] = { wch: 30 }
       else if (c === 3) cols[c] = { wch: 4 }
-      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 3 }
+      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 16 }  // Square attendance cells
       else if (c === 26) cols[c] = { wch: 8 }
       else if (c === 27) cols[c] = { wch: 4 }
       else if (c >= 19 && c <= 28) cols[c] = { wch: 9 }   // CODES / REASONS (T-AC)
