@@ -572,21 +572,24 @@ router.post('/sf2', (req, res) => {
       for (let c = c1; c <= c2; c++) {
         const addr = XLSX.utils.encode_cell({ r, c })
         if (!ws[addr]) ws[addr] = { t: 's', v: '' }
-        ws[addr].s = { font: A8, border: { bottom: { style: 'thin', color: { rgb: 'FF000000' } } }, alignment: { horizontal: 'center', vertical: 'center' } }
+        ws[addr].s = { font: A8, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } }, alignment: { horizontal: 'center', vertical: 'center' } }
       }
     }
     // Formula A
     sec(newWs, S + 4, 0, S + 5, 3, 'a. Percentage of Enrolment =', S8_LEFT)
     sec(newWs, S + 4, 4, S + 4, 15, 'Registered Learners as of end of the month', S8_CENTER)
+    bottomBorder(newWs, S + 4, 4, 15)
     sec(newWs, S + 5, 4, S + 5, 15, 'Enrolment as of 1st Friday of the school year', S8_CENTER)
     sec(newWs, S + 4, 16, S + 5, 18, 'x 100', S8_CENTER)
     // Formula B
     sec(newWs, S + 6, 0, S + 7, 3, 'b. Average Daily Attendance =', S8_LEFT)
     sec(newWs, S + 6, 4, S + 6, 15, 'Total Daily Attendance', S8_CENTER)
+    bottomBorder(newWs, S + 6, 4, 15)
     sec(newWs, S + 7, 4, S + 7, 15, 'Number of School Days in reporting month', S8_CENTER)
     // Formula C
     sec(newWs, S + 8, 0, S + 9, 3, 'c. Percentage of Attendance for the month =', S8_LEFT)
     sec(newWs, S + 8, 4, S + 8, 15, 'Average daily attendance', S8_CENTER)
+    bottomBorder(newWs, S + 8, 4, 15)
     sec(newWs, S + 9, 4, S + 9, 15, 'Registered Learners as of end of the month', S8_CENTER)
     sec(newWs, S + 8, 16, S + 9, 18, 'x 100', S8_CENTER)
     // Footnote
@@ -641,7 +644,7 @@ router.post('/sf2', (req, res) => {
         const b = newWs[addr].s.border || {}
         newWs[addr].s.border = {
           top: r === S + 3 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.top || { style: 'thin', color: { rgb: 'FF000000' } },
-          bottom: r === S + 29 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.bottom || { style: 'thin', color: { rgb: 'FF000000' } },
+          bottom: r === S + 29 ? undefined : b.bottom || { style: 'thin', color: { rgb: 'FF000000' } },
           left: c === 19 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.left || { style: 'thin', color: { rgb: 'FF000000' } },
           right: c === 28 ? { style: 'medium', color: { rgb: 'FF000000' } } : b.right || { style: 'thin', color: { rgb: 'FF000000' } },
         }
@@ -679,6 +682,18 @@ router.post('/sf2', (req, res) => {
       setVal(ws, r1, 36, 'n', t)
       for (let r = r1; r <= r2; r++) for (let c = 36; c <= 37; c++) applyStyle(ws, r, c, S9_VALUE_CENTER)
     }
+    function applyOuterBorder(ws, r1, c1, r2, c2, style, outer) {
+      addMerge(ws, r1, c1, r2, c2)
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) applyStyle(ws, r, c, style)
+      if (outer) for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        if (!ws[addr].s.border) ws[addr].s.border = {}
+        ws[addr].s.border.top = r === r1 ? outer.top || outer : ws[addr].s.border.top
+        ws[addr].s.border.bottom = r === r2 ? outer.bottom || outer : ws[addr].s.border.bottom
+        ws[addr].s.border.left = c === c1 ? outer.left || outer : ws[addr].s.border.left
+        ws[addr].s.border.right = c === c2 ? outer.right || outer : ws[addr].s.border.right
+      }
+    }
     // Header rows (50-51): Month + No. of Days + Summary
     sec(newWs, S, 29, S + 1, 31, `Month : ${monthName}`, { font: { ...A9, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: THIN_BORDER })
     sec(newWs, S, 32, S + 1, 33, `No. of Days of Classes: ${numDateCols}`, S9_BOLD_LEFT_WRAP)
@@ -692,8 +707,11 @@ router.post('/sf2', (req, res) => {
     // Enrollment (rows 52-53)
     descRow(newWs, S + 2, S + 3, '* Enrollment as of (1st Friday of the SY)', { font: A9, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, S + 2, S + 3, initM, initF, initT)
-    // Late enrolment (rows 54-56) - no borders
-    descRow(newWs, S + 4, S + 4, 'Late enrolment during the month (Beginning of School Year cut-off report is every 1st Friday of the School Year for this part)', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } })
+    // Late enrolment (rows 54-56)
+    setVal(newWs, S + 4, 29, 's', 'Late enrolment during the month')
+    applyOuterBorder(newWs, S + 4, 29, S + 5, 33, { font: { name: 'Arial', sz: 9 }, alignment: { horizontal: 'center', vertical: 'center' } })
+    applyOuterBorder(newWs, S + 4, 29, S + 5, 33, { font: { name: 'Arial', sz: 9 }, alignment: { horizontal: 'center', vertical: 'center' } }, MEDIUM_BORDER)
+    // Value columns are merged down through the late-enrolment/beyond-cut-off block.
     // beyond cut-off (rows 55-56): "Late enrolment" in AD-AF, "during the month" bold in AG-AH
     addMerge(newWs, S + 5, 29, S + 6, 31)
     setVal(newWs, S + 5, 29, 's', 'Late enrolment')
@@ -766,8 +784,6 @@ router.post('/sf2', (req, res) => {
         if (r >= S + 15 && c === 33) newWs[addr].s.border.right = { style: 'medium', color: { rgb: 'FF000000' } }
         // Medium right on TOTAL column (c37) for all rows
         if (c === 37) newWs[addr].s.border.right = { style: 'medium', color: { rgb: 'FF000000' } }
-        // Remove bottom border on last row
-        if (r === S + 22) newWs[addr].s.border.bottom = undefined
       }
     }
 
