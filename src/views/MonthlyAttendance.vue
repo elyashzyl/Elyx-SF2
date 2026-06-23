@@ -48,7 +48,7 @@
       <div class="sheet-info">
         <span>Grade: {{ record.grade }}</span>
         <span>Section: {{ record.section }}</span>
-        <span>Adviser: {{ record.adviser }}</span>
+        <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
       </div>
 
       <div class="table-wrapper">
@@ -93,8 +93,7 @@
                           @change="updateDay(entry, d, $event.target.value)"
                           class="day-select">
                     <option value=""></option>
-                    <option value="E">E</option>
-                    <option value="A">A</option>
+                    <option value="A">x</option>
                     <option value="◤">◤</option>
                     <option value="◢">◢</option>
                   </select>
@@ -209,8 +208,8 @@
       <div class="legends">
         <h3>LEGENDS:</h3>
         <div class="legend-grid">
-          <span><strong>E</strong> - Entered (Present)</span>
-          <span><strong>A</strong> - Absent</span>
+          <span><strong>(blank)</strong> - Present</span>
+          <span><strong>x</strong> - Absent</span>
           <span><strong>◤</strong> - Tardy</span>
           <span><strong>◢</strong> - Half Day</span>
         </div>
@@ -297,6 +296,7 @@ async function exportToSF2() {
         year: form.year,
         grade: form.grade,
         section: form.section,
+        adviser: record.value.adviser || '',
         summary_data: {
           enr_m: summaryEdits.enr_m,
           enr_f: summaryEdits.enr_f,
@@ -389,21 +389,22 @@ function dayTotal(entries, day, gender) {
   let count = 0
   for (const e of filtered) {
     const s = e.days[String(day)]
-    if (s === 'E') count++
-    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H') count += 0.5
+    if (!s || s === '◤' || s === 'T') count++
+    else if (s === '◢' || s === 'H') count += 0.5
   }
   return count || ''
 }
 
 function entryPresent(entry) {
-  let p = 0
+  let absent = 0
   for (const d of Object.keys(entry.days || {})) {
-    if (isDisabled(parseInt(d, 10))) continue
+    const dayNum = parseInt(d, 10)
+    if (isDisabled(dayNum)) continue
     const s = entry.days[d]
-    if (s === 'E') p++
-    else if (s === '◤' || s === '◢' || s === 'T' || s === 'H') p += 0.5
+    if (s === 'A') absent++
+    else if (s === '◢' || s === 'H') absent += 0.5
   }
-  return p
+  return Math.max(0, schoolDays.value - absent)
 }
 
 function sumPresent(gender) {
@@ -588,6 +589,7 @@ async function saveSummary() {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      adviser: record.value.adviser,
       summary_data: {
         enr_m: summaryEdits.enr_m,
         enr_f: summaryEdits.enr_f,

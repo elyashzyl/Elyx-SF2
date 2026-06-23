@@ -3,14 +3,10 @@
     <div v-if="!record" class="select-screen">
       <div class="page-header">
         <h1>Attendance Record</h1>
-        <p>View daily or monthly attendance reports.</p>
-      </div>
-      <div class="tab-bar">
-        <button :class="['tab-btn', { active: activeTab === 'daily' }]" @click="activeTab = 'daily'">Daily</button>
-        <button :class="['tab-btn', { active: activeTab === 'monthly' }]" @click="activeTab = 'monthly'">Monthly</button>
+        <p>View daily attendance records.</p>
       </div>
 
-      <div v-if="activeTab === 'daily'" class="form-card">
+      <div class="form-card">
         <div class="form-row">
           <div class="form-group">
             <label>Date</label>
@@ -41,94 +37,7 @@
         <p v-if="loadError" class="error-msg">{{ loadError }}</p>
       </div>
 
-      <div v-if="activeTab === 'monthly'" class="form-card">
-        <div class="form-row">
-          <div class="form-group">
-            <label>Month</label>
-            <select v-model="monthlyForm.month">
-              <option v-for="m in 12" :key="m" :value="m">{{ monthNames[m-1] }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Year</label>
-            <select v-model="monthlyForm.year">
-              <option v-for="y in yearRange" :key="y">{{ y }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Grade</label>
-            <select v-model="monthlyForm.grade" @change="monthlyForm.section = ''">
-              <option v-for="g in grades" :key="g">{{ g }}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Section</label>
-            <select v-model="monthlyForm.section">
-              <option value="" disabled>Select section</option>
-              <option v-for="s in monthlySections" :key="s">{{ s }}</option>
-            </select>
-          </div>
-        </div>
-        <button @click="generateMonthly" class="btn-primary" :disabled="monthlyLoading">
-          <span v-if="monthlyLoading" class="spinner"></span>
-          {{ monthlyLoading ? 'Loading...' : 'Generate Report' }}
-        </button>
-      </div>
-
-      <div v-if="monthlyData" class="monthly-report">
-        <div class="sf2-header">
-          <h2>School Form 2 (SF2) Daily Attendance Report of Learners</h2>
-          <p class="sf2-sub">(This replaces Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
-          <div class="sf2-info">
-            <span><strong>School ID:</strong> 406219</span>
-            <span><strong>School Year:</strong> {{ schoolYear(monthlyForm.year) }}</span>
-            <span><strong>Month:</strong> {{ monthNames[monthlyForm.month-1].toUpperCase() }}</span>
-          </div>
-          <div class="sf2-info">
-            <span><strong>Name of School:</strong> BAGUIO PATRIOTIC HIGH SCHOOL</span>
-            <span><strong>Grade Level:</strong> {{ gradeNum(monthlyData.grade) }}</span>
-            <span><strong>Section:</strong> {{ monthlyData.section }}</span>
-          </div>
-        </div>
-        <div class="table-wrapper">
-          <table class="monthly-table">
-            <thead>
-              <tr>
-                <th rowspan="2">No.</th>
-                <th rowspan="2">NAME<br/>(Last Name, First Name, Middle Name)</th>
-                <th v-for="d in monthlyData.dates" :key="d.date">{{ d.day }}</th>
-                <th colspan="2">Total for the Month</th>
-                <th rowspan="2">REMARKS<br/>(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</th>
-              </tr>
-              <tr>
-                <th v-for="d in monthlyData.dates" :key="'d-'+d.date">{{ d.dayName }}</th>
-                <th>ABSENT</th>
-                <th>PRESENT</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, ri) in monthlyData.rows" :key="row.studentId">
-                <td>{{ ri + 1 }}.</td>
-                <td class="name-cell">{{ row.name }}</td>
-                <td v-for="d in monthlyData.dates" :key="d.date" class="status-cell">
-                  <span v-if="row.dayStatus[d.date] === 'x'" class="absent-mark">x</span>
-                  <span v-if="row.dayStatus[d.date] === 'hd' || row.dayStatus[d.date] === 'th'" class="hd-mark"></span>
-                  <span v-if="row.dayStatus[d.date] === 't' || row.dayStatus[d.date] === 'th'" class="tardy-mark"></span>
-                </td>
-                <td class="absent-cell">{{ formatNum(row.absentCount) }}</td>
-                <td class="present-cell">{{ formatNum(row.presentCount) }}</td>
-                <td class="remark-cell">{{ row.remark }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="sheet-actions">
-          <button @click="exportMonthlyExcel" class="btn-primary">Export Excel</button>
-          <button @click="printMonthly" class="btn-secondary">Print</button>
-        </div>
-      </div>
-
-      <div v-if="activeTab === 'daily' && savedRecords.length" class="saved-records">
+      <div v-if="savedRecords.length" class="saved-records">
         <h3>Recent Records</h3>
         <table class="data-table">
           <thead>
@@ -378,75 +287,7 @@ const showEditRecord = ref(false)
 const savingRecord = ref(false)
 const editRecordForm = reactive({ id: '', date: '', grade: '', section: '', adviser: '' })
 
-const activeTab = ref('daily')
-const monthlyForm = reactive({
-  month: new Date().getMonth() + 1,
-  year: new Date().getFullYear(),
-  grade: 'Grade 7',
-  section: ''
-})
-const monthlyData = ref(null)
-const monthlyLoading = ref(false)
-const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const yearRange = computed(() => {
-  const cy = new Date().getFullYear()
-  return Array.from({ length: 6 }, (_, i) => cy - 2 + i)
-})
-const monthlySections = computed(() => sectionsByGrade[monthlyForm.grade] || [])
 
-
-
-function schoolYear(year) {
-  const y = parseInt(year)
-  return `${y}-${y + 1}`
-}
-
-function formatNum(n) {
-  if (n === 0 || n === '0') return '0'
-  if (n % 1 === 0) return n.toString()
-  return n.toFixed(1)
-}
-
-async function generateMonthly() {
-  if (!monthlyForm.month || !monthlyForm.year || !monthlyForm.grade || !monthlyForm.section) return
-  monthlyLoading.value = true
-  monthlyData.value = await store.fetchMonthly(
-    monthlyForm.grade,
-    monthlyForm.section,
-    monthlyForm.month,
-    monthlyForm.year
-  )
-  monthlyLoading.value = false
-}
-
-async function exportMonthlyExcel() {
-  if (!monthlyData.value) return
-  try {
-    const params = new URLSearchParams({
-      grade: monthlyForm.grade,
-      section: monthlyForm.section,
-      month: monthlyForm.month,
-      year: monthlyForm.year
-    }).toString()
-    const res = await fetch(`/api/attendance/monthly/excel?${params}`)
-    if (!res.ok) throw new Error('Export failed')
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `SF2_${monthlyForm.grade}_${monthlyForm.section}_${monthNames[monthlyForm.month-1]}_${monthlyForm.year}.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  } catch (e) {
-    addToast('Failed to export Excel', 'error')
-  }
-}
-
-function printMonthly() {
-  window.print()
-}
 
 function openEditRecord(r) {
   editRecordForm.id = r.id
