@@ -119,7 +119,7 @@ const { addToast } = useToast()
 const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
 const sectionsByGrade = {
   'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress'],
+  'Grade 8': ['Cypress', 'Narra'],
   'Grade 9': ['Kamagong', 'Mahogany'],
   'Grade 10': ['Acacia', 'Yakal']
 }
@@ -186,15 +186,19 @@ function cancelForm() {
   resetForm()
 }
 
+function capitalizeName(name) {
+  return name.toUpperCase()
+}
+
 function parseNames(text) {
-  return text.split('\n').map(n => n.trim().replace(/\r$/, '')).filter(Boolean)
+  return text.split('\n').map(n => n.trim().replace(/\r$/, '')).filter(Boolean).map(capitalizeName)
 }
 
 async function handleSave() {
   saving.value = true
   try {
     if (editingStudent.value) {
-      await store.updateStudent(editingStudent.value.id, { name: form.value.name, grade: form.value.grade, section: form.value.section, gender: form.value.gender })
+      await store.updateStudent(editingStudent.value.id, { name: capitalizeName(form.value.name), grade: form.value.grade, section: form.value.section, gender: form.value.gender })
       addToast('Student updated', 'success')
       await loadStudents()
       cancelForm()

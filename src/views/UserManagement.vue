@@ -128,7 +128,7 @@ const form = ref({ name: '', username: '', password: '', role: 'teacher', grade:
 const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
 const sectionsByGrade = {
   'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress'],
+  'Grade 8': ['Cypress', 'Narra'],
   'Grade 9': ['Kamagong', 'Mahogany'],
   'Grade 10': ['Acacia', 'Yakal']
 }

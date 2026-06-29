@@ -96,10 +96,11 @@
                     <option value="A">x</option>
                     <option value="◤">◤</option>
                     <option value="◢">◢</option>
+                    <option value="E">E</option>
                   </select>
                 </td>
                 <td class="total-cell present">{{ Math.round(entryPresent(entry) * 10) / 10 }}</td>
-                <td class="total-cell absent">{{ entry.absent || 0 }}</td>
+                <td class="total-cell absent">{{ entryAbsent(entry) }}</td>
                 <td>
                   <input v-model="entry.remarks" @change="updateRemarks(entry)" class="remarks-input" />
                 </td>
@@ -212,6 +213,7 @@
           <span><strong>x</strong> - Absent</span>
           <span><strong>◤</strong> - Tardy</span>
           <span><strong>◢</strong> - Half Day</span>
+          <span><strong>E</strong> - Entered (days before are absent)</span>
         </div>
         <p class="legend-note">Weekend columns and dates with no classes are grayed out and disabled. Click ✕ on a date header to mark it as no classes.</p>
       </div>
@@ -245,7 +247,7 @@ const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
 const sectionsByGrade = {
   'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress'],
+  'Grade 8': ['Cypress', 'Narra'],
   'Grade 9': ['Kamagong', 'Mahogany'],
   'Grade 10': ['Acacia', 'Yakal']
 }
@@ -388,6 +390,8 @@ function dayTotal(entries, day, gender) {
   const filtered = gender === 'all' ? entries : entries.filter(e => (e.gender || '').toLowerCase() === gender)
   let count = 0
   for (const e of filtered) {
+    const enrollDay = enrollmentDay(e)
+    if (enrollDay !== null && day < enrollDay) continue
     const s = e.days[String(day)]
     if (!s || s === '◤' || s === 'T') count++
     else if (s === '◢' || s === 'H') count += 0.5
@@ -395,16 +399,27 @@ function dayTotal(entries, day, gender) {
   return count || ''
 }
 
-function entryPresent(entry) {
-  let absent = 0
+function enrollmentDay(entry) {
+  const eDates = Object.keys(entry.days || {}).filter(d => entry.days[d] === 'E')
+  return eDates.length ? Math.min(...eDates.map(Number)) : null
+}
+
+function entryAbsent(entry) {
+  const enrollDay = enrollmentDay(entry)
+  let count = 0
   for (const d of Object.keys(entry.days || {})) {
     const dayNum = parseInt(d, 10)
     if (isDisabled(dayNum)) continue
+    if (enrollDay !== null && dayNum < enrollDay) { count++; continue }
     const s = entry.days[d]
-    if (s === 'A') absent++
-    else if (s === '◢' || s === 'H') absent += 0.5
+    if (s === 'A') count++
+    else if (s === '◢' || s === 'H') count += 0.5
   }
-  return Math.max(0, schoolDays.value - absent)
+  return count
+}
+
+function entryPresent(entry) {
+  return Math.max(0, schoolDays.value - entryAbsent(entry))
 }
 
 function sumPresent(gender) {
@@ -415,7 +430,7 @@ function sumPresent(gender) {
 
 function sumAbsent(gender) {
   const entries = entriesByGender(gender)
-  const total = entries.reduce((sum, e) => sum + (e.absent || 0), 0)
+  const total = entries.reduce((sum, e) => sum + entryAbsent(e), 0)
   return total
 }
 
@@ -430,7 +445,7 @@ const genderGroups = computed(() => {
       entries: boys,
       total: (d) => dayTotal(boys, d, 'all'),
       sumPresent: boys.reduce((s, e) => s + entryPresent(e), 0),
-      sumAbsent: boys.reduce((s, e) => s + (e.absent || 0), 0)
+      sumAbsent: boys.reduce((s, e) => s + entryAbsent(e), 0)
     })
   }
   if (girls.length) {
@@ -439,7 +454,7 @@ const genderGroups = computed(() => {
       entries: girls,
       total: (d) => dayTotal(girls, d, 'all'),
       sumPresent: girls.reduce((s, e) => s + entryPresent(e), 0),
-      sumAbsent: girls.reduce((s, e) => s + (e.absent || 0), 0)
+      sumAbsent: girls.reduce((s, e) => s + entryAbsent(e), 0)
     })
   }
   return groups
@@ -520,6 +535,8 @@ async function openMonthly() {
     const result = await store.saveMonthly(data, auth.user)
     if (result) data.id = result.id
   } else {
+    const currentIds = new Set(students.map(s => s.id))
+    data.entries = data.entries.filter(e => currentIds.has(e.studentId))
     for (const e of data.entries) {
       e.gender = studentsLookup.value[e.studentId] || ''
     }

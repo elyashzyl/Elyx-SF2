@@ -291,7 +291,7 @@ const periodKeys = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6', 'pm1', 'pm2', 'pm3
 const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
 const sectionsByGrade = {
   'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress'],
+  'Grade 8': ['Cypress', 'Narra'],
   'Grade 9': ['Kamagong', 'Mahogany'],
   'Grade 10': ['Acacia', 'Yakal']
 }

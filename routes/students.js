@@ -84,6 +84,8 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const { id } = req.params
+  run('DELETE FROM attendance_entries WHERE student_id=?', [id])
+  run('DELETE FROM monthly_entries WHERE student_id=?', [id])
   run('DELETE FROM students WHERE id=?', [id])
   res.json({ success: true })
 })
@@ -94,6 +96,8 @@ router.post('/bulk-delete', (req, res) => {
     return res.status(400).json({ error: 'No ids provided' })
   }
   for (const id of ids) {
+    run('DELETE FROM attendance_entries WHERE student_id=?', [id])
+    run('DELETE FROM monthly_entries WHERE student_id=?', [id])
     run('DELETE FROM students WHERE id=?', [id])
   }
   res.json({ count: ids.length })

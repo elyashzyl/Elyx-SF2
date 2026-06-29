@@ -2602,6 +2602,33 @@ body {
   text-overflow: ellipsis;
   max-width: 280px;
   font-size: 0.78rem;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: inherit;
+}
+
+.monthly-table thead .name-col {
+  z-index: 3;
+}
+
+.monthly-table .name-col::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: inherit;
+  z-index: -1;
+}
+
+.table-wrapper .monthly-table .name-col {
+  background: var(--card-bg);
+}
+
+.table-wrapper .monthly-table tbody tr:not(.gender-sep-row):hover .name-col {
+  background: var(--primary-bg);
 }
 
 .weekend {

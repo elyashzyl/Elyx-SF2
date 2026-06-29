@@ -82,12 +82,25 @@ router.put('/:recordId/entry', (req, res) => {
     total++
   }
 
+  // Determine earliest enrollment day (E mark)
+  let enrollDay = null
+  for (const d of Object.keys(days)) {
+    if (days[d] === 'E') {
+      const dayNum = parseInt(d, 10)
+      if (enrollDay === null || dayNum < enrollDay) enrollDay = dayNum
+    }
+  }
+
   let absent = 0
   for (const d of Object.keys(days)) {
+    const dayNum = parseInt(d, 10)
+    if (excluded.includes(dayNum)) continue
+    const dow = new Date(rec.year, rec.month - 1, dayNum).getDay()
+    if (dow === 0 || dow === 6) continue
+    if (enrollDay !== null && dayNum < enrollDay) { absent++; continue }
     const s = days[d]
-    if (s === 'A' || s === '█') absent++
+    if (s === 'A') absent++
     else if (s === '◢' || s === 'H') absent += 0.5
-    // ◤/T counts as full present, no deduction
   }
   const present = total - absent
 
