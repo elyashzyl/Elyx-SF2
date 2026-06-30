@@ -2594,6 +2594,10 @@ body {
 }
 
 /* ---- MONTHLY ATTENDANCE ---- */
+.table-wrapper:has(.monthly-table) {
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+}
 .name-col {
   text-align: left;
   min-width: 240px;

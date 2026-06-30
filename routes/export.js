@@ -94,6 +94,18 @@ router.post('/sf2', (req, res) => {
       font: { name: 'Trebuchet MS', sz: 9 },
       alignment: { horizontal: 'left', vertical: 'center' }
     }
+    const SUMMARY_ROW_STYLE = {
+      font: { name: 'Trebuchet MS', sz: 10, bold: true },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: { top: { style: 'medium', color: { rgb: 'FF000000' } } },
+      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+    }
+    const COMBINED_ROW_STYLE = {
+      font: { name: 'Trebuchet MS', sz: 10, bold: true },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: { top: { style: 'double', color: { rgb: 'FF000000' } } },
+      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+    }
     const DATA_STYLE = {
       font: { name: 'Trebuchet MS', sz: 11 },
       alignment: { horizontal: 'center', vertical: 'center' },
@@ -329,25 +341,35 @@ router.post('/sf2', (req, res) => {
     newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(clearEnd, 70), c: 37 } })
 
     // ── Helpers ──
-    function calcEntryPresent(entry) {
+    function getEnrollDay(entry) {
+      const eDates = Object.keys(entry.days || {}).filter(d => entry.days[d] === 'E')
+      return eDates.length ? Math.min(...eDates.map(Number)) : null
+    }
+    function calcEntryAbsent(entry) {
+      const enrollDay = getEnrollDay(entry)
       let absent = 0
-      for (const [dayStr, s] of Object.entries(entry.days || {})) {
-        if (dateColMap[parseInt(dayStr, 10)] === undefined) continue
+      for (const sd of schoolDays) {
+        const d = sd.day
+        if (enrollDay !== null && d < enrollDay) { absent++; continue }
+        const s = entry.days ? entry.days[String(d)] : null
         if (s === 'A') absent++
         else if (s === '◢' || s === 'H') absent += 0.5
-        // ◤/T counts as full present, no deduction
       }
-      return numDateCols - absent
+      return absent
     }
-    function sumAbsent(el) { return el.reduce((s, e) => s + (e.absent || 0), 0) }
+    function calcEntryPresent(entry) {
+      return numDateCols - calcEntryAbsent(entry)
+    }
+    function sumAbsent(el) { return el.reduce((s, e) => s + calcEntryAbsent(e), 0) }
     function sumPresent(el) { return el.reduce((s, e) => s + calcEntryPresent(e), 0) }
     function daySum(el, dn) {
       let count = 0
       for (const e of el) {
+        const enrollDay = getEnrollDay(e)
+        if (enrollDay !== null && dn < enrollDay) continue
         const s = e.days ? e.days[String(dn)] : null
-        if (!s || s === '◤' || s === 'T') count++
+        if (!s || s === '◤' || s === 'T' || s === 'E') count++
         else if (s === '◢' || s === 'H') count += 0.5
-        // 'A' = absent, contributes 0
       }
       return count
     }
@@ -377,11 +399,11 @@ router.post('/sf2', (req, res) => {
         const dayNum = parseInt(dayStr, 10)
         const col = dateColMap[dayNum]
         if (col === undefined || !status) continue
-        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? '' : status
+        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? 'E' : status
         setVal(newWs, row, col, 's', sym)
         applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
-      setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
+      setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
       addMerge(newWs, row, 30, row, 32)
       setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
       addMerge(newWs, row, 33, row, 37)
@@ -406,11 +428,11 @@ router.post('/sf2', (req, res) => {
           const dayNum = parseInt(dayStr, 10)
           const col = dateColMap[dayNum]
           if (col === undefined || !status) continue
-        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? '' : status
+          const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? 'E' : status
           setVal(newWs, row, col, 's', sym)
           applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
-        setVal(newWs, row, ABSENT_COL, 'n', entry.absent || 0)
+        setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
         addMerge(newWs, row, 30, row, 32)
         setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
         addMerge(newWs, row, 33, row, 37)
@@ -438,19 +460,19 @@ router.post('/sf2', (req, res) => {
       for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, DATA_STYLE)
     }
     for (const r of [maleTotalRow]) {
-      if (r !== undefined) for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
+      if (r !== undefined) for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, SUMMARY_ROW_STYLE)
     }
     if (femaleCount > 0) {
       for (let r = femaleSectionStart; r <= femaleSectionEnd; r++) {
         for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, DATA_STYLE)
       }
       for (const r of [femaleTotalRow]) {
-        if (r !== undefined) for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
+        if (r !== undefined) for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, SUMMARY_ROW_STYLE)
       }
     }
     {
       const r = combinedTotalRow
-      for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, TABLE_HEADER_STYLE)
+      for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, COMBINED_ROW_STYLE)
     }
 
     // ── Date body cells: thin borders within weeks, medium at week boundaries ──

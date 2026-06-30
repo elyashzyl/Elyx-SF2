@@ -89,7 +89,7 @@
                 <td v-for="d in daysInMonth" :key="d"
                     :class="['day-cell', { weekend: isWeekend(d), excluded: isExcluded(d) }]">
                   <select v-if="!isDisabled(d)"
-                          :value="entry.days[d] || ''"
+                          :value="dayDisplay(entry, d)"
                           @change="updateDay(entry, d, $event.target.value)"
                           class="day-select">
                     <option value=""></option>
@@ -393,7 +393,7 @@ function dayTotal(entries, day, gender) {
     const enrollDay = enrollmentDay(e)
     if (enrollDay !== null && day < enrollDay) continue
     const s = e.days[String(day)]
-    if (!s || s === '◤' || s === 'T') count++
+    if (!s || s === '◤' || s === 'T' || s === 'E') count++
     else if (s === '◢' || s === 'H') count += 0.5
   }
   return count || ''
@@ -404,14 +404,19 @@ function enrollmentDay(entry) {
   return eDates.length ? Math.min(...eDates.map(Number)) : null
 }
 
+function dayDisplay(entry, d) {
+  const enrollDay = enrollmentDay(entry)
+  if (enrollDay !== null && d < enrollDay) return 'x'
+  return entry.days[String(d)] || ''
+}
+
 function entryAbsent(entry) {
   const enrollDay = enrollmentDay(entry)
   let count = 0
-  for (const d of Object.keys(entry.days || {})) {
-    const dayNum = parseInt(d, 10)
-    if (isDisabled(dayNum)) continue
-    if (enrollDay !== null && dayNum < enrollDay) { count++; continue }
-    const s = entry.days[d]
+  for (let d = 1; d <= daysInMonth.value; d++) {
+    if (isDisabled(d)) continue
+    if (enrollDay !== null && d < enrollDay) { count++; continue }
+    const s = entry.days ? entry.days[String(d)] : null
     if (s === 'A') count++
     else if (s === '◢' || s === 'H') count += 0.5
   }
@@ -648,6 +653,16 @@ function goBack() {
 }
 
 async function updateDay(entry, day, status) {
+  // If setting E mark, auto-set x on all prior school days
+  if (status === 'E') {
+    for (let d = 1; d < day; d++) {
+      if (isDisabled(d)) continue
+      if (!entry.days[String(d)]) {
+        entry.days[String(d)] = 'A'
+        await store.updateMonthlyEntry(record.value.id, entry.studentId, d, 'A', auth.user?.id, auth.user?.role)
+      }
+    }
+  }
   entry.days[day] = status
   await store.updateMonthlyEntry(record.value.id, entry.studentId, day, status, auth.user?.id, auth.user?.role)
   const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year)
