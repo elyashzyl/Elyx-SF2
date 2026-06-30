@@ -95,19 +95,19 @@ router.post('/sf2', (req, res) => {
       alignment: { horizontal: 'left', vertical: 'center' }
     }
     const SUMMARY_ROW_STYLE = {
-      font: { name: 'Trebuchet MS', sz: 10, bold: true },
-      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-      border: { top: { style: 'medium', color: { rgb: 'FF000000' } } },
-      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+      font: { name: 'Trebuchet MS', sz: 9 },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true, shrinkToFit: true },
+      border: { top: { style: 'medium', color: { rgb: 'FF000000' } }, bottom: { style: 'double', color: { rgb: 'FF000000' } }, left: { style: 'medium', color: { rgb: 'FF000000' } }, right: { style: 'medium', color: { rgb: 'FF000000' } } },
+      fill: { fgColor: { rgb: 'E6F3A0' }, patternType: 'solid' }
     }
     const COMBINED_ROW_STYLE = {
-      font: { name: 'Trebuchet MS', sz: 10, bold: true },
-      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-      border: { top: { style: 'double', color: { rgb: 'FF000000' } } },
-      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+      font: { name: 'Trebuchet MS', sz: 9 },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true, shrinkToFit: true },
+      border: { top: { style: 'double', color: { rgb: 'FF000000' } }, bottom: { style: 'double', color: { rgb: 'FF000000' } }, left: { style: 'medium', color: { rgb: 'FF000000' } }, right: { style: 'medium', color: { rgb: 'FF000000' } } },
+      fill: { fgColor: { rgb: 'C6EFCE' }, patternType: 'solid' }
     }
     const DATA_STYLE = {
-      font: { name: 'Trebuchet MS', sz: 11 },
+      font: { name: 'Trebuchet MS', sz: 9 },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: MEDIUM_BORDER,
       fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
@@ -507,9 +507,9 @@ router.post('/sf2', (req, res) => {
     const mADA = sd.ada_m != null ? sd.ada_m : (numDateCols > 0 ? Math.round((mTotalPresent / numDateCols) * 10) / 10 : 0)
     const fADA = sd.ada_f != null ? sd.ada_f : (numDateCols > 0 ? Math.round((fTotalPresent / numDateCols) * 10) / 10 : 0)
     const tADA = sd.ada_t != null ? sd.ada_t : (numDateCols > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols) * 10) / 10 : 0)
-    const mPct = sd.pct_m != null ? sd.pct_m : (maleCount > 0 ? Math.round((mTotalPresent / numDateCols / maleCount) * 100) : 0)
-    const fPct = sd.pct_f != null ? sd.pct_f : (femaleCount > 0 ? Math.round((fTotalPresent / numDateCols / femaleCount) * 100) : 0)
-    const tPct = sd.pct_t != null ? sd.pct_t : (totalCount > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols / totalCount) * 100) : 0)
+    const mPct = sd.pct_m != null ? sd.pct_m : (maleCount > 0 ? Math.round((mTotalPresent / numDateCols / maleCount) * 100 * 100) / 100 : 0)
+    const fPct = sd.pct_f != null ? sd.pct_f : (femaleCount > 0 ? Math.round((fTotalPresent / numDateCols / femaleCount) * 100 * 100) / 100 : 0)
+    const tPct = sd.pct_t != null ? sd.pct_t : (totalCount > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols / totalCount) * 100 * 100) / 100 : 0)
 
     // ── Compute late/enrolment values for summary section ──
     const lateM = sd.late_m != null ? sd.late_m : 0
@@ -521,8 +521,14 @@ router.post('/sf2', (req, res) => {
     // ── Left-align name cells with bottom border only ──
     for (const r of bodyRows) {
       for (const nc of [NAME_COL, 3])
-        applyStyle(newWs, r, nc, { font: { name: 'Trebuchet MS', sz: 11 }, alignment: { horizontal: 'left', vertical: 'center' }, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } }, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
+        applyStyle(newWs, r, nc, { font: { name: 'Trebuchet MS', sz: 9 }, alignment: { horizontal: 'left', vertical: 'center' }, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } }, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
     }
+
+    // Re-apply summary row styles after name cell and date border overrides
+    for (const r of [maleTotalRow, femaleTotalRow].filter(r => r !== undefined)) {
+      for (let c = 0; c <= 37; c++) applyStyle(newWs, r, c, SUMMARY_ROW_STYLE)
+    }
+    for (let c = 0; c <= 37; c++) applyStyle(newWs, combinedTotalRow, c, COMBINED_ROW_STYLE)
 
     // ── Set column widths ──
     const cols = []
@@ -530,7 +536,7 @@ router.post('/sf2', (req, res) => {
       if (c === 0) cols[c] = { wch: 5 }  // No.
       else if (c === NAME_COL) cols[c] = { wch: 35 }
       else if (c === 3) cols[c] = { wch: 4 }
-      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 3 }  // 25px square attendance cells
+      else if (c >= DATE_COL_START && c < DATE_COL_START + MAX_DATE_COLS) cols[c] = { wch: 4.29 }  // 35px wide
       else if (c === 26) cols[c] = { wch: 5 }
       else if (c === 27) cols[c] = { wch: 5 }
       else if (c === 28) cols[c] = { wch: 5 }
@@ -544,10 +550,9 @@ router.post('/sf2', (req, res) => {
     }
     newWs['!cols'] = cols
 
-    // Set row heights for student rows (match column width for square cells)
+    // Set row heights for all data rows (30px to match column width for square cells)
     const rows = []
-    for (let r = maleSectionStart; r <= maleSectionEnd; r++) rows[r] = { hpt: 19 }
-    for (let r = femaleSectionStart; r <= femaleSectionEnd && r >= 0; r++) rows[r] = { hpt: 19 }
+    for (let r = maleSectionStart; r <= combinedTotalRow; r++) rows[r] = { hpt: 26.25 }
     newWs['!rows'] = rows
 
     // ── BOTTOM SECTION STYLES (font 9 for rows 51+) ──
@@ -761,6 +766,7 @@ router.post('/sf2', (req, res) => {
     const pctAttT2 = sd.pct_t != null ? sd.pct_t : tPct
     descRow(newWs, S + 15, S + 15, 'Percentage of Attendance for the month', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, S + 15, S + 15, pctAttM2, pctAttF2, pctAttT2)
+    for (const c of [34, 35, 36, 37]) applyStyle(newWs, S + 15, c, { ...S9_VALUE_CENTER, numFmt: '0.00' })
     // Number of students absent for 5 consecutive days (rows 60-61)
     descRow(newWs, S + 16, S + 17, 'Number of students absent for 5 consecutive days', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, S + 16, S + 17, 0, 0, 0)
