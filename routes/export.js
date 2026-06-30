@@ -97,13 +97,13 @@ router.post('/sf2', (req, res) => {
     const SUMMARY_ROW_STYLE = {
       font: { name: 'Trebuchet MS', sz: 9 },
       alignment: { horizontal: 'center', vertical: 'center', wrapText: true, shrinkToFit: true },
-      border: { top: { style: 'medium', color: { rgb: 'FF000000' } }, bottom: { style: 'double', color: { rgb: 'FF000000' } }, left: { style: 'medium', color: { rgb: 'FF000000' } }, right: { style: 'medium', color: { rgb: 'FF000000' } } },
+      border: { top: { style: 'medium', color: { rgb: 'FF000000' } }, bottom: { style: 'medium', color: { rgb: 'FF000000' } }, left: { style: 'medium', color: { rgb: 'FF000000' } }, right: { style: 'medium', color: { rgb: 'FF000000' } } },
       fill: { fgColor: { rgb: 'E6F3A0' }, patternType: 'solid' }
     }
     const COMBINED_ROW_STYLE = {
       font: { name: 'Trebuchet MS', sz: 9 },
       alignment: { horizontal: 'center', vertical: 'center', wrapText: true, shrinkToFit: true },
-      border: { top: { style: 'double', color: { rgb: 'FF000000' } }, bottom: { style: 'double', color: { rgb: 'FF000000' } }, left: { style: 'medium', color: { rgb: 'FF000000' } }, right: { style: 'medium', color: { rgb: 'FF000000' } } },
+      border: { top: { style: 'medium', color: { rgb: 'FF000000' } }, bottom: { style: 'medium', color: { rgb: 'FF000000' } }, left: { style: 'medium', color: { rgb: 'FF000000' } }, right: { style: 'medium', color: { rgb: 'FF000000' } } },
       fill: { fgColor: { rgb: 'C6EFCE' }, patternType: 'solid' }
     }
     const DATA_STYLE = {
