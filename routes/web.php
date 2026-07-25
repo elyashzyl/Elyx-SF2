@@ -95,7 +95,12 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-    Route::inertia('/profile', 'Teacher/Profile')->name('profile');
+    Route::get('/profile', function () {
+        return \Inertia\Inertia::render('Teacher/Profile', [
+            'gradeLevels' => \App\Models\GradeLevel::orderBy('name')->get(['id', 'name']),
+            'sections' => \App\Models\Section::orderBy('name')->get(['id', 'name', 'grade_level_id']),
+        ]);
+    })->name('profile');
 
     // Attendance Module
     Route::get('/attendance', [\App\Http\Controllers\AttendanceController::class, 'index'])->name('attendance.index');
@@ -156,7 +161,12 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::post('/exams/{exam}/submit', [ExamController::class, 'submit'])->name('exams.submit');
     Route::get('/exams/{attempt}/result', [ExamController::class, 'result'])->name('exams.result');
 
-    Route::inertia('/profile', 'Student/Profile')->name('profile');
+    Route::get('/profile', function () {
+        return \Inertia\Inertia::render('Student/Profile', [
+            'gradeLevels' => \App\Models\GradeLevel::orderBy('name')->get(['id', 'name']),
+            'sections' => \App\Models\Section::orderBy('name')->get(['id', 'name', 'grade_level_id']),
+        ]);
+    })->name('profile');
 
     Route::get('/seatworks/{seatwork}/take', [SeatworkController::class, 'take'])->name('seatworks.take');
     Route::post('/seatworks/{seatwork}/submit', [SeatworkController::class, 'submit'])->name('seatworks.submit');

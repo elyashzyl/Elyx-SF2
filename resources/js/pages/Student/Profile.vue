@@ -33,6 +33,20 @@
                 </select>
                 <p v-if="profileForm.errors.gender" class="mt-1 text-xs" style="color: #AA3C36">{{ profileForm.errors.gender }}</p>
             </div>
+            <div>
+                <label class="field-label">Grade Level</label>
+                <select v-model="profileForm.grade_level_id" class="input-field">
+                    <option value="">—</option>
+                    <option v-for="g in gradeLevels" :key="g.id" :value="g.id">{{ g.name }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="field-label">Section</label>
+                <select v-model="profileForm.section_id" class="input-field">
+                    <option value="">—</option>
+                    <option v-for="s in filteredSections" :key="s.id" :value="s.id">{{ s.name }}</option>
+                </select>
+            </div>
 
             <div v-if="mustVerifyEmail && !user.email_verified_at" class="rounded-lg px-4 py-3 text-sm" style="background-color: #FFF3E0;">
                 <p style="color: #B76E00">
@@ -118,6 +132,8 @@ import { send } from '@/routes/verification';
 const props = defineProps<{
     mustVerifyEmail?: boolean;
     status?: string;
+    gradeLevels?: { id: number; name: string }[];
+    sections?: { id: number; name: string; grade_level_id: number }[];
 }>();
 
 const page = usePage();
@@ -128,7 +144,15 @@ const profileForm = useForm({
     name: user.value.name,
     email: user.value.email,
     gender: user.value.gender || '',
+    grade_level_id: user.value.grade_level_id ?? '',
+    section_id: user.value.section_id ?? '',
 });
+
+const filteredSections = computed(() =>
+    profileForm.grade_level_id
+        ? (props.sections || []).filter(s => String(s.grade_level_id) === String(profileForm.grade_level_id))
+        : (props.sections || [])
+);
 
 function updateProfile() {
     profileForm.patch('/settings/profile', {
