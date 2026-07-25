@@ -1,0 +1,76 @@
+<template>
+    <div class="flex min-h-screen" style="background-color: #F4F5F7">
+        <aside class="flex h-screen w-64 shrink-0 flex-col border-r border-[#E9EBEF] bg-white sticky top-0">
+            <div class="flex h-16 items-center gap-2.5 border-b border-[#E9EBEF] px-6">
+                <div class="flex h-9 w-9 items-center justify-center rounded-lg" style="background-color: #1D3557">
+                    <GraduationCap class="h-5 w-5 text-white" :stroke-width="2" />
+                </div>
+                <div>
+                    <p class="text-sm font-semibold" style="color: #1B2231">EduPulse</p>
+                    <p class="text-xs" style="color: #7C8598">Student Portal</p>
+                </div>
+            </div>
+
+            <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+                <Link v-for="link in nav" :key="link.name" :href="link.href" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors" :class="link.active ? 'bg-[#EEF2F7] text-[#1D3557]' : 'text-[#5A6376] hover:bg-[#F5F6F8] hover:text-[#2B3444]'">
+                    <component :is="link.icon" :size="18" :stroke-width="2" />
+                    {{ link.name }}
+                </Link>
+            </nav>
+
+            <div class="border-t border-[#E9EBEF] p-3">
+                <div class="flex items-center gap-3 rounded-lg px-3 py-2">
+                    <Link href="/student/profile" class="flex items-center gap-3 flex-1 min-w-0 rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-[#F5F6F8]">
+                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E9EBEF] text-sm font-semibold text-[#5A6376]">
+                            {{ user.name.charAt(0) }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-medium" style="color: #1B2231">{{ user.name }}</p>
+                            <p class="truncate text-xs" style="color: #7C8598">{{ user.grade }}</p>
+                        </div>
+                    </Link>
+                    <button @click="logout" class="rounded-md p-1.5 hover:bg-[#E9EBEF]" style="color: #7C8598" title="Sign out">
+                        <LogOut :size="16" :stroke-width="2" />
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex min-h-screen flex-1 flex-col" style="min-width: 0">
+            <header class="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-[#E9EBEF] bg-white/80 px-6 backdrop-blur">
+                <h1 class="text-base font-semibold" style="color: #1B2231">
+                    <slot name="title" />
+                </h1>
+            </header>
+
+            <main class="flex-1 px-6 py-6">
+                <div class="mx-auto" style="max-width: 80rem">
+                    <slot />
+                </div>
+            </main>
+        </div>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { Link, usePage, router } from '@inertiajs/vue3';
+import { GraduationCap, LayoutDashboard, FileQuestion, FileText, ClipboardList, FlaskConical, ClipboardCheck, LogOut } from '@lucide/vue';
+import { computed } from 'vue';
+
+const page = usePage();
+const user = page.props.auth.user;
+const path = computed(() => usePage().url);
+
+const nav = computed(() => [
+    { name: 'Dashboard', href: '/student/dashboard', icon: LayoutDashboard, active: path.value === '/student/dashboard' },
+    { name: 'Quizzes', href: '/student/quizzes', icon: FileQuestion, active: path.value.startsWith('/student/quizzes') && !path.value.includes('/take') && !path.value.includes('/result') },
+    { name: 'Exams', href: '/student/exams', icon: FileText, active: path.value.startsWith('/student/exams') && !path.value.includes('/take') && !path.value.includes('/result') },
+    { name: 'Seatworks', href: '/student/seatworks', icon: ClipboardList, active: path.value.startsWith('/student/seatworks') && !path.value.includes('/take') && !path.value.includes('/result') },
+    { name: 'Practicals', href: '/student/practicals', icon: FlaskConical, active: path.value.startsWith('/student/practicals') && !path.value.includes('/take') && !path.value.includes('/result') },
+    { name: 'My Results', href: '/student/results', icon: ClipboardCheck, active: path.value.startsWith('/student/results') },
+]);
+
+function logout() {
+    router.post('/logout');
+}
+</script>
