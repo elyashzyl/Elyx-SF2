@@ -10,10 +10,10 @@
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ attempt.quiz.title }}</h2>
                 <p class="text-sm" style="color: #5A6376">{{ attempt.quiz.grade }} — {{ attempt.quiz.section }}</p>
             </div>
-            <Link href="/student/results" class="btn-secondary">
+            <button @click="window.history.back()" class="btn-secondary">
                 <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-                Back to results
-            </Link>
+                Back
+            </button>
         </div>
 
         <div class="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6">

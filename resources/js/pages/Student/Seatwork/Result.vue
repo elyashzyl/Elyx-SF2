@@ -12,10 +12,10 @@
                 <span class="rounded bg-[#E9EBEF] px-2 py-0.5 text-xs" style="color: #5A6376">Seatwork</span>
             </div>
         </div>
-        <Link href="/student/results" class="btn-secondary">
+        <button @click="window.history.back()" class="btn-secondary">
             <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-            Back to results
-        </Link>
+            Back
+        </button>
     </div>
 
     <div class="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6">
