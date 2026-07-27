@@ -114,6 +114,17 @@
                 </form>
             </div>
         </div>
+
+        <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showDeleteModal = false">
+            <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-base font-semibold" style="color: #1B2231">Delete conversation?</h3>
+                <p class="text-sm" style="color: #5A6376">This will hide the conversation from your inbox. The other participant can still see it.</p>
+                <div class="mt-6 flex items-center justify-end gap-3">
+                    <button type="button" class="btn-secondary" @click="showDeleteModal = false">Cancel</button>
+                    <button type="button" class="btn-primary" style="background-color: #AA3C36" @click="confirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
     </Teleport>
 </template>
 
@@ -137,7 +148,7 @@ const newMessage = ref('');
 const showNewModal = ref(false);
 const newRecipient = ref('');
 const newMessageBody = ref('');
-const messagesRef = ref<HTMLElement | null>(null);
+const showDeleteModal = ref(false);
 const messages = ref<any[]>(props.conversation?.messages ?? []);
 let pollInterval: number | null = null;
 
@@ -192,11 +203,14 @@ function startConversation() {
 
 function deleteConversation() {
     if (!activeConversation.value) return;
-    if (confirm('Delete this conversation? This will hide it from your inbox.')) {
-        router.delete(`${prefix}/messenger/${activeConversation.value.id}`, {
-            preserveScroll: true,
-        });
-    }
+    showDeleteModal.value = true;
+}
+
+function confirmDelete() {
+    showDeleteModal.value = false;
+    router.delete(`${prefix}/messenger/${activeConversation.value.id}`, {
+        preserveScroll: true,
+    });
 }
 
 async function pollMessages() {
