@@ -12,7 +12,7 @@
         </div>
     </div>
 
-    <div v-if="attempt.submission_text || attempt.submission_file" class="card mb-6">
+    <div v-if="attempt.submission_text || attempt.submission_file" class="card mb-6 p-5">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Student submission</h3>
         <div v-if="attempt.submission_text" class="mb-4">
             <p class="mb-2 text-xs font-medium" style="color: #5A6376">Code / Text:</p>
@@ -23,8 +23,8 @@
             <img :src="'/storage/' + attempt.submission_file" class="max-h-96 rounded-lg border border-[#E9EBEF] cursor-pointer" @click="previewImg = '/storage/' + attempt.submission_file" />
         </div>
     </div>
-    <div v-else class="card mb-6">
-        <p class="py-4 text-center text-sm" style="color: #7C8598">No submission provided.</p>
+    <div v-else class="card mb-6 p-5">
+        <p class="text-center text-sm" style="color: #7C8598">No submission provided.</p>
     </div>
 
     <Teleport to="body">
@@ -38,7 +38,7 @@
         </div>
     </Teleport>
 
-    <div class="card">
+    <div class="card p-5">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Rubric scoring</h3>
         <div v-for="(c, ci) in practical.criteria" :key="c.id" class="mb-4 rounded-lg border border-[#E9EBEF] p-4">
             <div class="mb-2 flex items-start justify-between">
