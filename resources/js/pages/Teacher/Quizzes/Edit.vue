@@ -1,10 +1,10 @@
 <template>
     <Head title="Edit Quiz" />
 
-        <button @click="window.history.back()" class="mb-6 inline-flex items-center gap-1.5 text-sm font-medium hover:text-[#2B3444]" style="color: #5A6376">
+        <Link :href="`/teacher/quizzes/${quiz.id}`" class="mb-6 inline-flex items-center gap-1.5 text-sm font-medium hover:text-[#2B3444]" style="color: #5A6376">
             <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-            Back
-        </button>
+            Back to quiz
+        </Link>
 
         <form class="space-y-6" @submit.prevent="submit">
             <div class="card p-6">

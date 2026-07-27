@@ -12,10 +12,10 @@
                 <span class="rounded bg-[#E9EBEF] px-2 py-0.5 text-xs" style="color: #5A6376">Practical</span>
             </div>
         </div>
-        <button @click="window.history.back()" class="btn-secondary">
+        <Link href="/student/results" class="btn-secondary">
             <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-            Back
-        </button>
+            Back to results
+        </Link>
     </div>
 
     <div v-if="attempt.submission_text || attempt.submission_file" class="card mb-6 p-5">
