@@ -18,10 +18,7 @@
                 <Pencil class="h-4 w-4" :stroke-width="2" />
                 Edit
             </Link>
-            <button @click="destroy" class="btn-secondary" style="border-color: #E5B8B5; color: #AA3C36; background-color: #FFF5F5;">
-                <Trash2 class="h-4 w-4" :stroke-width="2" />
-                Delete
-            </button>
+
         </div>
     </div>
 
@@ -118,7 +115,7 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, Eye, Trash2, ClipboardCheck, X } from '@lucide/vue';
+import { ArrowLeft, Pencil, Eye, ClipboardCheck, X } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
 
@@ -139,9 +136,4 @@ function formatDate(v: string): string {
     return v ? new Date(v).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 }
 
-function destroy() {
-    if (confirm(`Delete "${props.practical.title}"? This cannot be undone.`)) {
-        router.delete(`/teacher/practicals/${props.practical.id}`, { preserveScroll: true });
-    }
-}
 </script>
