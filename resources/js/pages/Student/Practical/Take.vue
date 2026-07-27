@@ -98,8 +98,6 @@ const previewUrl = ref<string | null>(null);
 const dragging = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 
-const storageKey = `practical_timer_${props.practical.id}`;
-
 function formatTime(totalSeconds: number): string {
     const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
     const s = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
@@ -111,35 +109,22 @@ function tick() {
     remainingSeconds.value -= 1;
     if (remainingSeconds.value <= 0) {
         if (timer) clearInterval(timer);
-        localStorage.removeItem(storageKey);
         submit();
-    } else {
-        localStorage.setItem(storageKey, String(remainingSeconds.value));
     }
 }
 
 onMounted(() => {
     if (props.practical.time_limit_minutes && props.startedAt) {
-        const saved = localStorage.getItem(storageKey);
-        if (saved !== null) {
-            remainingSeconds.value = Math.max(0, parseInt(saved, 10));
-        } else {
-            const start = new Date(props.startedAt).getTime();
-            const deadline = start + props.practical.time_limit_minutes * 60 * 1000;
-            remainingSeconds.value = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-        }
+        const start = new Date(props.startedAt).getTime();
+        const deadline = start + props.practical.time_limit_minutes * 60 * 1000;
+        remainingSeconds.value = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
         if (remainingSeconds.value > 0) {
             timer = setInterval(tick, 1000);
         }
     }
 });
 
-onUnmounted(() => {
-    if (timer) clearInterval(timer);
-    if (remainingSeconds.value && remainingSeconds.value > 0) {
-        localStorage.setItem(storageKey, String(remainingSeconds.value));
-    }
-});
+onUnmounted(() => { if (timer) clearInterval(timer); });
 
 function handleFile(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -166,7 +151,6 @@ function clearFile() {
 function submit() {
     if (!confirm('Submit practical? This cannot be undone.')) return;
     submitting.value = true;
-    localStorage.removeItem(storageKey);
 
     const formData = new FormData();
     if (submissionText.value) formData.append('submission_text', submissionText.value);
