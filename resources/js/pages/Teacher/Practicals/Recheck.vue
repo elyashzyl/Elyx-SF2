@@ -25,12 +25,23 @@
         </div>
         <div v-if="attempt.submission_file">
             <p class="mb-2 text-xs font-medium" style="color: #5A6376">Uploaded image:</p>
-            <img :src="'/storage/' + attempt.submission_file" class="max-h-96 rounded-lg border border-[#E9EBEF]" />
+            <img :src="'/storage/' + attempt.submission_file" class="max-h-96 rounded-lg border border-[#E9EBEF] cursor-pointer" @click="previewImg = '/storage/' + attempt.submission_file" />
         </div>
     </div>
     <div v-else class="card mb-6">
         <p class="py-4 text-center text-sm" style="color: #7C8598">No submission provided.</p>
     </div>
+
+    <Teleport to="body">
+        <div v-if="previewImg" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" @click.self="previewImg = null">
+            <div class="relative max-w-3xl max-h-[90vh] p-4">
+                <button @click="previewImg = null" class="absolute -top-2 -right-2 rounded-full bg-white p-1.5 shadow-md hover:bg-gray-100" style="color: #5A6376">
+                    <X class="h-4 w-4" :stroke-width="2" />
+                </button>
+                <img :src="previewImg" class="max-h-[85vh] rounded-lg shadow-2xl" />
+            </div>
+        </div>
+    </Teleport>
 
     <form @submit.prevent="save">
         <div class="card mb-6">
@@ -70,7 +81,9 @@
 import { computed, reactive, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Spinner from '@/components/ui/spinner/Spinner.vue';
-import { ArrowLeft } from '@lucide/vue';
+import { ArrowLeft, X } from '@lucide/vue';
+
+const previewImg = ref<string | null>(null);
 
 const props = defineProps<{ practical: any; attempt: any }>();
 
