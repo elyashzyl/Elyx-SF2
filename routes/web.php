@@ -99,7 +99,6 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::post('/users/{user}/impersonate', [UserController::class, 'impersonate'])->name('users.impersonate');
-    Route::post('/leave-impersonation', [UserController::class, 'leaveImpersonation'])->name('users.leave-impersonation');
 
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Teacher/Profile', [
@@ -178,5 +177,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::post('/seatworks/{seatwork}/submit', [SeatworkController::class, 'submit'])->name('seatworks.submit');
     Route::get('/seatworks/{attempt}/result', [SeatworkController::class, 'result'])->name('seatworks.result');
 });
+
+Route::middleware(['auth', 'verified'])->post('/leave-impersonation', [UserController::class, 'leaveImpersonation'])->name('users.leave-impersonation');
 
 require __DIR__.'/settings.php';

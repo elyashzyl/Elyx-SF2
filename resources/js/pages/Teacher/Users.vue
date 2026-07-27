@@ -266,7 +266,7 @@ function impersonate(u: any) {
 }
 
 function leaveImpersonation() {
-    router.post('/teacher/leave-impersonation', {}, {
+    router.post('/leave-impersonation', {}, {
         preserveScroll: true,
         onSuccess: () => { window.location.reload(); },
     });

@@ -90,7 +90,7 @@ function logout() {
 }
 
 function stopImpersonating() {
-    router.post('/teacher/leave-impersonation', {}, {
+    router.post('/leave-impersonation', {}, {
         onSuccess: () => { window.location.reload(); },
     });
 }
