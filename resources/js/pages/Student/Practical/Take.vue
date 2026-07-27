@@ -115,7 +115,9 @@ onMounted(() => {
         const start = new Date(props.startedAt).getTime();
         const deadline = start + props.practical.time_limit_minutes * 60 * 1000;
         remainingSeconds.value = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
-        timer = setInterval(tick, 1000);
+        if (remainingSeconds.value > 0) {
+            timer = setInterval(tick, 1000);
+        }
     }
 });
 
