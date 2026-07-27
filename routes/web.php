@@ -113,6 +113,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
     Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
     Route::get('/messenger/{conversation}/poll', [MessengerController::class, 'poll'])->name('messenger.poll');
+    Route::delete('/messenger/{conversation}', [MessengerController::class, 'archive'])->name('messenger.archive');
 
     // Attendance Module
     Route::get('/attendance', [\App\Http\Controllers\AttendanceController::class, 'index'])->name('attendance.index');
@@ -185,6 +186,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
     Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
     Route::get('/messenger/{conversation}/poll', [MessengerController::class, 'poll'])->name('messenger.poll');
+    Route::delete('/messenger/{conversation}', [MessengerController::class, 'archive'])->name('messenger.archive');
 
     Route::get('/seatworks/{seatwork}/take', [SeatworkController::class, 'take'])->name('seatworks.take');
     Route::post('/seatworks/{seatwork}/submit', [SeatworkController::class, 'submit'])->name('seatworks.submit');

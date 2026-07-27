@@ -17,7 +17,9 @@ class MessengerController extends Controller
     {
         $user = Auth::user();
 
-        $conversations = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
+        $conversations = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id)
+                ->when(!$user->isSuperadmin(), fn ($q) => $q->whereNull('archived_at'))
+            )
             ->with(['participants:id,name,role', 'lastMessage'])
             ->latest('updated_at')
             ->get()
@@ -65,7 +67,9 @@ class MessengerController extends Controller
                     'created_at' => $m->created_at,
                 ]),
             ],
-            'conversations' => Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
+            'conversations' => Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id)
+                    ->when(!$user->isSuperadmin(), fn ($q) => $q->whereNull('archived_at'))
+                )
                 ->with(['participants:id,name,role', 'lastMessage'])
                 ->latest('updated_at')
                 ->get()
@@ -127,6 +131,16 @@ class MessengerController extends Controller
         $conversation->touch();
 
         return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
+    }
+
+    public function archive(Conversation $conversation): RedirectResponse
+    {
+        $user = Auth::user();
+        abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
+
+        $conversation->participants()->updateExistingPivot($user->id, ['archived_at' => now()]);
+
+        return redirect()->route($user->isStudent() ? 'student.messenger' : 'teacher.messenger');
     }
 
     public function poll(Request $request, Conversation $conversation)

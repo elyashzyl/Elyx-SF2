@@ -48,6 +48,11 @@
                         <p class="text-sm font-medium" style="color: #1B2231">{{ activeConversation.other?.name }}</p>
                         <p class="text-xs" style="color: #7C8598">{{ activeConversation.other?.role }}</p>
                     </div>
+                    <div class="ml-auto">
+                        <button @click="deleteConversation" class="rounded-lg p-1.5 text-[#AEB4C0] hover:bg-[#F5F6F8] hover:text-[#AA3C36]" title="Delete conversation">
+                            <Trash2 class="h-4 w-4" :stroke-width="2" />
+                        </button>
+                    </div>
                 </div>
 
                 <div ref="messagesRef" class="flex-1 space-y-3 overflow-y-auto px-5 py-4">
@@ -114,7 +119,7 @@
 
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Search, Plus, Send, MessageCircle } from '@lucide/vue';
+import { Search, Plus, Send, MessageCircle, Trash2 } from '@lucide/vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 
 const page = usePage();
@@ -183,6 +188,15 @@ function startConversation() {
     router.post(`${prefix}/messenger/start`, { recipient_id: newRecipient.value, message: newMessageBody.value }, {
         onSuccess: () => { showNewModal.value = false; },
     });
+}
+
+function deleteConversation() {
+    if (!activeConversation.value) return;
+    if (confirm('Delete this conversation? This will hide it from your inbox.')) {
+        router.delete(`${prefix}/messenger/${activeConversation.value.id}`, {
+            preserveScroll: true,
+        });
+    }
 }
 
 async function pollMessages() {
