@@ -7,6 +7,7 @@ use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SeatworkController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -107,6 +108,12 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
         ]);
     })->name('profile');
 
+    Route::get('/messenger', [MessengerController::class, 'index'])->name('messenger');
+    Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
+    Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
+    Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
+    Route::get('/messenger/{conversation}/poll', [MessengerController::class, 'poll'])->name('messenger.poll');
+
     // Attendance Module
     Route::get('/attendance', [\App\Http\Controllers\AttendanceController::class, 'index'])->name('attendance.index');
     Route::get('/api/attendance', [\App\Http\Controllers\AttendanceController::class, 'getDaily'])->name('attendance.get');
@@ -172,6 +179,12 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
             'sections' => \App\Models\Section::orderBy('name')->get(['id', 'name', 'grade_level_id']),
         ]);
     })->name('profile');
+
+    Route::get('/messenger', [MessengerController::class, 'index'])->name('messenger');
+    Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
+    Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
+    Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
+    Route::get('/messenger/{conversation}/poll', [MessengerController::class, 'poll'])->name('messenger.poll');
 
     Route::get('/seatworks/{seatwork}/take', [SeatworkController::class, 'take'])->name('seatworks.take');
     Route::post('/seatworks/{seatwork}/submit', [SeatworkController::class, 'submit'])->name('seatworks.submit');

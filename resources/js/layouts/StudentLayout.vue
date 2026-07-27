@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { GraduationCap, LayoutDashboard, FileQuestion, FileText, ClipboardList, FlaskConical, ClipboardCheck, LogOut, UserCheck } from '@lucide/vue';
+import { GraduationCap, LayoutDashboard, FileQuestion, FileText, ClipboardList, FlaskConical, ClipboardCheck, LogOut, UserCheck, MessageCircle } from '@lucide/vue';
 import { computed } from 'vue';
 
 const page = usePage();
@@ -74,6 +74,7 @@ const nav = computed(() => [
     { name: 'Seatworks', href: '/student/seatworks', icon: ClipboardList, active: path.value.startsWith('/student/seatworks') && !path.value.includes('/take') && !path.value.includes('/result') },
     { name: 'Practicals', href: '/student/practicals', icon: FlaskConical, active: path.value.startsWith('/student/practicals') && !path.value.includes('/take') && !path.value.includes('/result') },
     { name: 'My Results', href: '/student/results', icon: ClipboardCheck, active: path.value.startsWith('/student/results') },
+    { name: 'Messenger', href: '/student/messenger', icon: MessageCircle, active: path.value.startsWith('/student/messenger') },
 ]);
 
 function logout() {

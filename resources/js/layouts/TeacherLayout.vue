@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck, UserCheck } from '@lucide/vue';
+import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck, UserCheck, MessageCircle } from '@lucide/vue';
 import { computed } from 'vue';
 
 const page = usePage();
@@ -81,6 +81,7 @@ const nav = computed(() => [
     { name: 'Practicals', href: '/teacher/practicals', icon: ClipboardCheck, active: path.value.startsWith('/teacher/practicals') },
     { name: 'Exams', href: '/teacher/exams', icon: FileQuestion, active: path.value.startsWith('/teacher/exams') },
     { name: 'Results', href: '/teacher/results', icon: ClipboardCheck, active: path.value.startsWith('/teacher/results') },
+    { name: 'Messenger', href: '/teacher/messenger', icon: MessageCircle, active: path.value.startsWith('/teacher/messenger') },
     { name: 'Leaderboard', href: '/teacher/leaderboard', icon: Trophy, active: path.value.startsWith('/teacher/leaderboard') },
     { name: 'Attendance', href: '/teacher/attendance', icon: CalendarCheck, active: path.value.startsWith('/teacher/attendance') },
 ]);

@@ -61,7 +61,7 @@ class User extends Authenticatable implements PasskeyUser
 
     public function isStudent(): bool
     {
-        return $this->isSuperadmin() || $this->role === 'student';
+        return $this->role === 'student';
     }
 
     public function teachers(): BelongsToMany
@@ -72,6 +72,13 @@ class User extends Authenticatable implements PasskeyUser
     public function students(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'student_teacher', 'teacher_id', 'student_id');
+    }
+
+    public function conversations(): BelongsToMany
+    {
+        return $this->belongsToMany(Conversation::class, 'conversation_participants')
+            ->withPivot('last_read_at')
+            ->withTimestamps();
     }
 
     public function quizzes(): HasMany
