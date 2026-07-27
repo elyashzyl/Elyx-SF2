@@ -1,8 +1,8 @@
 <template>
     <Head :title="'Grade - ' + exam.title" />
-    <Link :href="`/teacher/exams/${exam.id}`" class="mb-6 inline-flex items-center gap-1.5 text-sm font-medium hover:text-[#2B3444]" style="color: #5A6376">
-        <ArrowLeft class="h-4 w-4" :stroke-width="2" /> Back to exam
-    </Link>
+    <button @click="window.history.back()" class="mb-6 inline-flex items-center gap-1.5 text-sm font-medium hover:text-[#2B3444]" style="color: #5A6376">
+        <ArrowLeft class="h-4 w-4" :stroke-width="2" /> Back
+    </button>
 
     <h2 class="mb-6 text-lg font-semibold" style="color: #1B2231">Grade Practical Sections — {{ exam.title }}</h2>
 

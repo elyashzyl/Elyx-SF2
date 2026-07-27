@@ -1,10 +1,10 @@
 <template>
     <Head :title="isEditing ? 'Edit Grade Level' : 'New Grade Level'" />
 
-        <Link href="/teacher/grade-levels" class="mb-6 inline-flex items-center gap-1.5 text-sm font-medium hover:text-[#2B3444]" style="color: #5A6376">
+        <button @click="window.history.back()" class="mb-6 inline-flex items-center gap-1.5 text-sm font-medium hover:text-[#2B3444]" style="color: #5A6376">
             <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-            Back to grade levels
-        </Link>
+            Back
+        </button>
 
         <form class="max-w-lg" @submit.prevent="submit">
             <div class="card p-6">
