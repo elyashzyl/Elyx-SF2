@@ -147,15 +147,10 @@ function submit() {
     submitting.value = true;
 
     const formData = new FormData();
-    if (tab.value === 'code' && submissionText.value) {
-        formData.append('submission_text', submissionText.value);
-    }
-    if (tab.value === 'image' && selectedFile.value) {
-        formData.append('submission_file', selectedFile.value);
-    }
+    if (submissionText.value) formData.append('submission_text', submissionText.value);
+    if (selectedFile.value) formData.append('submission_file', selectedFile.value);
 
     router.post('/student/practicals/' + props.practical.id + '/submit', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
         preserveScroll: true,
         onFinish: () => { submitting.value = false; },
     });
