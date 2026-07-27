@@ -33,6 +33,7 @@
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
                     <th class="px-6 py-3 font-medium">Title</th>
+                    <th class="px-6 py-3 font-medium">Grade</th>
                     <th class="px-6 py-3 font-medium">Status</th>
                     <th v-if="isSuperadmin" class="px-6 py-3 font-medium">Teacher</th>
                     <th class="px-6 py-3 font-medium">Questions</th>
@@ -43,6 +44,7 @@
             <tbody class="divide-y divide-[#E9EBEF]">
                 <tr v-for="sw in seatworks" :key="sw.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ sw.title }}</td>
+                    <td class="px-6 py-3 text-xs" style="color: #5A6376">{{ sw.grade_levels ? sw.grade_levels.map((g: any) => g.name).join(', ') : sw.grade }}</td>
                     <td class="px-6 py-3"><StatusBadge :status="sw.is_published ? 'published' : 'draft'" /></td>
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ sw.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ sw.questions_count }}</td>
@@ -93,6 +95,19 @@
                             <div>
                                 <label class="field-label">Time limit (minutes, optional)</label>
                                 <input v-model="form.time_limit_minutes" type="number" min="1" class="input-field" placeholder="e.g. 20" />
+                            </div>
+                            <div>
+                                <label class="field-label">Grade levels</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button v-for="gl in gradeLevels" :key="gl.id" type="button"
+                                        class="rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors"
+                                        :class="form.grade_level_ids.includes(gl.id) ? 'border-[#1D3557] bg-[#EEF2F7] text-[#1D3557]' : 'border-[#D2D6DE] text-[#5A6376] hover:border-[#AEB4C0]'"
+                                        @click="toggleGrade(gl.id)">
+                                        <Check v-if="form.grade_level_ids.includes(gl.id)" class="-ml-0.5 mr-1.5 inline h-4 w-4" :stroke-width="2.5" />
+                                        {{ gl.name }}
+                                    </button>
+                                </div>
+                                <p v-if="form.errors.grade_level_ids" class="mt-1 text-xs" style="color: #AA3C36">{{ form.errors.grade_level_ids }}</p>
                             </div>
                             <div v-if="teachers?.length">
                                 <label class="field-label">Assign to teacher</label>
@@ -201,7 +216,7 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import { Plus, Eye, Pencil, Trash2, UploadCloud, ClipboardCheck, Check, X } from '@lucide/vue';
 import { ref } from 'vue';
 
-defineProps<{ seatworks: any[]; isSuperadmin?: boolean; teachers?: any[] }>();
+defineProps<{ seatworks: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
 
 const page = usePage();
 const flash = page.props.flash as any;
@@ -227,12 +242,18 @@ function setCorrect(q: Q, oi: number) { q.options.forEach((o, i) => { o.is_corre
 
 const showCreate = ref(false);
 
-const form = useForm({ title: '', instructions: '', time_limit_minutes: '', teacher_id: null as number | null, questions: [blankQ()] });
+const form = useForm({ title: '', instructions: '', time_limit_minutes: '', teacher_id: null as number | null, grade_level_ids: [] as number[], questions: [blankQ()] });
 
 function openCreate() {
     form.reset();
     form.questions = [blankQ()];
     showCreate.value = true;
+}
+
+function toggleGrade(id: number) {
+    const idx = form.grade_level_ids.indexOf(id);
+    if (idx >= 0) { form.grade_level_ids.splice(idx, 1); }
+    else { form.grade_level_ids.push(id); }
 }
 
 function addQ() { form.questions.push(blankQ()); }

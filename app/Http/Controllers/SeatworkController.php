@@ -24,8 +24,8 @@ class SeatworkController extends Controller
         $teacher = Auth::user();
 
         $seatworks = $teacher->isSuperadmin()
-            ? Seatwork::withCount('questions')->withCount('attempts')->with('teacher:id,name')->latest()->get()
-            : $teacher->seatworks()->withCount('questions')->withCount('attempts')->latest()->get();
+            ? Seatwork::withCount('questions')->withCount('attempts')->with('teacher:id,name', 'gradeLevels:id,name')->latest()->get()
+            : $teacher->seatworks()->withCount('questions')->withCount('attempts')->with('gradeLevels:id,name')->latest()->get();
 
         $gradeLevels = GradeLevel::where('is_active', true)->orderBy('display_order')->orderBy('name')->get(['id', 'name']);
         $allSections = Section::where('is_active', true)->orderBy('name')->get(['id', 'name', 'grade_level_id']);
@@ -43,6 +43,8 @@ class SeatworkController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'grade_level_ids' => ['required', 'array', 'min:1'],
+            'grade_level_ids.*' => ['exists:grade_levels,id'],
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'teacher_id' => ['nullable', 'exists:users,id'],
@@ -64,13 +66,20 @@ class SeatworkController extends Controller
         DB::transaction(function () use ($data) {
             $teacherId = Auth::user()->isSuperadmin() && $data['teacher_id'] ? $data['teacher_id'] : Auth::id();
 
+            $grade = GradeLevel::whereIn('id', $data['grade_level_ids'])
+                ->orderBy('display_order')
+                ->value('name');
+
             $seatwork = Seatwork::create([
                 'teacher_id' => $teacherId,
                 'title' => $data['title'],
+                'grade' => $grade,
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
                 'is_published' => false,
             ]);
+
+            $seatwork->gradeLevels()->sync($data['grade_level_ids']);
 
             foreach ($data['questions'] as $qIndex => $question) {
                 $created = $seatwork->questions()->create([
@@ -127,13 +136,15 @@ class SeatworkController extends Controller
     public function edit(Seatwork $seatwork): Response
     {
         $this->authorizeOwner($seatwork);
-        $seatwork->load(['questions.options', 'questions.matchingPairs']);
+        $seatwork->load(['questions.options', 'questions.matchingPairs', 'gradeLevels:id,name']);
 
         $teacher = Auth::user();
+        $gradeLevels = GradeLevel::where('is_active', true)->orderBy('display_order')->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Teacher/Seatworks/Edit', [
             'seatwork' => $seatwork,
             'teachers' => $teacher->isSuperadmin() ? User::where('role', 'teacher')->orderBy('name')->get(['id', 'name']) : [],
+            'gradeLevels' => $gradeLevels,
         ]);
     }
 
@@ -143,6 +154,8 @@ class SeatworkController extends Controller
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'grade_level_ids' => ['required', 'array', 'min:1'],
+            'grade_level_ids.*' => ['exists:grade_levels,id'],
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'teacher_id' => ['nullable', 'exists:users,id'],
@@ -172,7 +185,13 @@ class SeatworkController extends Controller
                 $updateData['teacher_id'] = $data['teacher_id'];
             }
 
+            $grade = GradeLevel::whereIn('id', $data['grade_level_ids'])
+                ->orderBy('display_order')
+                ->value('name');
+            $seatwork->grade = $grade;
+
             $seatwork->update($updateData);
+            $seatwork->gradeLevels()->sync($data['grade_level_ids']);
 
             $seatwork->questions()->delete();
 
@@ -231,7 +250,7 @@ class SeatworkController extends Controller
     public function show(Seatwork $seatwork): Response
     {
         $this->authorizeOwner($seatwork);
-        $seatwork->load(['questions.options', 'questions.matchingPairs']);
+        $seatwork->load(['questions.options', 'questions.matchingPairs', 'gradeLevels:id,name']);
         $teacher = Auth::user();
         $attempts = $seatwork->attempts()->with('student:id,name,grade')->where('status', 'submitted')->orderByDesc('score')->get();
 

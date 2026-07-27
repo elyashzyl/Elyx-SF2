@@ -10,7 +10,10 @@
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ seatwork.title }}</h2>
                 <StatusBadge :status="seatwork.is_published ? 'published' : 'draft'" />
             </div>
-            <p class="mt-1 text-sm" style="color: #5A6376">{{ seatwork.questions.length }} questions · {{ totalPoints }} points</p>
+            <p class="mt-1 text-sm" style="color: #5A6376">
+                <template v-if="seatwork.grade_levels">{{ seatwork.grade_levels.map((g: any) => g.name).join(', ') }} · </template>
+                {{ seatwork.questions.length }} questions · {{ totalPoints }} points
+            </p>
         </div>
         <div class="flex items-center gap-2">
             <Link :href="`/teacher/seatworks/${seatwork.id}/edit`" class="btn-secondary">

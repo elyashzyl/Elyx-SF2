@@ -33,6 +33,7 @@
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
                     <th class="px-6 py-3 font-medium">Title</th>
+                    <th class="px-6 py-3 font-medium">Grade</th>
                     <th class="px-6 py-3 font-medium">Status</th>
                     <th v-if="isSuperadmin" class="px-6 py-3 font-medium">Teacher</th>
                     <th class="px-6 py-3 font-medium">Sections</th>
@@ -43,6 +44,7 @@
             <tbody class="divide-y divide-[#E9EBEF]">
                 <tr v-for="e in exams" :key="e.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ e.title }}</td>
+                    <td class="px-6 py-3 text-xs" style="color: #5A6376">{{ e.grade_levels ? e.grade_levels.map((g: any) => g.name).join(', ') : e.grade }}</td>
                     <td class="px-6 py-3"><StatusBadge :status="e.is_published ? 'published' : 'draft'" /></td>
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ e.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ e.sections_count }}</td>
@@ -82,6 +84,19 @@
                             <div>
                                 <label class="field-label">Title</label>
                                 <input v-model="form.title" type="text" class="input-field" placeholder="e.g. Midterm Exam" required />
+                            </div>
+                            <div>
+                                <label class="field-label">Grade levels</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button v-for="gl in gradeLevels" :key="gl.id" type="button"
+                                        class="rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors"
+                                        :class="form.grade_level_ids.includes(gl.id) ? 'border-[#1D3557] bg-[#EEF2F7] text-[#1D3557]' : 'border-[#D2D6DE] text-[#5A6376] hover:border-[#AEB4C0]'"
+                                        @click="toggleGrade(gl.id)">
+                                        <Check v-if="form.grade_level_ids.includes(gl.id)" class="-ml-0.5 mr-1.5 inline h-4 w-4" :stroke-width="2.5" />
+                                        {{ gl.name }}
+                                    </button>
+                                </div>
+                                <p v-if="form.errors.grade_level_ids" class="mt-1 text-xs" style="color: #AA3C36">{{ form.errors.grade_level_ids }}</p>
                             </div>
                             <div>
                                 <label class="field-label">Instructions (optional)</label>
@@ -273,10 +288,10 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage, useForm } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Plus, Eye, Trash2, UploadCloud, FileQuestion, FileText, ClipboardCheck, X } from '@lucide/vue';
+import { Plus, Eye, Trash2, UploadCloud, FileQuestion, FileText, ClipboardCheck, X, Check } from '@lucide/vue';
 import { ref } from 'vue';
 
-defineProps<{ exams: any[]; isSuperadmin?: boolean; teachers?: any[] }>();
+defineProps<{ exams: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
 
 const page = usePage();
 const flash = page.props.flash as any;
@@ -331,6 +346,7 @@ function blankCriterion(): Criterion {
 
 const form = useForm({
     title: '', instructions: '', time_limit_minutes: '', teacher_id: null as number | null,
+    grade_level_ids: [] as number[],
     sections: [] as any[],
 });
 
@@ -346,6 +362,12 @@ function addCriterion(si: number) {
     form.sections[si].criteria.push(blankCriterion());
 }
 
+function toggleGrade(id: number) {
+    const idx = form.grade_level_ids.indexOf(id);
+    if (idx >= 0) { form.grade_level_ids.splice(idx, 1); }
+    else { form.grade_level_ids.push(id); }
+}
+
 function setCorrectOption(questions: Question[], qi: number, oi: number) {
     questions[qi].options.forEach((o, i) => { o.is_correct = i === oi; });
 }
@@ -353,6 +375,7 @@ function setCorrectOption(questions: Question[], qi: number, oi: number) {
 function submitForm() {
     const payload: any = {
         title: form.title,
+        grade_level_ids: form.grade_level_ids,
         instructions: form.instructions,
         time_limit_minutes: form.time_limit_minutes || null,
         sections: form.sections.map(sec => {

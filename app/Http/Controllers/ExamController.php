@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\ExamSection;
+use App\Models\GradeLevel;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,13 +23,14 @@ class ExamController extends Controller
         $teacher = Auth::user();
 
         $exams = $teacher->isSuperadmin()
-            ? Exam::withCount('sections')->withCount('attempts')->with('teacher:id,name')->latest()->get()
-            : Exam::where('teacher_id', $teacher->id)->withCount('sections')->withCount('attempts')->latest()->get();
+            ? Exam::withCount('sections')->withCount('attempts')->with('teacher:id,name', 'gradeLevels:id,name')->latest()->get()
+            : $teacher->exams()->withCount('sections')->withCount('attempts')->with('gradeLevels:id,name')->latest()->get();
 
         return Inertia::render('Teacher/Exams/Index', [
             'exams' => $exams,
             'isSuperadmin' => $teacher->isSuperadmin(),
             'teachers' => $teacher->isSuperadmin() ? User::where('role', 'teacher')->orderBy('name')->get(['id', 'name']) : [],
+            'gradeLevels' => GradeLevel::where('is_active', true)->orderBy('display_order')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -36,6 +38,8 @@ class ExamController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'grade_level_ids' => ['required', 'array', 'min:1'],
+            'grade_level_ids.*' => ['exists:grade_levels,id'],
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'max_score' => ['nullable', 'integer', 'min:1'],
@@ -63,14 +67,21 @@ class ExamController extends Controller
         DB::transaction(function () use ($data) {
             $teacherId = Auth::user()->isSuperadmin() && $data['teacher_id'] ? $data['teacher_id'] : Auth::id();
 
+            $grade = GradeLevel::whereIn('id', $data['grade_level_ids'])
+                ->orderBy('display_order')
+                ->value('name');
+
             $exam = Exam::create([
                 'teacher_id' => $teacherId,
                 'title' => $data['title'],
+                'grade' => $grade,
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
                 'max_score' => $data['max_score'] ?? 100,
                 'is_published' => false,
             ]);
+
+            $exam->gradeLevels()->sync($data['grade_level_ids']);
 
             foreach ($data['sections'] as $sIndex => $sec) {
                 $section = $exam->sections()->create([
@@ -145,7 +156,7 @@ class ExamController extends Controller
     public function show(Exam $exam): Response
     {
         $this->authorizeOwner($exam);
-        $exam->load('sections.questions.options', 'sections.questions.matchingPairs', 'sections.criteria');
+        $exam->load(['sections.questions.options', 'sections.questions.matchingPairs', 'sections.criteria', 'gradeLevels:id,name']);
 
         $teacher = Auth::user();
 
