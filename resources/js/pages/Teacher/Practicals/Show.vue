@@ -14,7 +14,7 @@
                 <template v-if="practical.grade_levels">{{ practical.grade_levels.map((g: any) => g.name).join(', ') }}</template>
                 · {{ practical.criteria.length }} criteria · {{ totalMax }} points max
             </p>
-            <p v-if="practical.instructions" class="mt-2 text-sm" style="color: #404A5C">{{ practical.instructions }}</p>
+            <p v-if="practical.instructions" class="mt-2 text-sm whitespace-pre-wrap" style="color: #404A5C">{{ practical.instructions }}</p>
         </div>
         <div class="flex items-center gap-2">
             <Link :href="`/teacher/practicals/${practical.id}/edit`" class="btn-secondary">
