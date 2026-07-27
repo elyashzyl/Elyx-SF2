@@ -85,9 +85,6 @@
                         <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ a.submitted_at ? formatDate(a.submitted_at) : '—' }}</td>
                         <td class="px-6 py-3">
                             <div class="flex items-center gap-2">
-                                <Link :href="`/teacher/practicals/${practical.id}/grade/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Grade">
-                                    <Eye class="h-3.5 w-3.5" :stroke-width="2" />
-                                </Link>
                                 <Link :href="`/teacher/practicals/${practical.id}/recheck/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Recheck">
                                     <ClipboardCheck class="h-3.5 w-3.5" :stroke-width="2" />
                                 </Link>
@@ -115,7 +112,7 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, Eye, ClipboardCheck, X } from '@lucide/vue';
+import { ArrowLeft, Pencil, ClipboardCheck, X } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
 
