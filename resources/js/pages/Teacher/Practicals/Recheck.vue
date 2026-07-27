@@ -41,6 +41,16 @@
                 <img :src="previewImg" class="max-h-[85vh] rounded-lg shadow-2xl" />
             </div>
         </div>
+        <div v-if="showSaved" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showSaved = false">
+            <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
+                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style="background-color: #DCEEE3">
+                    <Check class="h-7 w-7" style="color: #2F7A54" :stroke-width="2.5" />
+                </div>
+                <h3 class="mb-1 text-lg font-semibold" style="color: #1B2231">Grades saved</h3>
+                <p class="mb-6 text-sm" style="color: #5A6376">The scores have been updated successfully.</p>
+                <button @click="showSaved = false" class="btn-primary w-full">Done</button>
+            </div>
+        </div>
     </Teleport>
 
     <form @submit.prevent="save">
@@ -78,16 +88,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import Spinner from '@/components/ui/spinner/Spinner.vue';
-import { ArrowLeft, X } from '@lucide/vue';
+import { ArrowLeft, X, Check } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
+const showSaved = ref(false);
 
 const props = defineProps<{ practical: any; attempt: any }>();
 
 const totalMax = computed(() => props.practical.criteria.reduce((s: number, c: any) => s + c.max_points, 0));
+
+onMounted(() => {
+    const page = usePage();
+    if ((page.props.flash as any)?.saved) {
+        showSaved.value = true;
+    }
+});
 const saving = ref(false);
 
 const form = reactive<{ scores: Record<number, number>; comments: Record<number, string> }>({

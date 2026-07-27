@@ -268,8 +268,8 @@ class PracticalController extends Controller
             $attempt->update(['total_score' => $totalScore]);
         });
 
-        return redirect()->route('teacher.practicals.show', $practical)
-            ->with('success', 'Practical graded successfully.');
+        return redirect()->route('teacher.practicals.grade', [$practical, $attempt])
+            ->with('saved', true);
     }
 
     public function recheck(Practical $practical, PracticalAttempt $attempt): Response
@@ -314,8 +314,8 @@ class PracticalController extends Controller
             $attempt->update(['total_score' => $totalScore]);
         });
 
-        return redirect()->route('teacher.practicals.show', $practical)
-            ->with('success', 'Recheck saved.');
+        return redirect()->route('teacher.practicals.recheck', [$practical, $attempt])
+            ->with('saved', true);
     }
 
     public function reassign(Request $request, Practical $practical): RedirectResponse
