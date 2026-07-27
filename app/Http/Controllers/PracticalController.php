@@ -271,6 +271,51 @@ class PracticalController extends Controller
             ->with('success', 'Practical graded successfully.');
     }
 
+    public function recheck(Practical $practical, PracticalAttempt $attempt): Response
+    {
+        $this->authorizeOwner($practical);
+        abort_if($attempt->practical_id !== $practical->id, 404);
+
+        $attempt->load(['student:id,name,grade', 'practical.criteria', 'scores.criterion']);
+
+        return Inertia::render('Teacher/Practicals/Recheck', [
+            'practical' => $practical,
+            'attempt' => $attempt,
+        ]);
+    }
+
+    public function recheckUpdate(Request $request, Practical $practical, PracticalAttempt $attempt): RedirectResponse
+    {
+        $this->authorizeOwner($practical);
+        abort_if($attempt->practical_id !== $practical->id, 404);
+
+        $data = $request->validate([
+            'scores' => ['required', 'array'],
+            'scores.*' => ['required', 'integer', 'min:0'],
+            'comments' => ['nullable', 'array'],
+            'comments.*' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $practical->load('criteria');
+        $totalScore = 0;
+
+        DB::transaction(function () use ($data, $practical, $attempt, &$totalScore) {
+            foreach ($practical->criteria as $criterion) {
+                $score = min((int) ($data['scores'][$criterion->id] ?? 0), $criterion->max_points);
+                $totalScore += $score;
+
+                $attempt->scores()->updateOrCreate(
+                    ['criterion_id' => $criterion->id],
+                    ['score' => $score, 'comment' => $data['comments'][$criterion->id] ?? '']
+                );
+            }
+            $attempt->update(['total_score' => $totalScore]);
+        });
+
+        return redirect()->route('teacher.practicals.show', $practical)
+            ->with('success', 'Recheck saved.');
+    }
+
     public function reassign(Request $request, Practical $practical): RedirectResponse
     {
         abort_unless(Auth::user()->isSuperadmin(), 403);

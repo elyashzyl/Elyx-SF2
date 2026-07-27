@@ -52,6 +52,8 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::post('/practicals', [PracticalController::class, 'store'])->name('practicals.store');
     Route::get('/practicals/{practical}/grade/{attempt}', [PracticalController::class, 'grade'])->name('practicals.grade');
     Route::put('/practicals/{practical}/grade/{attempt}', [PracticalController::class, 'gradeUpdate'])->name('practicals.grade-update');
+    Route::get('/practicals/{practical}/recheck/{attempt}', [PracticalController::class, 'recheck'])->name('practicals.recheck');
+    Route::put('/practicals/{practical}/recheck/{attempt}', [PracticalController::class, 'recheckUpdate'])->name('practicals.recheck-update');
     Route::get('/practicals/{practical}/edit', [PracticalController::class, 'edit'])->name('practicals.edit');
     Route::put('/practicals/{practical}', [PracticalController::class, 'update'])->name('practicals.update');
     Route::get('/practicals/{practical}', [PracticalController::class, 'show'])->name('practicals.show');
