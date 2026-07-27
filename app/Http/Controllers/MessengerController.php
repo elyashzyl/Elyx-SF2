@@ -33,7 +33,7 @@ class MessengerController extends Controller
         $contacts = $user->isSuperadmin()
             ? User::where('id', '!=', $user->id)->orderBy('name')->get(['id', 'name', 'role'])
             : ($user->isTeacher()
-                ? $user->students()->orderBy('name')->get(['id', 'name', 'role'])
+                ? $user->students()->orderBy('name')->get(['users.id', 'users.name', 'users.role'])
                 : User::whereIn('id', $user->teachers()->pluck('teacher_id'))->orderBy('name')->get(['id', 'name', 'role'])
             );
 
@@ -80,7 +80,7 @@ class MessengerController extends Controller
             'contacts' => $user->isSuperadmin()
                 ? User::where('id', '!=', $user->id)->orderBy('name')->get(['id', 'name', 'role'])
                 : ($user->isTeacher()
-                    ? $user->students()->orderBy('name')->get(['id', 'name', 'role'])
+                    ? $user->students()->orderBy('name')->get(['users.id', 'users.name', 'users.role'])
                     : User::whereIn('id', $user->teachers()->pluck('teacher_id'))->orderBy('name')->get(['id', 'name', 'role'])
                 ),
         ]);
