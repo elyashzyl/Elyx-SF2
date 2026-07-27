@@ -35,7 +35,7 @@
                 </div>
                 <div class="flex items-center gap-4 shrink-0">
                     <div class="text-right">
-                        <p class="text-sm font-semibold" style="color: #1B2231">{{ item.score }}/{{ item.total }}</p>
+                        <p class="text-sm font-semibold" style="color: #1B2231">{{ item.score }} <span class="font-normal" style="color: #7C8598">over</span> {{ item.total }} <span class="font-normal" style="color: #7C8598">items</span></p>
                         <p class="text-xs font-medium" :style="item.percentage >= 50 ? 'color: #2F7A54' : 'color: #AA3C36'">{{ item.percentage }}%</p>
                     </div>
                     <Link :href="item.resultUrl" class="btn-secondary">
