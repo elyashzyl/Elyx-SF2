@@ -160,6 +160,15 @@ class PracticalController extends Controller
         return redirect()->route('teacher.practicals.index')->with('success', 'Practical deleted.');
     }
 
+    public function destroyAttempt(Practical $practical, PracticalAttempt $attempt): RedirectResponse
+    {
+        $this->authorizeOwner($practical);
+        abort_if($attempt->practical_id !== $practical->id, 404);
+        $attempt->scores()->delete();
+        $attempt->delete();
+        return redirect()->back()->with('success', 'Attempt deleted. Student can retake the practical.');
+    }
+
     public function take(Practical $practical): Response|RedirectResponse
     {
         $student = Auth::user();

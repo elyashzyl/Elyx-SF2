@@ -60,6 +60,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::patch('/practicals/{practical}/publish', [PracticalController::class, 'publish'])->name('practicals.publish');
     Route::patch('/practicals/{practical}/reassign', [PracticalController::class, 'reassign'])->name('practicals.reassign');
     Route::delete('/practicals/{practical}', [PracticalController::class, 'destroy'])->name('practicals.destroy');
+    Route::delete('/practicals/{practical}/attempt/{attempt}', [PracticalController::class, 'destroyAttempt'])->name('practicals.destroy-attempt');
 
     Route::get('/exams', [ExamController::class, 'index'])->name('exams.index');
     Route::post('/exams', [ExamController::class, 'store'])->name('exams.store');

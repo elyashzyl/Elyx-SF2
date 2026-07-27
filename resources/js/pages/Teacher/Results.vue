@@ -75,17 +75,38 @@
                                 <ClipboardCheck v-if="item.type === 'Practical'" class="h-3.5 w-3.5" :stroke-width="2" />
                                 <Eye v-else class="h-3.5 w-3.5" :stroke-width="2" />
                             </Link>
+                            <button v-if="item.type === 'Practical'" @click="confirmDelete(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-red-50 inline-block" style="color: #AA3C36" title="Delete attempt">
+                                <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
+                            </button>
                         </div>
                     </td>
                 </tr>
             </tbody>
         </table>
     </div>
+
+    <Teleport to="body">
+        <div v-if="deleteItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="deleteItem = null">
+            <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
+                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style="background-color: #FDE8E8">
+                    <Trash2 class="h-7 w-7" style="color: #AA3C36" :stroke-width="2.5" />
+                </div>
+                <h3 class="mb-1 text-lg font-semibold" style="color: #1B2231">Delete attempt?</h3>
+                <p class="mb-6 text-sm" style="color: #5A6376">
+                    This will remove <strong>{{ deleteItem?.student_name }}</strong>'s attempt on <strong>{{ deleteItem?.title }}</strong>. The student can then retake the practical.
+                </p>
+                <div class="flex gap-3">
+                    <button @click="deleteItem = null" class="btn-secondary flex-1">Cancel</button>
+                    <button @click="deleteAttempt" class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold text-white" style="background-color: #AA3C36">Delete</button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ClipboardCheck, Search, Eye, RotateCw, FileQuestion, FileText, ClipboardList, FlaskConical } from '@lucide/vue';
+import { ClipboardCheck, Search, Eye, RotateCw, FileQuestion, FileText, ClipboardList, FlaskConical, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps<{ activities: any[]; teachersList: any[] }>();
@@ -138,6 +159,20 @@ function recheckUrl(item: any): string {
         Exam: `/teacher/exams/${item.activity_id}/attempts`,
     };
     return routes[item.type] ?? '#';
+}
+
+const deleteItem = ref<any>(null);
+
+function confirmDelete(item: any) {
+    deleteItem.value = item;
+}
+
+function deleteAttempt() {
+    if (!deleteItem.value) return;
+    router.delete(`/teacher/practicals/${deleteItem.value.activity_id}/attempt/${deleteItem.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => { deleteItem.value = null; },
+    });
 }
 
 function formatDate(value: string): string {
