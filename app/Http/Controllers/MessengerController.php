@@ -101,16 +101,19 @@ class MessengerController extends Controller
             ->whereHas('participants', fn ($q) => $q->where('user_id', $recipient->id))
             ->first();
 
+        $conversation = null;
+
         if ($existing) {
             $existing->messages()->create(['sender_id' => $user->id, 'body' => $validated['message']]);
             $existing->touch();
+            $conversation = $existing;
         } else {
             $conversation = Conversation::create(['subject' => null]);
             $conversation->participants()->attach([$user->id, $recipient->id]);
             $conversation->messages()->create(['sender_id' => $user->id, 'body' => $validated['message']]);
         }
 
-        return redirect()->route($user->isStudent() ? 'student.messenger' : 'teacher.messenger');
+        return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
     }
 
     public function sendMessage(Request $request, Conversation $conversation): RedirectResponse
@@ -123,7 +126,7 @@ class MessengerController extends Controller
         $conversation->messages()->create(['sender_id' => $user->id, 'body' => $validated['body']]);
         $conversation->touch();
 
-        return redirect()->route($user->isStudent() ? 'student.messenger' : 'teacher.messenger', $conversation);
+        return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
     }
 
     public function poll(Request $request, Conversation $conversation)
