@@ -19,7 +19,7 @@
         </div>
     </div>
 
-    <div class="mb-6 card">
+    <div class="mb-6 card p-5">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Rubric criteria</h3>
         <p class="mb-4 text-sm" style="color: #5A6376">Your teacher will assess your work based on the following criteria.</p>
         <div v-for="(c, ci) in practical.criteria" :key="c.id" class="mb-3 rounded-lg border border-[#E9EBEF] p-4">
@@ -33,7 +33,7 @@
         </div>
     </div>
 
-    <div class="mb-6 card">
+    <div class="mb-6 card p-5">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Your submission</h3>
         <div class="mb-4 flex items-center gap-2 border-b border-[#E9EBEF]">
             <button @click="tab = 'code'" class="px-4 py-2.5 text-sm font-medium transition-colors" :class="tab === 'code' ? 'border-b-2 border-[#1D3557] text-[#1D3557]' : 'text-[#5A6376] hover:text-[#2B3444]'">

@@ -18,7 +18,7 @@
         </Link>
     </div>
 
-    <div v-if="attempt.submission_text || attempt.submission_file" class="card mb-6">
+    <div v-if="attempt.submission_text || attempt.submission_file" class="card mb-6 p-5">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Your submission</h3>
         <div v-if="attempt.submission_text" class="mb-4">
             <p class="mb-2 text-xs font-medium" style="color: #5A6376">Code / Text:</p>
@@ -44,7 +44,7 @@
         </div>
     </div>
 
-    <div class="mb-6 card">
+    <div class="mb-6 card p-5">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Rubric criteria</h3>
         <div v-for="(c, ci) in attempt.practical.criteria" :key="c.id" class="mb-3 rounded-lg border border-[#E9EBEF] p-4">
             <div class="flex items-start justify-between">
