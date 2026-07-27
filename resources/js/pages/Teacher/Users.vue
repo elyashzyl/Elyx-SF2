@@ -21,8 +21,15 @@
         </button>
     </div>
 
+    <div class="mb-4">
+        <div class="relative">
+            <input v-model="search" type="text" placeholder="Search by name or email..." class="w-full rounded-lg border border-[#D2D6DE] px-3 py-2 pl-9 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231" />
+            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
+        </div>
+    </div>
+
     <div class="card overflow-hidden">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm" v-if="filteredUsers.length">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
                     <th class="px-6 py-3 font-medium">Name</th>
@@ -35,7 +42,7 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-[#E9EBEF]">
-                <tr v-for="u in users" :key="u.id" class="hover:bg-[#F9FAFB]">
+                <tr v-for="u in filteredUsers" :key="u.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ u.name }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ u.email }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ u.gender || '—' }}</td>
@@ -60,6 +67,13 @@
                 </tr>
             </tbody>
         </table>
+        <div v-else class="flex flex-col items-center justify-center px-6 py-16 text-center">
+            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
+                <Users class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
+            </div>
+            <p class="text-sm font-medium" style="color: #404A5C">No users found</p>
+            <p class="mt-1 text-sm" style="color: #7C8598">Try a different search term.</p>
+        </div>
     </div>
 
     <Teleport to="body">
@@ -184,7 +198,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Pencil, Trash2, Plus, UserCheck } from '@lucide/vue';
+import { Pencil, Trash2, Plus, UserCheck, Search, Users } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const page = usePage();
@@ -215,6 +229,16 @@ const editSections = computed(() =>
         ? props.sections.filter(s => String(s.grade_level_id) === String(editForm.value.grade_level_id))
         : props.sections
 );
+
+const search = ref('');
+
+const filteredUsers = computed(() => {
+    if (!search.value) return props.users;
+    const q = search.value.toLowerCase();
+    return props.users.filter(u =>
+        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    );
+});
 
 function openAddUser() {
     addForm.value = { name: '', email: '', gender: '', role: 'student', grade_level_id: '', section_id: '', password: '' };
