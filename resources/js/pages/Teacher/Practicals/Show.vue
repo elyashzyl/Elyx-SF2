@@ -91,6 +91,9 @@
                                 <Link :href="`/teacher/practicals/${practical.id}/recheck/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Recheck">
                                     <ClipboardCheck class="h-3.5 w-3.5" :stroke-width="2" />
                                 </Link>
+                                <button @click="confirmDelete(a)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] hover:text-[#AA3C36] inline-block" style="color: #AEB4C0" title="Delete attempt">
+                                    <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -108,6 +111,17 @@
                 <img :src="previewImg" class="max-h-[85vh] rounded-lg shadow-2xl" />
             </div>
         </div>
+
+        <div v-if="deleting" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="deleting = null">
+            <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-base font-semibold" style="color: #1B2231">Delete attempt?</h3>
+                <p class="text-sm" style="color: #5A6376">This will permanently delete <strong>{{ deleting?.student?.name }}</strong>'s attempt. They can retake the practical.</p>
+                <div class="mt-6 flex items-center justify-end gap-3">
+                    <button type="button" class="btn-secondary" @click="deleting = null">Cancel</button>
+                    <button type="button" class="btn-primary" style="background-color: #AA3C36" @click="destroyAttempt">Delete</button>
+                </div>
+            </div>
+        </div>
     </Teleport>
 </template>
 
@@ -115,9 +129,10 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, ClipboardCheck, X } from '@lucide/vue';
+import { ArrowLeft, Pencil, ClipboardCheck, Trash2, X } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
+const deleting = ref<any | null>(null);
 
 const props = defineProps<{ practical: any; attempts: any[]; teachers?: any[] }>();
 
@@ -134,6 +149,18 @@ function reassign() {
 
 function formatDate(v: string): string {
     return v ? new Date(v).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function confirmDelete(attempt: any) {
+    deleting.value = attempt;
+}
+
+function destroyAttempt() {
+    if (!deleting.value) return;
+    router.delete(`/teacher/practicals/${props.practical.id}/attempt/${deleting.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => { deleting.value = null; },
+    });
 }
 
 </script>
