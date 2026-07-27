@@ -231,6 +231,7 @@ class PracticalController extends Controller
         abort_if($attempt->practical_id !== $practical->id, 404);
 
         $attempt->load(['student:id,name,grade', 'practical.criteria', 'scores.criterion']);
+        $practical->load('criteria');
 
         return Inertia::render('Teacher/Practicals/Grade', [
             'practical' => $practical,
@@ -277,6 +278,7 @@ class PracticalController extends Controller
         abort_if($attempt->practical_id !== $practical->id, 404);
 
         $attempt->load(['student:id,name,grade', 'practical.criteria', 'scores.criterion']);
+        $practical->load('criteria');
 
         return Inertia::render('Teacher/Practicals/Recheck', [
             'practical' => $practical,
