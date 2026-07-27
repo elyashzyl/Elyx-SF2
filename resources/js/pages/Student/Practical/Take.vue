@@ -109,7 +109,7 @@ function tick() {
     remainingSeconds.value -= 1;
     if (remainingSeconds.value <= 0) {
         if (timer) clearInterval(timer);
-        submit();
+        submit(true);
     }
 }
 
@@ -120,6 +120,8 @@ onMounted(() => {
         remainingSeconds.value = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
         if (remainingSeconds.value > 0) {
             timer = setInterval(tick, 1000);
+        } else {
+            submit(true);
         }
     }
 });
@@ -148,8 +150,8 @@ function clearFile() {
     if (fileInput.value) fileInput.value.value = '';
 }
 
-function submit() {
-    if (!confirm('Submit practical? This cannot be undone.')) return;
+function submit(auto = false) {
+    if (!auto && !confirm('Submit practical? This cannot be undone.')) return;
     submitting.value = true;
 
     const formData = new FormData();
