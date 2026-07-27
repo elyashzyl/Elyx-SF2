@@ -71,8 +71,9 @@
                             <button v-if="item.type === 'Quiz' || item.type === 'Seatwork'" @click="autoRecheck(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Auto recheck">
                                 <RotateCw class="h-3.5 w-3.5" :stroke-width="2" />
                             </button>
-                            <Link :href="recheckUrl(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Recheck">
-                                <Eye class="h-3.5 w-3.5" :stroke-width="2" />
+                            <Link :href="recheckUrl(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" :title="item.type === 'Practical' ? 'Recheck' : 'View'">
+                                <ClipboardCheck v-if="item.type === 'Practical'" class="h-3.5 w-3.5" :stroke-width="2" />
+                                <Eye v-else class="h-3.5 w-3.5" :stroke-width="2" />
                             </Link>
                         </div>
                     </td>
@@ -133,7 +134,7 @@ function recheckUrl(item: any): string {
     const routes: Record<string, string> = {
         Quiz: `/teacher/quizzes/${item.activity_id}/recheck/${item.id}`,
         Seatwork: `/teacher/seatworks/${item.activity_id}/recheck/${item.id}`,
-        Practical: `/teacher/practicals/${item.activity_id}/grade/${item.id}`,
+        Practical: `/teacher/practicals/${item.activity_id}/recheck/${item.id}`,
         Exam: `/teacher/exams/${item.activity_id}/attempts`,
     };
     return routes[item.type] ?? '#';
