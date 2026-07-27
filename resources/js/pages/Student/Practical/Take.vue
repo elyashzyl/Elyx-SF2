@@ -12,7 +12,7 @@
                 <span class="rounded bg-[#E9EBEF] px-2 py-0.5 text-xs" style="color: #5A6376">Practical</span>
                 <span class="rounded bg-[#EEF2F7] px-2 py-0.5 text-xs font-medium" style="color: #1D3557">Attempt {{ attemptNumber }} / {{ practical.max_attempts }}</span>
             </div>
-            <p v-if="practical.instructions" class="mt-2 text-sm" style="color: #404A5C">{{ practical.instructions }}</p>
+            <p v-if="practical.instructions" class="mt-2 text-sm whitespace-pre-wrap" style="color: #404A5C">{{ practical.instructions }}</p>
         </div>
         <div v-if="remainingSeconds !== null" class="flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium" :class="remainingSeconds < 60 ? 'border-[#F6DEDD] text-[#AA3C36]' : 'border-[#D2D6DE] text-[#404A5C]'" style="background-color: white">
             <Clock class="h-4 w-4" :stroke-width="2" />
