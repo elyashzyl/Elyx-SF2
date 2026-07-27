@@ -38,7 +38,7 @@
             </div>
             <div>
                 <p class="text-sm font-semibold" style="color: #1B2231">Your score</p>
-                <p class="text-sm" style="color: #5A6376">{{ attempt.total_score }}/{{ totalMax }} points</p>
+                <p class="text-sm" style="color: #5A6376">{{ attempt.total_score }} <span style="color: #7C8598">over</span> {{ totalMax }} <span style="color: #7C8598">points</span></p>
                 <p class="text-xs" style="color: #7C8598">Submitted {{ formatDate(attempt.submitted_at) }}</p>
             </div>
         </div>

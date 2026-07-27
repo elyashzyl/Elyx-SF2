@@ -405,7 +405,7 @@ class StudentController extends Controller
                 'resultUrl' => "/student/seatworks/{$a->id}/result",
             ]);
 
-        $practicalAttempts = \App\Models\PracticalAttempt::with('practical:id,title')
+        $practicalAttempts = \App\Models\PracticalAttempt::with('practical.criteria')
             ->where('student_id', $student->id)
             ->where('status', 'submitted')
             ->latest('submitted_at')
@@ -415,8 +415,8 @@ class StudentController extends Controller
                 'type' => 'Practical',
                 'title' => $a->practical->title,
                 'score' => $a->total_score,
-                'total' => $a->practical->max_score,
-                'percentage' => $a->practical->max_score ? round(($a->total_score / $a->practical->max_score) * 100) : 0,
+                'total' => $a->practical->criteria->sum('max_points'),
+                'percentage' => $a->practical->criteria->sum('max_points') ? round(($a->total_score / $a->practical->criteria->sum('max_points')) * 100) : 0,
                 'submitted_at' => $a->submitted_at,
                 'resultUrl' => "/student/practicals/{$a->id}/result",
             ]);
