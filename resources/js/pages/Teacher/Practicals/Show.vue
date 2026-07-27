@@ -58,6 +58,7 @@
                         <th class="px-6 py-3 font-medium">Grade</th>
                         <th v-for="c in practical.criteria" :key="c.id" class="px-6 py-3 font-medium text-xs">{{ c.criterion_name }}</th>
                         <th class="px-6 py-3 font-medium">Total</th>
+                        <th class="px-6 py-3 font-medium">Submission</th>
                         <th class="px-6 py-3 font-medium">Submitted</th>
                         <th class="px-6 py-3 font-medium">Actions</th>
                     </tr>
@@ -70,6 +71,14 @@
                             {{ a.scores?.find((s: any) => s.criterion_id === c.id)?.score ?? '—' }}
                         </td>
                         <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ a.total_score }} / {{ totalMax }}</td>
+                        <td class="px-6 py-3">
+                            <div v-if="a.submission_file" class="flex items-center gap-2">
+                                <img :src="'/storage/' + a.submission_file" class="h-10 w-10 rounded object-cover border border-[#E9EBEF]" @click="previewImg = '/storage/' + a.submission_file" style="cursor:pointer" />
+                                <span class="text-xs" style="color: #7C8598">Image</span>
+                            </div>
+                            <span v-else-if="a.submission_text" class="text-xs" style="color: #5A6376">{{ a.submission_text.substring(0, 60) }}{{ a.submission_text.length > 60 ? '...' : '' }}</span>
+                            <span v-else class="text-xs" style="color: #7C8598">—</span>
+                        </td>
                         <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ formatDate(a.submitted_at) }}</td>
                         <td class="px-6 py-3">
                             <Link :href="`/teacher/practicals/${practical.id}/grade/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Grade">
@@ -81,13 +90,26 @@
             </table>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div v-if="previewImg" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" @click.self="previewImg = null">
+            <div class="relative max-w-3xl max-h-[90vh] p-4">
+                <button @click="previewImg = null" class="absolute -top-2 -right-2 rounded-full bg-white p-1.5 shadow-md hover:bg-gray-100" style="color: #5A6376">
+                    <X class="h-4 w-4" :stroke-width="2" />
+                </button>
+                <img :src="previewImg" class="max-h-[85vh] rounded-lg shadow-2xl" />
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, Eye } from '@lucide/vue';
+import { ArrowLeft, Pencil, Eye, X } from '@lucide/vue';
+
+const previewImg = ref<string | null>(null);
 
 const props = defineProps<{ practical: any; attempts: any[]; teachers?: any[] }>();
 
