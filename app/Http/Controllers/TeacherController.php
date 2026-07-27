@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Exam;
 use App\Models\ExamAttempt;
+use App\Models\GradeLevel;
 use App\Models\Practical;
 use App\Models\PracticalAttempt;
 use App\Models\Quiz;
