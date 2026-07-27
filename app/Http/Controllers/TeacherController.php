@@ -426,10 +426,10 @@ class TeacherController extends Controller
                 'section_name' => $student->section?->name,
                 'section_id' => $student->section_id,
                 'grade_level_id' => $student->grade_level_id,
-                'quiz' => $quizPct,
-                'seatwork' => $seatworkPct,
-                'practical' => $practicalPct,
-                'exam' => $examPct,
+                'quiz' => ['pct' => $quizPct, 'score' => $quiz?->score ?? 0, 'total' => $quiz?->total ?? 0],
+                'seatwork' => ['pct' => $seatworkPct, 'score' => $seatwork?->score ?? 0, 'total' => $seatwork?->total ?? 0],
+                'practical' => ['pct' => $practicalPct, 'score' => $practical['score'] ?? 0, 'total' => $practical['total'] ?? 0],
+                'exam' => ['pct' => $examPct, 'score' => $exam['score'] ?? 0, 'total' => $exam['total'] ?? 0],
                 'overall' => $overall,
             ];
         })->sortByDesc('overall')->values();

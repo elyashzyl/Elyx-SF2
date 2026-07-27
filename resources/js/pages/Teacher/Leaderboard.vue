@@ -56,16 +56,20 @@
                         <span v-if="e.section_name" class="text-xs" style="color: #7C8598"> — {{ e.section_name }}</span>
                     </td>
                     <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.quiz" />
+                        <PctBadge :value="e.quiz.pct" />
+                        <div v-if="e.quiz.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.quiz.score }}/{{ e.quiz.total }}</div>
                     </td>
                     <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.seatwork" />
+                        <PctBadge :value="e.seatwork.pct" />
+                        <div v-if="e.seatwork.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.seatwork.score }}/{{ e.seatwork.total }}</div>
                     </td>
                     <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.practical" />
+                        <PctBadge :value="e.practical.pct" />
+                        <div v-if="e.practical.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.practical.score }}/{{ e.practical.total }}</div>
                     </td>
                     <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.exam" />
+                        <PctBadge :value="e.exam.pct" />
+                        <div v-if="e.exam.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.exam.score }}/{{ e.exam.total }}</div>
                     </td>
                     <td class="px-6 py-3 text-center">
                         <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold"
