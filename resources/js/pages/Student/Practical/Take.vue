@@ -83,7 +83,7 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import { Clock, Send, FileCode, Image as ImageIcon, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref } from 'vue';
 
-const props = defineProps<{ practical: any; startedAt: string; attemptNumber: number }>();
+const props = defineProps<{ practical: any; startedAt: string; deadlineAt?: number; attemptNumber: number }>();
 
 const page = usePage();
 const flash = page.props.flash as any;
@@ -114,10 +114,8 @@ function tick() {
 }
 
 onMounted(() => {
-    if (props.practical.time_limit_minutes && props.startedAt) {
-        const start = new Date(props.startedAt).getTime();
-        const deadline = start + props.practical.time_limit_minutes * 60 * 1000;
-        remainingSeconds.value = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+    if (props.practical.time_limit_minutes && props.deadlineAt) {
+        remainingSeconds.value = Math.max(0, Math.floor((props.deadlineAt - Date.now()) / 1000));
         if (remainingSeconds.value > 0) {
             timer = setInterval(tick, 1000);
         } else {

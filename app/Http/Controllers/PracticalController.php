@@ -236,6 +236,7 @@ class PracticalController extends Controller
         return Inertia::render('Student/Practical/Take', [
             'practical' => $practical,
             'startedAt' => $existing->started_at,
+            'deadlineAt' => $existing->started_at?->copy()->addMinutes($practical->time_limit_minutes)->timestamp * 1000,
             'attemptNumber' => $attemptCount,
         ]);
     }
