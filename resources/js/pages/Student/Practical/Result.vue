@@ -12,9 +12,9 @@
                 <span class="rounded bg-[#E9EBEF] px-2 py-0.5 text-xs" style="color: #5A6376">Practical</span>
             </div>
         </div>
-        <Link href="/student/dashboard" class="btn-secondary">
+        <Link href="/student/results" class="btn-secondary">
             <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-            Back to dashboard
+            Back to results
         </Link>
     </div>
 

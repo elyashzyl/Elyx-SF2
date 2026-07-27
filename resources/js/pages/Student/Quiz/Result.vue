@@ -10,9 +10,9 @@
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ attempt.quiz.title }}</h2>
                 <p class="text-sm" style="color: #5A6376">{{ attempt.quiz.grade }} — {{ attempt.quiz.section }}</p>
             </div>
-            <Link href="/student/dashboard" class="btn-secondary">
+            <Link href="/student/results" class="btn-secondary">
                 <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-                Back to dashboard
+                Back to results
             </Link>
         </div>
 
