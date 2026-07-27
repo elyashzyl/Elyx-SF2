@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -448,5 +449,35 @@ class TeacherController extends Controller
             'sections' => $sections,
             'gradeLevels' => $gradeLevels,
         ]);
+    }
+
+    public function destroyAttempt(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'type' => ['required', 'in:Quiz,Seatwork,Practical,Exam'],
+            'id' => ['required', 'integer'],
+        ]);
+
+        $modelMap = [
+            'Quiz' => QuizAttempt::class,
+            'Seatwork' => SeatworkAttempt::class,
+            'Practical' => PracticalAttempt::class,
+            'Exam' => ExamAttempt::class,
+        ];
+
+        $modelClass = $modelMap[$data['type']];
+        $attempt = $modelClass::with('quiz', 'seatwork', 'practical', 'exam')->findOrFail($data['id']);
+
+        $teacher = Auth::user();
+        $attemptActivity = $attempt->{strtolower($data['type'])} ?? $attempt->quiz ?? $attempt->seatwork ?? $attempt->practical ?? $attempt->exam;
+        abort_unless($teacher->isSuperadmin() || $attemptActivity?->teacher_id === $teacher->id, 403);
+
+        if ($attempt instanceof PracticalAttempt) {
+            $attempt->scores()->delete();
+        }
+
+        $attempt->delete();
+
+        return redirect()->back()->with('success', 'Attempt deleted. Student can retake.');
     }
 }

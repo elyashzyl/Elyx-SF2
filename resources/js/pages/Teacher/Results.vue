@@ -75,7 +75,7 @@
                                 <ClipboardCheck v-if="item.type === 'Practical'" class="h-3.5 w-3.5" :stroke-width="2" />
                                 <Eye v-else class="h-3.5 w-3.5" :stroke-width="2" />
                             </Link>
-                            <button v-if="item.type === 'Practical'" @click="confirmDelete(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-red-50 inline-block" style="color: #AA3C36" title="Delete attempt">
+                            <button @click="confirmDelete(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-red-50 inline-block" style="color: #AA3C36" title="Delete attempt">
                                 <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
                             </button>
                         </div>
@@ -93,7 +93,7 @@
                 </div>
                 <h3 class="mb-1 text-lg font-semibold" style="color: #1B2231">Delete attempt?</h3>
                 <p class="mb-6 text-sm" style="color: #5A6376">
-                    This will remove <strong>{{ deleteItem?.student_name }}</strong>'s attempt on <strong>{{ deleteItem?.title }}</strong>. The student can then retake the practical.
+                    This will remove <strong>{{ deleteItem?.student_name }}</strong>'s attempt on <strong>{{ deleteItem?.title }}</strong>. The student can then retake it.
                 </p>
                 <div class="flex gap-3">
                     <button @click="deleteItem = null" class="btn-secondary flex-1">Cancel</button>
@@ -169,7 +169,8 @@ function confirmDelete(item: any) {
 
 function deleteAttempt() {
     if (!deleteItem.value) return;
-    router.delete(`/teacher/practicals/${deleteItem.value.activity_id}/attempt/${deleteItem.value.id}`, {
+    router.delete('/teacher/results/attempt', {
+        data: { type: deleteItem.value.type, id: deleteItem.value.id },
         preserveScroll: true,
         onSuccess: () => { deleteItem.value = null; },
     });

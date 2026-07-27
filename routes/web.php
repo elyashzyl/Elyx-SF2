@@ -33,6 +33,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/teachers/{user}', [TeacherController::class, 'teacherShow'])->name('teachers.show');
     Route::put('/teachers/{user}', [TeacherController::class, 'teacherUpdate'])->name('teachers.update');
     Route::get('/results', [TeacherController::class, 'results'])->name('results');
+    Route::delete('/results/attempt', [TeacherController::class, 'destroyAttempt'])->name('results.destroy-attempt');
     Route::get('/leaderboard', [TeacherController::class, 'leaderboard'])->name('leaderboard');
 
     Route::get('/quizzes', [QuizController::class, 'index'])->name('quizzes.index');
