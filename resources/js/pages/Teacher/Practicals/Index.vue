@@ -33,6 +33,7 @@
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
                     <th class="px-6 py-3 font-medium">Title</th>
+                    <th class="px-6 py-3 font-medium">Grade</th>
                     <th class="px-6 py-3 font-medium">Status</th>
                     <th v-if="isSuperadmin" class="px-6 py-3 font-medium">Teacher</th>
                     <th class="px-6 py-3 font-medium">Criteria</th>
@@ -43,6 +44,7 @@
             <tbody class="divide-y divide-[#E9EBEF]">
                 <tr v-for="p in practicals" :key="p.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ p.title }}</td>
+                    <td class="px-6 py-3 text-xs" style="color: #5A6376">{{ p.grade_levels ? p.grade_levels.map((g: any) => g.name).join(', ') : p.grade }}</td>
                     <td class="px-6 py-3"><StatusBadge :status="p.is_published ? 'published' : 'draft'" /></td>
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ p.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ p.criteria_count }}</td>
@@ -89,6 +91,19 @@
                             <div>
                                 <label class="field-label">Instructions (optional)</label>
                                 <textarea v-model="form.instructions" rows="2" class="input-field" placeholder="Instructions for students"></textarea>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="field-label">Grade levels</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button v-for="gl in gradeLevels" :key="gl.id" type="button"
+                                        class="rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors"
+                                        :class="form.grade_level_ids.includes(gl.id) ? 'border-[#1D3557] bg-[#EEF2F7] text-[#1D3557]' : 'border-[#D2D6DE] text-[#5A6376] hover:border-[#AEB4C0]'"
+                                        @click="toggleGrade(gl.id)">
+                                        <Check v-if="form.grade_level_ids.includes(gl.id)" class="-ml-0.5 mr-1.5 inline h-4 w-4" :stroke-width="2.5" />
+                                        {{ gl.name }}
+                                    </button>
+                                </div>
+                                <p v-if="form.errors.grade_level_ids" class="mt-1 text-xs" style="color: #AA3C36">{{ form.errors.grade_level_ids }}</p>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
@@ -154,10 +169,10 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage, useForm } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Plus, Eye, Pencil, Trash2, UploadCloud, FlaskConical, X } from '@lucide/vue';
+import { Plus, Eye, Pencil, Trash2, UploadCloud, FlaskConical, X, Check } from '@lucide/vue';
 import { ref } from 'vue';
 
-defineProps<{ practicals: any[]; isSuperadmin?: boolean; teachers?: any[] }>();
+defineProps<{ practicals: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
 
 const page = usePage();
 const flash = page.props.flash as any;
@@ -166,8 +181,15 @@ const showCreate = ref(false);
 
 const form = useForm({
     title: '', instructions: '', time_limit_minutes: '', max_score: 100, teacher_id: null as number | null,
+    grade_level_ids: [] as number[],
     criteria: [{ criterion_name: '', description: '', max_points: 10 }],
 });
+
+function toggleGrade(id: number) {
+    const idx = form.grade_level_ids.indexOf(id);
+    if (idx >= 0) { form.grade_level_ids.splice(idx, 1); }
+    else { form.grade_level_ids.push(id); }
+}
 
 function addCriterion() { form.criteria.push({ criterion_name: '', description: '', max_points: 10 }); }
 

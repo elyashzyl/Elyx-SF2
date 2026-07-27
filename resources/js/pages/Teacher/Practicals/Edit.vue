@@ -18,6 +18,19 @@
                     <label class="field-label">Instructions (optional)</label>
                     <textarea v-model="form.instructions" rows="2" class="input-field"></textarea>
                 </div>
+                <div class="sm:col-span-2">
+                    <label class="field-label">Grade levels</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button v-for="gl in gradeLevels" :key="gl.id" type="button"
+                            class="rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors"
+                            :class="form.grade_level_ids.includes(gl.id) ? 'border-[#1D3557] bg-[#EEF2F7] text-[#1D3557]' : 'border-[#D2D6DE] text-[#5A6376] hover:border-[#AEB4C0]'"
+                            @click="toggleGrade(gl.id)">
+                            <Check v-if="form.grade_level_ids.includes(gl.id)" class="-ml-0.5 mr-1.5 inline h-4 w-4" :stroke-width="2.5" />
+                            {{ gl.name }}
+                        </button>
+                    </div>
+                    <p v-if="form.errors.grade_level_ids" class="mt-1 text-xs" style="color: #AA3C36">{{ form.errors.grade_level_ids }}</p>
+                </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="field-label">Time limit (minutes, optional)</label>
@@ -78,9 +91,9 @@
 
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { Plus, Trash2, ArrowLeft } from '@lucide/vue';
+import { Plus, Trash2, ArrowLeft, Check } from '@lucide/vue';
 
-const props = defineProps<{ practical: any; teachers?: any[] }>();
+const props = defineProps<{ practical: any; teachers?: any[]; gradeLevels: any[] }>();
 
 function mapPracticalToForm(p: any) {
     return {
@@ -89,6 +102,7 @@ function mapPracticalToForm(p: any) {
         time_limit_minutes: p.time_limit_minutes ?? '',
         max_score: p.max_score ?? 100,
         teacher_id: p.teacher_id ?? null,
+        grade_level_ids: p.grade_levels ? p.grade_levels.map((g: any) => g.id) : [],
         criteria: p.criteria.map((c: any) => ({
             criterion_name: c.criterion_name,
             description: c.description ?? '',
@@ -98,6 +112,12 @@ function mapPracticalToForm(p: any) {
 }
 
 const form = useForm(mapPracticalToForm(props.practical));
+
+function toggleGrade(id: number) {
+    const idx = form.grade_level_ids.indexOf(id);
+    if (idx >= 0) { form.grade_level_ids.splice(idx, 1); }
+    else { form.grade_level_ids.push(id); }
+}
 
 function addCriterion() {
     form.criteria.push({ criterion_name: '', description: '', max_points: 10 });

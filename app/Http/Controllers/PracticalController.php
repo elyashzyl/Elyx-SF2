@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GradeLevel;
 use App\Models\Practical;
 use App\Models\PracticalAttempt;
 use App\Models\User;
@@ -19,13 +20,16 @@ class PracticalController extends Controller
         $teacher = Auth::user();
 
         $practicals = $teacher->isSuperadmin()
-            ? Practical::withCount('criteria')->withCount('attempts')->with('teacher:id,name')->latest()->get()
-            : $teacher->practicals()->withCount('criteria')->withCount('attempts')->latest()->get();
+            ? Practical::withCount('criteria')->withCount('attempts')->with('teacher:id,name', 'gradeLevels:id,name')->latest()->get()
+            : $teacher->practicals()->withCount('criteria')->withCount('attempts')->with('gradeLevels:id,name')->latest()->get();
+
+        $gradeLevels = GradeLevel::where('is_active', true)->orderBy('display_order')->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Teacher/Practicals/Index', [
             'practicals' => $practicals,
             'isSuperadmin' => $teacher->isSuperadmin(),
             'teachers' => $teacher->isSuperadmin() ? User::where('role', 'teacher')->orderBy('name')->get(['id', 'name']) : [],
+            'gradeLevels' => $gradeLevels,
         ]);
     }
 
@@ -33,6 +37,8 @@ class PracticalController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'grade_level_ids' => ['required', 'array', 'min:1'],
+            'grade_level_ids.*' => ['exists:grade_levels,id'],
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'max_score' => ['nullable', 'integer', 'min:1'],
@@ -46,14 +52,21 @@ class PracticalController extends Controller
         DB::transaction(function () use ($data) {
             $teacherId = Auth::user()->isSuperadmin() && $data['teacher_id'] ? $data['teacher_id'] : Auth::id();
 
+            $grade = GradeLevel::whereIn('id', $data['grade_level_ids'])
+                ->orderBy('display_order')
+                ->value('name');
+
             $practical = Practical::create([
                 'teacher_id' => $teacherId,
                 'title' => $data['title'],
+                'grade' => $grade,
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
                 'max_score' => $data['max_score'] ?? 100,
                 'is_published' => false,
             ]);
+
+            $practical->gradeLevels()->sync($data['grade_level_ids']);
 
             foreach ($data['criteria'] as $cIndex => $criterion) {
                 $practical->criteria()->create([
@@ -71,13 +84,15 @@ class PracticalController extends Controller
     public function edit(Practical $practical): Response
     {
         $this->authorizeOwner($practical);
-        $practical->load('criteria');
+        $practical->load('criteria', 'gradeLevels:id,name');
 
         $teacher = Auth::user();
+        $gradeLevels = GradeLevel::where('is_active', true)->orderBy('display_order')->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Teacher/Practicals/Edit', [
             'practical' => $practical,
             'teachers' => $teacher->isSuperadmin() ? User::where('role', 'teacher')->orderBy('name')->get(['id', 'name']) : [],
+            'gradeLevels' => $gradeLevels,
         ]);
     }
 
@@ -87,6 +102,8 @@ class PracticalController extends Controller
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'grade_level_ids' => ['required', 'array', 'min:1'],
+            'grade_level_ids.*' => ['exists:grade_levels,id'],
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'max_score' => ['nullable', 'integer', 'min:1'],
@@ -109,7 +126,13 @@ class PracticalController extends Controller
                 $updateData['teacher_id'] = $data['teacher_id'];
             }
 
+            $grade = GradeLevel::whereIn('id', $data['grade_level_ids'])
+                ->orderBy('display_order')
+                ->value('name');
+            $practical->grade = $grade;
+
             $practical->update($updateData);
+            $practical->gradeLevels()->sync($data['grade_level_ids']);
 
             $practical->criteria()->delete();
 
@@ -129,7 +152,7 @@ class PracticalController extends Controller
     public function show(Practical $practical): Response
     {
         $this->authorizeOwner($practical);
-        $practical->load('criteria');
+        $practical->load('criteria', 'gradeLevels:id,name');
 
         $teacher = Auth::user();
 

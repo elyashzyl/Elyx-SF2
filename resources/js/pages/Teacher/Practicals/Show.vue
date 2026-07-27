@@ -10,7 +10,10 @@
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ practical.title }}</h2>
                 <StatusBadge :status="practical.is_published ? 'published' : 'draft'" />
             </div>
-            <p class="mt-1 text-sm" style="color: #5A6376">{{ practical.criteria.length }} criteria · {{ totalMax }} points max</p>
+            <p class="mt-1 text-sm" style="color: #5A6376">
+                <template v-if="practical.grade_levels">{{ practical.grade_levels.map((g: any) => g.name).join(', ') }}</template>
+                · {{ practical.criteria.length }} criteria · {{ totalMax }} points max
+            </p>
             <p v-if="practical.instructions" class="mt-2 text-sm" style="color: #404A5C">{{ practical.instructions }}</p>
         </div>
         <div class="flex items-center gap-2">
