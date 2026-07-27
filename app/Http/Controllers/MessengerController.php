@@ -138,7 +138,11 @@ class MessengerController extends Controller
         $user = Auth::user();
         abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
 
-        $conversation->participants()->updateExistingPivot($user->id, ['archived_at' => now()]);
+        if ($user->isSuperadmin()) {
+            $conversation->delete();
+        } else {
+            $conversation->participants()->updateExistingPivot($user->id, ['archived_at' => now()]);
+        }
 
         return redirect()->route($user->isStudent() ? 'student.messenger' : 'teacher.messenger');
     }
