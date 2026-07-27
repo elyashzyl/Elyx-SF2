@@ -7,7 +7,7 @@
     </div>
 
     <div class="mb-4 flex items-center gap-4">
-        <div class="relative flex-1">
+        <div class="relative flex-1"><｜end▁of▁thinking｜>
             <input v-model="search" type="text" placeholder="Search by student or activity..." class="w-full rounded-lg border border-[#D2D6DE] px-3 py-2 pl-9 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231" />
             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
         </div>
@@ -21,6 +21,14 @@
             <option value="Exam">Exams</option>
             <option value="Seatwork">Seatworks</option>
             <option value="Practical">Practicals</option>
+        </select>
+        <select v-model="gradeFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+            <option value="">All grades</option>
+            <option v-for="g in gradeLevels" :key="g.id" :value="g.id">{{ g.name }}</option>
+        </select>
+        <select v-model="sectionFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+            <option value="">All sections</option>
+            <option v-for="s in filteredSections" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
     </div>
 
@@ -107,13 +115,22 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ClipboardCheck, Search, Eye, RotateCw, FileQuestion, FileText, ClipboardList, FlaskConical, Trash2 } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
-const props = defineProps<{ activities: any[]; teachersList: any[] }>();
+const props = defineProps<{ activities: any[]; teachersList: any[]; gradeLevels: any[]; sections: any[] }>();
 
 const search = ref('');
 const teacherFilter = ref('');
 const typeFilter = ref('');
+const gradeFilter = ref('');
+const sectionFilter = ref('');
+
+watch(gradeFilter, () => { sectionFilter.value = ''; });
+
+const filteredSections = computed(() => {
+    if (!gradeFilter.value) return props.sections;
+    return props.sections.filter((s: any) => s.grade_level_id === Number(gradeFilter.value));
+});
 
 const filtered = computed(() => {
     return props.activities.filter((a: any) => {
@@ -123,6 +140,8 @@ const filtered = computed(() => {
         }
         if (teacherFilter.value && a.teacher_id !== Number(teacherFilter.value)) return false;
         if (typeFilter.value && a.type !== typeFilter.value) return false;
+        if (gradeFilter.value && a.grade_level_id !== Number(gradeFilter.value)) return false;
+        if (sectionFilter.value && a.section_id !== Number(sectionFilter.value)) return false;
         return true;
     });
 });

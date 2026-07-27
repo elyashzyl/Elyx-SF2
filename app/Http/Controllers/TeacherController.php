@@ -261,7 +261,7 @@ class TeacherController extends Controller
 
         $baseQuery = fn ($q) => $studentIds === null ? $q : $q->whereIn('student_id', $studentIds);
 
-        $quizAttempts = $baseQuery(QuizAttempt::with(['quiz:id,title,teacher_id', 'quiz.teacher:id,name', 'student:id,name,grade'])
+        $quizAttempts = $baseQuery(QuizAttempt::with(['quiz:id,title,teacher_id', 'quiz.teacher:id,name', 'student:id,name,grade,grade_level_id,section_id'])
             ->where('status', 'submitted'))
             ->latest('submitted_at')
             ->get()
@@ -273,6 +273,8 @@ class TeacherController extends Controller
                 'teacher_name' => $a->quiz->teacher->name ?? null,
                 'student_name' => $a->student->name,
                 'student_grade' => $a->student->grade,
+                'grade_level_id' => $a->student->grade_level_id,
+                'section_id' => $a->student->section_id,
                 'title' => $a->quiz->title,
                 'score' => $a->score,
                 'total' => $a->total_points,
@@ -280,7 +282,7 @@ class TeacherController extends Controller
                 'submitted_at' => $a->submitted_at,
             ]);
 
-        $seatworkAttempts = $baseQuery(SeatworkAttempt::with(['seatwork:id,title,teacher_id', 'seatwork.teacher:id,name', 'student:id,name,grade'])
+        $seatworkAttempts = $baseQuery(SeatworkAttempt::with(['seatwork:id,title,teacher_id', 'seatwork.teacher:id,name', 'student:id,name,grade,grade_level_id,section_id'])
             ->where('status', 'submitted'))
             ->latest('submitted_at')
             ->get()
@@ -292,6 +294,8 @@ class TeacherController extends Controller
                 'teacher_name' => $a->seatwork->teacher->name ?? null,
                 'student_name' => $a->student->name,
                 'student_grade' => $a->student->grade,
+                'grade_level_id' => $a->student->grade_level_id,
+                'section_id' => $a->student->section_id,
                 'title' => $a->seatwork->title,
                 'score' => $a->score,
                 'total' => $a->total_points,
@@ -299,7 +303,7 @@ class TeacherController extends Controller
                 'submitted_at' => $a->submitted_at,
             ]);
 
-        $practicalAttempts = $baseQuery(PracticalAttempt::with(['practical:id,title,max_score,teacher_id', 'practical.teacher:id,name', 'student:id,name,grade'])
+        $practicalAttempts = $baseQuery(PracticalAttempt::with(['practical:id,title,teacher_id', 'practical.teacher:id,name', 'student:id,name,grade,grade_level_id,section_id'])
             ->where('status', 'submitted'))
             ->latest('submitted_at')
             ->get()
@@ -311,6 +315,8 @@ class TeacherController extends Controller
                 'teacher_name' => $a->practical->teacher->name ?? null,
                 'student_name' => $a->student->name,
                 'student_grade' => $a->student->grade,
+                'grade_level_id' => $a->student->grade_level_id,
+                'section_id' => $a->student->section_id,
                 'title' => $a->practical->title,
                 'score' => $a->total_score,
                 'total' => $a->practical->max_score,
@@ -318,7 +324,7 @@ class TeacherController extends Controller
                 'submitted_at' => $a->submitted_at,
             ]);
 
-        $examAttempts = $baseQuery(ExamAttempt::with(['exam:id,title,max_score,teacher_id', 'exam.teacher:id,name', 'student:id,name,grade'])
+        $examAttempts = $baseQuery(ExamAttempt::with(['exam:id,title,teacher_id', 'exam.teacher:id,name', 'student:id,name,grade,grade_level_id,section_id'])
             ->where('status', 'submitted'))
             ->latest('submitted_at')
             ->get()
@@ -330,6 +336,8 @@ class TeacherController extends Controller
                 'teacher_name' => $a->exam->teacher->name ?? null,
                 'student_name' => $a->student->name,
                 'student_grade' => $a->student->grade,
+                'grade_level_id' => $a->student->grade_level_id,
+                'section_id' => $a->student->section_id,
                 'title' => $a->exam->title,
                 'score' => $a->total_score,
                 'total' => $a->exam->max_score,
@@ -344,7 +352,20 @@ class TeacherController extends Controller
             ->sortByDesc('submitted_at')
             ->values();
 
-        $data = ['activities' => $all];
+        $studentIdsWithData = $all->pluck('grade_level_id')->filter()->unique();
+        $gradeLevels = GradeLevel::whereIn('id', $studentIdsWithData)->orWhereIn('id', function ($q) use ($teacher) {
+            $q->from('users')->where('role', 'student')
+                ->when(!$teacher->isSuperadmin(), fn ($q) => $q->whereIn('id', $teacher->students()->pluck('users.id')))
+                ->select('grade_level_id');
+        })
+            ->orderBy('display_order')
+            ->get(['id', 'name', 'display_order']);
+
+        $sections = Section::whereIn('grade_level_id', $gradeLevels->pluck('id'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'grade_level_id']);
+
+        $data = ['activities' => $all, 'gradeLevels' => $gradeLevels, 'sections' => $sections];
 
         if ($teacher->isSuperadmin()) {
             $data['teachersList'] = User::where('role', 'teacher')->orderBy('name')->get(['id', 'name']);
