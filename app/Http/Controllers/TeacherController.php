@@ -465,11 +465,13 @@ class TeacherController extends Controller
             'Exam' => ExamAttempt::class,
         ];
 
-        $modelClass = $modelMap[$data['type']];
-        $attempt = $modelClass::with('quiz', 'seatwork', 'practical', 'exam')->findOrFail($data['id']);
-
         $teacher = Auth::user();
-        $attemptActivity = $attempt->{strtolower($data['type'])} ?? $attempt->quiz ?? $attempt->seatwork ?? $attempt->practical ?? $attempt->exam;
+        $modelClass = $modelMap[$data['type']];
+        $attempt = $modelClass::findOrFail($data['id']);
+
+        $activityRel = strtolower($data['type']);
+        $attempt->load($activityRel);
+        $attemptActivity = $attempt->$activityRel;
         abort_unless($teacher->isSuperadmin() || $attemptActivity?->teacher_id === $teacher->id, 403);
 
         if ($attempt instanceof PracticalAttempt) {
