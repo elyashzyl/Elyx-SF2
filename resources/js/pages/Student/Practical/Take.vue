@@ -10,6 +10,7 @@
             <div class="flex items-center gap-2.5">
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ practical.title }}</h2>
                 <span class="rounded bg-[#E9EBEF] px-2 py-0.5 text-xs" style="color: #5A6376">Practical</span>
+                <span class="rounded bg-[#EEF2F7] px-2 py-0.5 text-xs font-medium" style="color: #1D3557">Attempt {{ attemptNumber }} / {{ practical.max_attempts }}</span>
             </div>
             <p v-if="practical.instructions" class="mt-2 text-sm" style="color: #404A5C">{{ practical.instructions }}</p>
         </div>
@@ -82,7 +83,7 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import { Clock, Send, FileCode, Image as ImageIcon, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref } from 'vue';
 
-const props = defineProps<{ practical: any; startedAt: string }>();
+const props = defineProps<{ practical: any; startedAt: string; attemptNumber: number }>();
 
 const page = usePage();
 const flash = page.props.flash as any;

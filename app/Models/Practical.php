@@ -12,7 +12,7 @@ class Practical extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['teacher_id', 'title', 'grade', 'instructions', 'time_limit_minutes', 'max_score', 'is_published'];
+    protected $fillable = ['teacher_id', 'title', 'grade', 'instructions', 'time_limit_minutes', 'max_score', 'is_published', 'max_attempts'];
 
     protected function casts(): array
     {

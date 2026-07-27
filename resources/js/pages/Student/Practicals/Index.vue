@@ -36,19 +36,31 @@
                     <Clock class="h-3.5 w-3.5" :stroke-width="2" />
                     {{ pr.time_limit_minutes }} min
                 </span>
+                <span class="flex items-center gap-1">
+                    <RefreshCw class="h-3.5 w-3.5" :stroke-width="2" />
+                    {{ pr.attempts_count }}/{{ pr.max_attempts }} attempts
+                </span>
             </div>
-            <div class="mt-auto">
-                <p v-if="pr.status === 'submitted'" class="mb-3 text-sm font-medium" style="color: #404A5C">
+            <div class="mt-auto flex flex-wrap gap-2">
+                <p v-if="pr.status === 'submitted'" class="mb-3 text-sm font-medium w-full" style="color: #404A5C">
                     Score: {{ pr.score }}/{{ pr.max_score }}
                 </p>
-                <Link v-if="pr.status !== 'submitted'" :href="`/student/practicals/${pr.id}/take`" class="btn-primary w-full">
+                <Link v-if="pr.status !== 'submitted'" :href="`/student/practicals/${pr.id}/take`" class="btn-primary">
                     <PlayCircle class="h-4 w-4" :stroke-width="2" />
                     {{ pr.status === 'in_progress' ? 'Continue practical' : 'Start practical' }}
                 </Link>
-                <Link v-else :href="`/student/practicals/${pr.attempt_id}/result`" class="btn-secondary w-full">
-                    <Eye class="h-4 w-4" :stroke-width="2" />
-                    View result
-                </Link>
+                <template v-else>
+                    <template v-if="pr.attempts_count < pr.max_attempts">
+                        <Link :href="`/student/practicals/${pr.id}/take`" class="btn-primary">
+                            <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                            Retake
+                        </Link>
+                    </template>
+                    <Link :href="`/student/practicals/${pr.attempt_id}/result`" class="btn-secondary">
+                        <Eye class="h-4 w-4" :stroke-width="2" />
+                        View result
+                    </Link>
+                </template>
             </div>
         </div>
     </div>
@@ -57,7 +69,7 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { FlaskConical, Clock, PlayCircle, Eye } from '@lucide/vue';
+import { FlaskConical, Clock, RefreshCw, PlayCircle, Eye } from '@lucide/vue';
 
 defineProps<{ practicals: any[] }>();
 

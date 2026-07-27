@@ -42,6 +42,7 @@ class PracticalController extends Controller
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'max_score' => ['nullable', 'integer', 'min:1'],
+            'max_attempts' => ['nullable', 'integer', 'min:1', 'max:10'],
             'teacher_id' => ['nullable', 'exists:users,id'],
             'criteria' => ['required', 'array', 'min:1'],
             'criteria.*.criterion_name' => ['required', 'string', 'max:255'],
@@ -63,6 +64,7 @@ class PracticalController extends Controller
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
                 'max_score' => $data['max_score'] ?? 100,
+                'max_attempts' => $data['max_attempts'] ?? 3,
                 'is_published' => false,
             ]);
 
@@ -107,6 +109,7 @@ class PracticalController extends Controller
             'instructions' => ['nullable', 'string'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1'],
             'max_score' => ['nullable', 'integer', 'min:1'],
+            'max_attempts' => ['nullable', 'integer', 'min:1', 'max:10'],
             'teacher_id' => ['nullable', 'exists:users,id'],
             'criteria' => ['required', 'array', 'min:1'],
             'criteria.*.criterion_name' => ['required', 'string', 'max:255'],
@@ -120,6 +123,7 @@ class PracticalController extends Controller
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
                 'max_score' => $data['max_score'] ?? 100,
+                'max_attempts' => $data['max_attempts'] ?? 3,
             ];
 
             if (Auth::user()->isSuperadmin() && $data['teacher_id']) {
@@ -158,9 +162,16 @@ class PracticalController extends Controller
 
         $attempts = $practical->attempts()
             ->with('student:id,name,grade', 'scores.criterion:id,criterion_name,max_points')
-            ->orderBy('status')
-            ->orderByDesc('total_score')
-            ->get();
+            ->latest()
+            ->get()
+            ->map(function ($a) use ($practical) {
+                $attemptNum = PracticalAttempt::where('practical_id', $practical->id)
+                    ->where('student_id', $a->student_id)
+                    ->where('id', '<=', $a->id)
+                    ->count();
+                $a->attempt_number = $attemptNum;
+                return $a;
+            });
 
         return Inertia::render('Teacher/Practicals/Show', [
             'practical' => $practical,
@@ -197,10 +208,18 @@ class PracticalController extends Controller
         $student = Auth::user();
         abort_unless($practical->is_published, 403);
 
-        $existing = PracticalAttempt::where('practical_id', $practical->id)->where('student_id', $student->id)->first();
-        if ($existing && $existing->status === 'submitted') {
-            return redirect()->route('student.dashboard')->with('info', 'Already submitted.');
+        $attemptCount = PracticalAttempt::where('practical_id', $practical->id)
+            ->where('student_id', $student->id)->count();
+
+        if ($attemptCount >= $practical->max_attempts) {
+            return redirect()->route('student.dashboard')
+                ->with('info', 'You have reached the maximum number of attempts for this practical.');
         }
+
+        $existing = PracticalAttempt::where('practical_id', $practical->id)
+            ->where('student_id', $student->id)
+            ->where('status', 'in_progress')
+            ->first();
 
         if (!$existing) {
             $existing = PracticalAttempt::create([
@@ -211,9 +230,13 @@ class PracticalController extends Controller
 
         $practical->load('criteria');
 
+        $attemptCount = PracticalAttempt::where('practical_id', $practical->id)
+            ->where('student_id', $student->id)->count();
+
         return Inertia::render('Student/Practical/Take', [
             'practical' => $practical,
             'startedAt' => $existing->started_at,
+            'attemptNumber' => $attemptCount,
         ]);
     }
 
@@ -222,10 +245,11 @@ class PracticalController extends Controller
         $student = Auth::user();
         abort_unless($practical->is_published, 403);
 
-        $attempt = PracticalAttempt::where('practical_id', $practical->id)->where('student_id', $student->id)->firstOrFail();
-        if ($attempt->status === 'submitted') {
-            return redirect()->route('student.dashboard')->with('info', 'Already submitted.');
-        }
+        $attempt = PracticalAttempt::where('practical_id', $practical->id)
+            ->where('student_id', $student->id)
+            ->where('status', 'in_progress')
+            ->latest()
+            ->firstOrFail();
 
         $data = $request->validate([
             'submission_text' => ['nullable', 'string'],

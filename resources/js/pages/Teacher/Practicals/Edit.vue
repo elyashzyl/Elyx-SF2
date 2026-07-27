@@ -40,6 +40,10 @@
                         <label class="field-label">Max score</label>
                         <input v-model.number="form.max_score" type="number" min="1" class="input-field" />
                     </div>
+                    <div>
+                        <label class="field-label">Max attempts</label>
+                        <input v-model.number="form.max_attempts" type="number" min="1" max="10" class="input-field" />
+                    </div>
                 </div>
                 <div v-if="teachers?.length">
                     <label class="field-label">Assign to teacher</label>
@@ -101,6 +105,7 @@ function mapPracticalToForm(p: any) {
         instructions: p.instructions ?? '',
         time_limit_minutes: p.time_limit_minutes ?? '',
         max_score: p.max_score ?? 100,
+        max_attempts: p.max_attempts ?? 3,
         teacher_id: p.teacher_id ?? null,
         grade_level_ids: p.grade_levels ? p.grade_levels.map((g: any) => g.id) : [],
         criteria: p.criteria.map((c: any) => ({

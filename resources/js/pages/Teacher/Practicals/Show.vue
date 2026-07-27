@@ -60,6 +60,7 @@
                     <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
                         <th class="px-6 py-3 font-medium">Student</th>
                         <th class="px-6 py-3 font-medium">Grade</th>
+                        <th class="px-6 py-3 font-medium">Attempt</th>
                         <th v-for="c in practical.criteria" :key="c.id" class="px-6 py-3 font-medium text-xs">{{ c.criterion_name }}</th>
                         <th class="px-6 py-3 font-medium">Status</th>
                         <th class="px-6 py-3 font-medium">Total</th>
@@ -72,6 +73,7 @@
                     <tr v-for="a in attempts" :key="a.id" class="hover:bg-[#F9FAFB]">
                         <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ a.student?.name }}</td>
                         <td class="px-6 py-3" style="color: #5A6376">{{ a.student?.grade ?? '—' }}</td>
+                        <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ a.attempt_number }}/{{ practical.max_attempts }}</td>
                         <td v-for="c in practical.criteria" :key="c.id" class="px-6 py-3" style="color: #5A6376">
                             {{ a.scores?.find((s: any) => s.criterion_id === c.id)?.score ?? '—' }}
                         </td>

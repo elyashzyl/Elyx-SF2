@@ -320,16 +320,19 @@ class StudentController extends Controller
             ->latest()
             ->get()
             ->map(function ($practical) {
-                $attempt = $practical->attempts->first();
+                $submittedAttempts = $practical->attempts->where('status', 'submitted')->count();
+                $latestAttempt = $practical->attempts->sortByDesc('id')->first();
                 return [
                     'id' => $practical->id,
                     'title' => $practical->title,
                     'criteria_count' => $practical->criteria_count,
                     'time_limit_minutes' => $practical->time_limit_minutes,
                     'max_score' => $practical->max_score,
-                    'status' => $attempt ? $attempt->status : 'not_started',
-                    'score' => $attempt?->total_score,
-                    'attempt_id' => $attempt?->id,
+                    'max_attempts' => $practical->max_attempts,
+                    'attempts_count' => $practical->attempts->count(),
+                    'status' => $latestAttempt ? $latestAttempt->status : 'not_started',
+                    'score' => $latestAttempt?->total_score,
+                    'attempt_id' => $latestAttempt?->id,
                 ];
             });
 

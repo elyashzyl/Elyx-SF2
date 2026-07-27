@@ -38,6 +38,7 @@
                     <th v-if="isSuperadmin" class="px-6 py-3 font-medium">Teacher</th>
                     <th class="px-6 py-3 font-medium">Criteria</th>
                     <th class="px-6 py-3 font-medium">Attempts</th>
+                    <th class="px-6 py-3 font-medium">Max/Stu</th>
                     <th class="px-6 py-3 font-medium">Actions</th>
                 </tr>
             </thead>
@@ -49,6 +50,7 @@
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ p.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ p.criteria_count }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ p.attempts_count }}</td>
+                    <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ p.max_attempts }}/stu</td>
                     <td class="px-6 py-3">
                         <div class="flex items-center gap-2">
                             <button @click="togglePublish(p)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="p.is_published ? 'Unpublish' : 'Publish'">
@@ -113,6 +115,10 @@
                                 <div>
                                     <label class="field-label">Max score</label>
                                     <input v-model.number="form.max_score" type="number" min="1" class="input-field" />
+                                </div>
+                                <div>
+                                    <label class="field-label">Max attempts</label>
+                                    <input v-model.number="form.max_attempts" type="number" min="1" max="10" class="input-field" />
                                 </div>
                             </div>
                             <div v-if="teachers?.length">
@@ -180,7 +186,7 @@ const flash = page.props.flash as any;
 const showCreate = ref(false);
 
 const form = useForm({
-    title: '', instructions: '', time_limit_minutes: '', max_score: 100, teacher_id: null as number | null,
+    title: '', instructions: '', time_limit_minutes: '', max_score: 100, max_attempts: 3, teacher_id: null as number | null,
     grade_level_ids: [] as number[],
     criteria: [{ criterion_name: '', description: '', max_points: 10 }],
 });
