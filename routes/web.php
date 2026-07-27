@@ -98,6 +98,8 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::post('/users/{user}/impersonate', [UserController::class, 'impersonate'])->name('users.impersonate');
+    Route::post('/leave-impersonation', [UserController::class, 'leaveImpersonation'])->name('users.leave-impersonation');
 
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Teacher/Profile', [

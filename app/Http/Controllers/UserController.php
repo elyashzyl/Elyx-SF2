@@ -94,4 +94,32 @@ class UserController extends Controller
 
         return back()->with('success', 'User deleted successfully.');
     }
+
+    public function impersonate(User $user): RedirectResponse
+    {
+        $admin = Auth::user();
+        abort_unless($admin->isSuperadmin(), 403);
+        abort_if($user->id === $admin->id, 403, 'You are already logged in as this user.');
+
+        session(['impersonated_by' => $admin->id]);
+        Auth::login($user);
+
+        $dashboard = $user->isTeacher() || $user->isSuperadmin()
+            ? route('teacher.dashboard')
+            : route('student.dashboard');
+
+        return redirect($dashboard)->with('success', "Now impersonating {$user->name}.");
+    }
+
+    public function leaveImpersonation(): RedirectResponse
+    {
+        $originalId = session('impersonated_by');
+        abort_unless($originalId, 403, 'Not currently impersonating.');
+
+        $admin = User::findOrFail($originalId);
+        session()->forget('impersonated_by');
+        Auth::login($admin);
+
+        return redirect()->route('teacher.users.index')->with('success', 'Returned to your account.');
+    }
 }

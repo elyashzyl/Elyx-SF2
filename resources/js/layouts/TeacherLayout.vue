@@ -38,7 +38,12 @@
 
         <div class="flex min-h-screen flex-1 flex-col" style="min-width: 0">
             <header class="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-[#E9EBEF] bg-white/80 px-6 backdrop-blur">
-                <h1 class="text-base font-semibold" style="color: #1B2231">
+                <div v-if="isImpersonating" class="flex w-full items-center gap-3 text-sm" style="color: #A5701A">
+                    <UserCheck class="h-4 w-4" :stroke-width="2" />
+                    <span class="font-medium">Impersonating {{ user.name }}</span>
+                    <button @click="stopImpersonating" class="ml-auto rounded-md px-3 py-1 text-xs font-semibold text-white" style="background-color: #A5701A">Stop</button>
+                </div>
+                <h1 v-else class="text-base font-semibold" style="color: #1B2231">
                     <slot name="title" />
                 </h1>
             </header>
@@ -54,12 +59,13 @@
 
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck } from '@lucide/vue';
+import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck, UserCheck } from '@lucide/vue';
 import { computed } from 'vue';
 
 const page = usePage();
 const user = page.props.auth.user;
 const path = computed(() => usePage().url);
+const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
 
 const isSuperadmin = user.role === 'superadmin';
 
@@ -81,5 +87,11 @@ const nav = computed(() => [
 
 function logout() {
     router.post('/logout');
+}
+
+function stopImpersonating() {
+    router.post('/teacher/leave-impersonation', {}, {
+        onSuccess: () => { window.location.reload(); },
+    });
 }
 </script>

@@ -5,6 +5,11 @@
         {{ flash.success }}
     </div>
 
+    <div v-if="isImpersonating" class="mb-6 flex items-center gap-3 rounded-lg px-4 py-3 text-sm" style="background-color: #FFF3D6; color: #A5701A">
+        <span class="font-medium">Impersonating {{ page.props.auth.user.name }}</span>
+        <button @click="leaveImpersonation" class="ml-auto rounded-md px-3 py-1 text-xs font-semibold text-white" style="background-color: #A5701A">Stop impersonating</button>
+    </div>
+
     <div class="mb-6 flex items-center justify-between gap-4">
         <div>
             <h2 class="text-lg font-semibold" style="color: #1B2231">Users</h2>
@@ -44,8 +49,11 @@
                             <button @click="openEdit(u)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" title="Edit">
                                 <Pencil class="h-4 w-4" :stroke-width="2" />
                             </button>
-                            <button v-if="u.id !== page.props.auth.user.id" @click="confirmDelete(u)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F6DEDD]" style="color: #AA3C36" title="Delete">
+                            <button v-if="u.id !== page.props.auth.user.id && !isImpersonating" @click="confirmDelete(u)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F6DEDD]" style="color: #AA3C36" title="Delete">
                                 <Trash2 class="h-4 w-4" :stroke-width="2" />
+                            </button>
+                            <button v-if="u.id !== page.props.auth.user.id && page.props.auth.user.is_superadmin && !isImpersonating" @click="impersonate(u)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#EEF2F7]" style="color: #1D3557" title="Impersonate">
+                                <UserCheck class="h-4 w-4" :stroke-width="2" />
                             </button>
                         </div>
                     </td>
@@ -176,7 +184,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Pencil, Trash2, Plus } from '@lucide/vue';
+import { Pencil, Trash2, Plus, UserCheck } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const page = usePage();
@@ -246,5 +254,21 @@ function confirmDelete(u: any) {
     if (confirm(`Delete user "${u.name}" (${u.email})? This cannot be undone.`)) {
         router.delete(`/teacher/users/${u.id}`, { preserveScroll: true });
     }
+}
+
+const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
+
+function impersonate(u: any) {
+    router.post(`/teacher/users/${u.id}/impersonate`, {}, {
+        preserveScroll: true,
+        onSuccess: () => { window.location.reload(); },
+    });
+}
+
+function leaveImpersonation() {
+    router.post('/teacher/leave-impersonation', {}, {
+        preserveScroll: true,
+        onSuccess: () => { window.location.reload(); },
+    });
 }
 </script>

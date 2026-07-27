@@ -353,18 +353,9 @@ class TeacherController extends Controller
             ->sortByDesc('submitted_at')
             ->values();
 
-        $studentIdsWithData = $all->pluck('grade_level_id')->filter()->unique();
-        $gradeLevels = GradeLevel::whereIn('id', $studentIdsWithData)->orWhereIn('id', function ($q) use ($teacher) {
-            $q->from('users')->where('role', 'student')
-                ->when(!$teacher->isSuperadmin(), fn ($q) => $q->whereIn('id', $teacher->students()->pluck('users.id')))
-                ->select('grade_level_id');
-        })
-            ->orderBy('display_order')
-            ->get(['id', 'name', 'display_order']);
+        $gradeLevels = GradeLevel::orderBy('display_order')->get(['id', 'name', 'display_order']);
 
-        $sections = Section::whereIn('grade_level_id', $gradeLevels->pluck('id'))
-            ->orderBy('name')
-            ->get(['id', 'name', 'grade_level_id']);
+        $sections = Section::orderBy('name')->get(['id', 'name', 'grade_level_id']);
 
         $data = ['activities' => $all, 'gradeLevels' => $gradeLevels, 'sections' => $sections];
 

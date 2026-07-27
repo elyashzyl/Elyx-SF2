@@ -7,7 +7,7 @@
     </div>
 
     <div class="mb-4 flex items-center gap-4">
-        <div class="relative flex-1"><｜end▁of▁thinking｜>
+        <div class="relative flex-1">
             <input v-model="search" type="text" placeholder="Search by student or activity..." class="w-full rounded-lg border border-[#D2D6DE] px-3 py-2 pl-9 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231" />
             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
         </div>
