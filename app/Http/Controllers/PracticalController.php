@@ -135,7 +135,7 @@ class PracticalController extends Controller
 
         $attempts = $practical->attempts()
             ->with('student:id,name,grade', 'scores.criterion:id,criterion_name,max_points')
-            ->where('status', 'submitted')
+            ->orderBy('status')
             ->orderByDesc('total_score')
             ->get();
 

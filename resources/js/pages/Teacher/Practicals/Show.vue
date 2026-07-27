@@ -57,6 +57,7 @@
                         <th class="px-6 py-3 font-medium">Student</th>
                         <th class="px-6 py-3 font-medium">Grade</th>
                         <th v-for="c in practical.criteria" :key="c.id" class="px-6 py-3 font-medium text-xs">{{ c.criterion_name }}</th>
+                        <th class="px-6 py-3 font-medium">Status</th>
                         <th class="px-6 py-3 font-medium">Total</th>
                         <th class="px-6 py-3 font-medium">Submission</th>
                         <th class="px-6 py-3 font-medium">Submitted</th>
@@ -70,7 +71,8 @@
                         <td v-for="c in practical.criteria" :key="c.id" class="px-6 py-3" style="color: #5A6376">
                             {{ a.scores?.find((s: any) => s.criterion_id === c.id)?.score ?? '—' }}
                         </td>
-                        <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ a.total_score }} / {{ totalMax }}</td>
+                        <td class="px-6 py-3"><StatusBadge :status="a.status" /></td>
+                        <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ a.status === 'submitted' ? a.total_score + ' / ' + totalMax : '—' }}</td>
                         <td class="px-6 py-3">
                             <div v-if="a.submission_file" class="flex items-center gap-2">
                                 <img :src="'/storage/' + a.submission_file" class="h-10 w-10 rounded object-cover border border-[#E9EBEF]" @click="previewImg = '/storage/' + a.submission_file" style="cursor:pointer" />
@@ -79,7 +81,7 @@
                             <span v-else-if="a.submission_text" class="text-xs" style="color: #5A6376">{{ a.submission_text.substring(0, 60) }}{{ a.submission_text.length > 60 ? '...' : '' }}</span>
                             <span v-else class="text-xs" style="color: #7C8598">—</span>
                         </td>
-                        <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ formatDate(a.submitted_at) }}</td>
+                        <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ a.submitted_at ? formatDate(a.submitted_at) : '—' }}</td>
                         <td class="px-6 py-3">
                             <Link :href="`/teacher/practicals/${practical.id}/grade/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Grade">
                                 <Eye class="h-3.5 w-3.5" :stroke-width="2" />
