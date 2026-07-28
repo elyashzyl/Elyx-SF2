@@ -28,9 +28,8 @@ class StudentController extends Controller
         $quizBase->where(function ($q) use ($student) {
             if ($student->grade_level_id) {
                 $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
-            }
-            if ($student->grade) {
-                $q->orWhere('grade', $student->grade);
+            } elseif ($student->grade) {
+                $q->where('grade', $student->grade);
             }
         });
 
@@ -42,9 +41,8 @@ class StudentController extends Controller
             ->where(function ($q) use ($student) {
                 if ($student->grade_level_id) {
                     $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
-                }
-                if ($student->grade) {
-                    $q->orWhere('grade', $student->grade);
+                } elseif ($student->grade) {
+                    $q->where('grade', $student->grade);
                 }
             })->pluck('id');
 
@@ -254,9 +252,8 @@ class StudentController extends Controller
         $quizzes->where(function ($q) use ($student) {
             if ($student->grade_level_id) {
                 $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
-            }
-            if ($student->grade) {
-                $q->orWhere('grade', $student->grade);
+            } elseif ($student->grade) {
+                $q->where('grade', $student->grade);
             }
         });
 
@@ -324,9 +321,8 @@ class StudentController extends Controller
             ->where(function ($q) use ($student) {
                 if ($student->grade_level_id) {
                     $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
-                }
-                if ($student->grade) {
-                    $q->orWhere('grade', $student->grade);
+                } elseif ($student->grade) {
+                    $q->where('grade', $student->grade);
                 }
             })
             ->with(['attempts' => function ($query) use ($student) {

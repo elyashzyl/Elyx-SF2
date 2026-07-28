@@ -17,11 +17,18 @@
             <p v-if="practical.instructions" class="mt-2 text-sm whitespace-pre-wrap" style="color: #404A5C">{{ practical.instructions }}</p>
         </div>
         <div class="flex items-center gap-2">
+            <button @click="togglePublish" class="btn-secondary">
+                <UploadCloud class="h-4 w-4" :stroke-width="2" />
+                {{ practical.is_published ? 'Unpublish' : 'Publish' }}
+            </button>
             <Link :href="`/teacher/practicals/${practical.id}/edit`" class="btn-secondary">
                 <Pencil class="h-4 w-4" :stroke-width="2" />
                 Edit
             </Link>
-
+            <button @click="confirmDestroy" class="btn-secondary" style="color: #AA3C36; border-color: #F6DEDD;">
+                <Trash2 class="h-4 w-4" :stroke-width="2" />
+                Delete
+            </button>
         </div>
     </div>
 
@@ -124,6 +131,17 @@
                 </div>
             </div>
         </div>
+
+        <div v-if="deletingPractical" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="deletingPractical = false">
+            <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-base font-semibold" style="color: #1B2231">Delete practical?</h3>
+                <p class="text-sm" style="color: #5A6376">This will permanently delete <strong>{{ practical.title }}</strong> and all its attempts.</p>
+                <div class="mt-6 flex items-center justify-end gap-3">
+                    <button type="button" class="btn-secondary" @click="deletingPractical = false">Cancel</button>
+                    <button type="button" class="btn-primary" style="background-color: #AA3C36" @click="destroyPractical">Delete</button>
+                </div>
+            </div>
+        </div>
     </Teleport>
 </template>
 
@@ -131,10 +149,11 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, ClipboardCheck, Trash2, X } from '@lucide/vue';
+import { ArrowLeft, Pencil, ClipboardCheck, Trash2, UploadCloud, X } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
 const deleting = ref<any | null>(null);
+const deletingPractical = ref(false);
 
 const props = defineProps<{ practical: any; attempts: any[]; teachers?: any[] }>();
 
@@ -162,6 +181,20 @@ function destroyAttempt() {
     router.delete(`/teacher/practicals/${props.practical.id}/attempt/${deleting.value.id}`, {
         preserveScroll: true,
         onSuccess: () => { deleting.value = null; },
+    });
+}
+
+function togglePublish() {
+    router.patch(`/teacher/practicals/${props.practical.id}/publish`, {}, { preserveScroll: true });
+}
+
+function confirmDestroy() {
+    deletingPractical.value = true;
+}
+
+function destroyPractical() {
+    router.delete(`/teacher/practicals/${props.practical.id}`, {
+        onSuccess: () => { deletingPractical.value = false; },
     });
 }
 
