@@ -19,8 +19,6 @@ window.addEventListener('beforeunload', () => {
     sessionStorage.setItem(scrollKey, String(window.scrollY));
 });
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
