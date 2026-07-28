@@ -7,6 +7,20 @@ import { initializeFlashToast } from '@/lib/flashToast';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+// Restore scroll position on page load (works for browser refresh)
+const scrollKey = 'scroll_pos_' + window.location.pathname;
+const saved = sessionStorage.getItem(scrollKey);
+if (saved) {
+    setTimeout(() => window.scrollTo(0, parseInt(saved, 10)), 50);
+}
+
+// Save scroll position before page unload
+window.addEventListener('beforeunload', () => {
+    sessionStorage.setItem(scrollKey, String(window.scrollY));
+});
+
+const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
