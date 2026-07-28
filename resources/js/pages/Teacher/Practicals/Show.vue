@@ -61,44 +61,47 @@
 
     <div v-if="attempts.length">
         <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Attempts</h3>
-        <div class="card overflow-hidden">
+        <div class="card overflow-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
-                        <th class="px-6 py-3 font-medium">Student</th>
-                        <th class="px-6 py-3 font-medium">Grade</th>
-                        <th class="px-6 py-3 font-medium">Attempt</th>
-                        <th v-for="c in practical.criteria" :key="c.id" class="px-6 py-3 font-medium text-xs">{{ c.criterion_name }}</th>
-                        <th class="px-6 py-3 font-medium">Status</th>
-                        <th class="px-6 py-3 font-medium">Total</th>
-                        <th class="px-6 py-3 font-medium">Submission</th>
-                        <th class="px-6 py-3 font-medium">Submitted</th>
-                        <th class="px-6 py-3 font-medium">Actions</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Student</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Grade</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Attempt</th>
+                        <th v-for="c in practical.criteria" :key="c.id" class="px-6 py-3 font-medium text-xs whitespace-nowrap">{{ c.criterion_name }}</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Status</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Total</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Submission</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Submitted</th>
+                        <th class="px-6 py-3 font-medium whitespace-nowrap">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#E9EBEF]">
                     <tr v-for="a in attempts" :key="a.id" class="hover:bg-[#F9FAFB]">
-                        <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ a.student?.name }}</td>
-                        <td class="px-6 py-3" style="color: #5A6376">{{ a.student?.grade ?? '—' }}</td>
-                        <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ a.attempt_number }}/{{ practical.max_attempts }}</td>
-                        <td v-for="c in practical.criteria" :key="c.id" class="px-6 py-3" style="color: #5A6376">
+                        <td class="px-6 py-3 font-medium whitespace-nowrap" style="color: #1B2231">{{ a.student?.name }}</td>
+                        <td class="px-6 py-3 whitespace-nowrap" style="color: #5A6376">{{ a.student?.grade ?? '—' }}</td>
+                        <td class="px-6 py-3 text-xs whitespace-nowrap" style="color: #7C8598">{{ a.attempt_number }}/{{ practical.max_attempts }}</td>
+                        <td v-for="c in practical.criteria" :key="c.id" class="px-6 py-3 whitespace-nowrap" style="color: #5A6376">
                             {{ a.scores?.find((s: any) => s.criterion_id === c.id)?.score ?? '—' }}
                         </td>
-                        <td class="px-6 py-3"><StatusBadge :status="a.status" /></td>
-                        <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ a.status === 'submitted' ? a.total_score + ' / ' + totalMax : '—' }}</td>
-                        <td class="px-6 py-3">
+                        <td class="px-6 py-3 whitespace-nowrap"><StatusBadge :status="a.status" /></td>
+                        <td class="px-6 py-3 font-medium whitespace-nowrap" style="color: #1B2231">{{ a.status === 'submitted' ? a.total_score + ' / ' + totalMax : '—' }}</td>
+                        <td class="px-6 py-3 whitespace-nowrap">
                             <div v-if="a.submission_file" class="flex items-center gap-2">
                                 <img :src="'/storage/' + a.submission_file" class="h-10 w-10 rounded object-cover border border-[#E9EBEF]" @click="previewImg = '/storage/' + a.submission_file" style="cursor:pointer" />
-                                <span class="text-xs" style="color: #7C8598">Image</span>
+                                <span class="text-xs" style="color: #7C8598">{{ a.submission_file.endsWith('.txt') ? 'Text' : 'Image' }}</span>
                             </div>
                             <span v-else-if="a.submission_text" class="text-xs" style="color: #5A6376">{{ a.submission_text.substring(0, 60) }}{{ a.submission_text.length > 60 ? '...' : '' }}</span>
                             <span v-else class="text-xs" style="color: #7C8598">—</span>
                         </td>
-                        <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ a.submitted_at ? formatDate(a.submitted_at) : '—' }}</td>
-                        <td class="px-6 py-3">
+                        <td class="px-6 py-3 text-xs whitespace-nowrap" style="color: #7C8598">{{ a.submitted_at ? formatDate(a.submitted_at) : '—' }}</td>
+                        <td class="px-6 py-3 whitespace-nowrap">
                             <div class="flex items-center gap-2">
-                                <Link :href="`/teacher/practicals/${practical.id}/recheck/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Recheck">
+                                <Link :href="`/teacher/practicals/${practical.id}/grade/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Grade">
                                     <ClipboardCheck class="h-3.5 w-3.5" :stroke-width="2" />
+                                </Link>
+                                <Link :href="`/teacher/practicals/${practical.id}/recheck/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Recheck">
+                                    <RefreshCw class="h-3.5 w-3.5" :stroke-width="2" />
                                 </Link>
                                 <button @click="confirmDelete(a)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] hover:text-[#AA3C36] inline-block" style="color: #AEB4C0" title="Delete attempt">
                                     <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
@@ -149,7 +152,7 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, ClipboardCheck, Trash2, UploadCloud, X } from '@lucide/vue';
+import { ArrowLeft, Pencil, ClipboardCheck, RefreshCw, Trash2, UploadCloud, X } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
 const deleting = ref<any | null>(null);
