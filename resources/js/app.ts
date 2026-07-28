@@ -1,4 +1,4 @@
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { initializeTheme } from '@/composables/useAppearance';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
@@ -7,17 +7,30 @@ import { initializeFlashToast } from '@/lib/flashToast';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
-// Restore scroll position on page load (works for browser refresh)
-const scrollKey = 'scroll_pos_' + window.location.pathname;
-const saved = sessionStorage.getItem(scrollKey);
-if (saved) {
-    setTimeout(() => window.scrollTo(0, parseInt(saved, 10)), 50);
+// Save scroll position per pathname
+function saveScroll() {
+    sessionStorage.setItem('scroll_pos_' + window.location.pathname, String(window.scrollY));
 }
 
-// Save scroll position before page unload
-window.addEventListener('beforeunload', () => {
-    sessionStorage.setItem(scrollKey, String(window.scrollY));
-});
+// Restore scroll position for current pathname
+function restoreScroll() {
+    const saved = sessionStorage.getItem('scroll_pos_' + window.location.pathname);
+    if (saved) {
+        setTimeout(() => window.scrollTo(0, parseInt(saved, 10)), 50);
+    }
+}
+
+// Save scroll before any Inertia navigation
+router.on('start', () => saveScroll());
+
+// Restore scroll when Inertia finishes navigation
+router.on('finish', () => restoreScroll());
+
+// Also save on page unload (browser refresh)
+window.addEventListener('beforeunload', saveScroll);
+
+// Restore on initial page load
+restoreScroll();
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
