@@ -38,7 +38,15 @@ class StudentController extends Controller
         $examIds = Exam::whereIn('teacher_id', $teacherIds)->where('is_published', true)
             ->has('sections')->pluck('id');
         $seatworkIds = Seatwork::whereIn('teacher_id', $teacherIds)->where('is_published', true)->pluck('id');
-        $practicalIds = Practical::whereIn('teacher_id', $teacherIds)->where('is_published', true)->pluck('id');
+        $practicalIds = Practical::whereIn('teacher_id', $teacherIds)->where('is_published', true)
+            ->where(function ($q) use ($student) {
+                if ($student->grade_level_id) {
+                    $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
+                }
+                if ($student->grade) {
+                    $q->orWhere('grade', $student->grade);
+                }
+            })->pluck('id');
 
         $quizTotal = $quizIds->count();
         $examTotal = $examIds->count();
@@ -313,6 +321,14 @@ class StudentController extends Controller
 
         $practicals = Practical::whereIn('teacher_id', $teacherIds)
             ->where('is_published', true)
+            ->where(function ($q) use ($student) {
+                if ($student->grade_level_id) {
+                    $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
+                }
+                if ($student->grade) {
+                    $q->orWhere('grade', $student->grade);
+                }
+            })
             ->with(['attempts' => function ($query) use ($student) {
                 $query->where('student_id', $student->id);
             }])
