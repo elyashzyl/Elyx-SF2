@@ -369,9 +369,22 @@ class QuizController extends Controller
     {
         $this->authorizeOwner($quiz);
 
-        $quiz->update(['is_published' => ! $quiz->is_published]);
+        if ($quiz->is_published) {
+            $quiz->update(['is_published' => false, 'closes_at' => null]);
+            $msg = 'Quiz unpublished.';
+        } else {
+            $quiz->update(['is_published' => true, 'closes_at' => now()->addDay()]);
+            $msg = 'Quiz published. It will close in 24 hours.';
+        }
 
-        return back()->with('success', $quiz->is_published ? 'Quiz published.' : 'Quiz unpublished.');
+        return back()->with('success', $msg);
+    }
+
+    public function reopen(Quiz $quiz): RedirectResponse
+    {
+        $this->authorizeOwner($quiz);
+        $quiz->update(['closes_at' => now()->addDay()]);
+        return back()->with('success', 'Quiz reopened. It will close in 24 hours.');
     }
 
     public function destroy(Quiz $quiz): RedirectResponse

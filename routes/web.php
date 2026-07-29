@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/quizzes/{quiz}/edit', [QuizController::class, 'edit'])->name('quizzes.edit');
     Route::put('/quizzes/{quiz}', [QuizController::class, 'update'])->name('quizzes.update');
     Route::patch('/quizzes/{quiz}/publish', [QuizController::class, 'publish'])->name('quizzes.publish');
+    Route::patch('/quizzes/{quiz}/reopen', [QuizController::class, 'reopen'])->name('quizzes.reopen');
     Route::get('/quizzes/{quiz}/recheck/{attempt}', [QuizController::class, 'recheck'])->name('quizzes.recheck');
     Route::put('/quizzes/{quiz}/recheck/{attempt}', [QuizController::class, 'recheckUpdate'])->name('quizzes.recheck-update');
     Route::put('/quizzes/{quiz}/auto-recheck/{attempt}', [QuizController::class, 'autoRecheck'])->name('quizzes.auto-recheck');
@@ -60,6 +61,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::put('/practicals/{practical}', [PracticalController::class, 'update'])->name('practicals.update');
     Route::get('/practicals/{practical}', [PracticalController::class, 'show'])->name('practicals.show');
     Route::patch('/practicals/{practical}/publish', [PracticalController::class, 'publish'])->name('practicals.publish');
+    Route::patch('/practicals/{practical}/reopen', [PracticalController::class, 'reopen'])->name('practicals.reopen');
     Route::patch('/practicals/{practical}/reassign', [PracticalController::class, 'reassign'])->name('practicals.reassign');
     Route::delete('/practicals/{practical}', [PracticalController::class, 'destroy'])->name('practicals.destroy');
     Route::delete('/practicals/{practical}/attempt/{attempt}', [PracticalController::class, 'destroyAttempt'])->name('practicals.destroy-attempt');
@@ -68,6 +70,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::post('/exams', [ExamController::class, 'store'])->name('exams.store');
     Route::get('/exams/{exam}', [ExamController::class, 'show'])->name('exams.show');
     Route::patch('/exams/{exam}/publish', [ExamController::class, 'publish'])->name('exams.publish');
+    Route::patch('/exams/{exam}/reopen', [ExamController::class, 'reopen'])->name('exams.reopen');
     Route::patch('/exams/{exam}/reassign', [ExamController::class, 'reassign'])->name('exams.reassign');
     Route::delete('/exams/{exam}', [ExamController::class, 'destroy'])->name('exams.destroy');
     Route::get('/exams/{exam}/attempts', [ExamController::class, 'attempts'])->name('exams.attempts');
@@ -82,6 +85,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::put('/seatworks/{seatwork}/recheck/{attempt}', [SeatworkController::class, 'recheckUpdate'])->name('seatworks.recheck-update');
     Route::put('/seatworks/{seatwork}/auto-recheck/{attempt}', [SeatworkController::class, 'autoRecheck'])->name('seatworks.auto-recheck');
     Route::patch('/seatworks/{seatwork}/publish', [SeatworkController::class, 'publish'])->name('seatworks.publish');
+    Route::patch('/seatworks/{seatwork}/reopen', [SeatworkController::class, 'reopen'])->name('seatworks.reopen');
     Route::patch('/seatworks/{seatwork}/reassign', [SeatworkController::class, 'reassign'])->name('seatworks.reassign');
     Route::delete('/seatworks/{seatwork}', [SeatworkController::class, 'destroy'])->name('seatworks.destroy');
 

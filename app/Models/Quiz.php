@@ -19,12 +19,14 @@ class Quiz extends Model
         'grade',
         'time_limit_minutes',
         'is_published',
+        'closes_at',
     ];
 
     protected function casts(): array
     {
         return [
             'is_published' => 'boolean',
+            'closes_at' => 'datetime',
         ];
     }
 
@@ -56,6 +58,11 @@ class Quiz extends Model
     public function gradeLevels(): BelongsToMany
     {
         return $this->belongsToMany(GradeLevel::class, 'quiz_grade_level');
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->closes_at && $this->closes_at->isPast();
     }
 
     public function sections(): BelongsToMany

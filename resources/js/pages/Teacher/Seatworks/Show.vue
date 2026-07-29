@@ -8,14 +8,25 @@
         <div>
             <div class="flex items-center gap-2.5">
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ seatwork.title }}</h2>
-                <StatusBadge :status="seatwork.is_published ? 'published' : 'draft'" />
+                <StatusBadge :status="statusLabel" />
             </div>
             <p class="mt-1 text-sm" style="color: #5A6376">
                 <template v-if="seatwork.grade_levels">{{ seatwork.grade_levels.map((g: any) => g.name).join(', ') }} · </template>
                 {{ seatwork.questions.length }} questions · {{ totalPoints }} points
+                <template v-if="seatwork.closes_at">
+                    · <span :style="{ color: isClosed ? '#AA3C36' : '#2B9348' }">{{ isClosed ? 'Closed' : 'Closes ' + timeRemaining(seatwork.closes_at) }}</span>
+                </template>
             </p>
         </div>
         <div class="flex items-center gap-2">
+            <button v-if="!isClosed" @click="togglePublish" class="btn-secondary">
+                <UploadCloud class="h-4 w-4" :stroke-width="2" />
+                {{ seatwork.is_published ? 'Unpublish' : 'Publish' }}
+            </button>
+            <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
+                <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                Reopen
+            </button>
             <Link :href="`/teacher/seatworks/${seatwork.id}/edit`" class="btn-secondary">
                 <Pencil class="h-4 w-4" :stroke-width="2" />
                 Edit
@@ -97,10 +108,21 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Eye, Pencil, RotateCw } from '@lucide/vue';
-import { ref } from 'vue';
+import { ArrowLeft, Eye, Pencil, RotateCw, UploadCloud, RefreshCw } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{ seatwork: any; attempts: any[]; totalPoints: number; teachers?: any[] }>();
+
+const isClosed = computed(() => {
+    if (!props.seatwork.closes_at) return false;
+    return new Date(props.seatwork.closes_at) < new Date();
+});
+
+const statusLabel = computed(() => {
+    if (!props.seatwork.is_published) return 'draft';
+    if (isClosed.value) return 'finished';
+    return 'published';
+});
 
 const reassignSelect = ref<HTMLSelectElement | null>(null);
 
@@ -125,5 +147,21 @@ function formatDate(v: string): string {
 
 function autoRecheck(attemptId: number) {
     router.put(`/teacher/seatworks/${props.seatwork.id}/auto-recheck/${attemptId}`, {}, { preserveScroll: true });
+}
+
+function timeRemaining(dt: string): string {
+    const diff = new Date(dt).getTime() - Date.now();
+    if (diff <= 0) return 'now';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `in ${h}h ${m}m`;
+}
+
+function togglePublish() {
+    router.patch(`/teacher/seatworks/${props.seatwork.id}/publish`, {}, { preserveScroll: true });
+}
+
+function toggleReopen() {
+    router.patch(`/teacher/seatworks/${props.seatwork.id}/reopen`, {}, { preserveScroll: true });
 }
 </script>

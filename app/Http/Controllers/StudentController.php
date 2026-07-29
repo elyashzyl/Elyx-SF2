@@ -24,7 +24,8 @@ class StudentController extends Controller
         $student = Auth::user();
         $teacherIds = $student->teachers()->pluck('users.id');
 
-        $quizBase = Quiz::whereIn('teacher_id', $teacherIds)->where('is_published', true);
+        $quizBase = Quiz::whereIn('teacher_id', $teacherIds)->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()));
         $quizBase->where(function ($q) use ($student) {
             if ($student->grade_level_id) {
                 $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
@@ -35,8 +36,10 @@ class StudentController extends Controller
 
         $quizIds = $quizBase->pluck('id');
         $examIds = Exam::whereIn('teacher_id', $teacherIds)->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))
             ->has('sections')->pluck('id');
-        $seatworkIds = Seatwork::whereIn('teacher_id', $teacherIds)->where('is_published', true)->pluck('id');
+        $seatworkIds = Seatwork::whereIn('teacher_id', $teacherIds)->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))->pluck('id');
         $practicalIds = Practical::whereIn('teacher_id', $teacherIds)->where('is_published', true)
             ->where(function ($q) use ($student) {
                 if ($student->grade_level_id) {
@@ -44,7 +47,9 @@ class StudentController extends Controller
                 } elseif ($student->grade) {
                     $q->where('grade', $student->grade);
                 }
-            })->pluck('id');
+            })
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))
+            ->pluck('id');
 
         $quizTotal = $quizIds->count();
         $examTotal = $examIds->count();
@@ -137,6 +142,8 @@ class StudentController extends Controller
         $student = Auth::user();
         $this->authorizeAccess($quiz, $student);
 
+        abort_if($quiz->isClosed(), 403, 'This quiz has closed.');
+
         $existing = QuizAttempt::where('quiz_id', $quiz->id)
             ->where('student_id', $student->id)
             ->first();
@@ -171,6 +178,7 @@ class StudentController extends Controller
     public function submit(Request $request, Quiz $quiz): RedirectResponse
     {
         $student = Auth::user();
+        abort_if($quiz->isClosed(), 403, 'This quiz has closed.');
         $this->authorizeAccess($quiz, $student);
 
         $data = $request->validate([
@@ -247,7 +255,8 @@ class StudentController extends Controller
 
         $quizzes = Quiz::query()
             ->whereIn('teacher_id', $teacherIds)
-            ->where('is_published', true);
+            ->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()));
 
         $quizzes->where(function ($q) use ($student) {
             if ($student->grade_level_id) {
@@ -288,6 +297,7 @@ class StudentController extends Controller
 
         $seatworks = Seatwork::whereIn('teacher_id', $teacherIds)
             ->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))
             ->with(['attempts' => function ($query) use ($student) {
                 $query->where('student_id', $student->id);
             }])
@@ -318,6 +328,7 @@ class StudentController extends Controller
 
         $practicals = Practical::whereIn('teacher_id', $teacherIds)
             ->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))
             ->where(function ($q) use ($student) {
                 if ($student->grade_level_id) {
                     $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
@@ -358,6 +369,7 @@ class StudentController extends Controller
 
         $exams = Exam::whereIn('teacher_id', $teacherIds)
             ->where('is_published', true)
+            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))
             ->with(['attempts' => function ($query) use ($student) {
                 $query->where('student_id', $student->id);
             }])

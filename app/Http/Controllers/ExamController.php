@@ -176,8 +176,21 @@ class ExamController extends Controller
     public function publish(Exam $exam): RedirectResponse
     {
         $this->authorizeOwner($exam);
-        $exam->update(['is_published' => !$exam->is_published]);
-        return back()->with('success', $exam->is_published ? 'Exam published.' : 'Exam unpublished.');
+        if ($exam->is_published) {
+            $exam->update(['is_published' => false, 'closes_at' => null]);
+            $msg = 'Exam unpublished.';
+        } else {
+            $exam->update(['is_published' => true, 'closes_at' => now()->addDay()]);
+            $msg = 'Exam published. It will close in 24 hours.';
+        }
+        return back()->with('success', $msg);
+    }
+
+    public function reopen(Exam $exam): RedirectResponse
+    {
+        $this->authorizeOwner($exam);
+        $exam->update(['closes_at' => now()->addDay()]);
+        return back()->with('success', 'Exam reopened. It will close in 24 hours.');
     }
 
     public function destroy(Exam $exam): RedirectResponse
@@ -192,6 +205,7 @@ class ExamController extends Controller
     public function take(Exam $exam): Response|RedirectResponse
     {
         abort_unless($exam->is_published, 403);
+        abort_if($exam->isClosed(), 403, 'This exam has closed.');
 
         $student = Auth::user();
         $existing = ExamAttempt::where('exam_id', $exam->id)->where('student_id', $student->id)->first();
@@ -247,6 +261,7 @@ class ExamController extends Controller
     public function submit(Request $request, Exam $exam): RedirectResponse
     {
         abort_unless($exam->is_published, 403);
+        abort_if($exam->isClosed(), 403, 'This exam has closed.');
 
         $student = Auth::user();
         $attempt = ExamAttempt::where('exam_id', $exam->id)->where('student_id', $student->id)->firstOrFail();

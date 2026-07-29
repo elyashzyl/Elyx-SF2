@@ -12,16 +12,24 @@ class Seatwork extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['teacher_id', 'title', 'instructions', 'grade', 'time_limit_minutes', 'is_published'];
+    protected $fillable = ['teacher_id', 'title', 'instructions', 'grade', 'time_limit_minutes', 'is_published', 'closes_at'];
 
     protected function casts(): array
     {
-        return ['is_published' => 'boolean'];
+        return [
+            'is_published' => 'boolean',
+            'closes_at' => 'datetime',
+        ];
     }
 
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->closes_at && $this->closes_at->isPast();
     }
 
     public function gradeLevels(): BelongsToMany

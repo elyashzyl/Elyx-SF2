@@ -8,13 +8,26 @@
         <div>
             <div class="flex items-center gap-2.5">
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ exam.title }}</h2>
-                <StatusBadge :status="exam.is_published ? 'published' : 'draft'" />
+                <StatusBadge :status="statusLabel" />
             </div>
             <p class="mt-1 text-sm" style="color: #5A6376">
                 <template v-if="exam.grade_levels">{{ exam.grade_levels.map((g: any) => g.name).join(', ') }}</template>
                 · {{ exam.sections.length }} sections · {{ exam.max_score }} points max
+                <template v-if="exam.closes_at">
+                    · <span :style="{ color: isClosed ? '#AA3C36' : '#2B9348' }">{{ isClosed ? 'Closed' : 'Closes ' + timeRemaining(exam.closes_at) }}</span>
+                </template>
             </p>
             <p v-if="exam.instructions" class="mt-2 text-sm" style="color: #404A5C">{{ exam.instructions }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button v-if="!isClosed" @click="togglePublish" class="btn-secondary">
+                <UploadCloud class="h-4 w-4" :stroke-width="2" />
+                {{ exam.is_published ? 'Unpublish' : 'Publish' }}
+            </button>
+            <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
+                <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                Reopen
+            </button>
         </div>
     </div>
 
@@ -126,10 +139,21 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Eye, FileText, ClipboardCheck } from '@lucide/vue';
-import { ref } from 'vue';
+import { ArrowLeft, Eye, FileText, ClipboardCheck, UploadCloud, RefreshCw } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{ exam: any; attempts: any[]; teachers?: any[] }>();
+
+const isClosed = computed(() => {
+    if (!props.exam.closes_at) return false;
+    return new Date(props.exam.closes_at) < new Date();
+});
+
+const statusLabel = computed(() => {
+    if (!props.exam.is_published) return 'draft';
+    if (isClosed.value) return 'finished';
+    return 'published';
+});
 
 const reassignSelect = ref<HTMLSelectElement | null>(null);
 
@@ -142,5 +166,21 @@ function reassign() {
 
 function formatDate(v: string): string {
     return v ? new Date(v).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function timeRemaining(dt: string): string {
+    const diff = new Date(dt).getTime() - Date.now();
+    if (diff <= 0) return 'now';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `in ${h}h ${m}m`;
+}
+
+function togglePublish() {
+    router.patch(`/teacher/exams/${props.exam.id}/publish`, {}, { preserveScroll: true });
+}
+
+function toggleReopen() {
+    router.patch(`/teacher/exams/${props.exam.id}/reopen`, {}, { preserveScroll: true });
 }
 </script>

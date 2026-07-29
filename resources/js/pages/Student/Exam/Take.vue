@@ -5,6 +5,10 @@
         {{ flash.info }}
     </div>
 
+    <div v-if="restored" class="mb-6 rounded-lg px-4 py-3 text-sm" style="background-color: #FFF8E1; color: #8D6E00">
+        Progress restored from previous session.
+    </div>
+
     <div class="mb-6">
         <div class="flex items-center gap-2.5">
             <h2 class="text-lg font-semibold" style="color: #1B2231">{{ exam.title }}</h2>
@@ -97,9 +101,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { Clock } from '@lucide/vue';
+import { useAutoSave } from '@/composables/useAutoSave';
 
 const props = defineProps<{ exam: any; startedAt: string }>();
 
@@ -111,6 +116,8 @@ const enumAnswers = reactive<Record<number, string[]>>({});
 const matchingAnswers = reactive<Record<number, Record<number, string>>>({});
 
 const submitting = ref(false);
+const restored = ref(false);
+let autoSave: ReturnType<typeof useAutoSave> | null = null;
 
 // Initialize
 props.exam.sections.forEach((sec: any) => {
@@ -146,9 +153,33 @@ function shuffledRight(q: any): any[] {
     return rightTexts.value[q.id];
 }
 
+onMounted(() => {
+    const savedKey = 'autosave-exam-' + props.exam.id;
+    autoSave = useAutoSave(savedKey, () => ({
+        answers: { ...answers },
+        enumAnswers: Object.fromEntries(Object.entries(enumAnswers).map(([k, v]) => [k, [...v]])),
+        matchingAnswers: Object.fromEntries(Object.entries(matchingAnswers).map(([k, v]) => [k, { ...v }])),
+    }));
+
+    const saved = autoSave.load();
+    if (saved) {
+        if (saved.answers) Object.assign(answers, saved.answers);
+        if (saved.enumAnswers) Object.assign(enumAnswers, saved.enumAnswers);
+        if (saved.matchingAnswers) Object.assign(matchingAnswers, saved.matchingAnswers);
+        restored.value = true;
+    }
+
+    autoSave.start();
+});
+
+onUnmounted(() => {
+    if (autoSave) autoSave.stop();
+});
+
 function submitExam() {
     if (!confirm('Submit exam? This action cannot be undone.')) return;
     submitting.value = true;
+    if (autoSave) autoSave.clear();
 
     const payload: Record<string, any> = {};
 

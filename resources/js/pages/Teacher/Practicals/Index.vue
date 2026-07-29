@@ -46,20 +46,26 @@
                 <tr v-for="p in practicals" :key="p.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ p.title }}</td>
                     <td class="px-6 py-3 text-xs" style="color: #5A6376">{{ p.grade_levels ? p.grade_levels.map((g: any) => g.name).join(', ') : p.grade }}</td>
-                    <td class="px-6 py-3"><StatusBadge :status="p.is_published ? 'published' : 'draft'" /></td>
+                    <td class="px-6 py-3"><Link :href="`/teacher/practicals/${p.id}`"><StatusBadge :status="statusLabel(p)" /></Link></td>
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ p.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ p.criteria_count }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ p.attempts_count }}</td>
                     <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ p.max_attempts }}/stu</td>
                     <td class="px-6 py-3">
                         <div class="flex items-center gap-2">
-                            <button @click="togglePublish(p)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="p.is_published ? 'Unpublish' : 'Publish'">
+                            <button v-if="isClosed(p)" @click="reopen(p)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #1D3557; border-color: #A8DADC" title="Reopen">
+                                <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                            </button>
+                            <Link v-if="isClosed(p)" :href="`/teacher/practicals/${p.id}`" class="rounded-lg border border-[#D2D6DE] px-2.5 py-1.5 text-xs font-medium hover:bg-[#F5F6F8] inline-block" style="color: #1D3557" title="View results">
+                                Results
+                            </Link>
+                            <button v-if="!isClosed(p)" @click="togglePublish(p)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="p.is_published ? 'Unpublish' : 'Publish'">
                                 <UploadCloud class="h-4 w-4" :stroke-width="2" />
                             </button>
-                            <Link :href="`/teacher/practicals/${p.id}/edit`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Edit">
+                            <Link v-if="!isClosed(p)" :href="`/teacher/practicals/${p.id}/edit`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Edit">
                                 <Pencil class="h-4 w-4" :stroke-width="2" />
                             </Link>
-                            <Link :href="`/teacher/practicals/${p.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">
+                            <Link v-if="!isClosed(p)" :href="`/teacher/practicals/${p.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">
                                 <Eye class="h-4 w-4" :stroke-width="2" />
                             </Link>
                             <button @click="destroyP(p)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F6DEDD]" style="color: #AA3C36" title="Delete">
@@ -175,7 +181,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage, useForm } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Plus, Eye, Pencil, Trash2, UploadCloud, FlaskConical, X, Check } from '@lucide/vue';
+import { Plus, Eye, Pencil, Trash2, UploadCloud, FlaskConical, X, Check, RefreshCw } from '@lucide/vue';
 import { ref } from 'vue';
 
 defineProps<{ practicals: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
@@ -202,6 +208,19 @@ function addCriterion() { form.criteria.push({ criterion_name: '', description: 
 function submitForm() { form.post('/teacher/practicals', { preserveScroll: true, onSuccess: () => { showCreate.value = false; } }); }
 
 function togglePublish(p: any) { router.patch(`/teacher/practicals/${p.id}/publish`, {}, { preserveScroll: true }); }
+
+function isClosed(p: any): boolean {
+    if (!p.closes_at) return false;
+    return new Date(p.closes_at) < new Date();
+}
+
+function statusLabel(a: any): string {
+    if (!a.is_published) return 'draft';
+    if (a.closes_at && new Date(a.closes_at) < new Date()) return 'finished';
+    return 'published';
+}
+
+function reopen(p: any) { router.patch(`/teacher/practicals/${p.id}/reopen`, {}, { preserveScroll: true }); }
 
 function destroyP(p: any) {
     if (confirm(`Delete "${p.title}"?`)) router.delete(`/teacher/practicals/${p.id}`, { preserveScroll: true });

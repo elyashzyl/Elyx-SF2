@@ -10,17 +10,28 @@
             <div>
                 <div class="flex items-center gap-2.5">
                     <h2 class="text-lg font-semibold" style="color: #1B2231">{{ quiz.title }}</h2>
-                    <StatusBadge :status="quiz.is_published ? 'published' : 'draft'" />
+                    <StatusBadge :status="statusLabel" />
                 </div>
                 <p class="mt-1 text-sm" style="color: #5A6376">
                     <template v-if="quiz.grade_levels">{{ quiz.grade_levels.map((g: any) => g.name).join(', ') }}</template>
                     —
                     <template v-if="quiz.sections">{{ quiz.sections.map((s: any) => s.name).join(', ') }}</template>
                     · {{ quiz.questions.length }} questions · {{ totalPoints }} points total
+                    <template v-if="quiz.closes_at">
+                        · <span :style="{ color: isClosed ? '#AA3C36' : '#2B9348' }">{{ isClosed ? 'Closed' : 'Closes ' + timeRemaining(quiz.closes_at) }}</span>
+                    </template>
                 </p>
                 <p v-if="quiz.description" class="mt-2 max-w-2xl text-sm" style="color: #404A5C">{{ quiz.description }}</p>
             </div>
             <div class="flex items-center gap-2">
+                <button v-if="!isClosed" @click="togglePublish" class="btn-secondary">
+                    <UploadCloud class="h-4 w-4" :stroke-width="2" />
+                    {{ quiz.is_published ? 'Unpublish' : 'Publish' }}
+                </button>
+                <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
+                    <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                    Reopen
+                </button>
                 <Link v-if="!quiz.is_published" :href="`/teacher/quizzes/${quiz.id}/edit`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Edit quiz">
                     <PenSquare class="h-4 w-4" :stroke-width="2" />
                 </Link>
@@ -117,7 +128,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, CheckCircle2, XCircle, Users, Award, PenSquare, Eye, RotateCw } from '@lucide/vue';
+import { ArrowLeft, CheckCircle2, XCircle, Users, Award, PenSquare, Eye, RotateCw, UploadCloud, RefreshCw } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps<{
@@ -129,6 +140,17 @@ const props = defineProps<{
 
 const sectionFilter = ref('');
 const sortMode = ref<'alpha' | 'score'>('alpha');
+
+const isClosed = computed(() => {
+    if (!props.quiz.closes_at) return false;
+    return new Date(props.quiz.closes_at) < new Date();
+});
+
+const statusLabel = computed(() => {
+    if (!props.quiz.is_published) return 'draft';
+    if (isClosed.value) return 'finished';
+    return 'published';
+});
 
 const sections = computed(() => {
     const seen = new Set<number>();
@@ -164,5 +186,21 @@ function reassign() {
 
 function autoRecheck(attemptId: number) {
     router.put(`/teacher/quizzes/${props.quiz.id}/auto-recheck/${attemptId}`, {}, { preserveScroll: true });
+}
+
+function timeRemaining(dt: string): string {
+    const diff = new Date(dt).getTime() - Date.now();
+    if (diff <= 0) return 'now';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `in ${h}h ${m}m`;
+}
+
+function togglePublish() {
+    router.patch(`/teacher/quizzes/${props.quiz.id}/publish`, {}, { preserveScroll: true });
+}
+
+function toggleReopen() {
+    router.patch(`/teacher/quizzes/${props.quiz.id}/reopen`, {}, { preserveScroll: true });
 }
 </script>

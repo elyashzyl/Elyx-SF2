@@ -18,6 +18,13 @@ class PracticalAttempt extends Model
         'submitted_at' => 'datetime',
     ];
 
+    protected $appends = ['submission_file_url'];
+
+    public function getSubmissionFileUrlAttribute(): ?string
+    {
+        return $this->submission_file ? url('storage/' . $this->submission_file) : null;
+    }
+
     public function practical(): BelongsTo
     {
         return $this->belongsTo(Practical::class);

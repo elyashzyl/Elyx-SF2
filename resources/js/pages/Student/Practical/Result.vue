@@ -26,7 +26,7 @@
         </div>
         <div v-if="attempt.submission_file">
             <p class="mb-2 text-xs font-medium" style="color: #5A6376">Uploaded image:</p>
-            <img :src="'/storage/' + attempt.submission_file" class="max-h-96 rounded-lg border border-[#E9EBEF]" />
+            <img :src="attempt.submission_file_url" class="max-h-96 rounded-lg border border-[#E9EBEF]" />
         </div>
     </div>
 

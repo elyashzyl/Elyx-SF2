@@ -8,18 +8,25 @@
         <div>
             <div class="flex items-center gap-2.5">
                 <h2 class="text-lg font-semibold" style="color: #1B2231">{{ practical.title }}</h2>
-                <StatusBadge :status="practical.is_published ? 'published' : 'draft'" />
+                <StatusBadge :status="statusLabel" />
             </div>
             <p class="mt-1 text-sm" style="color: #5A6376">
                 <template v-if="practical.grade_levels">{{ practical.grade_levels.map((g: any) => g.name).join(', ') }}</template>
                 · {{ practical.criteria.length }} criteria · {{ totalMax }} points max
+                <template v-if="practical.closes_at">
+                    · <span :style="{ color: isClosed ? '#AA3C36' : '#2B9348' }">{{ isClosed ? 'Closed' : 'Closes ' + timeRemaining(practical.closes_at) }}</span>
+                </template>
             </p>
             <p v-if="practical.instructions" class="mt-2 text-sm whitespace-pre-wrap" style="color: #404A5C">{{ practical.instructions }}</p>
         </div>
         <div class="flex items-center gap-2">
-            <button @click="togglePublish" class="btn-secondary">
+            <button v-if="!isClosed" @click="togglePublish" class="btn-secondary">
                 <UploadCloud class="h-4 w-4" :stroke-width="2" />
                 {{ practical.is_published ? 'Unpublish' : 'Publish' }}
+            </button>
+            <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
+                <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                Reopen
             </button>
             <Link :href="`/teacher/practicals/${practical.id}/edit`" class="btn-secondary">
                 <Pencil class="h-4 w-4" :stroke-width="2" />
@@ -60,7 +67,31 @@
     </div>
 
     <div v-if="attempts.length">
-        <h3 class="mb-4 text-sm font-semibold" style="color: #1B2231">Attempts</h3>
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold" style="color: #1B2231">Attempts</h3>
+            <div class="flex items-center gap-2">
+                <div class="flex rounded-lg border border-[#D2D6DE] text-xs overflow-hidden">
+                    <button @click="sortMode = 'alpha'" class="px-2.5 py-1.5 font-medium transition-colors" :class="sortMode === 'alpha' ? 'bg-[#1D3557] text-white' : 'bg-white text-[#5A6376] hover:bg-[#F5F6F8]'">A-Z</button>
+                    <button @click="sortMode = 'score'" class="px-2.5 py-1.5 font-medium transition-colors" :class="sortMode === 'score' ? 'bg-[#1D3557] text-white' : 'bg-white text-[#5A6376] hover:bg-[#F5F6F8]'">Score</button>
+                </div>
+                <select v-model="sectionFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-1.5 text-xs outline-none focus:border-[#1D3557]" style="color: #1B2231">
+                    <option value="">All sections</option>
+                    <option v-for="s in sections" :key="s.id" :value="s.id">{{ s.name }}</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card mb-4 grid grid-cols-2 divide-x divide-[#E9EBEF] p-5 text-center">
+            <div>
+                <p class="text-2xl font-semibold" style="color: #1B2231">{{ filteredAttempts.length }}</p>
+                <p class="text-xs" style="color: #7C8598">Submissions</p>
+            </div>
+            <div>
+                <p class="text-2xl font-semibold" style="color: #1B2231">{{ sectionAvg }}</p>
+                <p class="text-xs" style="color: #7C8598">Average score</p>
+            </div>
+        </div>
+
         <div class="card overflow-auto">
             <table class="w-full text-sm">
                 <thead>
@@ -77,7 +108,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#E9EBEF]">
-                    <tr v-for="a in attempts" :key="a.id" class="hover:bg-[#F9FAFB]">
+                    <tr v-for="a in filteredAttempts" :key="a.id" class="hover:bg-[#F9FAFB]">
                         <td class="px-6 py-3 font-medium whitespace-nowrap" style="color: #1B2231">{{ a.student?.name }}</td>
                         <td class="px-6 py-3 whitespace-nowrap" style="color: #5A6376">{{ a.student?.grade ?? '—' }}</td>
                         <td class="px-6 py-3 text-xs whitespace-nowrap" style="color: #7C8598">{{ a.attempt_number }}/{{ practical.max_attempts }}</td>
@@ -88,7 +119,7 @@
                         <td class="px-6 py-3 font-medium whitespace-nowrap" style="color: #1B2231">{{ a.status === 'submitted' ? a.total_score + ' / ' + totalMax : '—' }}</td>
                         <td class="px-6 py-3 whitespace-nowrap">
                             <div v-if="a.submission_file" class="flex items-center gap-2">
-                                <img :src="'/storage/' + a.submission_file" class="h-10 w-10 rounded object-cover border border-[#E9EBEF]" @click="previewImg = '/storage/' + a.submission_file" style="cursor:pointer" />
+                                <img :src="a.submission_file_url" class="h-10 w-10 rounded object-cover border border-[#E9EBEF]" @click="previewImg = a.submission_file_url" style="cursor:pointer" />
                                 <span class="text-xs" style="color: #7C8598">{{ a.submission_file.endsWith('.txt') ? 'Text' : 'Image' }}</span>
                             </div>
                             <span v-else-if="a.submission_text" class="text-xs" style="color: #5A6376">{{ a.submission_text.substring(0, 60) }}{{ a.submission_text.length > 60 ? '...' : '' }}</span>
@@ -160,7 +191,44 @@ const deletingPractical = ref(false);
 
 const props = defineProps<{ practical: any; attempts: any[]; teachers?: any[] }>();
 
+const sectionFilter = ref('');
+const sortMode = ref<'alpha' | 'score'>('alpha');
+
 const totalMax = computed(() => props.practical.criteria.reduce((s: number, c: any) => s + c.max_points, 0));
+const isClosed = computed(() => {
+    if (!props.practical.closes_at) return false;
+    return new Date(props.practical.closes_at) < new Date();
+});
+
+const statusLabel = computed(() => {
+    if (!props.practical.is_published) return 'draft';
+    if (isClosed.value) return 'finished';
+    return 'published';
+});
+
+const sections = computed(() => {
+    const seen = new Set<number>();
+    return props.attempts
+        .map((a: any) => a.student?.section)
+        .filter((s: any) => s && !seen.has(s.id) && seen.add(s.id));
+});
+
+const filteredAttempts = computed(() => {
+    const list = sectionFilter.value
+        ? props.attempts.filter((a: any) => a.student?.section_id === Number(sectionFilter.value))
+        : [...props.attempts];
+    if (sortMode.value === 'alpha') {
+        return list.sort((a: any, b: any) => a.student?.name?.localeCompare(b.student?.name));
+    }
+    return list.sort((a: any, b: any) => (b.total_score ?? 0) - (a.total_score ?? 0));
+});
+
+const sectionAvg = computed(() => {
+    const submitted = filteredAttempts.value.filter((a: any) => a.status === 'submitted');
+    if (!submitted.length) return 0;
+    const sum = submitted.reduce((acc: number, a: any) => acc + (a.total_score ?? 0), 0);
+    return Math.round((sum / submitted.length) * 10) / 10;
+});
 
 const reassignSelect = ref<HTMLSelectElement | null>(null);
 
@@ -173,6 +241,14 @@ function reassign() {
 
 function formatDate(v: string): string {
     return v ? new Date(v).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function timeRemaining(dt: string): string {
+    const diff = new Date(dt).getTime() - Date.now();
+    if (diff <= 0) return 'now';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `in ${h}h ${m}m`;
 }
 
 function confirmDelete(attempt: any) {
@@ -189,6 +265,10 @@ function destroyAttempt() {
 
 function togglePublish() {
     router.patch(`/teacher/practicals/${props.practical.id}/publish`, {}, { preserveScroll: true });
+}
+
+function toggleReopen() {
+    router.patch(`/teacher/practicals/${props.practical.id}/reopen`, {}, { preserveScroll: true });
 }
 
 function confirmDestroy() {

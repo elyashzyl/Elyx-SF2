@@ -5,6 +5,10 @@
         {{ flash.info }}
     </div>
 
+    <div v-if="restored" class="mb-6 rounded-lg px-4 py-3 text-sm" style="background-color: #FFF8E1; color: #8D6E00">
+        Progress restored from previous session.
+    </div>
+
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2.5">
@@ -55,8 +59,8 @@
             <div class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#D2D6DE] p-8 transition-colors" :class="dragging ? 'border-[#1D3557] bg-[#EEF2F7]' : ''" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="handleDrop">
                 <ImageIcon class="mb-3 h-10 w-10" :stroke-width="1.5" style="color: #7C8598" />
                 <p class="mb-1 text-sm font-medium" style="color: #404A5C">Drop an image here, or click to browse</p>
-                <p class="mb-3 text-xs" style="color: #7C8598">PNG, JPG, JPEG, GIF up to 10MB</p>
-                <input ref="fileInput" type="file" accept="image/png,image/jpg,image/jpeg,image/gif" class="hidden" @change="handleFile" />
+                <p class="mb-3 text-xs" style="color: #7C8598">PNG, JPG, JPEG, GIF, WebP, BMP</p>
+                <input ref="fileInput" type="file" accept="image/png,image/jpg,image/jpeg,image/gif,image/webp,image/bmp" class="hidden" @change="handleFile" />
                 <button @click="fileInput?.click()" class="btn-secondary">Choose file</button>
             </div>
             <div v-if="previewUrl" class="mt-4">
@@ -82,14 +86,17 @@
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { Clock, Send, FileCode, Image as ImageIcon, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref } from 'vue';
+import { useAutoSave } from '@/composables/useAutoSave';
 
 const props = defineProps<{ practical: any; startedAt: string; deadlineAt?: number; attemptNumber: number }>();
 
 const page = usePage();
 const flash = page.props.flash as any;
 const submitting = ref(false);
+const restored = ref(false);
 const remainingSeconds = ref<number | null>(null);
 let timer: ReturnType<typeof setInterval> | null = null;
+let autoSave: ReturnType<typeof useAutoSave> | null = null;
 
 const tab = ref<'code' | 'image'>('code');
 const submissionText = ref('');
@@ -114,6 +121,22 @@ function tick() {
 }
 
 onMounted(() => {
+    const savedKey = 'autosave-practical-' + props.practical.id;
+    autoSave = useAutoSave(savedKey, () => ({
+        submissionText: submissionText.value,
+        tab: tab.value,
+        fileSelected: selectedFile.value !== null,
+    }));
+
+    const saved = autoSave.load();
+    if (saved) {
+        if (saved.submissionText) submissionText.value = saved.submissionText;
+        if (saved.tab) tab.value = saved.tab;
+        restored.value = true;
+    }
+
+    autoSave.start();
+
     if (props.practical.time_limit_minutes && props.deadlineAt) {
         remainingSeconds.value = Math.max(0, Math.floor((props.deadlineAt - Date.now()) / 1000));
         if (remainingSeconds.value > 0) {
@@ -124,7 +147,10 @@ onMounted(() => {
     }
 });
 
-onUnmounted(() => { if (timer) clearInterval(timer); });
+onUnmounted(() => {
+    if (timer) clearInterval(timer);
+    if (autoSave) autoSave.stop();
+});
 
 function handleFile(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -152,12 +178,13 @@ function submit(auto = false) {
     if (!auto && !confirm('Submit practical? This cannot be undone.')) return;
     submitting.value = true;
 
-    const formData = new FormData();
-    if (submissionText.value) formData.append('submission_text', submissionText.value);
-    if (selectedFile.value) formData.append('submission_file', selectedFile.value);
+    if (autoSave) autoSave.clear();
 
-    router.post('/student/practicals/' + props.practical.id + '/submit', formData, {
-        preserveScroll: true,
+    router.post('/student/practicals/' + props.practical.id + '/submit', {
+        submission_text: submissionText.value || '',
+        submission_file: selectedFile.value,
+    }, {
+        forceFormData: true,
         onFinish: () => { submitting.value = false; },
     });
 }

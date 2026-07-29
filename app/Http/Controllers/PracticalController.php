@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GradeLevel;
 use App\Models\Practical;
 use App\Models\PracticalAttempt;
+use App\Models\PracticalScore;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -138,15 +139,34 @@ class PracticalController extends Controller
             $practical->update($updateData);
             $practical->gradeLevels()->sync($data['grade_level_ids']);
 
-            $practical->criteria()->delete();
+            $existingCriteria = $practical->criteria()->orderBy('order')->get();
+            $keepIds = [];
 
             foreach ($data['criteria'] as $cIndex => $criterion) {
-                $practical->criteria()->create([
-                    'criterion_name' => $criterion['criterion_name'],
-                    'description' => $criterion['description'] ?? null,
-                    'max_points' => $criterion['max_points'],
-                    'order' => $cIndex,
-                ]);
+                if (isset($existingCriteria[$cIndex])) {
+                    $existingCriteria[$cIndex]->update([
+                        'criterion_name' => $criterion['criterion_name'],
+                        'description' => $criterion['description'] ?? null,
+                        'max_points' => $criterion['max_points'],
+                        'order' => $cIndex,
+                    ]);
+                    $keepIds[] = $existingCriteria[$cIndex]->id;
+                } else {
+                    $new = $practical->criteria()->create([
+                        'criterion_name' => $criterion['criterion_name'],
+                        'description' => $criterion['description'] ?? null,
+                        'max_points' => $criterion['max_points'],
+                        'order' => $cIndex,
+                    ]);
+                    $keepIds[] = $new->id;
+                }
+            }
+
+            $toDelete = $practical->criteria()->whereNotIn('id', $keepIds)->get();
+            if ($toDelete->isNotEmpty()) {
+                $deleteIds = $toDelete->pluck('id');
+                PracticalScore::whereIn('criterion_id', $deleteIds)->delete();
+                $practical->criteria()->whereIn('id', $deleteIds)->delete();
             }
         });
 
@@ -161,7 +181,7 @@ class PracticalController extends Controller
         $teacher = Auth::user();
 
         $attempts = $practical->attempts()
-            ->with('student:id,name,grade', 'scores.criterion:id,criterion_name,max_points')
+            ->with('student:id,name,grade,section_id', 'student.section:id,name', 'scores')
             ->latest()
             ->get()
             ->map(function ($a) use ($practical) {
@@ -183,8 +203,21 @@ class PracticalController extends Controller
     public function publish(Practical $practical): RedirectResponse
     {
         $this->authorizeOwner($practical);
-        $practical->update(['is_published' => !$practical->is_published]);
-        return back()->with('success', $practical->is_published ? 'Practical published.' : 'Practical unpublished.');
+        if ($practical->is_published) {
+            $practical->update(['is_published' => false, 'closes_at' => null]);
+            $msg = 'Practical unpublished.';
+        } else {
+            $practical->update(['is_published' => true, 'closes_at' => now()->addDay()]);
+            $msg = 'Practical published. It will close in 24 hours.';
+        }
+        return back()->with('success', $msg);
+    }
+
+    public function reopen(Practical $practical): RedirectResponse
+    {
+        $this->authorizeOwner($practical);
+        $practical->update(['closes_at' => now()->addDay()]);
+        return back()->with('success', 'Practical reopened. It will close in 24 hours.');
     }
 
     public function destroy(Practical $practical): RedirectResponse
@@ -207,6 +240,7 @@ class PracticalController extends Controller
     {
         $student = Auth::user();
         abort_unless($practical->is_published, 403);
+        abort_if($practical->isClosed(), 403, 'This practical has closed.');
 
         $attemptCount = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)->count();
@@ -245,6 +279,7 @@ class PracticalController extends Controller
     {
         $student = Auth::user();
         abort_unless($practical->is_published, 403);
+        abort_if($practical->isClosed(), 403, 'This practical has closed.');
 
         $attempt = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)
@@ -254,7 +289,7 @@ class PracticalController extends Controller
 
         $data = $request->validate([
             'submission_text' => ['nullable', 'string'],
-            'submission_file' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif', 'max:10240'],
+            'submission_file' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp,bmp'],
         ]);
 
         $filePath = null;
@@ -277,7 +312,7 @@ class PracticalController extends Controller
     {
         $student = Auth::user();
         abort_if($attempt->student_id !== $student->id, 403);
-        $attempt->load(['practical.criteria', 'scores.criterion']);
+        $attempt->load(['practical.criteria', 'scores']);
 
         return Inertia::render('Student/Practical/Result', ['attempt' => $attempt]);
     }

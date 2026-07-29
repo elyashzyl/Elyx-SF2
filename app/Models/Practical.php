@@ -12,16 +12,24 @@ class Practical extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['teacher_id', 'title', 'grade', 'instructions', 'time_limit_minutes', 'max_score', 'is_published', 'max_attempts'];
+    protected $fillable = ['teacher_id', 'title', 'grade', 'instructions', 'time_limit_minutes', 'max_score', 'is_published', 'max_attempts', 'closes_at'];
 
     protected function casts(): array
     {
-        return ['is_published' => 'boolean'];
+        return [
+            'is_published' => 'boolean',
+            'closes_at' => 'datetime',
+        ];
     }
 
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->closes_at && $this->closes_at->isPast();
     }
 
     public function gradeLevels(): BelongsToMany

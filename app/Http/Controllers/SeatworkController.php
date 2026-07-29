@@ -265,8 +265,21 @@ class SeatworkController extends Controller
     public function publish(Seatwork $seatwork): RedirectResponse
     {
         $this->authorizeOwner($seatwork);
-        $seatwork->update(['is_published' => !$seatwork->is_published]);
-        return back()->with('success', $seatwork->is_published ? 'Seatwork published.' : 'Seatwork unpublished.');
+        if ($seatwork->is_published) {
+            $seatwork->update(['is_published' => false, 'closes_at' => null]);
+            $msg = 'Seatwork unpublished.';
+        } else {
+            $seatwork->update(['is_published' => true, 'closes_at' => now()->addDay()]);
+            $msg = 'Seatwork published. It will close in 24 hours.';
+        }
+        return back()->with('success', $msg);
+    }
+
+    public function reopen(Seatwork $seatwork): RedirectResponse
+    {
+        $this->authorizeOwner($seatwork);
+        $seatwork->update(['closes_at' => now()->addDay()]);
+        return back()->with('success', 'Seatwork reopened. It will close in 24 hours.');
     }
 
     public function destroy(Seatwork $seatwork): RedirectResponse
@@ -282,6 +295,7 @@ class SeatworkController extends Controller
     {
         $student = Auth::user();
         abort_unless($seatwork->is_published, 403);
+        abort_if($seatwork->isClosed(), 403, 'This seatwork has closed.');
 
         $existing = SeatworkAttempt::where('seatwork_id', $seatwork->id)->where('student_id', $student->id)->first();
         if ($existing && $existing->status === 'submitted') {
@@ -305,6 +319,7 @@ class SeatworkController extends Controller
     {
         $student = Auth::user();
         abort_unless($seatwork->is_published, 403);
+        abort_if($seatwork->isClosed(), 403, 'This seatwork has closed.');
 
         $attempt = SeatworkAttempt::where('seatwork_id', $seatwork->id)->where('student_id', $student->id)->firstOrFail();
         if ($attempt->status === 'submitted') {

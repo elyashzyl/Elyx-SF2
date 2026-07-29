@@ -45,19 +45,25 @@
                 <tr v-for="sw in seatworks" :key="sw.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ sw.title }}</td>
                     <td class="px-6 py-3 text-xs" style="color: #5A6376">{{ sw.grade_levels ? sw.grade_levels.map((g: any) => g.name).join(', ') : sw.grade }}</td>
-                    <td class="px-6 py-3"><StatusBadge :status="sw.is_published ? 'published' : 'draft'" /></td>
+                    <td class="px-6 py-3"><Link :href="`/teacher/seatworks/${sw.id}`"><StatusBadge :status="statusLabel(sw)" /></Link></td>
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ sw.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ sw.questions_count }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ sw.attempts_count }}</td>
                     <td class="px-6 py-3">
                         <div class="flex items-center gap-2">
-                            <button @click="togglePublish(sw)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="sw.is_published ? 'Unpublish' : 'Publish'">
+                            <button v-if="isClosed(sw)" @click="reopen(sw)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #1D3557; border-color: #A8DADC" title="Reopen">
+                                <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                            </button>
+                            <Link v-if="isClosed(sw)" :href="`/teacher/seatworks/${sw.id}`" class="rounded-lg border border-[#D2D6DE] px-2.5 py-1.5 text-xs font-medium hover:bg-[#F5F6F8] inline-block" style="color: #1D3557" title="View results">
+                                Results
+                            </Link>
+                            <button v-if="!isClosed(sw)" @click="togglePublish(sw)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="sw.is_published ? 'Unpublish' : 'Publish'">
                                 <UploadCloud class="h-4 w-4" :stroke-width="2" />
                             </button>
-                            <Link :href="`/teacher/seatworks/${sw.id}/edit`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Edit">
+                            <Link v-if="!isClosed(sw)" :href="`/teacher/seatworks/${sw.id}/edit`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Edit">
                                 <Pencil class="h-4 w-4" :stroke-width="2" />
                             </Link>
-                            <Link :href="`/teacher/seatworks/${sw.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">
+                            <Link v-if="!isClosed(sw)" :href="`/teacher/seatworks/${sw.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">
                                 <Eye class="h-4 w-4" :stroke-width="2" />
                             </Link>
                             <button @click="destroySw(sw)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F6DEDD]" style="color: #AA3C36" title="Delete">
@@ -213,7 +219,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage, useForm } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Plus, Eye, Pencil, Trash2, UploadCloud, ClipboardCheck, Check, X } from '@lucide/vue';
+import { Plus, Eye, Pencil, Trash2, UploadCloud, ClipboardCheck, Check, X, RefreshCw } from '@lucide/vue';
 import { ref } from 'vue';
 
 defineProps<{ seatworks: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
@@ -267,6 +273,19 @@ function submitForm() {
 }
 
 function togglePublish(sw: any) { router.patch(`/teacher/seatworks/${sw.id}/publish`, {}, { preserveScroll: true }); }
+
+function isClosed(sw: any): boolean {
+    if (!sw.closes_at) return false;
+    return new Date(sw.closes_at) < new Date();
+}
+
+function statusLabel(a: any): string {
+    if (!a.is_published) return 'draft';
+    if (a.closes_at && new Date(a.closes_at) < new Date()) return 'finished';
+    return 'published';
+}
+
+function reopen(sw: any) { router.patch(`/teacher/seatworks/${sw.id}/reopen`, {}, { preserveScroll: true }); }
 function destroySw(sw: any) {
     if (confirm(`Delete "${sw.title}"?`)) router.delete(`/teacher/seatworks/${sw.id}`, { preserveScroll: true });
 }

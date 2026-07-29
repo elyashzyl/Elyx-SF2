@@ -44,7 +44,7 @@
             <tbody class="divide-y divide-[#E9EBEF]">
                 <tr v-for="quiz in quizzes" :key="quiz.id" class="hover:bg-[#F9FAFB]">
                     <td class="px-6 py-3 font-medium" style="color: #1B2231">{{ quiz.title }}</td>
-                    <td class="px-6 py-3"><StatusBadge :status="quiz.is_published ? 'published' : 'draft'" /></td>
+                    <td class="px-6 py-3"><StatusBadge :status="statusLabel(quiz)" /></td>
                     <td v-if="isSuperadmin" class="px-6 py-3" style="color: #5A6376">{{ quiz.teacher?.name ?? '—' }}</td>
                     <td class="px-6 py-3 text-xs" style="color: #5A6376">
                         {{ quiz.grade_levels ? quiz.grade_levels.map((g: any) => g.name).join(', ') : quiz.grade }}
@@ -54,10 +54,16 @@
                     <td class="px-6 py-3" style="color: #5A6376">{{ quiz.attempts_count }}</td>
                     <td class="px-6 py-3">
                         <div class="flex items-center gap-2">
-                            <button @click="togglePublish(quiz)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="quiz.is_published ? 'Unpublish' : 'Publish'">
+                            <button v-if="isClosed(quiz)" @click="reopen(quiz)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #1D3557; border-color: #A8DADC" title="Reopen">
+                                <RefreshCw class="h-4 w-4" :stroke-width="2" />
+                            </button>
+                            <Link v-if="isClosed(quiz)" :href="`/teacher/quizzes/${quiz.id}`" class="rounded-lg border border-[#D2D6DE] px-2.5 py-1.5 text-xs font-medium hover:bg-[#F5F6F8] inline-block" style="color: #1D3557" title="View results">
+                                Results
+                            </Link>
+                            <button v-if="!isClosed(quiz)" @click="togglePublish(quiz)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8]" style="color: #5A6376" :title="quiz.is_published ? 'Unpublish' : 'Publish'">
                                 <UploadCloud class="h-4 w-4" :stroke-width="2" />
                             </button>
-                            <Link :href="`/teacher/quizzes/${quiz.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">
+                            <Link v-if="!isClosed(quiz)" :href="`/teacher/quizzes/${quiz.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">
                                 <Eye class="h-4 w-4" :stroke-width="2" />
                             </Link>
                             <button @click="destroyQuiz(quiz)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F6DEDD]" style="color: #AA3C36" title="Delete quiz">
@@ -180,7 +186,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage, useForm } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Plus, Eye, Trash2, UploadCloud, FileQuestion, Check, X } from '@lucide/vue';
+import { Plus, Eye, Trash2, UploadCloud, FileQuestion, Check, X, RefreshCw } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps<{
@@ -261,6 +267,19 @@ function submitQuiz() {
 function togglePublish(quiz: any) {
     router.patch(`/teacher/quizzes/${quiz.id}/publish`, {}, { preserveScroll: true });
 }
+
+function isClosed(quiz: any): boolean {
+    if (!quiz.closes_at) return false;
+    return new Date(quiz.closes_at) < new Date();
+}
+
+function statusLabel(a: any): string {
+    if (!a.is_published) return 'draft';
+    if (a.closes_at && new Date(a.closes_at) < new Date()) return 'finished';
+    return 'published';
+}
+
+function reopen(quiz: any) { router.patch(`/teacher/quizzes/${quiz.id}/reopen`, {}, { preserveScroll: true }); }
 
 function destroyQuiz(quiz: any) {
     if (confirm(`Delete "${quiz.title}"? This cannot be undone.`)) {
