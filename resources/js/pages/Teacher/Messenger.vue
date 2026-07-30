@@ -1,7 +1,7 @@
 <template>
     <Head title="Messenger" />
 
-    <div class="-my-6 flex min-h-0 flex-1" style="background-color: #FFFFFF">
+    <div class="flex min-h-0 flex-1" style="background-color: #FFFFFF">
         <div class="flex w-80 shrink-0 flex-col border-r border-[#E4E6EB]">
             <div class="flex items-center gap-2 border-b border-[#E4E6EB] px-4 py-3">
                 <div class="relative flex-1">
