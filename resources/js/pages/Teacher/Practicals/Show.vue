@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { ArrowLeft, Pencil, ClipboardCheck, RefreshCw, Trash2, UploadCloud, X } from '@lucide/vue';
@@ -191,8 +191,17 @@ const deletingPractical = ref(false);
 
 const props = defineProps<{ practical: any; attempts: any[]; teachers?: any[] }>();
 
-const sectionFilter = ref('');
-const sortMode = ref<'alpha' | 'score'>('alpha');
+const storageKey = 'practical_show_' + window.location.pathname;
+
+const sectionFilter = ref(sessionStorage.getItem(storageKey + '_section') ?? '');
+const sortMode = ref<('alpha' | 'score')>((sessionStorage.getItem(storageKey + '_sort') as 'alpha' | 'score') ?? 'alpha');
+
+function persistState() {
+    sessionStorage.setItem(storageKey + '_section', sectionFilter.value);
+    sessionStorage.setItem(storageKey + '_sort', sortMode.value);
+}
+
+watch([sectionFilter, sortMode], persistState);
 
 const totalMax = computed(() => props.practical.criteria.reduce((s: number, c: any) => s + c.max_points, 0));
 const isClosed = computed(() => {
