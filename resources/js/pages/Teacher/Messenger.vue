@@ -13,7 +13,7 @@
                 </button>
             </div>
 
-            <div class="flex-1 overflow-y-auto py-1">
+            <div class="flex-1 overflow-y-auto py-1 messenger-scroll">
                 <button v-for="c in filteredConversations" :key="c.id" @click="openConversation(c.id)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#F0F2F5]" :class="activeId === c.id ? 'bg-[#E7F3FF]' : ''">
                     <div class="relative shrink-0">
                         <div class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white" :style="{ backgroundColor: avatarBg(c.other?.name ?? '') }">
@@ -50,7 +50,7 @@
                     </button>
                 </div>
 
-                <div ref="messagesRef" class="flex-1 overflow-y-auto px-4 py-3" style="background-color: #F0F2F5">
+                <div ref="messagesRef" class="flex-1 overflow-y-auto px-4 py-3 messenger-scroll" style="background-color: #F0F2F5">
                     <div v-for="m in messages" :key="m.id" class="mb-1.5 flex" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
                         <div :class="m.sender_id === userId ? 'order-1' : 'order-1'">
                             <div class="max-w-md px-3 py-1.5 text-sm leading-relaxed" :class="m.sender_id === userId ? 'text-white' : 'text-[#1B2231]'" :style="m.sender_id === userId ? { backgroundColor: '#1B74E4', borderBottomRightRadius: '4px' } : { backgroundColor: '#FFFFFF', borderBottomLeftRadius: '4px' }" style="border-radius: 16px">
@@ -283,3 +283,13 @@ onUnmounted(() => {
     if (pollInterval) clearInterval(pollInterval);
 });
 </script>
+
+<style>
+.messenger-scroll::-webkit-scrollbar {
+    display: none;
+}
+.messenger-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>
