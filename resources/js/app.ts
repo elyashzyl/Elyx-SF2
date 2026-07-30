@@ -5,6 +5,8 @@ import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import StudentLayout from '@/layouts/StudentLayout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
 
+import '../css/game-theme.css';
+
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 // Save scroll position per pathname

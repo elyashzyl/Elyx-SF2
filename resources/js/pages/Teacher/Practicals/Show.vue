@@ -78,6 +78,13 @@
                     <button @click="sortMode = 'alpha'" class="px-2.5 py-1.5 font-medium transition-colors" :class="sortMode === 'alpha' ? 'bg-[#1D3557] text-white' : 'bg-white text-[#5A6376] hover:bg-[#F5F6F8]'">A-Z</button>
                     <button @click="sortMode = 'score'" class="px-2.5 py-1.5 font-medium transition-colors" :class="sortMode === 'score' ? 'bg-[#1D3557] text-white' : 'bg-white text-[#5A6376] hover:bg-[#F5F6F8]'">Score</button>
                 </div>
+                <select v-model="scoreFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-1.5 text-xs outline-none focus:border-[#1D3557]" style="color: #1B2231">
+                    <option value="">All scores</option>
+                    <option value="ungraded">Not graded</option>
+                    <option value="80-100">≥ 80%</option>
+                    <option value="60-79">60–79%</option>
+                    <option value="0-59">Below 60%</option>
+                </select>
                 <select v-model="sectionFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-1.5 text-xs outline-none focus:border-[#1D3557]" style="color: #1B2231">
                     <option value="">All sections</option>
                     <option v-for="s in sections" :key="s.id" :value="s.id">{{ s.name }}</option>
@@ -201,14 +208,16 @@ const props = defineProps<{ practical: any; attempts: any[]; teachers?: any[] }>
 const storageKey = 'practical_show_' + window.location.pathname;
 
 const sectionFilter = ref(sessionStorage.getItem(storageKey + '_section') ?? '');
+const scoreFilter = ref(sessionStorage.getItem(storageKey + '_score') ?? '');
 const sortMode = ref<('alpha' | 'score')>((sessionStorage.getItem(storageKey + '_sort') as 'alpha' | 'score') ?? 'alpha');
 
 function persistState() {
     sessionStorage.setItem(storageKey + '_section', sectionFilter.value);
+    sessionStorage.setItem(storageKey + '_score', scoreFilter.value);
     sessionStorage.setItem(storageKey + '_sort', sortMode.value);
 }
 
-watch([sectionFilter, sortMode], persistState);
+watch([sectionFilter, scoreFilter, sortMode], persistState);
 
 const totalMax = computed(() => props.practical.criteria.reduce((s: number, c: any) => s + c.max_points, 0));
 const isClosed = computed(() => {
@@ -230,9 +239,20 @@ const sections = computed(() => {
 });
 
 const filteredAttempts = computed(() => {
-    const list = sectionFilter.value
+    let list = sectionFilter.value
         ? props.attempts.filter((a: any) => a.student?.section_id === Number(sectionFilter.value))
         : [...props.attempts];
+
+    if (scoreFilter.value === 'ungraded') {
+        list = list.filter((a: any) => a.status !== 'submitted');
+    } else if (scoreFilter.value === '80-100') {
+        list = list.filter((a: any) => a.status === 'submitted' && a.total_score !== null && a.total_score / totalMax.value >= 0.8);
+    } else if (scoreFilter.value === '60-79') {
+        list = list.filter((a: any) => a.status === 'submitted' && a.total_score !== null && a.total_score / totalMax.value >= 0.6 && a.total_score / totalMax.value < 0.8);
+    } else if (scoreFilter.value === '0-59') {
+        list = list.filter((a: any) => a.status === 'submitted' && a.total_score !== null && a.total_score / totalMax.value < 0.6);
+    }
+
     if (sortMode.value === 'alpha') {
         return list.sort((a: any, b: any) => a.student?.name?.localeCompare(b.student?.name));
     }

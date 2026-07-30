@@ -8,6 +8,7 @@ use App\Models\SeatworkAttempt;
 use App\Models\GradeLevel;
 use App\Models\Section;
 use App\Models\User;
+use App\Helpers\PointsHelper;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -282,6 +283,13 @@ class SeatworkController extends Controller
         return back()->with('success', 'Seatwork reopened. It will close in 24 hours.');
     }
 
+    public function closeNow(Seatwork $seatwork): RedirectResponse
+    {
+        $this->authorizeOwner($seatwork);
+        $seatwork->update(['closes_at' => now()->subSecond()]);
+        return back()->with('success', 'Seatwork closed immediately.');
+    }
+
     public function destroy(Seatwork $seatwork): RedirectResponse
     {
         $this->authorizeOwner($seatwork);
@@ -342,6 +350,8 @@ class SeatworkController extends Controller
             $attempt->update(['score' => $score, 'total_points' => $seatwork->totalPoints(), 'status' => 'submitted', 'submitted_at' => now()]);
         });
 
+        PointsHelper::award($student->id, 'Seatwork', $seatwork->id, $score, $seatwork->totalPoints());
+
         return redirect()->route('student.seatworks.result', ['attempt' => $attempt->id])->with('success', 'Seatwork submitted.');
     }
 
@@ -373,9 +383,9 @@ class SeatworkController extends Controller
         $seatwork->load('questions.options', 'questions.matchingPairs');
         $attempt->load('answers');
 
-        DB::transaction(function () use ($seatwork, $attempt) {
-            $score = 0;
+        $score = 0;
 
+        DB::transaction(function () use ($seatwork, $attempt, &$score) {
             foreach ($attempt->answers as $answer) {
                 $question = $seatwork->questions->firstWhere('id', $answer->question_id);
                 if (! $question) continue;
@@ -397,6 +407,8 @@ class SeatworkController extends Controller
 
             $attempt->update(['score' => $score]);
         });
+
+        PointsHelper::award($attempt->student_id, 'Seatwork', $seatwork->id, $score, $seatwork->totalPoints());
 
         return back()->with('success', 'Seatwork auto-rechecked successfully.');
     }
@@ -424,7 +436,9 @@ class SeatworkController extends Controller
             'answers.*.is_correct' => ['required', 'boolean'],
         ]);
 
-        DB::transaction(function () use ($data, $attempt) {
+        $score = 0;
+
+        DB::transaction(function () use ($data, $attempt, &$score) {
             foreach ($data['answers'] as $answerData) {
                 SeatworkAnswer::where('id', $answerData['id'])
                     ->where('attempt_id', $attempt->id)
@@ -438,6 +452,8 @@ class SeatworkController extends Controller
 
             $attempt->update(['score' => $score]);
         });
+
+        PointsHelper::award($attempt->student_id, 'Seatwork', $seatwork->id, $score, $seatwork->totalPoints());
 
         return redirect()->route('teacher.seatworks.show', $seatwork)->with('success', 'Seatwork rechecked successfully.');
     }

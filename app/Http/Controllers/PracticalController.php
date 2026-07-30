@@ -7,6 +7,7 @@ use App\Models\Practical;
 use App\Models\PracticalAttempt;
 use App\Models\PracticalScore;
 use App\Models\User;
+use App\Helpers\PointsHelper;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -182,7 +183,7 @@ class PracticalController extends Controller
 
         $attempts = $practical->attempts()
             ->with('student:id,name,grade,section_id', 'student.section:id,name', 'scores')
-            ->latest()
+            ->orderByRaw('COALESCE(submitted_at, created_at) DESC')
             ->get()
             ->map(function ($a) use ($practical) {
                 $attemptNum = PracticalAttempt::where('practical_id', $practical->id)
@@ -257,13 +258,20 @@ class PracticalController extends Controller
         abort_unless($practical->is_published, 403);
         abort_if($practical->isClosed(), 403, 'This practical has closed.');
 
-        $attemptCount = PracticalAttempt::where('practical_id', $practical->id)
-            ->where('student_id', $student->id)->count();
+        $submittedCount = PracticalAttempt::where('practical_id', $practical->id)
+            ->where('student_id', $student->id)
+            ->where('status', 'submitted')->count();
 
-        if ($attemptCount >= $practical->max_attempts) {
+        if ($submittedCount >= $practical->max_attempts) {
             return redirect()->route('student.dashboard')
                 ->with('info', 'You have reached the maximum number of attempts for this practical.');
         }
+
+        $hasClosed = PracticalAttempt::where('practical_id', $practical->id)
+            ->where('student_id', $student->id)
+            ->whereNotNull('closed_at')->exists();
+
+        abort_if($hasClosed, 403, 'Your submission has been closed by the teacher.');
 
         $existing = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)
@@ -279,14 +287,14 @@ class PracticalController extends Controller
 
         $practical->load('criteria');
 
-        $attemptCount = PracticalAttempt::where('practical_id', $practical->id)
+        $totalAttempts = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)->count();
 
         return Inertia::render('Student/Practical/Take', [
             'practical' => $practical,
             'startedAt' => $existing->started_at,
             'deadlineAt' => $existing->started_at?->copy()->addMinutes($practical->time_limit_minutes)->timestamp * 1000,
-            'attemptNumber' => $attemptCount,
+            'attemptNumber' => $totalAttempts,
         ]);
     }
 
@@ -388,6 +396,8 @@ class PracticalController extends Controller
             $attempt->update(['total_score' => $totalScore]);
         });
 
+        PointsHelper::award($attempt->student_id, 'Practical', $practical->id, $totalScore, $practical->max_score ?? 0);
+
         return redirect()->route('teacher.practicals.show', $practical)
             ->with('saved', true);
     }
@@ -433,6 +443,8 @@ class PracticalController extends Controller
             }
             $attempt->update(['total_score' => $totalScore]);
         });
+
+        PointsHelper::award($attempt->student_id, 'Practical', $practical->id, $totalScore, $practical->max_score ?? 0);
 
         return redirect()->route('teacher.practicals.show', $practical)
             ->with('saved', true);

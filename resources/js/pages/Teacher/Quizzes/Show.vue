@@ -28,6 +28,10 @@
                     <UploadCloud class="h-4 w-4" :stroke-width="2" />
                     {{ quiz.is_published ? 'Unpublish' : 'Publish' }}
                 </button>
+                <button v-if="quiz.is_published && !isClosed" @click="closeNow" class="btn-secondary" style="color: #AA3C36; border-color: #F6DEDD;">
+                    <Lock class="h-4 w-4" :stroke-width="2" />
+                    Close now
+                </button>
                 <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
                     <RefreshCw class="h-4 w-4" :stroke-width="2" />
                     Reopen
@@ -128,7 +132,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, CheckCircle2, XCircle, Users, Award, PenSquare, Eye, RotateCw, UploadCloud, RefreshCw } from '@lucide/vue';
+import { ArrowLeft, CheckCircle2, XCircle, Users, Award, PenSquare, Eye, RotateCw, UploadCloud, RefreshCw, Lock } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -210,5 +214,9 @@ function togglePublish() {
 
 function toggleReopen() {
     router.patch(`/teacher/quizzes/${props.quiz.id}/reopen`, {}, { preserveScroll: true });
+}
+
+function closeNow() {
+    router.patch(`/teacher/quizzes/${props.quiz.id}/close-now`, {}, { preserveScroll: true });
 }
 </script>

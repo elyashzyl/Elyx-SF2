@@ -46,6 +46,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::put('/quizzes/{quiz}', [QuizController::class, 'update'])->name('quizzes.update');
     Route::patch('/quizzes/{quiz}/publish', [QuizController::class, 'publish'])->name('quizzes.publish');
     Route::patch('/quizzes/{quiz}/reopen', [QuizController::class, 'reopen'])->name('quizzes.reopen');
+    Route::patch('/quizzes/{quiz}/close-now', [QuizController::class, 'closeNow'])->name('quizzes.close-now');
     Route::get('/quizzes/{quiz}/recheck/{attempt}', [QuizController::class, 'recheck'])->name('quizzes.recheck');
     Route::put('/quizzes/{quiz}/recheck/{attempt}', [QuizController::class, 'recheckUpdate'])->name('quizzes.recheck-update');
     Route::put('/quizzes/{quiz}/auto-recheck/{attempt}', [QuizController::class, 'autoRecheck'])->name('quizzes.auto-recheck');
@@ -74,6 +75,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/exams/{exam}', [ExamController::class, 'show'])->name('exams.show');
     Route::patch('/exams/{exam}/publish', [ExamController::class, 'publish'])->name('exams.publish');
     Route::patch('/exams/{exam}/reopen', [ExamController::class, 'reopen'])->name('exams.reopen');
+    Route::patch('/exams/{exam}/close-now', [ExamController::class, 'closeNow'])->name('exams.close-now');
     Route::patch('/exams/{exam}/reassign', [ExamController::class, 'reassign'])->name('exams.reassign');
     Route::delete('/exams/{exam}', [ExamController::class, 'destroy'])->name('exams.destroy');
     Route::get('/exams/{exam}/attempts', [ExamController::class, 'attempts'])->name('exams.attempts');
@@ -89,6 +91,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::put('/seatworks/{seatwork}/auto-recheck/{attempt}', [SeatworkController::class, 'autoRecheck'])->name('seatworks.auto-recheck');
     Route::patch('/seatworks/{seatwork}/publish', [SeatworkController::class, 'publish'])->name('seatworks.publish');
     Route::patch('/seatworks/{seatwork}/reopen', [SeatworkController::class, 'reopen'])->name('seatworks.reopen');
+    Route::patch('/seatworks/{seatwork}/close-now', [SeatworkController::class, 'closeNow'])->name('seatworks.close-now');
     Route::patch('/seatworks/{seatwork}/reassign', [SeatworkController::class, 'reassign'])->name('seatworks.reassign');
     Route::delete('/seatworks/{seatwork}', [SeatworkController::class, 'destroy'])->name('seatworks.destroy');
 
@@ -116,6 +119,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     })->name('profile');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
 
     Route::get('/messenger', [MessengerController::class, 'index'])->name('messenger');
     Route::get('/messenger/unread-count', [MessengerController::class, 'unreadCount'])->name('messenger.unread');
@@ -176,7 +180,6 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::post('/quizzes/{quiz}/submit', [StudentController::class, 'submit'])->name('quizzes.submit');
     Route::get('/quizzes/{attempt}/result', [StudentController::class, 'result'])->name('quizzes.result');
     Route::get('/results', [StudentController::class, 'results'])->name('results');
-    Route::get('/leaderboard', [StudentController::class, 'leaderboard'])->name('leaderboard');
     Route::get('/practicals/{practical}/take', [PracticalController::class, 'take'])->name('practicals.take');
     Route::post('/practicals/{practical}/submit', [PracticalController::class, 'submit'])->name('practicals.submit');
     Route::get('/practicals/{attempt}/result', [PracticalController::class, 'result'])->name('practicals.result');
@@ -187,6 +190,9 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::get('/exams/{attempt}/result', [ExamController::class, 'result'])->name('exams.result');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
+
+    Route::get('/leaderboard', [StudentController::class, 'leaderboard'])->name('leaderboard');
 
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Student/Profile', [

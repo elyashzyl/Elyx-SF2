@@ -7,6 +7,7 @@ use App\Models\ExamAttempt;
 use App\Models\ExamSection;
 use App\Models\GradeLevel;
 use App\Models\User;
+use App\Helpers\PointsHelper;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -193,6 +194,13 @@ class ExamController extends Controller
         return back()->with('success', 'Exam reopened. It will close in 24 hours.');
     }
 
+    public function closeNow(Exam $exam): RedirectResponse
+    {
+        $this->authorizeOwner($exam);
+        $exam->update(['closes_at' => now()->subSecond()]);
+        return back()->with('success', 'Exam closed immediately.');
+    }
+
     public function destroy(Exam $exam): RedirectResponse
     {
         $this->authorizeOwner($exam);
@@ -374,6 +382,9 @@ class ExamController extends Controller
             $autoScore = $attempt->answers()->where('is_correct', true)->sum('points_earned');
             $attempt->update(['total_score' => $autoScore + $totalPractical]);
         });
+
+        $totalScore = $autoScore + $totalPractical;
+        PointsHelper::award($attempt->student_id, 'Exam', $exam->id, $totalScore, $exam->max_score ?? 0);
 
         return back()->with('success', 'Practical scores updated.');
     }

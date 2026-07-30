@@ -387,6 +387,13 @@ class QuizController extends Controller
         return back()->with('success', 'Quiz reopened. It will close in 24 hours.');
     }
 
+    public function closeNow(Quiz $quiz): RedirectResponse
+    {
+        $this->authorizeOwner($quiz);
+        $quiz->update(['closes_at' => now()->subSecond()]);
+        return back()->with('success', 'Quiz closed immediately.');
+    }
+
     public function destroy(Quiz $quiz): RedirectResponse
     {
         $this->authorizeOwner($quiz);

@@ -24,6 +24,10 @@
                 <UploadCloud class="h-4 w-4" :stroke-width="2" />
                 {{ exam.is_published ? 'Unpublish' : 'Publish' }}
             </button>
+            <button v-if="exam.is_published && !isClosed" @click="closeNow" class="btn-secondary" style="color: #AA3C36; border-color: #F6DEDD;">
+                <Lock class="h-4 w-4" :stroke-width="2" />
+                Close now
+            </button>
             <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
                 <RefreshCw class="h-4 w-4" :stroke-width="2" />
                 Reopen
@@ -139,7 +143,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Eye, FileText, ClipboardCheck, UploadCloud, RefreshCw } from '@lucide/vue';
+import { ArrowLeft, Eye, FileText, ClipboardCheck, UploadCloud, RefreshCw, Lock } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps<{ exam: any; attempts: any[]; teachers?: any[] }>();
@@ -182,5 +186,9 @@ function togglePublish() {
 
 function toggleReopen() {
     router.patch(`/teacher/exams/${props.exam.id}/reopen`, {}, { preserveScroll: true });
+}
+
+function closeNow() {
+    router.patch(`/teacher/exams/${props.exam.id}/close-now`, {}, { preserveScroll: true });
 }
 </script>

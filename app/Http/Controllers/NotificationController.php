@@ -24,10 +24,21 @@ class NotificationController extends Controller
 
         usort($notifications, fn ($a, $b) => strtotime($b['time']) - strtotime($a['time']));
 
+        $readAt = $user->notifications_read_at;
+        $unseen = $readAt
+            ? array_filter($notifications, fn ($n) => strtotime($n['time']) > strtotime($readAt))
+            : $notifications;
+
         return response()->json([
             'notifications' => array_slice($notifications, 0, 30),
-            'count' => count($notifications),
+            'count' => count($unseen),
         ]);
+    }
+
+    public function read(): JsonResponse
+    {
+        Auth::user()->update(['notifications_read_at' => now()]);
+        return response()->json(['ok' => true]);
     }
 
     private function teacherNotifications($user): array

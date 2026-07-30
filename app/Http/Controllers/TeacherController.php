@@ -377,60 +377,10 @@ class TeacherController extends Controller
         $students = User::where('role', 'student')
             ->when($studentIds, fn ($q) => $q->whereIn('id', $studentIds))
             ->with('section:id,name', 'gradeLevel:id,name')
-            ->orderBy('name')
-            ->get(['id', 'name', 'grade', 'grade_level_id', 'section_id']);
+            ->orderByDesc('total_points')
+            ->get(['id', 'name', 'grade', 'grade_level_id', 'section_id', 'total_points']);
 
-        $studentIdList = $students->pluck('id');
-
-        $quizAgg = QuizAttempt::whereIn('student_id', $studentIdList)
-            ->where('status', 'submitted')
-            ->select('student_id', DB::raw('COALESCE(SUM(score), 0) as score'), DB::raw('COALESCE(SUM(total_points), 0) as total'))
-            ->groupBy('student_id')
-            ->get()
-            ->keyBy('student_id');
-
-        $seatworkAgg = SeatworkAttempt::whereIn('student_id', $studentIdList)
-            ->where('status', 'submitted')
-            ->select('student_id', DB::raw('COALESCE(SUM(score), 0) as score'), DB::raw('COALESCE(SUM(total_points), 0) as total'))
-            ->groupBy('student_id')
-            ->get()
-            ->keyBy('student_id');
-
-        $practicalAgg = PracticalAttempt::whereIn('student_id', $studentIdList)
-            ->where('status', 'submitted')
-            ->with('practical:id,max_score')
-            ->get()
-            ->groupBy('student_id')
-            ->map(fn ($attempts) => [
-                'score' => $attempts->sum('total_score'),
-                'total' => $attempts->sum(fn ($a) => $a->practical?->max_score ?? 0),
-            ]);
-
-        $examAgg = ExamAttempt::whereIn('student_id', $studentIdList)
-            ->where('status', 'submitted')
-            ->with('exam:id,max_score')
-            ->get()
-            ->groupBy('student_id')
-            ->map(fn ($attempts) => [
-                'score' => $attempts->sum('total_score'),
-                'total' => $attempts->sum(fn ($a) => $a->exam?->max_score ?? 0),
-            ]);
-
-        $entries = $students->map(function ($student) use ($quizAgg, $seatworkAgg, $practicalAgg, $examAgg) {
-            $quiz = $quizAgg->get($student->id);
-            $seatwork = $seatworkAgg->get($student->id);
-            $practical = $practicalAgg->get($student->id);
-            $exam = $examAgg->get($student->id);
-
-            $quizPct = $quiz && $quiz->total > 0 ? round(($quiz->score / $quiz->total) * 100) : null;
-            $seatworkPct = $seatwork && $seatwork->total > 0 ? round(($seatwork->score / $seatwork->total) * 100) : null;
-            $practicalPct = $practical && $practical['total'] > 0 ? round(($practical['score'] / $practical['total']) * 100) : null;
-            $examPct = $exam && $exam['total'] > 0 ? round(($exam['score'] / $exam['total']) * 100) : null;
-
-            $allScore = ($quiz?->score ?? 0) + ($seatwork?->score ?? 0) + ($practical['score'] ?? 0) + ($exam['score'] ?? 0);
-            $allTotal = ($quiz?->total ?? 0) + ($seatwork?->total ?? 0) + ($practical['total'] ?? 0) + ($exam['total'] ?? 0);
-            $overall = $allTotal > 0 ? round(($allScore / $allTotal) * 100) : null;
-
+        $entries = $students->map(function ($student) {
             return [
                 'id' => $student->id,
                 'name' => $student->name,
@@ -439,16 +389,12 @@ class TeacherController extends Controller
                 'section_name' => $student->section?->name,
                 'section_id' => $student->section_id,
                 'grade_level_id' => $student->grade_level_id,
-                'quiz' => ['pct' => $quizPct, 'score' => $quiz?->score ?? 0, 'total' => $quiz?->total ?? 0],
-                'seatwork' => ['pct' => $seatworkPct, 'score' => $seatwork?->score ?? 0, 'total' => $seatwork?->total ?? 0],
-                'practical' => ['pct' => $practicalPct, 'score' => $practical['score'] ?? 0, 'total' => $practical['total'] ?? 0],
-                'exam' => ['pct' => $examPct, 'score' => $exam['score'] ?? 0, 'total' => $exam['total'] ?? 0],
-                'overall' => $overall,
+                'total_points' => (int) $student->total_points,
             ];
         });
 
         $groups = $entries->groupBy('section_id')->map(function ($sectionEntries, $sectionId) {
-            $sorted = $sectionEntries->sortByDesc('overall')->values();
+            $sorted = $sectionEntries->sortByDesc('total_points')->values();
             return [
                 'section_id' => (int) $sectionId,
                 'section_name' => $sorted->first()['section_name'] ?? 'Unknown',
@@ -468,7 +414,7 @@ class TeacherController extends Controller
             ->values();
 
         return Inertia::render('Teacher/Leaderboard', [
-            'entries' => $entries->sortByDesc('overall')->values(),
+            'entries' => $entries->sortByDesc('total_points')->values(),
             'groups' => $groups,
             'sections' => $sections,
             'gradeLevels' => $gradeLevels,

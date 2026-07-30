@@ -1,79 +1,64 @@
 <template>
     <Head title="Leaderboard" />
 
-    <div class="mb-6">
-        <h2 class="text-lg font-semibold" style="color: #1B2231">Leaderboard</h2>
-        <p class="text-sm" style="color: #5A6376">Student rankings per section based on overall performance.</p>
+    <div class="mb-6 gl-fade-in">
+        <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Leaderboard</h2>
+        <p class="text-sm mt-1" style="color: var(--gl-text-secondary)">Student rankings per section based on accumulated points.</p>
     </div>
 
-    <div class="mb-4 flex items-center gap-4">
-        <select v-model="gradeFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+    <div class="mb-6 flex items-center gap-4">
+        <select v-model="gradeFilter"
+            class="rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+            style="background: var(--gl-surface-2); border: 1px solid var(--gl-border); color: var(--gl-text-primary);">
             <option value="">All grade levels</option>
             <option v-for="g in gradeLevels" :key="g.id" :value="g.id">{{ g.name }}</option>
         </select>
-        <select v-model="sectionFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+        <select v-model="sectionFilter"
+            class="rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+            style="background: var(--gl-surface-2); border: 1px solid var(--gl-border); color: var(--gl-text-primary);">
             <option value="">All sections</option>
             <option v-for="s in filteredSections" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
     </div>
 
     <div v-if="!filteredGroups.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
-            <Trophy class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style="background: var(--gl-surface-2);">
+            <Trophy class="h-6 w-6" :stroke-width="1.75" style="color: var(--gl-text-muted)" />
         </div>
-        <p class="text-sm font-medium" style="color: #404A5C">No students found</p>
-        <p class="mt-1 text-sm" style="color: #7C8598">No students match your filter selection.</p>
+        <p class="text-sm font-medium" style="color: var(--gl-text-secondary)">No students found</p>
+        <p class="mt-1 text-sm" style="color: var(--gl-text-muted)">No students match your filter selection.</p>
     </div>
 
-    <div v-for="group in filteredGroups" :key="group.section_id" class="card mb-6 overflow-hidden last:mb-0">
-        <div class="border-b border-[#E9EBEF] px-6 py-3">
-            <h3 class="text-base font-semibold" style="color: #1B2231">{{ group.section_name || 'Unknown Section' }}</h3>
-            <p v-if="group.grade_level_name" class="text-xs" style="color: #7C8598">{{ group.grade_level_name }}</p>
+    <div v-for="group in filteredGroups" :key="group.section_id" class="gl-glow-card mb-6 overflow-hidden last:mb-0">
+        <div class="px-6 py-4 border-b" style="border-color: var(--gl-border);">
+            <h3 class="text-base font-semibold" style="color: var(--gl-text-primary)">{{ group.section_name || 'Unknown Section' }}</h3>
+            <p v-if="group.grade_level_name" class="text-xs mt-0.5" style="color: var(--gl-text-muted)">{{ group.grade_level_name }}</p>
         </div>
         <table class="w-full text-sm">
             <thead>
-                <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
+                <tr style="color: var(--gl-text-muted); border-bottom: 1px solid var(--gl-border);">
                     <th class="px-6 py-3 font-medium w-12">#</th>
                     <th class="px-6 py-3 font-medium">Student</th>
-                    <th class="px-6 py-3 font-medium text-center">Quiz</th>
-                    <th class="px-6 py-3 font-medium text-center">Seatwork</th>
-                    <th class="px-6 py-3 font-medium text-center">Practical</th>
-                    <th class="px-6 py-3 font-medium text-center">Exam</th>
-                    <th class="px-6 py-3 font-medium text-center">Overall</th>
+                    <th class="px-6 py-3 font-medium text-center">Points</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-[#E9EBEF]">
-                <tr v-for="(e, i) in group.entries" :key="e.id" class="hover:bg-[#F9FAFB]" :class="topRowClass(i)">
+            <tbody class="divide-y" style="border-color: var(--gl-border);">
+                <tr v-for="(e, i) in group.entries" :key="e.id" class="transition-colors hover:bg-[rgba(59,130,246,0.03)]"
+                    :class="topRowClass(i)">
                     <td class="px-6 py-3">
                         <div v-if="i < 3" class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
                             :class="medalClass(i)">
                             <component :is="medalIcon(i)" class="h-4 w-4" :stroke-width="2.5" />
                         </div>
-                        <span v-else class="text-sm font-medium" style="color: #7C8598">{{ e.rank }}</span>
+                        <span v-else class="text-sm font-medium" style="color: var(--gl-text-muted)">{{ e.rank }}</span>
                     </td>
                     <td class="px-6 py-3">
-                        <p class="font-medium" style="color: #1B2231">{{ e.name }}</p>
-                    </td>
-                    <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.quiz.pct" />
-                        <div v-if="e.quiz.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.quiz.score }}/{{ e.quiz.total }}</div>
-                    </td>
-                    <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.seatwork.pct" />
-                        <div v-if="e.seatwork.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.seatwork.score }}/{{ e.seatwork.total }}</div>
-                    </td>
-                    <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.practical.pct" />
-                        <div v-if="e.practical.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.practical.score }}/{{ e.practical.total }}</div>
-                    </td>
-                    <td class="px-6 py-3 text-center">
-                        <PctBadge :value="e.exam.pct" />
-                        <div v-if="e.exam.pct !== null" class="mt-0.5 text-xs" style="color: #7C8598">{{ e.exam.score }}/{{ e.exam.total }}</div>
+                        <p class="font-medium" style="color: var(--gl-text-primary)">{{ e.name }}</p>
                     </td>
                     <td class="px-6 py-3 text-center">
                         <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold"
-                            :class="overallClass(e.overall)">
-                            {{ e.overall ?? '—' }}<template v-if="e.overall !== null">%</template>
+                            style="background: var(--gl-success-bg); color: var(--gl-success);">
+                            {{ e.total_points }} pts
                         </span>
                     </td>
                 </tr>
@@ -86,7 +71,6 @@
 import { Head } from '@inertiajs/vue3';
 import { Trophy, Medal, Award } from '@lucide/vue';
 import { computed, ref } from 'vue';
-import PctBadge from '@/components/PctBadge.vue';
 
 const props = defineProps<{ entries: any[]; groups: any[]; sections: any[]; gradeLevels: any[] }>();
 
@@ -112,20 +96,13 @@ function medalIcon(i: number) {
 
 function medalClass(i: number) {
     return [
-        'bg-[#F5EBD8] text-[#A5701A]',
-        'bg-[#E9EBEF] text-[#5A6376]',
-        'bg-[#F6DEDD] text-[#AA3C36]',
-    ][i] ?? 'bg-[#E9EBEF] text-[#5A6376]';
+        'bg-[rgba(251,191,36,0.15)] text-[#FBBF24]',
+        'bg-[var(--gl-surface-2)] text-[var(--gl-text-secondary)]',
+        'bg-[rgba(239,68,68,0.15)] text-[#EF4444]',
+    ][i] ?? 'bg-[var(--gl-surface-2)] text-[var(--gl-text-secondary)]';
 }
 
 function topRowClass(i: number) {
-    return i < 3 ? 'bg-[#FBFBFB]' : '';
-}
-
-function overallClass(pct: number | null) {
-    if (pct === null) return 'bg-[#E9EBEF] text-[#7C8598]';
-    if (pct >= 80) return 'bg-[#DCEEE3] text-[#2F7A54]';
-    if (pct >= 60) return 'bg-[#FFF3D6] text-[#A5701A]';
-    return 'bg-[#F6DEDD] text-[#AA3C36]';
+    return i < 3 ? '' : '';
 }
 </script>

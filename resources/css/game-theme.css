@@ -1,0 +1,296 @@
+/* ═══════════════════════════════════════════════════════════════
+   Game LMS Theme — Light & Dark (no functionality changes)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Light defaults ──────────────────────────────────────────── */
+:root {
+  --gl-bg: #F4F5F7;
+  --gl-surface: #FFFFFF;
+  --gl-surface-2: #F5F6F8;
+  --gl-surface-3: #E9EBEF;
+  --gl-border: #E9EBEF;
+  --gl-border-hover: #D2D6DE;
+  --gl-text-primary: #1B2231;
+  --gl-text-secondary: #5A6376;
+  --gl-text-muted: #7C8598;
+  --gl-primary: #3B82F6;
+  --gl-primary-glow: rgba(59, 130, 246, 0.15);
+  --gl-secondary: #7C3AED;
+  --gl-secondary-glow: rgba(124, 58, 237, 0.15);
+  --gl-accent: #F59E0B;
+  --gl-accent-glow: rgba(245, 158, 11, 0.15);
+  --gl-success: #10B981;
+  --gl-success-bg: rgba(16, 185, 129, 0.1);
+  --gl-danger: #EF4444;
+  --gl-danger-bg: rgba(239, 68, 68, 0.1);
+  --gl-warning-bg: rgba(245, 158, 11, 0.1);
+  --gl-header-bg: rgba(255, 255, 255, 0.8);
+  --gl-sidebar-bg: #FFFFFF;
+  --gl-sidebar-gradient: none;
+  --gl-brand-bg: #1D3557;
+  --gl-msg-received-bg: #FFFFFF;
+  --gl-msg-area-bg: #F0F2F5;
+  --gl-card-radius: 16px;
+  --gl-sidebar-w: 260px;
+  --gl-header-h: 64px;
+}
+
+/* ── Dark overrides ──────────────────────────────────────────── */
+.dark-mode {
+  --gl-bg: #0F172A;
+  --gl-surface: #1E293B;
+  --gl-surface-2: #263348;
+  --gl-surface-3: #2D3B52;
+  --gl-border: rgba(148, 163, 184, 0.1);
+  --gl-border-hover: rgba(148, 163, 184, 0.2);
+  --gl-text-primary: #F8FAFC;
+  --gl-text-secondary: #94A3B8;
+  --gl-text-muted: #64748B;
+  --gl-primary-glow: rgba(59, 130, 246, 0.25);
+  --gl-secondary-glow: rgba(124, 58, 237, 0.25);
+  --gl-accent: #FBBF24;
+  --gl-accent-glow: rgba(251, 191, 36, 0.25);
+  --gl-success-bg: rgba(16, 185, 129, 0.12);
+  --gl-danger-bg: rgba(239, 68, 68, 0.12);
+  --gl-warning-bg: rgba(251, 191, 36, 0.12);
+  --gl-header-bg: rgba(30, 41, 59, 0.8);
+  --gl-sidebar-bg: linear-gradient(180deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
+  --gl-sidebar-gradient: linear-gradient(180deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
+  --gl-brand-bg: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary));
+  --gl-msg-received-bg: var(--gl-surface-2);
+  --gl-msg-area-bg: var(--gl-bg);
+  background-color: var(--gl-bg) !important;
+  color: var(--gl-text-primary);
+}
+
+/* ── Base Overrides (dark only) ──────────────────────────── */
+.dark-mode body,
+.dark-mode .min-h-screen,
+.dark-mode [style*="position: fixed"][style*="top: 64px"] {
+  background-color: var(--gl-bg) !important;
+}
+
+/* Messenger-specific: left panel and message area backgrounds */
+.dark-mode [style*="position: fixed"] [style*="background-color: #F0F2F5"],
+.dark-mode [style*="background-color: #F0F2F5"] {
+  background-color: var(--gl-surface) !important;
+}
+
+/* Messenger conversation list item hover */
+.dark-mode [style*="position: fixed"] [class*="hover:bg-\\[\\#F0F2F5\\]"]:hover {
+  background-color: var(--gl-surface-2) !important;
+}
+
+/* Override hardcoded white backgrounds inside fixed pages */
+.dark-mode [style*="position: fixed"] div[style*="background-color: #FFFFFF"],
+.dark-mode [style*="position: fixed"] [style*="background-color: #FFFFFF"] {
+  background-color: var(--gl-bg) !important;
+}
+
+/* ── Sidebar (dark) ──────────────────────────────────────── */
+.dark-mode aside [class*="border-b"],
+.dark-mode aside [class*="border-r"],
+.dark-mode aside [class*="border-t"] {
+  border-color: var(--gl-border) !important;
+}
+.dark-mode aside [class*="h-9"] {
+  box-shadow: 0 0 20px var(--gl-primary-glow);
+}
+.dark-mode aside nav a { color: var(--gl-text-secondary) !important; }
+.dark-mode aside nav a:hover { background: rgba(59, 130, 246, 0.08) !important; color: var(--gl-text-primary) !important; }
+.dark-mode aside nav a:where(.nav-active) {
+  background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(124,58,237,0.1)) !important;
+  color: var(--gl-text-primary) !important;
+  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.2);
+}
+.dark-mode aside [class*="border-t"] > div {
+  background: var(--gl-surface-2) !important;
+}
+.dark-mode aside [class*="border-t"] [class*="rounded-full"] {
+  background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)) !important;
+  color: white !important;
+}
+
+/* ── Background & text overrides (dark) ──────────────────── */
+.dark-mode { background-color: var(--gl-bg) !important; color: var(--gl-text-primary); }
+.dark-mode * { border-color: var(--gl-border); }
+.dark-mode .card { background: var(--gl-surface) !important; border-color: var(--gl-border) !important; }
+.dark-mode .card [class*="border-b"],
+.dark-mode .card [class*="border-t"] { border-color: var(--gl-border) !important; }
+
+/* Catch ALL inline light backgrounds - hex and rgb */
+.dark-mode [style*="#FFFFFF"], .dark-mode [style*="background: #FFF"],
+.dark-mode [style*="background-color: rgb(255"] { background-color: var(--gl-surface) !important; }
+.dark-mode [style*="#F4F5F7"], .dark-mode [style*="#F9FAFB"] { background-color: var(--gl-bg) !important; }
+.dark-mode [style*="#F0F2F5"], .dark-mode [style*="#F5F6F8"] { background-color: var(--gl-surface-2) !important; }
+.dark-mode [style*="#E4E6EB"], .dark-mode [style*="#E9EBEF"] { background-color: var(--gl-surface-3) !important; }
+.dark-mode [style*="#1B74E4"] { background-color: var(--gl-primary) !important; }
+
+/* Catch ALL inline dark text */
+.dark-mode [style*="color: #1B2231"], .dark-mode [style*="color: #1D3557"],
+.dark-mode [style*="color: #404A5C"], .dark-mode [style*="color: #2B3444"] {
+  color: var(--gl-text-primary) !important;
+}
+.dark-mode [style*="color: #5A6376"] { color: var(--gl-text-secondary) !important; }
+.dark-mode [style*="color: #7C8598"], .dark-mode [style*="color: #AEB4C0"],
+.dark-mode [style*="color: #8A8D91"] { color: var(--gl-text-muted) !important; }
+
+/* Catch Tailwind bg-* classes */
+.dark-mode [class*="bg-white"] { background-color: var(--gl-surface) !important; }
+.dark-mode [class*="bg-\\[\\#FFFFFF\\]"] { background-color: var(--gl-surface) !important; }
+.dark-mode [class*="bg-\\[\\#F0F2F5\\]"] { background-color: var(--gl-surface-2) !important; }
+.dark-mode [class*="bg-\\[\\#E4E6EB\\]"] { background-color: var(--gl-surface-3) !important; }
+.dark-mode [class*="bg-\\[\\#E7F3FF\\]"] { background-color: rgba(59,130,246,0.1) !important; }
+
+/* Catch Tailwind text-* classes */
+.dark-mode [class*="text-\\[\\#1B2231\\]"],
+.dark-mode [class*="text-\\[\\#1D3557\\]"] { color: var(--gl-text-primary) !important; }
+.dark-mode [class*="text-\\[\\#7C8598\\]"],
+.dark-mode [class*="text-\\[\\#8A8D91\\]"],
+.dark-mode [class*="text-\\[\\#AEB4C0\\]"] { color: var(--gl-text-muted) !important; }
+
+/* Catch Tailwind hover variants */
+.dark-mode [class*="hover:bg-\\[\\#F0F2F5\\]"]:hover { background-color: var(--gl-surface-2) !important; }
+.dark-mode [class*="hover:bg-\\[\\#F9FAFB\\]"]:hover,
+.dark-mode [class*="hover:bg-\\[\\#F5F6F8\\]"]:hover { background-color: rgba(59,130,246,0.04) !important; }
+
+/* Border overrides */
+.dark-mode [style*="border-color: #E4E6EB"],
+.dark-mode [style*="border-color: #E9EBEF"],
+.dark-mode [class*="border-\\[\\#E4E6EB\\]"],
+.dark-mode [class*="border-\\[\\#E9EBEF\\]"] { border-color: var(--gl-border) !important; }
+
+/* modal and button overrides */
+.dark-mode [class*="border-white"] { border-color: var(--gl-bg) !important; }
+.dark-mode input::placeholder,
+.dark-mode textarea::placeholder { color: var(--gl-text-muted) !important; }
+
+/* Quiz take page: selected answer and timer */
+.dark-mode [class*="border-[#1D3557]"][class*="bg-[#EEF2F7]"] {
+  border-color: var(--gl-primary) !important;
+  background: rgba(59,130,246,0.1) !important;
+}
+.dark-mode [class*="border-[#D2D6DE]"]:not([class*="bg-"]) {
+  border-color: var(--gl-border) !important;
+}
+.dark-mode [style*="background-color: #FFF8E1"] {
+  background: var(--gl-warning-bg) !important;
+  color: var(--gl-accent) !important;
+}
+.dark-mode [style*="color: #8D6E00"] {
+  color: var(--gl-accent) !important;
+}
+.dark-mode input[type="radio"] {
+  accent-color: var(--gl-primary);
+}
+
+/* ── PctBadge overrides (dark) ──────────────────────────── */
+.dark-mode [class*="bg-[#DCEEE3]"] { background: var(--gl-success-bg) !important; color: var(--gl-success) !important; }
+.dark-mode [class*="bg-[#FFF3D6]"] { background: var(--gl-warning-bg) !important; color: var(--gl-accent) !important; }
+.dark-mode [class*="bg-[#F6DEDD]"] { background: var(--gl-danger-bg) !important; color: var(--gl-danger) !important; }
+.dark-mode [class*="bg-[#EEF2F7]"] { background: var(--gl-surface-2) !important; color: var(--gl-text-primary) !important; }
+
+/* ── Table overrides (dark) ─────────────────────────────── */
+.dark-mode table thead th { color: var(--gl-text-muted) !important; font-weight: 500; }
+.dark-mode table thead tr { border-color: var(--gl-border) !important; background: var(--gl-surface-2) !important; }
+.dark-mode table tbody tr { border-color: var(--gl-border) !important; }
+.dark-mode table tbody tr:hover { background: rgba(59,130,246,0.04) !important; }
+.dark-mode table tbody td p { color: var(--gl-text-primary) !important; }
+.dark-mode table tbody td { color: var(--gl-text-secondary); }
+.dark-mode [class*="divide-y"] > * { border-color: var(--gl-border) !important; }
+.dark-mode [class*="border-[#E9EBEF]"],
+.dark-mode [class*="border-[#E4E6EB]"] { border-color: var(--gl-border) !important; }
+
+/* ── Inputs (dark) ──────────────────────────────────────── */
+.dark-mode select { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+.dark-mode select option { background: var(--gl-surface) !important; color: var(--gl-text-primary); }
+.dark-mode input[type="text"],
+.dark-mode input[type="search"],
+.dark-mode textarea { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+
+/* ── Buttons (dark) ─────────────────────────────────────── */
+.dark-mode [style*="background-color: #1D3557"] { background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)) !important; }
+.dark-mode .btn-primary { background: linear-gradient(135deg, var(--gl-primary), #2563EB) !important; border: none; box-shadow: 0 0 12px var(--gl-primary-glow); }
+.dark-mode .btn-secondary { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+
+/* ── Notification (dark) ───────────────────────────────── */
+.dark-mode [class*="z-50"][class*="rounded-2xl"] {
+  background: var(--gl-surface) !important;
+  border-color: var(--gl-border) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+}
+
+/* ── Messenger unread badge (dark) ─────────────────────── */
+.dark-mode span[style*="background-color: #AA3C36"] { background: var(--gl-danger) !important; }
+
+/* ── Medal styles (dark) ───────────────────────────────── */
+.dark-mode [class*="bg-[#F5EBD8]"] { background: var(--gl-accent-glow) !important; color: var(--gl-accent) !important; }
+
+/* ── Fixed pages dark overrides ─────────────────────────── */
+.dark-mode .fixed {
+  background-color: var(--gl-bg) !important;
+}
+
+/* ── Delete modal (dark) ────────────────────────────────── */
+.dark-mode [class*="fixed"][class*="bg-black/40"] + *,
+.dark-mode [class*="bg-black/40"] { background: rgba(0,0,0,0.5) !important; }
+.dark-mode [class*="rounded-xl"][class*="bg-white"] { background: var(--gl-surface) !important; }
+.dark-mode [style*="background-color: #FDE8E8"] { background: var(--gl-danger-bg) !important; }
+
+/* ════════════════════════════════════════════════════════════════
+   Gamified Elements (both modes)
+   ════════════════════════════════════════════════════════════════ */
+.gl-xp-bar {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--gl-surface-3);
+  overflow: hidden;
+}
+.gl-xp-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--gl-primary), var(--gl-secondary));
+  transition: width 0.8s ease;
+  box-shadow: 0 0 8px var(--gl-primary-glow);
+}
+.gl-glow-card {
+  position: relative;
+  background: var(--gl-surface);
+  border-radius: var(--gl-card-radius);
+  border: 1px solid var(--gl-border);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.dark-mode .gl-glow-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.3);
+  border-color: var(--gl-border);
+}
+.gl-glow-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(59,130,246,0.1);
+}
+.gl-stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.gl-stat-icon.blue  { background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05)); }
+.gl-stat-icon.purple { background: linear-gradient(135deg, rgba(124,58,237,0.15), rgba(124,58,237,0.05)); }
+.gl-stat-icon.gold   { background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05)); }
+.gl-stat-icon.green  { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); }
+
+/* ── Animations ─────────────────────────────────────────── */
+@keyframes gl-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.gl-fade-in { animation: gl-fade-in 0.3s ease both; }
+@keyframes gl-pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--gl-primary-glow); }
+  50% { box-shadow: 0 0 16px var(--gl-primary-glow), 0 0 24px var(--gl-primary-glow); }
+}
+.gl-pulse-glow { animation: gl-pulse-glow 2s ease-in-out infinite; }
