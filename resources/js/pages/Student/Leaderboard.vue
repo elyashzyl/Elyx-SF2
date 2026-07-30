@@ -1,12 +1,14 @@
 <template>
     <Head title="Leaderboard" />
 
-    <div class="mb-6">
-        <h2 class="text-lg font-semibold" style="color: #1B2231">Leaderboard</h2>
-        <p class="text-sm" style="color: #5A6376">{{ sectionName }} rankings based on overall performance.</p>
-    </div>
+    <div class="fixed" style="top: 64px; left: 16rem; right: 0; bottom: 0; background-color: #F4F5F7; overflow-y: auto;">
+        <div class="px-6 py-6" style="max-width: 80rem;">
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold" style="color: #1B2231">Leaderboard</h2>
+                <p class="text-sm" style="color: #5A6376">{{ sectionName }} rankings based on overall performance.</p>
+            </div>
 
-    <div v-if="!entries.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
+            <div v-if="!entries.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
         <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
             <Trophy class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
         </div>
@@ -64,6 +66,8 @@
                 </tr>
             </tbody>
         </table>
+    </div>
+        </div>
     </div>
 </template>
 
