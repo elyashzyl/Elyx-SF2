@@ -220,6 +220,21 @@ class PracticalController extends Controller
         return back()->with('success', 'Practical reopened. It will close in 24 hours.');
     }
 
+    public function closeNow(Practical $practical): RedirectResponse
+    {
+        $this->authorizeOwner($practical);
+        $practical->update(['closes_at' => now()->subSecond()]);
+        return back()->with('success', 'Practical closed immediately.');
+    }
+
+    public function closeAttempt(Practical $practical, PracticalAttempt $attempt): RedirectResponse
+    {
+        $this->authorizeOwner($practical);
+        abort_if($attempt->practical_id !== $practical->id, 404);
+        $attempt->update(['closed_at' => now()]);
+        return back()->with('success', 'Attempt closed for this student.');
+    }
+
     public function destroy(Practical $practical): RedirectResponse
     {
         $this->authorizeOwner($practical);

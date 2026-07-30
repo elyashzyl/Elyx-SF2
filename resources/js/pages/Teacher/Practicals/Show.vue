@@ -24,6 +24,10 @@
                 <UploadCloud class="h-4 w-4" :stroke-width="2" />
                 {{ practical.is_published ? 'Unpublish' : 'Publish' }}
             </button>
+            <button v-if="practical.is_published && !isClosed" @click="closeNow" class="btn-secondary" style="color: #AA3C36; border-color: #F6DEDD;">
+                <Lock class="h-4 w-4" :stroke-width="2" />
+                Close now
+            </button>
             <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
                 <RefreshCw class="h-4 w-4" :stroke-width="2" />
                 Reopen
@@ -134,6 +138,9 @@
                                 <Link :href="`/teacher/practicals/${practical.id}/recheck/${a.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Recheck">
                                     <RefreshCw class="h-3.5 w-3.5" :stroke-width="2" />
                                 </Link>
+                                <button v-if="a.status === 'submitted' && !a.closed_at" @click="closeAttempt(a)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] hover:text-[#AA3C36] inline-block" style="color: #AEB4C0" title="Close for student">
+                                    <Lock class="h-3.5 w-3.5" :stroke-width="2" />
+                                </button>
                                 <button @click="confirmDelete(a)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] hover:text-[#AA3C36] inline-block" style="color: #AEB4C0" title="Delete attempt">
                                     <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
                                 </button>
@@ -183,7 +190,7 @@
 import { computed, ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { ArrowLeft, Pencil, ClipboardCheck, RefreshCw, Trash2, UploadCloud, X } from '@lucide/vue';
+import { ArrowLeft, Pencil, ClipboardCheck, Lock, RefreshCw, Trash2, UploadCloud, X } from '@lucide/vue';
 
 const previewImg = ref<string | null>(null);
 const deleting = ref<any | null>(null);
@@ -278,6 +285,14 @@ function togglePublish() {
 
 function toggleReopen() {
     router.patch(`/teacher/practicals/${props.practical.id}/reopen`, {}, { preserveScroll: true });
+}
+
+function closeNow() {
+    router.patch(`/teacher/practicals/${props.practical.id}/close-now`, {}, { preserveScroll: true });
+}
+
+function closeAttempt(a: any) {
+    router.patch(`/teacher/practicals/${props.practical.id}/close-attempt/${a.id}`, {}, { preserveScroll: true });
 }
 
 function confirmDestroy() {

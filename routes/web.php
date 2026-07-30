@@ -63,6 +63,8 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/practicals/{practical}', [PracticalController::class, 'show'])->name('practicals.show');
     Route::patch('/practicals/{practical}/publish', [PracticalController::class, 'publish'])->name('practicals.publish');
     Route::patch('/practicals/{practical}/reopen', [PracticalController::class, 'reopen'])->name('practicals.reopen');
+    Route::patch('/practicals/{practical}/close-now', [PracticalController::class, 'closeNow'])->name('practicals.close-now');
+    Route::patch('/practicals/{practical}/close-attempt/{attempt}', [PracticalController::class, 'closeAttempt'])->name('practicals.close-attempt');
     Route::patch('/practicals/{practical}/reassign', [PracticalController::class, 'reassign'])->name('practicals.reassign');
     Route::delete('/practicals/{practical}', [PracticalController::class, 'destroy'])->name('practicals.destroy');
     Route::delete('/practicals/{practical}/attempt/{attempt}', [PracticalController::class, 'destroyAttempt'])->name('practicals.destroy-attempt');
