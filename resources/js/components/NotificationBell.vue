@@ -7,37 +7,35 @@
             </span>
         </button>
 
-        <Teleport to="body">
-            <div v-if="open" class="fixed inset-0 z-40" @click="close"></div>
-            <div v-if="open" class="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-[#E9EBEF] bg-white shadow-xl" style="right: 0">
-                <div class="border-b border-[#E9EBEF] px-4 py-3">
-                    <p class="text-sm font-semibold" style="color: #1B2231">Notifications</p>
+        <div v-if="open" class="fixed inset-0 z-40" @click="close"></div>
+        <div v-if="open" class="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-[#E9EBEF] bg-white shadow-xl" style="right: 0">
+            <div class="border-b border-[#E9EBEF] px-4 py-3">
+                <p class="text-sm font-semibold" style="color: #1B2231">Notifications</p>
+            </div>
+
+            <div class="max-h-80 overflow-y-auto">
+                <div v-if="loading" class="flex items-center justify-center py-8">
+                    <div class="h-5 w-5 animate-spin rounded-full border-2 border-[#D2D6DE] border-t-[#1D3557]"></div>
                 </div>
 
-                <div class="max-h-80 overflow-y-auto">
-                    <div v-if="loading" class="flex items-center justify-center py-8">
-                        <div class="h-5 w-5 animate-spin rounded-full border-2 border-[#D2D6DE] border-t-[#1D3557]"></div>
-                    </div>
+                <template v-else-if="notifications.length">
+                    <Link v-for="n in notifications" :key="n.id" :href="n.link" @click="close"
+                        class="flex flex-col gap-0.5 border-b border-[#E9EBEF] px-4 py-3 transition-colors hover:bg-[#F9FAFB] last:border-b-0">
+                        <div class="flex items-center gap-2">
+                            <component :is="iconMap[n.type] || Bell" class="h-3.5 w-3.5 shrink-0" style="color: #7C8598" :stroke-width="2" />
+                            <p class="text-sm font-medium leading-tight" style="color: #1B2231">{{ n.title }}</p>
+                        </div>
+                        <p class="pl-5.5 text-xs leading-tight" style="color: #5A6376">{{ n.body }}</p>
+                        <p class="pl-5.5 text-[10px]" style="color: #AEB4C0">{{ timeAgo(n.time) }}</p>
+                    </Link>
+                </template>
 
-                    <template v-else-if="notifications.length">
-                        <Link v-for="n in notifications" :key="n.id" :href="n.link" @click="close"
-                            class="flex flex-col gap-0.5 border-b border-[#E9EBEF] px-4 py-3 transition-colors hover:bg-[#F9FAFB] last:border-b-0">
-                            <div class="flex items-center gap-2">
-                                <component :is="iconMap[n.type] || Bell" class="h-3.5 w-3.5 shrink-0" style="color: #7C8598" :stroke-width="2" />
-                                <p class="text-sm font-medium leading-tight" style="color: #1B2231">{{ n.title }}</p>
-                            </div>
-                            <p class="pl-5.5 text-xs leading-tight" style="color: #5A6376">{{ n.body }}</p>
-                            <p class="pl-5.5 text-[10px]" style="color: #AEB4C0">{{ timeAgo(n.time) }}</p>
-                        </Link>
-                    </template>
-
-                    <div v-else class="py-8 text-center">
-                        <Bell class="mx-auto mb-2 h-6 w-6" style="color: #D2D6DE" :stroke-width="2" />
-                        <p class="text-sm" style="color: #7C8598">No notifications</p>
-                    </div>
+                <div v-else class="py-8 text-center">
+                    <Bell class="mx-auto mb-2 h-6 w-6" style="color: #D2D6DE" :stroke-width="2" />
+                    <p class="text-sm" style="color: #7C8598">No notifications</p>
                 </div>
             </div>
-        </Teleport>
+        </div>
     </div>
 </template>
 
