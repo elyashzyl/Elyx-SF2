@@ -116,6 +116,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 
     Route::get('/messenger', [MessengerController::class, 'index'])->name('messenger');
+    Route::get('/messenger/unread-count', [MessengerController::class, 'unreadCount'])->name('messenger.unread');
     Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
     Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
     Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
@@ -191,6 +192,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     })->name('profile');
 
     Route::get('/messenger', [MessengerController::class, 'index'])->name('messenger');
+    Route::get('/messenger/unread-count', [MessengerController::class, 'unreadCount'])->name('messenger.unread');
     Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
     Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
     Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');

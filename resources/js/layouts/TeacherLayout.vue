@@ -14,7 +14,8 @@
             <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
                 <Link v-for="link in nav" :key="link.name" :href="link.href" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors" :class="link.active ? 'bg-[#EEF2F7] text-[#1D3557]' : 'text-[#5A6376] hover:bg-[#F5F6F8] hover:text-[#2B3444]'">
                     <component :is="link.icon" :size="18" :stroke-width="2" />
-                    {{ link.name }}
+                    <span class="flex-1">{{ link.name }}</span>
+                    <span v-if="link.name === 'Messenger' && messengerUnread > 0" class="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none text-white" style="background-color: #AA3C36;">{{ messengerUnread }}</span>
                 </Link>
             </nav>
 
@@ -64,7 +65,7 @@
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck, UserCheck, MessageCircle } from '@lucide/vue';
 import NotificationBell from '@/components/NotificationBell.vue';
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const page = usePage();
 const user = page.props.auth.user;
@@ -72,6 +73,28 @@ const path = computed(() => usePage().url);
 const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
 
 const isSuperadmin = user.role === 'superadmin';
+
+const messengerUnread = ref(0);
+let messengerTimer: ReturnType<typeof setInterval> | null = null;
+
+async function fetchMessengerUnread() {
+    try {
+        const res = await fetch('/teacher/messenger/unread-count');
+        if (res.ok) {
+            const data = await res.json();
+            messengerUnread.value = data.count;
+        }
+    } catch { /* silent */ }
+}
+
+onMounted(() => {
+    fetchMessengerUnread();
+    messengerTimer = setInterval(fetchMessengerUnread, 5000);
+});
+
+onUnmounted(() => {
+    if (messengerTimer) clearInterval(messengerTimer);
+});
 
 const nav = computed(() => [
     { name: 'Dashboard', href: '/teacher/dashboard', icon: LayoutDashboard, active: path.value === '/teacher/dashboard' },

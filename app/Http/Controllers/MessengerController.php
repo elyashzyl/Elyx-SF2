@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -170,5 +171,23 @@ class MessengerController extends Controller
         $conversation->participants()->updateExistingPivot($user->id, ['last_read_at' => now()]);
 
         return response()->json(['messages' => $messages]);
+    }
+
+    public function unreadCount(): JsonResponse
+    {
+        $user = Auth::user();
+
+        $count = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
+            ->with(['participants:id,name,role', 'lastMessage'])
+            ->get()
+            ->filter(function ($c) use ($user) {
+                $pivot = $c->participants->firstWhere('id', $user->id)?->pivot;
+                if (!$pivot->last_read_at) return true;
+                $lastMsg = $c->lastMessage;
+                return $lastMsg && $lastMsg->created_at->gt($pivot->last_read_at);
+            })
+            ->count();
+
+        return response()->json(['count' => $count]);
     }
 }
