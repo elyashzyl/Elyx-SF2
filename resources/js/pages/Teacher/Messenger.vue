@@ -1,12 +1,13 @@
 <template>
     <Head title="Messenger" />
 
-    <div class="mb-6">
-        <h2 class="text-lg font-semibold" style="color: #1B2231">Messenger</h2>
-        <p class="text-sm" style="color: #5A6376">Chat with your students and teachers.</p>
-    </div>
+    <div class="flex h-full flex-col min-h-0">
+        <div class="mb-6 shrink-0">
+            <h2 class="text-lg font-semibold" style="color: #1B2231">Messenger</h2>
+            <p class="text-sm" style="color: #5A6376">Chat with your students and teachers.</p>
+        </div>
 
-    <div class="card flex overflow-hidden" style="height: calc(100vh - 200px); min-height: 400px;">
+        <div class="card flex min-h-0 flex-1 overflow-hidden">
         <div class="flex w-72 shrink-0 flex-col border-r border-[#E9EBEF]">
             <div class="flex items-center gap-2 border-b border-[#E9EBEF] p-3">
                 <div class="relative flex-1">
@@ -87,6 +88,8 @@
                 </div>
             </div>
         </div>
+    </div>
+
     </div>
 
     <Teleport to="body">

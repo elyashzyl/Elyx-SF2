@@ -52,8 +52,8 @@
                 </div>
             </header>
 
-            <main class="flex-1 px-6 py-6">
-                <div class="mx-auto" style="max-width: 80rem">
+            <main class="flex flex-1 flex-col px-6 py-6 min-h-0">
+                <div class="mx-auto flex min-h-0 flex-1 flex-col" style="max-width: 80rem">
                     <slot />
                 </div>
             </main>
