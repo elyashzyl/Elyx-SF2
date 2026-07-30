@@ -53,7 +53,7 @@
             </header>
 
             <main class="flex flex-1 flex-col min-h-0 px-6 py-6">
-                <div class="mx-auto flex min-h-0 flex-1 flex-col" style="max-width: 80rem">
+                <div class="flex min-h-0 flex-1 flex-col mr-auto" style="max-width: 80rem">
                     <slot />
                 </div>
             </main>
