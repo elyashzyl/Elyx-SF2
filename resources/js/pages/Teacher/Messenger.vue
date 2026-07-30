@@ -2,8 +2,8 @@
     <Head title="Messenger" />
 
     <div class="flex min-h-0 flex-1" style="background-color: #FFFFFF">
-        <div class="flex w-80 shrink-0 flex-col border-r border-[#E4E6EB]">
-            <div class="flex items-center gap-2 border-b border-[#E4E6EB] px-4 py-3">
+        <div class="flex w-80 shrink-0 flex-col min-h-0 border-r border-[#E4E6EB]">
+            <div class="flex shrink-0 items-center gap-2 border-b border-[#E4E6EB] px-4 py-3">
                 <div class="relative flex-1">
                     <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
                     <input v-model="search" type="text" placeholder="Search Messenger" class="w-full rounded-full bg-[#F0F2F5] px-3 py-2 pl-9 text-sm outline-none placeholder:text-[#7C8598]" style="color: #1B2231" />
@@ -13,7 +13,7 @@
                 </button>
             </div>
 
-            <div class="flex-1 overflow-y-auto py-1 messenger-scroll">
+            <div class="flex-1 overflow-y-auto py-1 min-h-0 messenger-scroll">
                 <button v-for="c in filteredConversations" :key="c.id" @click="openConversation(c.id)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#F0F2F5]" :class="activeId === c.id ? 'bg-[#E7F3FF]' : ''">
                     <div class="relative shrink-0">
                         <div class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white" :style="{ backgroundColor: avatarBg(c.other?.name ?? '') }">
@@ -35,9 +35,9 @@
             </div>
         </div>
 
-        <div class="flex flex-1 flex-col">
+        <div class="flex min-h-0 flex-1 flex-col">
             <template v-if="activeConversation">
-                <div class="flex items-center gap-3 border-b border-[#E4E6EB] px-4 py-2.5">
+                <div class="flex shrink-0 items-center gap-3 border-b border-[#E4E6EB] px-4 py-2.5">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" :style="{ backgroundColor: avatarBg(activeConversation.other?.name ?? '') }">
                         {{ initials(activeConversation.other?.name ?? '?') }}
                     </div>
@@ -50,7 +50,7 @@
                     </button>
                 </div>
 
-                <div ref="messagesRef" class="flex-1 overflow-y-auto px-4 py-3 messenger-scroll" style="background-color: #F0F2F5">
+                <div ref="messagesRef" class="min-h-0 flex-1 overflow-y-auto px-4 py-3 messenger-scroll" style="background-color: #F0F2F5">
                     <div v-for="m in messages" :key="m.id" class="mb-1.5 flex" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
                         <div :class="m.sender_id === userId ? 'order-1' : 'order-1'">
                             <div class="max-w-md px-3 py-1.5 text-sm leading-relaxed" :class="m.sender_id === userId ? 'text-white' : 'text-[#1B2231]'" :style="m.sender_id === userId ? { backgroundColor: '#1B74E4', borderBottomRightRadius: '4px' } : { backgroundColor: '#FFFFFF', borderBottomLeftRadius: '4px' }" style="border-radius: 16px">
@@ -64,7 +64,7 @@
                     </div>
                 </div>
 
-                <div class="border-t border-[#E4E6EB] px-4 py-2.5" style="background-color: #FFFFFF">
+                <div class="shrink-0 border-t border-[#E4E6EB] px-4 py-2.5" style="background-color: #FFFFFF">
                     <form @submit.prevent="sendMessage" class="flex items-center gap-2">
                         <input v-model="newMessage" type="text" placeholder="Aa" class="flex-1 rounded-full bg-[#F0F2F5] px-4 py-2 text-sm outline-none placeholder:text-[#7C8598]" style="color: #1B2231" />
                         <button type="submit" :disabled="!newMessage.trim()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-opacity disabled:opacity-30" :style="{ backgroundColor: '#1B74E4' }">
@@ -74,7 +74,7 @@
                 </div>
             </template>
 
-            <div v-else class="flex flex-1 items-center justify-center" style="background-color: #F0F2F5">
+            <div v-else class="flex min-h-0 flex-1 items-center justify-center" style="background-color: #F0F2F5">
                 <div class="text-center">
                     <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full" style="background-color: #E4E6EB">
                         <MessageCircle class="h-7 w-7" :stroke-width="1.5" style="color: #7C8598" />
