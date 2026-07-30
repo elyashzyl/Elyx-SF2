@@ -1,35 +1,31 @@
 <template>
     <Head title="Messenger" />
 
-    <div class="flex h-full flex-col min-h-0">
-        <div class="mb-6 shrink-0">
-            <h2 class="text-lg font-semibold" style="color: #1B2231">Messenger</h2>
-            <p class="text-sm" style="color: #5A6376">Chat with your students and teachers.</p>
-        </div>
-
-        <div class="card flex min-h-0 flex-1 overflow-hidden">
-        <div class="flex w-72 shrink-0 flex-col border-r border-[#E9EBEF]">
-            <div class="flex items-center gap-2 border-b border-[#E9EBEF] p-3">
+    <div class="flex min-h-0 flex-1 overflow-hidden rounded-xl bg-white shadow-sm">
+        <div class="flex w-80 shrink-0 flex-col border-r border-[#E4E6EB]">
+            <div class="flex items-center gap-2 border-b border-[#E4E6EB] px-4 py-3">
                 <div class="relative flex-1">
-                    <input v-model="search" type="text" placeholder="Search..." class="w-full rounded-lg border border-[#D2D6DE] px-3 py-1.5 pl-8 text-xs outline-none focus:border-[#1D3557]" style="color: #1B2231" />
-                    <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
+                    <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
+                    <input v-model="search" type="text" placeholder="Search Messenger" class="w-full rounded-full bg-[#F0F2F5] px-3 py-2 pl-9 text-sm outline-none placeholder:text-[#7C8598]" style="color: #1B2231" />
                 </div>
-                <button @click="showNewModal = true" class="rounded-lg border border-[#D2D6DE] p-1.5 hover:bg-[#F5F6F8]" style="color: #1D3557" title="New conversation">
-                    <Plus class="h-4 w-4" :stroke-width="2" />
+                <button @click="showNewModal = true" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] transition-colors" style="color: #1B2231" title="New conversation">
+                    <Plus class="h-5 w-5" :stroke-width="2" />
                 </button>
             </div>
 
-            <div class="flex-1 overflow-y-auto">
-                <button v-for="c in filteredConversations" :key="c.id" @click="openConversation(c.id)" class="flex w-full items-center gap-3 border-b border-[#E9EBEF] px-3 py-3 text-left transition-colors hover:bg-[#F9FAFB]" :class="activeId === c.id ? 'bg-[#EEF2F7]' : ''">
-                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" :style="{ backgroundColor: avatarBg(c.other?.name ?? '') }">
-                        {{ initials(c.other?.name ?? '?') }}
+            <div class="flex-1 overflow-y-auto py-1">
+                <button v-for="c in filteredConversations" :key="c.id" @click="openConversation(c.id)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#F0F2F5]" :class="activeId === c.id ? 'bg-[#E7F3FF]' : ''">
+                    <div class="relative shrink-0">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white" :style="{ backgroundColor: avatarBg(c.other?.name ?? '') }">
+                            {{ initials(c.other?.name ?? '?') }}
+                        </div>
+                        <span v-if="c.unread" class="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white" style="background-color: #1B74E4"></span>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
-                            <p class="truncate text-sm" :class="c.unread ? 'font-semibold' : 'font-medium'" style="color: #1B2231">{{ c.other?.name ?? 'Unknown' }}</p>
-                            <span v-if="c.unread" class="h-2 w-2 shrink-0 rounded-full" style="background-color: #1D3557"></span>
+                        <div class="flex items-center gap-1.5">
+                            <p class="truncate text-sm font-medium" style="color: #1B2231">{{ c.other?.name ?? 'Unknown' }}</p>
                         </div>
-                        <p class="truncate text-xs" style="color: #7C8598">{{ c.last_message || 'No messages yet' }}</p>
+                        <p class="truncate text-xs" :class="c.unread ? 'font-semibold' : ''" style="color: #7C8598">{{ c.last_message || 'No messages yet' }}</p>
                     </div>
                 </button>
                 <div v-if="!filteredConversations.length" class="flex flex-col items-center px-4 py-12 text-center">
@@ -41,55 +37,53 @@
 
         <div class="flex flex-1 flex-col">
             <template v-if="activeConversation">
-                <div class="flex items-center gap-3 border-b border-[#E9EBEF] px-5 py-3">
-                    <div class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" :style="{ backgroundColor: avatarBg(activeConversation.other?.name ?? '') }">
+                <div class="flex items-center gap-3 border-b border-[#E4E6EB] px-4 py-2.5">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" :style="{ backgroundColor: avatarBg(activeConversation.other?.name ?? '') }">
                         {{ initials(activeConversation.other?.name ?? '?') }}
                     </div>
-                    <div>
-                        <p class="text-sm font-medium" style="color: #1B2231">{{ activeConversation.other?.name }}</p>
-                        <p class="text-xs" style="color: #7C8598">{{ activeConversation.other?.role }}</p>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-semibold" style="color: #1B2231">{{ activeConversation.other?.name }}</p>
+                        <p class="truncate text-xs" style="color: #7C8598">{{ activeConversation.other?.role }}</p>
                     </div>
-                    <div class="ml-auto">
-                        <button @click="deleteConversation" class="rounded-lg p-1.5 text-[#AEB4C0] hover:bg-[#F5F6F8] hover:text-[#AA3C36]" title="Delete conversation">
-                            <Trash2 class="h-4 w-4" :stroke-width="2" />
-                        </button>
-                    </div>
+                    <button @click="deleteConversation" class="flex h-8 w-8 items-center justify-center rounded-full text-[#7C8598] hover:bg-[#F0F2F5] hover:text-[#AA3C36] transition-colors" title="Delete conversation">
+                        <Trash2 class="h-4 w-4" :stroke-width="2" />
+                    </button>
                 </div>
 
-                <div ref="messagesRef" class="flex-1 space-y-3 overflow-y-auto px-5 py-4" style="scroll-behavior: smooth">
-                    <div v-for="m in messages" :key="m.id" class="flex" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
-                        <div class="max-w-md rounded-lg px-4 py-2 text-sm" :class="m.sender_id === userId ? 'text-white' : 'border border-[#E9EBEF]'" :style="m.sender_id === userId ? { backgroundColor: '#1D3557' } : { backgroundColor: '#F9FAFB', color: '#1B2231' }">
-                            <p>{{ m.body }}</p>
-                            <div class="mt-1 flex items-center gap-1">
-                                <p class="text-xs" :class="m.sender_id === userId ? 'text-white/60' : 'text-[#AEB4C0]'">{{ formatTime(m.created_at) }}</p>
-                                <span v-if="m.sender_id === userId && isRead(m)" class="text-xs" style="color: #79C2C5">Seen</span>
+                <div ref="messagesRef" class="flex-1 overflow-y-auto px-4 py-3" style="background-color: #F0F2F5">
+                    <div v-for="m in messages" :key="m.id" class="mb-1.5 flex" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
+                        <div :class="m.sender_id === userId ? 'order-1' : 'order-1'">
+                            <div class="max-w-md px-3 py-1.5 text-sm leading-relaxed" :class="m.sender_id === userId ? 'text-white' : 'text-[#1B2231]'" :style="m.sender_id === userId ? { backgroundColor: '#1B74E4', borderBottomRightRadius: '4px' } : { backgroundColor: '#FFFFFF', borderBottomLeftRadius: '4px' }" style="border-radius: 16px">
+                                <p class="whitespace-pre-wrap break-words">{{ m.body }}</p>
+                            </div>
+                            <div class="mt-px flex items-center gap-1 px-1" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
+                                <p class="text-[10px]" style="color: #8A8D91">{{ formatTime(m.created_at) }}</p>
+                                <span v-if="m.sender_id === userId && isRead(m)" class="text-[10px]" style="color: #79C2C5">Seen</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="border-t border-[#E9EBEF] p-4">
-                    <form @submit.prevent="sendMessage" class="flex gap-3">
-                        <input v-model="newMessage" type="text" placeholder="Type a message..." class="flex-1 rounded-lg border border-[#D2D6DE] px-4 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231" />
-                        <button type="submit" :disabled="!newMessage.trim()" class="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style="background-color: #1D3557">
+                <div class="border-t border-[#E4E6EB] px-4 py-2.5" style="background-color: #FFFFFF">
+                    <form @submit.prevent="sendMessage" class="flex items-center gap-2">
+                        <input v-model="newMessage" type="text" placeholder="Aa" class="flex-1 rounded-full bg-[#F0F2F5] px-4 py-2 text-sm outline-none placeholder:text-[#7C8598]" style="color: #1B2231" />
+                        <button type="submit" :disabled="!newMessage.trim()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-opacity disabled:opacity-30" :style="{ backgroundColor: '#1B74E4' }">
                             <Send class="h-4 w-4" :stroke-width="2" />
                         </button>
                     </form>
                 </div>
             </template>
 
-            <div v-else class="flex flex-1 items-center justify-center">
+            <div v-else class="flex flex-1 items-center justify-center" style="background-color: #F0F2F5">
                 <div class="text-center">
-                    <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#E9EBEF]">
-                        <MessageCircle class="h-7 w-7" :stroke-width="1.75" style="color: #7C8598" />
+                    <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full" style="background-color: #E4E6EB">
+                        <MessageCircle class="h-7 w-7" :stroke-width="1.5" style="color: #7C8598" />
                     </div>
-                    <p class="text-sm font-medium" style="color: #5A6376">Select a conversation</p>
-                    <p class="mt-1 text-xs" style="color: #AEB4C0">Choose a chat from the left or start a new one.</p>
+                    <p class="text-base font-semibold" style="color: #1B2231">Your messages</p>
+                    <p class="mt-1 text-sm" style="color: #7C8598">Select a conversation to start chatting.</p>
                 </div>
             </div>
         </div>
-    </div>
-
     </div>
 
     <Teleport to="body">
@@ -200,14 +194,21 @@ function initials(name: string) {
 }
 
 function avatarBg(name: string) {
-    const colors = ['#1D3557', '#2F7A54', '#A5701A', '#AA3C36', '#4A6FA5', '#7B4F9B', '#C77D31', '#3D7E7E'];
+    const colors = ['#1B74E4', '#2F7A54', '#A5701A', '#AA3C36', '#4A6FA5', '#7B4F9B', '#C77D31', '#3D7E7E'];
     let hash = 0;
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
 }
 
 function formatTime(date: string) {
-    return new Date(date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const d = new Date(date);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function openConversation(id: number) {
