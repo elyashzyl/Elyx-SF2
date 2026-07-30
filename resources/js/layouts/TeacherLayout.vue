@@ -52,11 +52,8 @@
                 </div>
             </header>
 
-            <main class="flex flex-1 flex-col min-h-0" :class="path.startsWith('/teacher/messenger') ? '' : 'px-6 py-6'">
-                <div v-if="path.startsWith('/teacher/messenger')" class="flex min-h-0 flex-1 flex-col">
-                    <slot />
-                </div>
-                <div v-else class="mx-auto flex min-h-0 flex-1 flex-col" style="max-width: 80rem">
+            <main class="flex flex-1 flex-col min-h-0 px-6 py-6">
+                <div class="mx-auto flex min-h-0 flex-1 flex-col" style="max-width: 80rem">
                     <slot />
                 </div>
             </main>
