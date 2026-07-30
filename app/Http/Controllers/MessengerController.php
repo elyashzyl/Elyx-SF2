@@ -53,13 +53,17 @@ class MessengerController extends Controller
 
         $conversation->load(['participants:id,name,role', 'messages.sender:id,name']);
 
+        $otherParticipant = $conversation->participants->firstWhere('id', '!=', $user->id);
+        $otherLastReadAt = $otherParticipant?->pivot?->last_read_at;
+
         $conversation->participants()->updateExistingPivot($user->id, ['last_read_at' => now()]);
 
         return Inertia::render($user->isStudent() ? 'Student/Messenger' : 'Teacher/Messenger', [
             'conversation' => [
                 'id' => $conversation->id,
                 'subject' => $conversation->subject,
-                'other' => $conversation->participants->firstWhere('id', '!=', $user->id)?->only(['id', 'name', 'role']),
+                'other' => $otherParticipant?->only(['id', 'name', 'role']),
+                'other_last_read_at' => $otherLastReadAt,
                 'messages' => $conversation->messages->map(fn ($m) => [
                     'id' => $m->id,
                     'sender_id' => $m->sender_id,
@@ -155,6 +159,10 @@ class MessengerController extends Controller
 
         $since = $request->get('since');
 
+        $otherLastReadAt = $conversation->participants()
+            ->where('user_id', '!=', $user->id)
+            ->first()?->pivot?->last_read_at;
+
         $messages = $conversation->messages()
             ->with('sender:id,name')
             ->when($since, fn ($q) => $q->where('created_at', '>', $since))
@@ -170,7 +178,7 @@ class MessengerController extends Controller
 
         $conversation->participants()->updateExistingPivot($user->id, ['last_read_at' => now()]);
 
-        return response()->json(['messages' => $messages]);
+        return response()->json(['messages' => $messages, 'other_last_read_at' => $otherLastReadAt]);
     }
 
     public function unreadCount(): JsonResponse

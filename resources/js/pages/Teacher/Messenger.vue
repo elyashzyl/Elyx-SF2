@@ -59,7 +59,10 @@
                     <div v-for="m in messages" :key="m.id" class="flex" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
                         <div class="max-w-md rounded-lg px-4 py-2 text-sm" :class="m.sender_id === userId ? 'text-white' : 'border border-[#E9EBEF]'" :style="m.sender_id === userId ? { backgroundColor: '#1D3557' } : { backgroundColor: '#F9FAFB', color: '#1B2231' }">
                             <p>{{ m.body }}</p>
-                            <p class="mt-1 text-xs" :class="m.sender_id === userId ? 'text-white/60' : 'text-[#AEB4C0]'">{{ formatTime(m.created_at) }}</p>
+                            <div class="mt-1 flex items-center gap-1">
+                                <p class="text-xs" :class="m.sender_id === userId ? 'text-white/60' : 'text-[#AEB4C0]'">{{ formatTime(m.created_at) }}</p>
+                                <span v-if="m.sender_id === userId && isRead(m)" class="text-xs" style="color: #79C2C5">Seen</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -150,7 +153,14 @@ const newRecipient = ref('');
 const newMessageBody = ref('');
 const showDeleteModal = ref(false);
 const messages = ref<any[]>(props.conversation?.messages ?? []);
+const otherLastReadAt = ref<string | null>(props.conversation?.other_last_read_at ?? null);
 let pollInterval: number | null = null;
+
+function isRead(m: any) {
+    if (m.sender_id !== userId) return false;
+    if (!otherLastReadAt.value) return false;
+    return new Date(m.created_at) <= new Date(otherLastReadAt.value);
+}
 
 const teachers = computed(() => props.contacts.filter((c: any) => c.role === 'teacher' || c.role === 'superadmin'));
 const students = computed(() => props.contacts.filter((c: any) => c.role === 'student'));
@@ -222,6 +232,9 @@ async function pollMessages() {
         const url = `${prefix}/messenger/${activeConversation.value.id}/poll${since ? `?since=${encodeURIComponent(since)}` : ''}`;
         const res = await fetch(url);
         const data = await res.json();
+        if (data.other_last_read_at !== undefined) {
+            otherLastReadAt.value = data.other_last_read_at;
+        }
         if (data.messages?.length) {
             const existingIds = new Set(messages.value.map((m: any) => m.id));
             const newOnes = data.messages.filter((m: any) => !existingIds.has(m.id));
@@ -234,6 +247,7 @@ async function pollMessages() {
 
 watch(activeConversation, (val) => {
     messages.value = val?.messages ?? [];
+    otherLastReadAt.value = val?.other_last_read_at ?? null;
     nextTick(() => {
         if (messagesRef.value) {
             messagesRef.value.scrollTop = messagesRef.value.scrollHeight;
