@@ -177,6 +177,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::get('/practicals/{practical}/take', [PracticalController::class, 'take'])->name('practicals.take');
     Route::post('/practicals/{practical}/submit', [PracticalController::class, 'submit'])->name('practicals.submit');
     Route::get('/practicals/{attempt}/result', [PracticalController::class, 'result'])->name('practicals.result');
+    Route::post('/practicals/{attempt}/close', [PracticalController::class, 'close'])->name('practicals.close');
 
     Route::get('/exams/{exam}/take', [ExamController::class, 'take'])->name('exams.take');
     Route::post('/exams/{exam}/submit', [ExamController::class, 'submit'])->name('exams.submit');

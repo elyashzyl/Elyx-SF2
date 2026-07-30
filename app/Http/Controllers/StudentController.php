@@ -356,6 +356,7 @@ class StudentController extends Controller
                     'status' => $latestAttempt ? $latestAttempt->status : 'not_started',
                     'score' => $latestAttempt?->total_score,
                     'attempt_id' => $latestAttempt?->id,
+                    'closed_at' => $latestAttempt?->closed_at,
                 ];
             });
 

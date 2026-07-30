@@ -317,6 +317,19 @@ class PracticalController extends Controller
         return Inertia::render('Student/Practical/Result', ['attempt' => $attempt]);
     }
 
+    public function close(PracticalAttempt $attempt): RedirectResponse
+    {
+        $student = Auth::user();
+        abort_if($attempt->student_id !== $student->id, 403);
+        abort_if($attempt->status !== 'submitted', 403);
+        abort_if($attempt->closed_at, 403);
+
+        $attempt->update(['closed_at' => now()]);
+
+        return redirect()->route('student.practicals.result', ['attempt' => $attempt->id])
+            ->with('success', 'Submission closed. You can no longer retake this practical.');
+    }
+
     public function grade(Practical $practical, PracticalAttempt $attempt): Response
     {
         $this->authorizeOwner($practical);

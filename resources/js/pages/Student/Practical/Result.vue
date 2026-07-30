@@ -12,10 +12,16 @@
                 <span class="rounded bg-[#E9EBEF] px-2 py-0.5 text-xs" style="color: #5A6376">Practical</span>
             </div>
         </div>
-        <Link href="/student/results" class="btn-secondary">
-            <ArrowLeft class="h-4 w-4" :stroke-width="2" />
-            Back to results
-        </Link>
+        <div class="flex items-center gap-2">
+            <button v-if="canClose" @click="closeSubmission" class="btn-secondary" style="color: #5A6376">
+                <Lock class="h-4 w-4" :stroke-width="2" />
+                Close submission
+            </button>
+            <Link href="/student/results" class="btn-secondary">
+                <ArrowLeft class="h-4 w-4" :stroke-width="2" />
+                Back to results
+            </Link>
+        </div>
     </div>
 
     <div v-if="attempt.submission_text || attempt.submission_file" class="card mb-6 p-5">
@@ -66,13 +72,21 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { ArrowLeft } from '@lucide/vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, Lock } from '@lucide/vue';
 
 const props = defineProps<{ attempt: any }>();
 
 const page = usePage();
 const flash = page.props.flash as any;
+
+const canClose = computed(() => props.attempt.status === 'submitted' && !props.attempt.closed_at);
+
+function closeSubmission() {
+    router.post(`/student/practicals/${props.attempt.id}/close`, {}, {
+        preserveScroll: true,
+    });
+}
 
 const totalMax = computed(() => {
     return props.attempt.practical.criteria.reduce((s: number, c: any) => s + c.max_points, 0);

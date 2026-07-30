@@ -11,11 +11,12 @@ class PracticalAttempt extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['practical_id', 'student_id', 'status', 'total_score', 'submission_text', 'submission_file', 'started_at', 'submitted_at'];
+    protected $fillable = ['practical_id', 'student_id', 'status', 'total_score', 'submission_text', 'submission_file', 'started_at', 'submitted_at', 'closed_at'];
 
     protected $casts = [
         'started_at' => 'datetime',
         'submitted_at' => 'datetime',
+        'closed_at' => 'datetime',
     ];
 
     protected $appends = ['submission_file_url'];

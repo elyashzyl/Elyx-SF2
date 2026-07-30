@@ -50,7 +50,7 @@
                     {{ pr.status === 'in_progress' ? 'Continue practical' : 'Start practical' }}
                 </Link>
                 <template v-else>
-                    <template v-if="pr.attempts_count < pr.max_attempts">
+                    <template v-if="pr.attempts_count < pr.max_attempts && !pr.closed_at">
                         <Link :href="`/student/practicals/${pr.id}/take`" class="btn-primary">
                             <RefreshCw class="h-4 w-4" :stroke-width="2" />
                             Retake
