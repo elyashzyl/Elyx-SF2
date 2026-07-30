@@ -119,13 +119,21 @@ import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{ activities: any[]; teachersList: any[]; gradeLevels: any[]; sections: any[] }>();
 
-const search = ref('');
-const teacherFilter = ref('');
-const typeFilter = ref('');
-const gradeFilter = ref('');
-const sectionFilter = ref('');
+const rk = 'results_' + window.location.pathname;
+const search = ref(sessionStorage.getItem(rk + '_search') ?? '');
+const teacherFilter = ref(sessionStorage.getItem(rk + '_teacher') ?? '');
+const typeFilter = ref(sessionStorage.getItem(rk + '_type') ?? '');
+const gradeFilter = ref(sessionStorage.getItem(rk + '_grade') ?? '');
+const sectionFilter = ref(sessionStorage.getItem(rk + '_section') ?? '');
 
 watch(gradeFilter, () => { sectionFilter.value = ''; });
+watch([search, teacherFilter, typeFilter, gradeFilter, sectionFilter], () => {
+    sessionStorage.setItem(rk + '_search', search.value);
+    sessionStorage.setItem(rk + '_teacher', teacherFilter.value);
+    sessionStorage.setItem(rk + '_type', typeFilter.value);
+    sessionStorage.setItem(rk + '_grade', gradeFilter.value);
+    sessionStorage.setItem(rk + '_section', sectionFilter.value);
+});
 
 const filteredSections = computed(() => {
     if (!gradeFilter.value) return props.sections;

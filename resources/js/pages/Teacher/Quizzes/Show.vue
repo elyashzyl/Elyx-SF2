@@ -129,7 +129,7 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { ArrowLeft, CheckCircle2, XCircle, Users, Award, PenSquare, Eye, RotateCw, UploadCloud, RefreshCw } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     quiz: any;
@@ -138,8 +138,16 @@ const props = defineProps<{
     teachers?: any[];
 }>();
 
-const sectionFilter = ref('');
-const sortMode = ref<'alpha' | 'score'>('alpha');
+const storageKey = 'quiz_show_' + window.location.pathname;
+const sectionFilter = ref(sessionStorage.getItem(storageKey + '_section') ?? '');
+const sortMode = ref<('alpha' | 'score')>((sessionStorage.getItem(storageKey + '_sort') as 'alpha' | 'score') ?? 'alpha');
+
+function persistState() {
+    sessionStorage.setItem(storageKey + '_section', sectionFilter.value);
+    sessionStorage.setItem(storageKey + '_sort', sortMode.value);
+}
+
+watch([sectionFilter, sortMode], persistState);
 
 const isClosed = computed(() => {
     if (!props.quiz.closes_at) return false;
