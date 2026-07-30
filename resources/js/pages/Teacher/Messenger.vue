@@ -55,7 +55,7 @@
                     </div>
                 </div>
 
-                <div ref="messagesRef" class="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                <div ref="messagesRef" class="flex-1 space-y-3 overflow-y-auto px-5 py-4" style="scroll-behavior: smooth">
                     <div v-for="m in messages" :key="m.id" class="flex" :class="m.sender_id === userId ? 'justify-end' : 'justify-start'">
                         <div class="max-w-md rounded-lg px-4 py-2 text-sm" :class="m.sender_id === userId ? 'text-white' : 'border border-[#E9EBEF]'" :style="m.sender_id === userId ? { backgroundColor: '#1D3557' } : { backgroundColor: '#F9FAFB', color: '#1B2231' }">
                             <p>{{ m.body }}</p>
@@ -134,7 +134,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { Search, Plus, Send, MessageCircle, Trash2 } from '@lucide/vue';
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 
 const page = usePage();
 const props = defineProps<{
@@ -154,12 +154,28 @@ const newMessageBody = ref('');
 const showDeleteModal = ref(false);
 const messages = ref<any[]>(props.conversation?.messages ?? []);
 const otherLastReadAt = ref<string | null>(props.conversation?.other_last_read_at ?? null);
+const messagesRef = ref<HTMLElement | null>(null);
 let pollInterval: number | null = null;
 
 function isRead(m: any) {
     if (m.sender_id !== userId) return false;
     if (!otherLastReadAt.value) return false;
     return new Date(m.created_at) <= new Date(otherLastReadAt.value);
+}
+
+function scrollToBottom(smooth = false) {
+    if (!messagesRef.value) return;
+    setTimeout(() => {
+        if (messagesRef.value) {
+            messagesRef.value.scrollTo({ top: messagesRef.value.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
+        }
+    }, 10);
+}
+
+function isNearBottom() {
+    if (!messagesRef.value) return true;
+    const el = messagesRef.value;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 100;
 }
 
 const teachers = computed(() => props.contacts.filter((c: any) => c.role === 'teacher' || c.role === 'superadmin'));
@@ -248,12 +264,12 @@ async function pollMessages() {
 watch(activeConversation, (val) => {
     messages.value = val?.messages ?? [];
     otherLastReadAt.value = val?.other_last_read_at ?? null;
-    nextTick(() => {
-        if (messagesRef.value) {
-            messagesRef.value.scrollTop = messagesRef.value.scrollHeight;
-        }
-    });
+    scrollToBottom(val?.messages?.length ? true : false);
 }, { immediate: true });
+
+watch(messages, () => {
+    if (isNearBottom()) scrollToBottom(true);
+});
 
 onMounted(() => {
     pollInterval = window.setInterval(pollMessages, 3000);
