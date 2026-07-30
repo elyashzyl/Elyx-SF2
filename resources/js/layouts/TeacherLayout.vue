@@ -43,9 +43,12 @@
                     <span class="font-medium">Impersonating {{ user.name }}</span>
                     <button @click="stopImpersonating" class="ml-auto rounded-md px-3 py-1 text-xs font-semibold text-white" style="background-color: #A5701A">Stop</button>
                 </div>
-                <h1 v-else class="text-base font-semibold" style="color: #1B2231">
-                    <slot name="title" />
-                </h1>
+                <div v-else class="flex w-full items-center gap-4">
+                    <h1 class="flex-1 text-base font-semibold" style="color: #1B2231">
+                        <slot name="title" />
+                    </h1>
+                    <NotificationBell role="teacher" />
+                </div>
             </header>
 
             <main class="flex-1 px-6 py-6">
@@ -60,6 +63,7 @@
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck, UserCheck, MessageCircle } from '@lucide/vue';
+import NotificationBell from '@/components/NotificationBell.vue';
 import { computed } from 'vue';
 
 const page = usePage();

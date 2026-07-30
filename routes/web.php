@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ExamController;
 use App\Http\Controllers\GradeLevelController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PracticalController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SeatworkController;
@@ -112,6 +113,8 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
         ]);
     })->name('profile');
 
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+
     Route::get('/messenger', [MessengerController::class, 'index'])->name('messenger');
     Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
     Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
@@ -177,6 +180,8 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::get('/exams/{exam}/take', [ExamController::class, 'take'])->name('exams.take');
     Route::post('/exams/{exam}/submit', [ExamController::class, 'submit'])->name('exams.submit');
     Route::get('/exams/{attempt}/result', [ExamController::class, 'result'])->name('exams.result');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Student/Profile', [
