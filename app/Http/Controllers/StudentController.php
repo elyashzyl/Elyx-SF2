@@ -10,6 +10,7 @@ use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Seatwork;
 use App\Models\SeatworkAttempt;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -492,5 +493,87 @@ class StudentController extends Controller
         ) {
             abort(403, 'This quiz is not available to your account.');
         }
+    }
+
+    public function leaderboard(): Response
+    {
+        $student = Auth::user();
+
+        $classmates = User::where('role', 'student')
+            ->where('section_id', $student->section_id)
+            ->with('section:id,name', 'gradeLevel:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'grade', 'grade_level_id', 'section_id']);
+
+        $studentIdList = $classmates->pluck('id');
+
+        $quizAgg = QuizAttempt::whereIn('student_id', $studentIdList)
+            ->where('status', 'submitted')
+            ->select('student_id', DB::raw('COALESCE(SUM(score), 0) as score'), DB::raw('COALESCE(SUM(total_points), 0) as total'))
+            ->groupBy('student_id')
+            ->get()
+            ->keyBy('student_id');
+
+        $seatworkAgg = SeatworkAttempt::whereIn('student_id', $studentIdList)
+            ->where('status', 'submitted')
+            ->select('student_id', DB::raw('COALESCE(SUM(score), 0) as score'), DB::raw('COALESCE(SUM(total_points), 0) as total'))
+            ->groupBy('student_id')
+            ->get()
+            ->keyBy('student_id');
+
+        $practicalAgg = PracticalAttempt::whereIn('student_id', $studentIdList)
+            ->where('status', 'submitted')
+            ->with('practical:id,max_score')
+            ->get()
+            ->groupBy('student_id')
+            ->map(fn ($attempts) => [
+                'score' => $attempts->sum('total_score'),
+                'total' => $attempts->sum(fn ($a) => $a->practical?->max_score ?? 0),
+            ]);
+
+        $examAgg = ExamAttempt::whereIn('student_id', $studentIdList)
+            ->where('status', 'submitted')
+            ->with('exam:id,max_score')
+            ->get()
+            ->groupBy('student_id')
+            ->map(fn ($attempts) => [
+                'score' => $attempts->sum('total_score'),
+                'total' => $attempts->sum(fn ($a) => $a->exam?->max_score ?? 0),
+            ]);
+
+        $entries = $classmates->map(function ($classmate) use ($quizAgg, $seatworkAgg, $practicalAgg, $examAgg) {
+            $quiz = $quizAgg->get($classmate->id);
+            $seatwork = $seatworkAgg->get($classmate->id);
+            $practical = $practicalAgg->get($classmate->id);
+            $exam = $examAgg->get($classmate->id);
+
+            $quizPct = $quiz && $quiz->total > 0 ? round(($quiz->score / $quiz->total) * 100) : null;
+            $seatworkPct = $seatwork && $seatwork->total > 0 ? round(($seatwork->score / $seatwork->total) * 100) : null;
+            $practicalPct = $practical && $practical['total'] > 0 ? round(($practical['score'] / $practical['total']) * 100) : null;
+            $examPct = $exam && $exam['total'] > 0 ? round(($exam['score'] / $exam['total']) * 100) : null;
+
+            $allScore = ($quiz?->score ?? 0) + ($seatwork?->score ?? 0) + ($practical['score'] ?? 0) + ($exam['score'] ?? 0);
+            $allTotal = ($quiz?->total ?? 0) + ($seatwork?->total ?? 0) + ($practical['total'] ?? 0) + ($exam['total'] ?? 0);
+            $overall = $allTotal > 0 ? round(($allScore / $allTotal) * 100) : null;
+
+            return [
+                'id' => $classmate->id,
+                'name' => $classmate->name,
+                'section_name' => $classmate->section?->name,
+                'grade_level_name' => $classmate->gradeLevel?->name,
+                'quiz' => ['pct' => $quizPct, 'score' => $quiz?->score ?? 0, 'total' => $quiz?->total ?? 0],
+                'seatwork' => ['pct' => $seatworkPct, 'score' => $seatwork?->score ?? 0, 'total' => $seatwork?->total ?? 0],
+                'practical' => ['pct' => $practicalPct, 'score' => $practical['score'] ?? 0, 'total' => $practical['total'] ?? 0],
+                'exam' => ['pct' => $examPct, 'score' => $exam['score'] ?? 0, 'total' => $exam['total'] ?? 0],
+                'overall' => $overall,
+            ];
+        });
+
+        $entries = $entries->sortByDesc('overall')->values()->map(fn ($e, $i) => array_merge($e, ['rank' => $i + 1]));
+
+        return Inertia::render('Student/Leaderboard', [
+            'entries' => $entries,
+            'section_name' => $classmates->first()?->section?->name ?? 'Your Section',
+        ]);
     }
 }

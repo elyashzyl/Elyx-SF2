@@ -176,6 +176,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::post('/quizzes/{quiz}/submit', [StudentController::class, 'submit'])->name('quizzes.submit');
     Route::get('/quizzes/{attempt}/result', [StudentController::class, 'result'])->name('quizzes.result');
     Route::get('/results', [StudentController::class, 'results'])->name('results');
+    Route::get('/leaderboard', [StudentController::class, 'leaderboard'])->name('leaderboard');
     Route::get('/practicals/{practical}/take', [PracticalController::class, 'take'])->name('practicals.take');
     Route::post('/practicals/{practical}/submit', [PracticalController::class, 'submit'])->name('practicals.submit');
     Route::get('/practicals/{attempt}/result', [PracticalController::class, 'result'])->name('practicals.result');

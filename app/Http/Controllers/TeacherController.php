@@ -445,7 +445,17 @@ class TeacherController extends Controller
                 'exam' => ['pct' => $examPct, 'score' => $exam['score'] ?? 0, 'total' => $exam['total'] ?? 0],
                 'overall' => $overall,
             ];
-        })->sortByDesc('overall')->values();
+        });
+
+        $groups = $entries->groupBy('section_id')->map(function ($sectionEntries, $sectionId) {
+            $sorted = $sectionEntries->sortByDesc('overall')->values();
+            return [
+                'section_id' => (int) $sectionId,
+                'section_name' => $sorted->first()['section_name'] ?? 'Unknown',
+                'grade_level_name' => $sorted->first()['grade_level_name'] ?? '',
+                'entries' => $sorted->map(fn ($e, $i) => array_merge($e, ['rank' => $i + 1])),
+            ];
+        })->values();
 
         $sections = Section::whereIn('id', $students->pluck('section_id')->filter())
             ->orderBy('name')
@@ -458,7 +468,8 @@ class TeacherController extends Controller
             ->values();
 
         return Inertia::render('Teacher/Leaderboard', [
-            'entries' => $entries,
+            'entries' => $entries->sortByDesc('overall')->values(),
+            'groups' => $groups,
             'sections' => $sections,
             'gradeLevels' => $gradeLevels,
         ]);

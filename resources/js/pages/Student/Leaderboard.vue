@@ -3,33 +3,18 @@
 
     <div class="mb-6">
         <h2 class="text-lg font-semibold" style="color: #1B2231">Leaderboard</h2>
-        <p class="text-sm" style="color: #5A6376">Student rankings per section based on overall performance.</p>
+        <p class="text-sm" style="color: #5A6376">{{ sectionName }} rankings based on overall performance.</p>
     </div>
 
-    <div class="mb-4 flex items-center gap-4">
-        <select v-model="gradeFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
-            <option value="">All grade levels</option>
-            <option v-for="g in gradeLevels" :key="g.id" :value="g.id">{{ g.name }}</option>
-        </select>
-        <select v-model="sectionFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
-            <option value="">All sections</option>
-            <option v-for="s in filteredSections" :key="s.id" :value="s.id">{{ s.name }}</option>
-        </select>
-    </div>
-
-    <div v-if="!filteredGroups.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
+    <div v-if="!entries.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
         <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
             <Trophy class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
         </div>
-        <p class="text-sm font-medium" style="color: #404A5C">No students found</p>
-        <p class="mt-1 text-sm" style="color: #7C8598">No students match your filter selection.</p>
+        <p class="text-sm font-medium" style="color: #404A5C">No data yet</p>
+        <p class="mt-1 text-sm" style="color: #7C8598">Complete some activities to appear on the leaderboard.</p>
     </div>
 
-    <div v-for="group in filteredGroups" :key="group.section_id" class="card mb-6 overflow-hidden last:mb-0">
-        <div class="border-b border-[#E9EBEF] px-6 py-3">
-            <h3 class="text-base font-semibold" style="color: #1B2231">{{ group.section_name || 'Unknown Section' }}</h3>
-            <p v-if="group.grade_level_name" class="text-xs" style="color: #7C8598">{{ group.grade_level_name }}</p>
-        </div>
+    <div v-else class="card overflow-hidden">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
@@ -43,16 +28,16 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-[#E9EBEF]">
-                <tr v-for="(e, i) in group.entries" :key="e.id" class="hover:bg-[#F9FAFB]" :class="topRowClass(i)">
+                <tr v-for="(e, i) in entries" :key="e.id" class="hover:bg-[#F9FAFB]" :class="[topRowClass(i), e.id === userId ? 'bg-[#E7F3FF] hover:bg-[#D4E9FF]' : '']">
                     <td class="px-6 py-3">
                         <div v-if="i < 3" class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
                             :class="medalClass(i)">
                             <component :is="medalIcon(i)" class="h-4 w-4" :stroke-width="2.5" />
                         </div>
-                        <span v-else class="text-sm font-medium" style="color: #7C8598">{{ e.rank }}</span>
+                        <span v-else class="text-sm font-medium" :class="e.id === userId ? 'font-bold' : ''" style="color: #7C8598">{{ e.rank }}</span>
                     </td>
                     <td class="px-6 py-3">
-                        <p class="font-medium" style="color: #1B2231">{{ e.name }}</p>
+                        <p class="font-medium" :class="e.id === userId ? 'font-bold' : ''" style="color: #1B2231">{{ e.name }}</p>
                     </td>
                     <td class="px-6 py-3 text-center">
                         <PctBadge :value="e.quiz.pct" />
@@ -83,28 +68,16 @@
 </template>
 
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import { Trophy, Medal, Award } from '@lucide/vue';
-import { computed, ref } from 'vue';
 import PctBadge from '@/components/PctBadge.vue';
 
-const props = defineProps<{ entries: any[]; groups: any[]; sections: any[]; gradeLevels: any[] }>();
+const page = usePage();
+const userId = (page.props.auth as any).user.id;
 
-const gradeFilter = ref('');
-const sectionFilter = ref('');
+const props = defineProps<{ entries: any[]; section_name: string }>();
 
-const filteredSections = computed(() => {
-    if (!gradeFilter.value) return props.sections;
-    return props.sections.filter((s: any) => s.grade_level_id === Number(gradeFilter.value));
-});
-
-const filteredGroups = computed(() => {
-    return props.groups.filter((g: any) => {
-        if (gradeFilter.value && g.grade_level_name !== props.gradeLevels.find((gl: any) => gl.id === Number(gradeFilter.value))?.name) return false;
-        if (sectionFilter.value && g.section_id !== Number(sectionFilter.value)) return false;
-        return true;
-    });
-});
+const sectionName = props.section_name || 'Your Section';
 
 function medalIcon(i: number) {
     return [Trophy, Medal, Award][i] ?? Trophy;
