@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Game extends Model
 {
-    protected $fillable = ['teacher_id', 'title', 'subject', 'grade', 'description', 'xp_reward'];
+    protected $fillable = ['teacher_id', 'title', 'subject', 'grade', 'description', 'xp_reward', 'type'];
+    protected $casts = ['xp_reward' => 'integer'];
 
     public function teacher(): BelongsTo
     {

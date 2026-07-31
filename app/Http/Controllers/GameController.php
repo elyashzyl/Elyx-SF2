@@ -41,9 +41,11 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
+            'type' => ['required', 'in:flashcard,quiz,fillblank'],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],
+            'cards.*.options' => ['nullable', 'array'],
         ]);
 
         $game = Game::create([
@@ -53,6 +55,7 @@ class GameController extends Controller
             'grade' => $data['grade'],
             'description' => $data['description'] ?? '',
             'xp_reward' => $data['xp_reward'],
+            'type' => $data['type'],
         ]);
 
         foreach ($data['cards'] as $i => $card) {
@@ -60,6 +63,7 @@ class GameController extends Controller
                 'question' => $card['question'],
                 'answer' => $card['answer'],
                 'order' => $i,
+                'options' => $card['options'] ?? null,
             ]);
         }
 
@@ -76,9 +80,11 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
+            'type' => ['required', 'in:flashcard,quiz,fillblank'],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],
+            'cards.*.options' => ['nullable', 'array'],
         ]);
 
         $game->update([
@@ -87,6 +93,7 @@ class GameController extends Controller
             'grade' => $data['grade'],
             'description' => $data['description'] ?? '',
             'xp_reward' => $data['xp_reward'],
+            'type' => $data['type'],
         ]);
 
         $game->cards()->delete();

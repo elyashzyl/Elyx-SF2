@@ -62,11 +62,10 @@
                     <button @click="closeGame" class="rounded-lg p-1.5 transition-colors hover:bg-[var(--gl-surface-2)]" style="color: var(--gl-text-muted);"><X class="h-4.5 w-4.5" :stroke-width="2" /></button>
                 </div>
 
-                <!-- Flashcard -->
-                <div class="p-6" style="min-height: 280px;">
+                <!-- Flashcard - flip style -->
+                <div v-if="currentGame.type === 'flashcard'" class="p-6" style="min-height: 280px;">
                     <div class="relative h-52 cursor-pointer" @click="flipped = !flipped" style="perspective: 1000px;">
                         <div class="absolute inset-0 transition-transform duration-500" :style="{ transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transformStyle: 'preserve-3d' }">
-                            <!-- Front - Question -->
                             <div class="absolute inset-0 flex flex-col items-center justify-center rounded-2xl p-6 text-center" style="background: var(--gl-surface-2); border: 1px solid var(--gl-border); backface-visibility: hidden;">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-full mb-3" style="background: rgba(59,130,246,0.1);">
                                     <HelpCircle class="h-6 w-6" style="color: var(--gl-primary);" :stroke-width="2" />
@@ -75,7 +74,6 @@
                                 <p class="text-base font-semibold" style="color: var(--gl-text-primary)">{{ currentGame.cards[currentCard]?.question }}</p>
                                 <p class="text-xs mt-4" style="color: var(--gl-text-muted)">Tap to reveal answer</p>
                             </div>
-                            <!-- Back - Answer -->
                             <div class="absolute inset-0 flex flex-col items-center justify-center rounded-2xl p-6 text-center" style="background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.04)); border: 1px solid rgba(16,185,129,0.2); backface-visibility: hidden; transform: rotateY(180deg);">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-full mb-3" style="background: rgba(16,185,129,0.1);">
                                     <CheckCircle2 class="h-6 w-6" style="color: var(--gl-success);" :stroke-width="2" />
@@ -85,6 +83,53 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Quiz - multiple choice -->
+                <div v-else-if="currentGame.type === 'quiz'" class="p-6" style="min-height: 280px;">
+                    <div class="text-center mb-6">
+                        <p class="text-xs mb-2" style="color: var(--gl-text-muted)">Question {{ currentCard + 1 }} of {{ currentGame.cards.length }}</p>
+                        <p class="text-base font-semibold" style="color: var(--gl-text-primary)">{{ currentGame.cards[currentCard]?.question }}</p>
+                    </div>
+                    <div v-if="!answered" class="space-y-2.5">
+                        <button v-for="(opt, oi) in (currentGame.cards[currentCard]?.options || [])" :key="oi" @click="checkAnswer(opt)"
+                            class="w-full rounded-xl border px-4 py-3 text-sm text-left transition-all hover:bg-[rgba(59,130,246,0.04)]"
+                            :style="selectedOption === opt && opt !== currentGame.cards[currentCard]?.answer ? 'border-color: var(--gl-danger); background: var(--gl-danger-bg); color: var(--gl-text-primary);' : selectedOption === opt && opt === currentGame.cards[currentCard]?.answer ? 'border-color: var(--gl-success); background: var(--gl-success-bg); color: var(--gl-text-primary);' : 'border-color: var(--gl-border); color: var(--gl-text-secondary);'">
+                            {{ opt }}
+                        </button>
+                    </div>
+                    <div v-else class="text-center">
+                        <div class="flex items-center justify-center gap-2 mb-3">
+                            <span class="text-lg font-bold" :style="{ color: selectedOption === currentGame.cards[currentCard]?.answer ? 'var(--gl-success)' : 'var(--gl-danger)' }">
+                                {{ selectedOption === currentGame.cards[currentCard]?.answer ? 'Correct!' : 'Wrong!' }}
+                            </span>
+                        </div>
+                        <p class="text-sm" style="color: var(--gl-text-secondary)">The correct answer is: <strong style="color: var(--gl-success);">{{ currentGame.cards[currentCard]?.answer }}</strong></p>
+                    </div>
+                </div>
+
+                <!-- Fill in the Blank -->
+                <div v-else-if="currentGame.type === 'fillblank'" class="p-6" style="min-height: 280px;">
+                    <div class="text-center mb-6">
+                        <p class="text-xs mb-2" style="color: var(--gl-text-muted)">Question {{ currentCard + 1 }} of {{ currentGame.cards.length }}</p>
+                        <p class="text-base font-semibold mb-4" style="color: var(--gl-text-primary)">{{ currentGame.cards[currentCard]?.question }}</p>
+                    </div>
+                    <div v-if="!answered">
+                        <input v-model="typedAnswer" type="text" placeholder="Type your answer..."
+                            class="w-full rounded-xl border px-4 py-3 text-sm text-center outline-none"
+                            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);"
+                            @keyup.enter="checkFillBlank" />
+                        <button @click="checkFillBlank"
+                            class="w-full mt-4 rounded-xl py-2.5 text-sm font-semibold text-white transition-all"
+                            style="background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary));">Submit</button>
+                    </div>
+                    <div v-else class="text-center">
+                        <p class="text-lg font-bold mb-2" :style="{ color: fillCorrect ? 'var(--gl-success)' : 'var(--gl-danger)' }">
+                            {{ fillCorrect ? 'Correct!' : 'Not quite' }}
+                        </p>
+                        <p class="text-sm" style="color: var(--gl-text-secondary)">Answer: <strong style="color: var(--gl-success);">{{ currentGame.cards[currentCard]?.answer }}</strong></p>
+                    </div>
+                </div>
 
                     <!-- Controls -->
                     <div class="flex items-center justify-between gap-3 mt-4">
@@ -104,7 +149,6 @@
                             Finish <Trophy class="h-3.5 w-3.5 inline ml-1" :stroke-width="2" />
                         </button>
                     </div>
-                </div>
             </div>
         </div>
     </Teleport>
@@ -219,13 +263,18 @@ interface Card { question: string; answer: string; }
 const dbGames = computed(() => (props.games || []).map((g: any) => ({
     title: g.title,
     subject: g.subject,
-    desc: g.description || 'Flashcard game for ' + g.subject,
+    desc: g.description || 'Game for ' + g.subject,
     xp: g.xp_reward,
-    icon: Palette,
+    type: g.type || 'flashcard',
+    icon: g.type === 'quiz' ? HelpCircle : g.type === 'fillblank' ? Code : Palette,
     bg: 'rgba(59,130,246,0.12)',
     color: '#3B82F6',
     badge: 'rgba(59,130,246,0.1)',
-    cards: (g.cards || []).map((c: any) => ({ question: c.question, answer: c.answer })),
+    cards: (g.cards || []).map((c: any) => ({
+        question: c.question,
+        answer: c.answer,
+        options: c.options || [],
+    })),
 })));
 
 const games = computed(() => {
@@ -233,16 +282,24 @@ const games = computed(() => {
     return photoshopGames;
 });
 
-const currentGame = ref<Game | null>(null);
+const currentGame = ref<any>(null);
 const currentCard = ref(0);
 const flipped = ref(false);
 const correctCount = ref(0);
+const answered = ref(false);
+const selectedOption = ref('');
+const typedAnswer = ref('');
+const fillCorrect = ref(false);
 
-function openGame(game: Game) {
+function openGame(game: any) {
     currentGame.value = game;
     currentCard.value = 0;
     flipped.value = false;
     correctCount.value = 0;
+    answered.value = false;
+    selectedOption.value = '';
+    typedAnswer.value = '';
+    fillCorrect.value = false;
 }
 
 function closeGame() {
@@ -253,6 +310,10 @@ function nextCard() {
     if (currentGame.value && currentCard.value < currentGame.value.cards.length - 1) {
         currentCard.value++;
         flipped.value = false;
+        answered.value = false;
+        selectedOption.value = '';
+        typedAnswer.value = '';
+        fillCorrect.value = false;
         correctCount.value++;
     }
 }
@@ -260,6 +321,21 @@ function nextCard() {
 function prevCard() {
     if (currentCard.value > 0) currentCard.value--;
     flipped.value = false;
+    answered.value = false;
+    selectedOption.value = '';
+    typedAnswer.value = '';
+    fillCorrect.value = false;
+}
+
+function checkAnswer(opt: string) {
+    selectedOption.value = opt;
+    answered.value = true;
+}
+
+function checkFillBlank() {
+    answered.value = true;
+    const c = currentGame.value?.cards[currentCard.value];
+    fillCorrect.value = typedAnswer.value.trim().toLowerCase() === (c?.answer || '').trim().toLowerCase();
 }
 
 function finishGame() {

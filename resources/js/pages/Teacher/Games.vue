@@ -73,8 +73,9 @@
                         <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">Title</label><input v-model="form.title" type="text" required class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" /></div>
                         <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">Subject</label><input v-model="form.subject" type="text" required class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" /></div>
                         <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">Grade (optional)</label><input v-model="form.grade" type="text" class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" /></div>
-                        <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">XP Reward</label><input v-model.number="form.xp_reward" type="number" min="1" required class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" /></div>
-                    </div>
+                    <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">XP Reward</label><input v-model.number="form.xp_reward" type="number" min="1" required class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" /></div>
+                    <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">Game Type</label><select v-model="form.type" class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);"><option value="flashcard">Flashcard</option><option value="quiz">Multiple Choice</option><option value="fillblank">Fill in the Blank</option></select></div>
+                </div>
                     <div><label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">Description</label><textarea v-model="form.description" rows="2" class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);"></textarea></div>
 
                     <div class="rounded-xl p-4" style="background: var(--gl-surface-2); border: 1px solid var(--gl-border);">
@@ -82,11 +83,26 @@
                             <span class="text-xs font-semibold" style="color: var(--gl-text-primary);">Flashcards</span>
                             <button type="button" @click="form.cards.push({question:'',answer:''})" class="rounded-lg px-2.5 py-1 text-xs font-medium text-white transition-all" style="background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary));"><Plus class="h-3 w-3 inline" /> Add Card</button>
                         </div>
-                        <div v-for="(c, i) in form.cards" :key="i" class="flex items-start gap-2 mb-2">
-                            <span class="text-xs mt-2.5" style="color: var(--gl-text-muted)">{{ i + 1 }}.</span>
-                            <input v-model="c.question" type="text" placeholder="Question" class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
-                            <input v-model="c.answer" type="text" placeholder="Answer" class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
-                            <button v-if="form.cards.length > 1" type="button" @click="form.cards.splice(i,1)" class="rounded-lg p-1 mt-1.5 transition-colors hover:bg-[var(--gl-danger-bg)]" style="color: var(--gl-danger);"><X class="h-3.5 w-3.5" /></button>
+                        <div v-for="(c, i) in form.cards" :key="i" class="flex flex-col gap-1.5 mb-3 pb-3" :style="{ borderBottom: i < form.cards.length - 1 ? '1px solid var(--gl-border)' : 'none' }">
+                            <div class="flex items-start gap-2">
+                                <span class="text-xs mt-2.5" style="color: var(--gl-text-muted)">{{ i + 1 }}.</span>
+                                <input v-model="c.question" type="text" placeholder="Question" class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
+                                <input v-if="form.type !== 'quiz'" v-model="c.answer" type="text" placeholder="Answer" class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
+                                <button v-if="form.cards.length > 1" type="button" @click="form.cards.splice(i,1)" class="rounded-lg p-1 mt-1.5 transition-colors hover:bg-[var(--gl-danger-bg)]" style="color: var(--gl-danger);"><X class="h-3.5 w-3.5" /></button>
+                            </div>
+                            <template v-if="form.type === 'quiz'">
+                                <div class="ml-6 space-y-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-[10px]" style="color: var(--gl-text-muted);">Options:</span>
+                                        <div v-for="(opt, oi) in (c.options || [])" :key="oi" class="flex items-center gap-1">
+                                            <input v-model="c.options[oi]" type="text" placeholder="Option {{ oi + 1 }}" class="w-32 rounded-lg border px-2 py-1 text-[10px] outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
+                                            <label class="flex items-center gap-0.5 text-[10px]" style="color: var(--gl-text-muted)"><input type="radio" :name="'correct_'+i" :checked="c.answer === c.options[oi]" @change="c.answer = c.options[oi]" /> Correct</label>
+                                            <button v-if="c.options.length > 2" @click="c.options.splice(oi,1); if(c.answer === opt) c.answer=''" class="text-[10px]" style="color: var(--gl-danger);"><X class="h-2.5 w-2.5 inline" /></button>
+                                        </div>
+                                    </div>
+                                    <button v-if="(c.options?.length || 0) < 4" @click="if(!c.options) c.options=[]; c.options.push('')" class="text-[10px] font-medium" style="color: var(--gl-primary);">+ Add option</button>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
@@ -113,18 +129,18 @@ const showForm = ref(false);
 const editingId = ref<number | null>(null);
 const saving = ref(false);
 
-const form = reactive({ title: '', subject: '', grade: '', description: '', xp_reward: 10, cards: [{ question: '', answer: '' }] });
+const form = reactive({ title: '', subject: '', grade: '', description: '', xp_reward: 10, type: 'flashcard', cards: [{ question: '', answer: '', options: [] as string[] }] });
 
 function openCreate() {
     editingId.value = null;
-    form.title = ''; form.subject = ''; form.grade = ''; form.description = ''; form.xp_reward = 10; form.cards = [{ question: '', answer: '' }];
+    form.title = ''; form.subject = ''; form.grade = ''; form.description = ''; form.xp_reward = 10; form.type = 'flashcard'; form.cards = [{ question: '', answer: '', options: [] }];
     showForm.value = true;
 }
 
 function openEdit(g: any) {
     editingId.value = g.id;
-    form.title = g.title; form.subject = g.subject; form.grade = g.grade ?? ''; form.description = g.description ?? ''; form.xp_reward = g.xp_reward;
-    form.cards = (g.cards || []).map((c: any) => ({ question: c.question, answer: c.answer }));
+    form.title = g.title; form.subject = g.subject; form.grade = g.grade ?? ''; form.description = g.description ?? ''; form.xp_reward = g.xp_reward; form.type = g.type || 'flashcard';
+    form.cards = (g.cards || []).map((c: any) => ({ question: c.question, answer: c.answer, options: c.options || [] }));
     showForm.value = true;
 }
 
