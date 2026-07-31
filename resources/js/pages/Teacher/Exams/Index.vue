@@ -1,34 +1,36 @@
 <template>
     <Head title="Exams" />
 
-    <div v-if="flash?.success" class="mb-6 rounded-lg px-4 py-3 text-sm" style="background-color: #DCEEE3; color: #2F7A54">
+    <div v-if="flash?.success" class="mb-6 rounded-xl px-4 py-3 text-sm gl-fade-in"
+        style="background: var(--gl-success-bg); color: var(--gl-success); border: 1px solid rgba(16,185,129,0.2);">
         {{ flash.success }}
     </div>
 
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h2 class="text-lg font-semibold" style="color: #1B2231">Exams</h2>
-            <p class="text-sm" style="color: #5A6376">Manage composite exams with question and practical sections.</p>
+            <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Exams</h2>
+            <p class="text-sm" style="color: var(--gl-text-secondary)">Manage composite exams with question and practical sections.</p>
         </div>
-        <button @click="showCreate = true" class="btn-primary">
-            <Plus class="h-4 w-4" :stroke-width="2" />
-            New Exam
+        <button @click="showCreate = true"
+            class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style="background: linear-gradient(135deg, var(--gl-secondary), var(--gl-primary)); box-shadow: 0 0 12px var(--gl-secondary-glow);">
+            <Plus class="h-4 w-4" :stroke-width="2" /> New Exam
         </button>
     </div>
 
-    <div v-if="!exams.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
-            <FileQuestion class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
+    <div v-if="!exams.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style="background: var(--gl-surface-2);">
+            <FileQuestion class="h-6 w-6" style="color: var(--gl-text-muted);" :stroke-width="1.75" />
         </div>
-        <p class="text-sm font-medium" style="color: #404A5C">No exams yet</p>
-        <p class="mt-1 text-sm" style="color: #7C8598">Create a composite exam with multiple sections.</p>
-        <button @click="showCreate = true" class="btn-primary mt-4">
-            <Plus class="h-4 w-4" :stroke-width="2" />
-            New Exam
+        <p class="text-sm font-medium" style="color: var(--gl-text-secondary)">No exams yet</p>
+        <p class="mt-1 text-sm" style="color: var(--gl-text-muted)">Create a composite exam with multiple sections.</p>
+        <button @click="showCreate = true" class="mt-4 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style="background: linear-gradient(135deg, var(--gl-secondary), var(--gl-primary)); box-shadow: 0 0 12px var(--gl-secondary-glow);">
+            <Plus class="h-4 w-4" :stroke-width="2" /> New Exam
         </button>
     </div>
 
-    <div v-else class="card overflow-hidden">
+    <div v-else class="gl-glow-card overflow-hidden">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">

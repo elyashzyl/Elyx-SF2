@@ -1,34 +1,36 @@
 <template>
     <Head title="Seatworks" />
 
-    <div v-if="flash?.success" class="mb-6 rounded-lg px-4 py-3 text-sm" style="background-color: #DCEEE3; color: #2F7A54">
+    <div v-if="flash?.success" class="mb-6 rounded-xl px-4 py-3 text-sm gl-fade-in"
+        style="background: var(--gl-success-bg); color: var(--gl-success); border: 1px solid rgba(16,185,129,0.2);">
         {{ flash.success }}
     </div>
 
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h2 class="text-lg font-semibold" style="color: #1B2231">Seatworks</h2>
-            <p class="text-sm" style="color: #5A6376">Manage seatwork activities.</p>
+            <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Seatworks</h2>
+            <p class="text-sm" style="color: var(--gl-text-secondary)">Manage seatwork activities.</p>
         </div>
-        <button @click="openCreate" class="btn-primary">
-            <Plus class="h-4 w-4" :stroke-width="2" />
-            New Seatwork
+        <button @click="openCreate"
+            class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style="background: linear-gradient(135deg, #10B981, var(--gl-secondary)); box-shadow: 0 0 12px rgba(16,185,129,0.3);">
+            <Plus class="h-4 w-4" :stroke-width="2" /> New Seatwork
         </button>
     </div>
 
-    <div v-if="!seatworks.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
-            <ClipboardCheck class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
+    <div v-if="!seatworks.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style="background: var(--gl-surface-2);">
+            <ClipboardCheck class="h-6 w-6" style="color: var(--gl-text-muted);" :stroke-width="1.75" />
         </div>
-        <p class="text-sm font-medium" style="color: #404A5C">No seatworks yet</p>
-        <p class="mt-1 text-sm" style="color: #7C8598">Create your first seatwork activity.</p>
-        <button @click="openCreate" class="btn-primary mt-4">
-            <Plus class="h-4 w-4" :stroke-width="2" />
-            New Seatwork
+        <p class="text-sm font-medium" style="color: var(--gl-text-secondary)">No seatworks yet</p>
+        <p class="mt-1 text-sm" style="color: var(--gl-text-muted)">Create your first seatwork activity.</p>
+        <button @click="openCreate" class="mt-4 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style="background: linear-gradient(135deg, #10B981, var(--gl-secondary)); box-shadow: 0 0 12px rgba(16,185,129,0.3);">
+            <Plus class="h-4 w-4" :stroke-width="2" /> New Seatwork
         </button>
     </div>
 
-    <div v-else class="card overflow-hidden">
+    <div v-else class="gl-glow-card overflow-hidden">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
