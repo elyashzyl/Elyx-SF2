@@ -6,16 +6,30 @@
         {{ flash.success }}
     </div>
 
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-            <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Seatworks</h2>
-            <p class="text-sm" style="color: var(--gl-text-secondary)">Manage seatwork activities.</p>
+    <!-- Hero Header -->
+    <div class="relative mb-8 overflow-hidden rounded-2xl p-8 gl-fade-in"
+        style="background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(124,58,237,0.06)); border: 1px solid var(--gl-border);">
+        <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-xl"
+                    style="background: linear-gradient(135deg, #10B981, var(--gl-secondary)); box-shadow: 0 0 20px rgba(16,185,129,0.3);">
+                    <ClipboardCheck class="h-6 w-6 text-white" :stroke-width="2" />
+                </div>
+                <h1 class="text-2xl font-bold" style="color: var(--gl-text-primary)">Seatworks</h1>
+                <p class="mt-2 max-w-lg text-sm" style="color: var(--gl-text-secondary)">
+                    Create engaging seatwork activities for your students.
+                </p>
+            </div>
+            <button @click="openCreate"
+                class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+                style="background: linear-gradient(135deg, #10B981, var(--gl-secondary)); box-shadow: 0 0 12px rgba(16,185,129,0.3);">
+                <Plus class="h-4 w-4" :stroke-width="2" /> New Seatwork
+            </button>
         </div>
-        <button @click="openCreate"
-            class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-            style="background: linear-gradient(135deg, #10B981, var(--gl-secondary)); box-shadow: 0 0 12px rgba(16,185,129,0.3);">
-            <Plus class="h-4 w-4" :stroke-width="2" /> New Seatwork
-        </button>
+        <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-10"
+            style="background: radial-gradient(circle, #10B981, transparent 70%);"></div>
+        <div class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full opacity-10"
+            style="background: radial-gradient(circle, var(--gl-secondary), transparent 70%);"></div>
     </div>
 
     <div v-if="!seatworks.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
