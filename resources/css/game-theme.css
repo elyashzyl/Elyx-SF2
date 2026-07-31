@@ -206,7 +206,17 @@
 .dark-mode select option { background: var(--gl-surface) !important; color: var(--gl-text-primary); }
 .dark-mode input[type="text"],
 .dark-mode input[type="search"],
+.dark-mode input[type="email"],
+.dark-mode input[type="number"],
+.dark-mode input[type="password"],
 .dark-mode textarea { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+.dark-mode input[type="radio"] { accent-color: var(--gl-primary); }
+
+/* ── Create Modal Form Overrides (dark) ─────────────────── */
+.dark-mode .input-field { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+.dark-mode .field-label { color: var(--gl-text-secondary) !important; }
+.dark-mode .btn-primary { background: linear-gradient(135deg, var(--gl-primary), #2563EB) !important; border: none; box-shadow: 0 0 12px var(--gl-primary-glow); }
+.dark-mode .btn-secondary { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
 
 /* ── Buttons (dark) ─────────────────────────────────────── */
 .dark-mode [style*="background-color: #1D3557"] { background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)) !important; }
@@ -234,8 +244,17 @@
 /* ── Delete modal (dark) ────────────────────────────────── */
 .dark-mode [class*="fixed"][class*="bg-black/40"] + *,
 .dark-mode [class*="bg-black/40"] { background: rgba(0,0,0,0.5) !important; }
-.dark-mode [class*="rounded-xl"][class*="bg-white"] { background: var(--gl-surface) !important; }
 .dark-mode [style*="background-color: #FDE8E8"] { background: var(--gl-danger-bg) !important; }
+
+/* Teleported modals with bg-white */
+.dark-mode [class*="rounded-xl"][class*="bg-white"],
+.dark-mode [class*="rounded-2xl"][class*="bg-white"] { background: var(--gl-surface) !important; }
+.dark-mode [class*="fixed"][class*="z-50"] [class*="rounded-xl"],
+.dark-mode [class*="fixed"][class*="z-50"] [class*="rounded-2xl"] { background: var(--gl-surface) !important; border-color: var(--gl-border) !important; }
+.dark-mode [class*="fixed"][class*="z-50"] [class*="border-b"],
+.dark-mode [class*="fixed"][class*="z-50"] [class*="border-t"],
+.dark-mode [class*="fixed"][class*="z-50"] [class*="border-[#E9EBEF]"],
+.dark-mode [class*="fixed"][class*="z-50"] [class*="border-[#D2D6DE]"] { border-color: var(--gl-border) !important; }
 
 /* ════════════════════════════════════════════════════════════════
    Gamified Elements (both modes)
