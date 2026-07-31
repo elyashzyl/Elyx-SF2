@@ -15,7 +15,7 @@
             </div>
 
             <!-- Nav -->
-            <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-3">
+            <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-3 messenger-scroll">
                 <template v-for="link in nav" :key="link.name">
                     <div v-if="link.label" class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--gl-text-muted)">
                         {{ link.label }}
