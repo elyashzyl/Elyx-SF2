@@ -40,9 +40,9 @@
                 <!-- Notifications List -->
                 <template v-else-if="notifications.length">
                     <Link v-for="n in notifications" :key="n.id" :href="n.link" @click="close"
-                        class="flex gap-3 px-4 py-3.5 transition-all duration-150 border-b last:border-b-0 group"
+                        class="flex gap-3 px-4 py-3 transition-all duration-150 border-b last:border-b-0 group"
                         style="border-color: var(--gl-border);"
-                        :style="{ background: hoveredId === n.id ? 'rgba(59,130,246,0.03)' : 'transparent' }"
+                        :style="{ background: isUnread(n) ? 'rgba(59,130,246,0.04)' : hoveredId === n.id ? 'rgba(59,130,246,0.03)' : 'transparent', borderLeft: isUnread(n) ? '3px solid var(--gl-primary)' : '3px solid transparent' }"
                         @mouseenter="hoveredId = n.id" @mouseleave="hoveredId = null">
                         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                             :style="{ background: typeColor(n.type).bg }">
@@ -50,13 +50,10 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
-                                <p class="text-sm font-medium leading-tight truncate" style="color: var(--gl-text-primary)">{{ n.title }}</p>
-                                <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                                    :style="{ background: typeColor(n.type).badge, color: typeColor(n.type).fg }">
-                                    {{ typeLabel(n.type) }}
-                                </span>
+                                <p class="text-sm truncate" :style="{ color: isUnread(n) ? 'var(--gl-text-primary)' : 'var(--gl-text-secondary)', fontWeight: isUnread(n) ? '600' : '400' }">{{ n.title }}</p>
+                                <span v-if="isUnread(n)" class="shrink-0 h-2 w-2 rounded-full" style="background: var(--gl-primary); box-shadow: 0 0 4px var(--gl-primary-glow);"></span>
                             </div>
-                            <p class="text-xs leading-tight mt-0.5" style="color: var(--gl-text-secondary)">{{ n.body }}</p>
+                            <p class="text-xs leading-tight mt-0.5" :style="{ color: isUnread(n) ? 'var(--gl-text-secondary)' : 'var(--gl-text-muted)' }">{{ n.body }}</p>
                             <p class="text-[10px] mt-1" style="color: var(--gl-text-muted)">{{ timeAgo(n.time) }}</p>
                         </div>
                     </Link>
@@ -100,7 +97,12 @@ const notifications = ref<any[]>([]);
 const count = ref(0);
 const loading = ref(true);
 const hoveredId = ref<number | null>(null);
+const lastOpenedAt = ref<number>(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
+
+function isUnread(n: any): boolean {
+    return new Date(n.time).getTime() > lastOpenedAt.value;
+}
 
 function typeColor(type: string) {
     const colors: Record<string, { bg: string; fg: string; badge: string }> = {
@@ -131,12 +133,14 @@ function toggle() {
     if (open.value) {
         fetchNotifications();
         markRead();
+        lastOpenedAt.value = Date.now();
     }
 }
 
 function close() {
     open.value = false;
     markRead();
+    lastOpenedAt.value = Date.now();
 }
 
 async function markRead() {
@@ -174,7 +178,7 @@ async function fetchNotifications() {
 
 onMounted(() => {
     fetchNotifications();
-    timer = setInterval(fetchNotifications, 10000);
+    timer = setInterval(fetchNotifications, 3000);
 });
 
 onUnmounted(() => {

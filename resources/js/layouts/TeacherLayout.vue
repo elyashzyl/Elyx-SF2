@@ -90,7 +90,7 @@
 
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, CalendarCheck, UserCheck, MessageCircle } from '@lucide/vue';
+import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, UserCheck, MessageCircle } from '@lucide/vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import ThemeToggle from '@/components/ThemeToggle.vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
@@ -117,7 +117,7 @@ async function fetchMessengerUnread() {
 
 onMounted(() => {
     fetchMessengerUnread();
-    messengerTimer = setInterval(fetchMessengerUnread, 5000);
+    messengerTimer = setInterval(fetchMessengerUnread, 3000);
 });
 
 onUnmounted(() => {
@@ -141,7 +141,6 @@ const nav = computed(() => [
     { name: 'Results', href: '/teacher/results', icon: ClipboardCheck, active: path.value.startsWith('/teacher/results') },
     { name: 'Messenger', href: '/teacher/messenger', icon: MessageCircle, active: path.value.startsWith('/teacher/messenger') },
     { name: 'Leaderboard', href: '/teacher/leaderboard', icon: Trophy, active: path.value.startsWith('/teacher/leaderboard') },
-    { name: 'Attendance', href: '/teacher/attendance', icon: CalendarCheck, active: path.value.startsWith('/teacher/attendance') },
 ]);
 
 function logout() {

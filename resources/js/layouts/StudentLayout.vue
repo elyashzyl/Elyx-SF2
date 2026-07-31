@@ -128,7 +128,7 @@ async function fetchMessengerUnread() {
 
 onMounted(() => {
     fetchMessengerUnread();
-    messengerTimer = setInterval(fetchMessengerUnread, 5000);
+    messengerTimer = setInterval(fetchMessengerUnread, 3000);
 });
 
 onUnmounted(() => {
