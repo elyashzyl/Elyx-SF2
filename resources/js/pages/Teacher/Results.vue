@@ -233,7 +233,7 @@ function recheckUrl(item: any): string {
     const routes: Record<string, string> = {
         Quiz: `/teacher/quizzes/${item.activity_id}/recheck/${item.id}`,
         Seatwork: `/teacher/seatworks/${item.activity_id}/recheck/${item.id}`,
-        Practical: `/teacher/practicals/${item.activity_id}/recheck/${item.id}`,
+        Practical: `/teacher/practicals/${item.activity_id}/grade/${item.id}`,
         Exam: `/teacher/exams/${item.activity_id}/attempts`,
     };
     return routes[item.type] ?? '#';
