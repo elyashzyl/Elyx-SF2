@@ -8,6 +8,7 @@ use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SeatworkController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\GameController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Auth;
