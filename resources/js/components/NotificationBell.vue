@@ -146,7 +146,11 @@ function close() {
 async function markRead() {
     try {
         const prefix = window.location.pathname.startsWith('/student') ? 'student' : 'teacher';
-        await fetch(`/${prefix}/notifications/read`, { method: 'POST' });
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        await fetch(`/${prefix}/notifications/read`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json' },
+        });
     } catch { /* silent */ }
 }
 

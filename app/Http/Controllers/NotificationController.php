@@ -52,7 +52,7 @@ class NotificationController extends Controller
         if (!$isSuper) {
             $practicalQuery->whereIn('practical_id', $user->practicals()->pluck('id'));
         }
-        foreach ($practicalQuery->with('practical:id,title', 'student:id,name')->latest()->limit(10)->get() as $a) {
+        foreach ($practicalQuery->with('practical:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
             $notifs[] = [
                 'id' => 'practical_' . $a->id,
                 'type' => 'practical',
@@ -68,7 +68,7 @@ class NotificationController extends Controller
         if (!$isSuper) {
             $quizQuery->whereIn('quiz_id', $user->quizzes()->pluck('id'));
         }
-        foreach ($quizQuery->with('quiz:id,title', 'student:id,name')->latest()->limit(10)->get() as $a) {
+        foreach ($quizQuery->with('quiz:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
             $notifs[] = [
                 'id' => 'quiz_' . $a->id,
                 'type' => 'quiz',
@@ -84,7 +84,7 @@ class NotificationController extends Controller
         if (!$isSuper) {
             $swQuery->whereIn('seatwork_id', $user->seatworks()->pluck('id'));
         }
-        foreach ($swQuery->with('seatwork:id,title', 'student:id,name')->latest()->limit(10)->get() as $a) {
+        foreach ($swQuery->with('seatwork:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
             $notifs[] = [
                 'id' => 'seatwork_' . $a->id,
                 'type' => 'seatwork',
@@ -100,7 +100,7 @@ class NotificationController extends Controller
         if (!$isSuper) {
             $examQuery->whereIn('exam_id', $user->exams()->pluck('id'));
         }
-        foreach ($examQuery->with('exam:id,title', 'student:id,name')->latest()->limit(10)->get() as $a) {
+        foreach ($examQuery->with('exam:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
             $notifs[] = [
                 'id' => 'exam_' . $a->id,
                 'type' => 'exam',
@@ -125,7 +125,7 @@ class NotificationController extends Controller
             ->where('status', 'submitted')->whereNotNull('total_score')
             ->where('updated_at', '>=', $since)
             ->with('practical:id,title')
-            ->latest()->limit(5)->get() as $a) {
+            ->latest()->limit(20)->get() as $a) {
             $notifs[] = [
                 'id' => 'practical_result_' . $a->id,
                 'type' => 'practical',
