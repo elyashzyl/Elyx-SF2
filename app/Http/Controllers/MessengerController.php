@@ -37,7 +37,14 @@ class MessengerController extends Controller
             ? User::where('id', '!=', $user->id)->orderBy('name')->get(['id', 'name', 'role'])
             : ($user->isTeacher()
                 ? $user->students()->orderBy('name')->get(['users.id', 'users.name', 'users.role'])
-                : User::whereIn('id', $user->teachers()->pluck('teacher_id'))->orderBy('name')->get(['id', 'name', 'role'])
+                : User::where(function ($q) use ($user) {
+                    $q->whereIn('id', $user->teachers()->pluck('teacher_id'))
+                      ->orWhere(function ($q2) use ($user) {
+                          $q2->where('role', 'student')
+                             ->where('section_id', $user->section_id)
+                             ->where('id', '!=', $user->id);
+                      });
+                })->orderBy('name')->get(['id', 'name', 'role'])
             );
 
         return Inertia::render($user->isStudent() ? 'Student/Messenger' : 'Teacher/Messenger', [
@@ -90,7 +97,14 @@ class MessengerController extends Controller
                 ? User::where('id', '!=', $user->id)->orderBy('name')->get(['id', 'name', 'role'])
                 : ($user->isTeacher()
                     ? $user->students()->orderBy('name')->get(['users.id', 'users.name', 'users.role'])
-                    : User::whereIn('id', $user->teachers()->pluck('teacher_id'))->orderBy('name')->get(['id', 'name', 'role'])
+                    : User::where(function ($q) use ($user) {
+                        $q->whereIn('id', $user->teachers()->pluck('teacher_id'))
+                          ->orWhere(function ($q2) use ($user) {
+                              $q2->where('role', 'student')
+                                 ->where('section_id', $user->section_id)
+                                 ->where('id', '!=', $user->id);
+                          });
+                    })->orderBy('name')->get(['id', 'name', 'role'])
                 ),
         ]);
     }
