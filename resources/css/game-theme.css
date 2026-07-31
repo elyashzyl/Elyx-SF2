@@ -135,6 +135,26 @@
 .dark-mode [style*="color: #7C8598"], .dark-mode [style*="color: #AEB4C0"],
 .dark-mode [style*="color: #8A8D91"] { color: var(--gl-text-muted) !important; }
 
+/* Missing inline text colors from view/edit/result pages */
+.dark-mode [style*="color: #2B9348"] { color: var(--gl-success) !important; }
+.dark-mode [style*="color: #AA3C36"], .dark-mode [style*="color: #E63946"] { color: var(--gl-danger) !important; }
+.dark-mode [style*="color: #B76E00"], .dark-mode [style*="color: #8D6E00"] { color: var(--gl-accent) !important; }
+.dark-mode [style*="color: #1B2231"], .dark-mode [style*="color: #1D3557"],
+.dark-mode [style*="color: #404A5C"], .dark-mode [style*="color: #2B3444"] { color: var(--gl-text-primary) !important; }
+
+/* Tailwind utility classes that may not resolve on dark mode */
+.dark-mode .text-foreground { color: var(--gl-text-primary) !important; }
+.dark-mode .text-muted-foreground { color: var(--gl-text-secondary) !important; }
+.dark-mode .text-green-600 { color: var(--gl-success) !important; }
+.dark-mode .text-red-600 { color: var(--gl-danger) !important; }
+
+/* Missing Tailwind text classes */
+.dark-mode [class*="text-\\[\\#2F7A54\\]"] { color: var(--gl-success) !important; }
+.dark-mode [class*="text-\\[\\#AA3C36\\]"] { color: var(--gl-danger) !important; }
+.dark-mode [class*="text-\\[\\#A5701A\\]"] { color: var(--gl-accent) !important; }
+.dark-mode [class*="text-\\[\\#5A6376\\]"] { color: var(--gl-text-secondary) !important; }
+.dark-mode [class*="text-\\[\\#404A5C\\]"] { color: var(--gl-text-primary) !important; }
+
 /* Catch Tailwind bg-* classes */
 .dark-mode [class*="bg-white"] { background-color: var(--gl-surface) !important; }
 .dark-mode [class*="bg-\\[\\#FFFFFF\\]"] { background-color: var(--gl-surface) !important; }
