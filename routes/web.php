@@ -31,6 +31,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/students/{user}/scores', [TeacherController::class, 'studentScores'])->name('students.scores');
     Route::put('/students/{user}', [TeacherController::class, 'studentUpdate'])->name('students.update');
     Route::delete('/students/{user}/remove', [TeacherController::class, 'studentRemove'])->name('students.remove');
+    Route::post('/students/{user}/add-xp', [TeacherController::class, 'addXp'])->name('students.addXp');
     Route::get('/teachers', [TeacherController::class, 'teachers'])->name('teachers.index');
     Route::get('/teachers/{user}', [TeacherController::class, 'teacherShow'])->name('teachers.show');
     Route::put('/teachers/{user}', [TeacherController::class, 'teacherUpdate'])->name('teachers.update');

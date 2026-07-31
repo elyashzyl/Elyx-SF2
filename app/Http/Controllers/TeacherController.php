@@ -219,6 +219,32 @@ class TeacherController extends Controller
         return back()->with('success', 'Student removed from class.');
     }
 
+    public function addXp(Request $request, User $user): JsonResponse
+    {
+        $teacher = Auth::user();
+        $isAssigned = $teacher->isSuperadmin() || $teacher->students()->where('users.id', $user->id)->exists();
+        abort_unless($isAssigned, 403);
+        abort_unless($user->isStudent(), 404);
+
+        $data = $request->validate([
+            'xp' => ['required', 'integer', 'min:1', 'max:1000'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $user->increment('total_points', $data['xp']);
+        \App\Models\StudentPoint::create([
+            'student_id' => $user->id,
+            'activity_type' => 'Manual',
+            'activity_id' => 0,
+            'points' => $data['xp'],
+            'score' => $data['xp'],
+            'total' => $data['xp'],
+            'reason' => $data['reason'] ?? 'Manually awarded by ' . $teacher->name,
+        ]);
+
+        return response()->json(['ok' => true, 'total_points' => $user->total_points]);
+    }
+
     public function students(): Response
     {
         $teacher = Auth::user();
