@@ -235,8 +235,12 @@
 /* ── Create Modal Form Overrides (dark) ─────────────────── */
 .dark-mode .input-field { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
 .dark-mode .field-label { color: var(--gl-text-secondary) !important; }
-.dark-mode .btn-primary { background: linear-gradient(135deg, var(--gl-primary), #2563EB) !important; border: none; box-shadow: 0 0 12px var(--gl-primary-glow); }
+.dark-mode .btn-primary { background: linear-gradient(135deg, var(--gl-primary), #2563EB) !important; border: none; box-shadow: 0 0 12px var(--gl-primary-glow); color: #FFF !important; }
 .dark-mode .btn-secondary { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+.dark-mode [class*="bg-black/40"] { background: rgba(0,0,0,0.5) !important; }
+.dark-mode button[class*="bg-white"] { background: var(--gl-surface-2) !important; color: var(--gl-text-primary) !important; }
+.dark-mode button[class*="border-[#D2D6DE]"] { border-color: var(--gl-border) !important; }
+.dark-mode button[class*="border-[#1D3557]"] { border-color: var(--gl-primary) !important; }
 
 /* ── Buttons (dark) ─────────────────────────────────────── */
 .dark-mode [style*="background-color: #1D3557"] { background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)) !important; }
@@ -268,13 +272,24 @@
 
 /* Teleported modals with bg-white */
 .dark-mode [class*="rounded-xl"][class*="bg-white"],
-.dark-mode [class*="rounded-2xl"][class*="bg-white"] { background: var(--gl-surface) !important; }
+.dark-mode [class*="rounded-2xl"][class*="bg-white"] { background: var(--gl-surface) !important; color: var(--gl-text-primary); }
 .dark-mode [class*="fixed"][class*="z-50"] [class*="rounded-xl"],
 .dark-mode [class*="fixed"][class*="z-50"] [class*="rounded-2xl"] { background: var(--gl-surface) !important; border-color: var(--gl-border) !important; }
 .dark-mode [class*="fixed"][class*="z-50"] [class*="border-b"],
 .dark-mode [class*="fixed"][class*="z-50"] [class*="border-t"],
 .dark-mode [class*="fixed"][class*="z-50"] [class*="border-[#E9EBEF]"],
 .dark-mode [class*="fixed"][class*="z-50"] [class*="border-[#D2D6DE]"] { border-color: var(--gl-border) !important; }
+
+/* Modal text visibility - ensure all text in modals is visible */
+.dark-mode [class*="fixed"][class*="z-50"] h3,
+.dark-mode [class*="fixed"][class*="z-50"] h4,
+.dark-mode [class*="fixed"][class*="z-50"] label,
+.dark-mode [class*="fixed"][class*="z-50"] span,
+.dark-mode [class*="fixed"][class*="z-50"] p { color: var(--gl-text-primary); }
+.dark-mode [class*="fixed"][class*="z-50"] [style*="color: #1B2231"],
+.dark-mode [class*="fixed"][class*="z-50"] [style*="color: #5A6376"],
+.dark-mode [class*="fixed"][class*="z-50"] [style*="color: #404A5C"] { color: var(--gl-text-primary) !important; }
+.dark-mode [class*="fixed"][class*="z-50"] [style*="color: #7C8598"] { color: var(--gl-text-muted) !important; }
 
 /* ════════════════════════════════════════════════════════════════
    Gamified Elements (both modes)
