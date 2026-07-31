@@ -227,19 +227,24 @@ class TeacherController extends Controller
         abort_unless($user->isStudent(), 404);
 
         $data = $request->validate([
-            'xp' => ['required', 'integer', 'min:1', 'max:1000'],
+            'xp' => ['required', 'integer', 'min:-1000', 'max:1000', 'not_in:0'],
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $user->increment('total_points', $data['xp']);
+        if ($data['xp'] > 0) {
+            $user->increment('total_points', $data['xp']);
+        } else {
+            $user->decrement('total_points', abs($data['xp']));
+        }
+
         \App\Models\StudentPoint::create([
             'student_id' => $user->id,
-            'activity_type' => 'Manual',
+            'activity_type' => $data['xp'] > 0 ? 'Manual' : 'Deduction',
             'activity_id' => 0,
             'points' => $data['xp'],
-            'score' => $data['xp'],
-            'total' => $data['xp'],
-            'reason' => $data['reason'] ?? 'Manually awarded by ' . $teacher->name,
+            'score' => abs($data['xp']),
+            'total' => abs($data['xp']),
+            'reason' => $data['reason'] ?? ($data['xp'] > 0 ? 'Manually awarded by ' . $teacher->name : 'Manually deducted by ' . $teacher->name),
         ]);
 
         return response()->json(['ok' => true, 'total_points' => $user->total_points]);

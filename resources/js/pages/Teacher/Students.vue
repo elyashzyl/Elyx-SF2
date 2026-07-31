@@ -152,21 +152,33 @@
     <Teleport to="body">
         <div v-if="xpStudent" class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);" @click.self="xpStudent = null">
             <div class="w-full max-w-sm rounded-2xl p-6" style="background: var(--gl-surface); border: 1px solid var(--gl-border); box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
-                <h3 class="mb-4 text-base font-semibold" style="color: var(--gl-text-primary)">Award XP to {{ xpStudent.name }}</h3>
+                <h3 class="mb-4 text-base font-semibold" style="color: var(--gl-text-primary)">{{ xpMode === 'add' ? 'Award XP to' : 'Deduct XP from' }} {{ xpStudent.name }}</h3>
+                <div class="flex rounded-lg border p-0.5 mb-4" style="border-color: var(--gl-border);">
+                    <button @click="xpMode = 'add'" class="flex-1 rounded-md py-1.5 text-xs font-medium transition-all"
+                        :style="xpMode === 'add' ? 'background: linear-gradient(135deg, var(--gl-success), #059669); color: #FFF;' : 'color: var(--gl-text-secondary);'">Award</button>
+                    <button @click="xpMode = 'deduct'" class="flex-1 rounded-md py-1.5 text-xs font-medium transition-all"
+                        :style="xpMode === 'deduct' ? 'background: linear-gradient(135deg, var(--gl-danger), #DC2626); color: #FFF;' : 'color: var(--gl-text-secondary);'">Deduct</button>
+                </div>
                 <div class="space-y-4">
                     <div>
                         <label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">XP Amount</label>
-                        <input v-model.number="xpAmount" type="number" min="1" max="1000" class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" placeholder="e.g. 50" />
+                        <input v-model.number="xpAmount" type="number" min="1" max="1000"
+                            class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none"
+                            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" placeholder="e.g. 50" />
                     </div>
                     <div>
                         <label class="block mb-1.5 text-xs font-medium" style="color: var(--gl-text-secondary);">Reason (optional)</label>
-                        <input v-model="xpReason" type="text" class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" placeholder="e.g. Class participation" />
+                        <input v-model="xpReason" type="text"
+                            class="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none"
+                            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" :placeholder="xpMode === 'add' ? 'e.g. Class participation' : 'e.g. Late submission'" />
                     </div>
                     <div class="flex justify-end gap-3 pt-2">
                         <button @click="xpStudent = null" class="rounded-xl px-4 py-2.5 text-sm font-medium" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border: 1px solid var(--gl-border);">Cancel</button>
-                        <button @click="awardXp" :disabled="!xpAmount || xpSaving" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50"
-                            style="background: linear-gradient(135deg, var(--gl-accent), #F59E0B); box-shadow: 0 0 12px rgba(251,191,36,0.3);">
-                            <Zap class="h-4 w-4 inline mr-1" :stroke-width="2" /> {{ xpSaving ? 'Awarding...' : 'Award XP' }}
+                        <button @click="awardXp" :disabled="!xpAmount || xpSaving"
+                            class="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50"
+                            :style="xpMode === 'add' ? 'background: linear-gradient(135deg, var(--gl-accent), #F59E0B); box-shadow: 0 0 12px rgba(251,191,36,0.3);' : 'background: linear-gradient(135deg, var(--gl-danger), #DC2626); box-shadow: 0 0 12px rgba(239,68,68,0.3);'">
+                            <Zap v-if="xpMode === 'add'" class="h-4 w-4 inline mr-1" :stroke-width="2" />
+                            {{ xpSaving ? 'Saving...' : (xpMode === 'add' ? 'Award XP' : 'Deduct XP') }}
                         </button>
                     </div>
                 </div>
@@ -218,8 +230,8 @@ function openEdit(s: any) { editForm.value = { name: s.name, email: s.email }; e
 function saveEdit() { editError.value = {}; router.put(`/teacher/students/${editing.value.id}`, editForm.value, { preserveScroll: true, onSuccess: () => { editing.value = null; }, onError: (errors) => { editError.value = errors; } }); }
 function confirmRemove(s: any) { if (confirm(`Remove "${s.name}" from your class?`)) router.delete(`/teacher/students/${s.id}/remove`, { preserveScroll: true }); }
 
-const xpStudent = ref<any>(null); const xpAmount = ref<number>(0); const xpReason = ref(''); const xpSaving = ref(false);
-function openXpModal(s: any) { xpStudent.value = s; xpAmount.value = 10; xpReason.value = ''; }
+const xpStudent = ref<any>(null); const xpAmount = ref<number>(10); const xpReason = ref(''); const xpSaving = ref(false); const xpMode = ref<'add' | 'deduct'>('add');
+function openXpModal(s: any) { xpStudent.value = s; xpAmount.value = 10; xpReason.value = ''; xpMode.value = 'add'; }
 async function awardXp() {
     if (!xpStudent.value || !xpAmount.value) return;
     xpSaving.value = true;
@@ -227,7 +239,7 @@ async function awardXp() {
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
         const res = await fetch(`/teacher/students/${xpStudent.value.id}/add-xp`, {
             method: 'POST', headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ xp: xpAmount.value, reason: xpReason.value }),
+            body: JSON.stringify({ xp: xpMode.value === 'deduct' ? -xpAmount.value : xpAmount.value, reason: xpReason.value }),
         });
         if (res.ok) {
             const data = await res.json();
