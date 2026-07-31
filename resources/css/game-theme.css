@@ -167,6 +167,8 @@
 .dark-mode [class*="bg-\\[\\#DCEEE3\\]"] { background-color: var(--gl-success-bg) !important; }
 .dark-mode [class*="bg-\\[\\#F6DEDD\\]"] { background-color: var(--gl-danger-bg) !important; }
 .dark-mode [class*="bg-\\[\\#FFF3D6\\]"] { background-color: var(--gl-warning-bg) !important; }
+.dark-mode [class*="bg-\\[\\#E0E7F1\\]"] { background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(124,58,237,0.08)) !important; }
+.dark-mode [class*="bg-\\[\\#F5EBD8\\]"] { background-color: var(--gl-warning-bg) !important; }
 .dark-mode [class*="border-\\[\\#2F7A54\\]"],
 .dark-mode [class*="border-\\[\\#DCEEE3\\]"],
 .dark-mode [class*="border-\\[\\#D2D6DE\\]"],
@@ -175,6 +177,7 @@
 .dark-mode [class*="border-\\[\\#1D3557\\]"] { border-color: var(--gl-primary) !important; }
 .dark-mode [class*="text-\\[\\#2F7A54\\]"] { color: var(--gl-success) !important; }
 .dark-mode [class*="text-\\[\\#1D3557\\]"] { color: var(--gl-text-primary) !important; }
+.dark-mode [class*="text-\\[\\#A5701A\\]"] { color: var(--gl-accent) !important; }
 .dark-mode [class*="focus:ring-\\[\\#1D3557\\]"]:focus { --tw-ring-color: var(--gl-primary) !important; }
 
 /* Catch Tailwind text-* classes */
@@ -269,6 +272,16 @@
 .dark-mode [class*="hover:text-\\[\\#2B3444\\]"]:hover { color: var(--gl-text-primary) !important; }
 .dark-mode [class*="hover:text-\\[\\#AA3C36\\]"]:hover { color: var(--gl-danger) !important; }
 .dark-mode [class*="hover:border-\\[\\#AEB4C0\\]"]:hover { border-color: var(--gl-border-hover) !important; }
+
+/* Table row hovers */
+.dark-mode [class*="hover:bg-\\[\\#F9FAFB\\]"]:hover,
+.dark-mode tr[class*="hover:"]:hover { background-color: rgba(59,130,246,0.04) !important; }
+
+/* Action icon button hovers in tables */
+.dark-mode td button:hover,
+.dark-mode td a:hover { background-color: rgba(59,130,246,0.08) !important; }
+.dark-mode td button[style*="color: var(--gl-danger)"]:hover,
+.dark-mode td button[class*="hover:bg-\\[\\#F6DEDD\\]"]:hover { background-color: var(--gl-danger-bg) !important; }
 
 /* ── Notification (dark) ───────────────────────────────── */
 .dark-mode [class*="z-50"][class*="rounded-2xl"] {
