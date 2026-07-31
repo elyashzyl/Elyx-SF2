@@ -243,10 +243,17 @@
 .dark-mode button[class*="border-[#D2D6DE]"] { border-color: var(--gl-border) !important; }
 .dark-mode button[class*="border-[#1D3557]"] { border-color: var(--gl-primary) !important; }
 
-/* ── Buttons (dark) ─────────────────────────────────────── */
-.dark-mode [style*="background-color: #1D3557"] { background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)) !important; }
-.dark-mode .btn-primary { background: linear-gradient(135deg, var(--gl-primary), #2563EB) !important; border: none; box-shadow: 0 0 12px var(--gl-primary-glow); }
-.dark-mode .btn-secondary { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
+/* ── Button hover overrides (dark) ──────────────────────── */
+.dark-mode [class*="hover:bg-white"]:hover,
+.dark-mode [class*="hover:bg-\\[\\#F5F6F8\\]"]:hover,
+.dark-mode [class*="hover:bg-\\[\\#F9FAFB\\]"]:hover,
+.dark-mode [class*="hover:bg-\\[\\#F0F2F5\\]"]:hover,
+.dark-mode [class*="hover:bg-\\[\\#E9EBEF\\]"]:hover { background-color: rgba(59,130,246,0.06) !important; }
+.dark-mode [class*="hover:bg-\\[\\#F6DEDD\\]"]:hover { background-color: var(--gl-danger-bg) !important; }
+.dark-mode [class*="hover:bg-red-50"]:hover { background-color: var(--gl-danger-bg) !important; }
+.dark-mode [class*="hover:text-\\[\\#2B3444\\]"]:hover { color: var(--gl-text-primary) !important; }
+.dark-mode [class*="hover:text-\\[\\#AA3C36\\]"]:hover { color: var(--gl-danger) !important; }
+.dark-mode [class*="hover:border-\\[\\#AEB4C0\\]"]:hover { border-color: var(--gl-border-hover) !important; }
 
 /* ── Notification (dark) ───────────────────────────────── */
 .dark-mode [class*="z-50"][class*="rounded-2xl"] {
