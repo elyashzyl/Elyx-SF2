@@ -167,7 +167,7 @@ const props = defineProps<{
 const page = usePage();
 const flash = page.props.flash as any;
 const user = computed(() => (page.props.auth as any).user);
-const messengerEnabled = ref(user.value?.messenger_enabled !== false);
+const messengerEnabled = ref(user.value?.messenger_enabled != false);
 const showDelete = ref(false);
 
 function toggleMessenger() {

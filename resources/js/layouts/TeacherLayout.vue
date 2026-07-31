@@ -139,7 +139,7 @@ const nav = computed(() => [
     { name: 'Exams', href: '/teacher/exams', icon: FileQuestion, active: path.value.startsWith('/teacher/exams') },
     { label: 'COMMUNITY' },
     { name: 'Results', href: '/teacher/results', icon: ClipboardCheck, active: path.value.startsWith('/teacher/results') },
-    ...(user.messenger_enabled !== false ? [
+    ...(user.messenger_enabled != false ? [
         { name: 'Messenger', href: '/teacher/messenger', icon: MessageCircle, active: path.value.startsWith('/teacher/messenger') },
     ] : []),
     { name: 'Leaderboard', href: '/teacher/leaderboard', icon: Trophy, active: path.value.startsWith('/teacher/leaderboard') },
