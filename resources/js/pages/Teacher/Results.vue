@@ -18,27 +18,53 @@
         <div class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full opacity-10" style="background: radial-gradient(circle, var(--gl-secondary), transparent 70%);"></div>
     </div>
 
-    <div class="mb-4 flex items-center gap-4">
-        <div class="relative flex-1">
-            <input v-model="search" type="text" placeholder="Search by student or activity..." class="w-full rounded-lg border border-[#D2D6DE] px-3 py-2 pl-9 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231" />
-            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
+    <!-- Stats -->
+    <div class="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon blue"><ClipboardCheck class="h-5 w-5" style="color: var(--gl-primary);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ activities.length }}</p><p class="text-xs" style="color: var(--gl-text-muted)">Total Results</p></div>
         </div>
-        <select v-model="teacherFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon green"><Target class="h-5 w-5" style="color: var(--gl-success);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ avgScore }}<span class="text-sm" style="color: var(--gl-text-muted)">%</span></p><p class="text-xs" style="color: var(--gl-text-muted)">Average Score</p></div>
+        </div>
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon gold"><Trophy class="h-5 w-5" style="color: var(--gl-accent);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ topScore }}<span class="text-sm" style="color: var(--gl-text-muted)">%</span></p><p class="text-xs" style="color: var(--gl-text-muted)">Highest Score</p></div>
+        </div>
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon purple"><Users class="h-5 w-5" style="color: var(--gl-secondary);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ studentCount }}</p><p class="text-xs" style="color: var(--gl-text-muted)">Unique Students</p></div>
+        </div>
+    </div>
+
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[200px]">
+            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: var(--gl-text-muted);" />
+            <input v-model="search" type="text" placeholder="Search by student or activity..."
+                class="w-full rounded-xl border px-3 py-2.5 pl-9 text-sm outline-none transition-all focus:shadow-[0_0_0_2px_var(--gl-primary-glow)]"
+                style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
+        </div>
+        <select v-model="teacherFilter" class="rounded-xl border px-4 py-2.5 text-sm outline-none"
+            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
             <option value="">All teachers</option>
             <option v-for="t in teachersList" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
-        <select v-model="typeFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+        <select v-model="typeFilter" class="rounded-xl border px-4 py-2.5 text-sm outline-none"
+            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
             <option value="">All types</option>
             <option value="Quiz">Quizzes</option>
             <option value="Exam">Exams</option>
             <option value="Seatwork">Seatworks</option>
             <option value="Practical">Practicals</option>
         </select>
-        <select v-model="gradeFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+        <select v-model="gradeFilter" class="rounded-xl border px-4 py-2.5 text-sm outline-none"
+            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
             <option value="">All grades</option>
             <option v-for="g in gradeLevels" :key="g.id" :value="g.id">{{ g.name }}</option>
         </select>
-        <select v-model="sectionFilter" class="rounded-lg border border-[#D2D6DE] px-3 py-2 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231">
+        <select v-model="sectionFilter" class="rounded-xl border px-4 py-2.5 text-sm outline-none"
+            style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
             <option value="">All sections</option>
             <option v-for="s in filteredSections" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
@@ -126,10 +152,14 @@
 
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ClipboardCheck, Search, Eye, RotateCw, FileQuestion, FileText, ClipboardList, FlaskConical, Trash2 } from '@lucide/vue';
+import { ClipboardCheck, Search, Eye, RotateCw, FileQuestion, FileText, ClipboardList, FlaskConical, Trash2, Target, Trophy, Users } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{ activities: any[]; teachersList: any[]; gradeLevels: any[]; sections: any[] }>();
+
+const avgScore = computed(() => { if (!props.activities.length) return 0; return Math.round(props.activities.reduce((a, i) => a + i.percentage, 0) / props.activities.length); });
+const topScore = computed(() => { if (!props.activities.length) return 0; return Math.max(...props.activities.map(i => i.percentage)); });
+const studentCount = computed(() => new Set(props.activities.map(i => i.student_name)).size);
 
 const rk = 'results_' + window.location.pathname;
 const search = ref(sessionStorage.getItem(rk + '_search') ?? '');
