@@ -1,9 +1,21 @@
 <template>
     <Head title="All Results" />
 
-    <div class="mb-6">
-        <h2 class="text-lg font-semibold" style="color: #1B2231">All results</h2>
-        <p class="text-sm" style="color: #5A6376">Every submitted activity across all students.</p>
+    <!-- Hero Header -->
+    <div class="relative mb-8 overflow-hidden rounded-2xl p-8 gl-fade-in"
+        style="background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(124,58,237,0.06)); border: 1px solid var(--gl-border);">
+        <div class="relative z-10">
+            <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-xl"
+                style="background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)); box-shadow: 0 0 20px var(--gl-primary-glow);">
+                <ClipboardCheck class="h-6 w-6 text-white" :stroke-width="2" />
+            </div>
+            <h1 class="text-2xl font-bold" style="color: var(--gl-text-primary)">All Results</h1>
+            <p class="mt-2 max-w-lg text-sm" style="color: var(--gl-text-secondary)">
+                Every submitted activity across all students.
+            </p>
+        </div>
+        <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-10" style="background: radial-gradient(circle, var(--gl-primary), transparent 70%);"></div>
+        <div class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full opacity-10" style="background: radial-gradient(circle, var(--gl-secondary), transparent 70%);"></div>
     </div>
 
     <div class="mb-4 flex items-center gap-4">
@@ -32,15 +44,15 @@
         </select>
     </div>
 
-    <div v-if="!filtered.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
-            <ClipboardCheck class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
+    <div v-if="!filtered.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style="background: var(--gl-surface-2);">
+            <ClipboardCheck class="h-6 w-6" style="color: var(--gl-text-muted);" :stroke-width="1.75" />
         </div>
-        <p class="text-sm font-medium" style="color: #404A5C">No results found</p>
-        <p class="mt-1 text-sm" style="color: #7C8598">No submitted activities match your filters.</p>
+        <p class="text-sm font-medium" style="color: var(--gl-text-secondary)">No results found</p>
+        <p class="mt-1 text-sm" style="color: var(--gl-text-muted)">No submitted activities match your filters.</p>
     </div>
 
-    <div v-else class="card overflow-hidden">
+    <div v-else class="gl-glow-card overflow-hidden">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
