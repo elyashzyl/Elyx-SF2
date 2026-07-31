@@ -124,6 +124,8 @@ const page = usePage();
 const user = (page.props.auth as any).user;
 const grade = user?.grade;
 
+interface Card { question: string; answer: string; }
+
 const photoshopGames: Game[] = [
     {
         title: 'Digital Graphics Basics', subject: 'Photoshop',
@@ -210,10 +212,24 @@ const photoshopGames: Game[] = [
         ],
     },
 ];
+const props = defineProps<{ games: any[] }>();
 
-const games = computed<Game[]>(() => {
-    if (grade === 'Grade 10' || grade?.includes('10')) return photoshopGames;
-    if (grade === 'Grade 8' || grade?.includes('8')) return photoshopGames; // add grade 8 games later
+interface Card { question: string; answer: string; }
+
+const dbGames = computed(() => (props.games || []).map((g: any) => ({
+    title: g.title,
+    subject: g.subject,
+    desc: g.description || 'Flashcard game for ' + g.subject,
+    xp: g.xp_reward,
+    icon: Palette,
+    bg: 'rgba(59,130,246,0.12)',
+    color: '#3B82F6',
+    badge: 'rgba(59,130,246,0.1)',
+    cards: (g.cards || []).map((c: any) => ({ question: c.question, answer: c.answer })),
+})));
+
+const games = computed(() => {
+    if (dbGames.value.length) return dbGames.value;
     return photoshopGames;
 });
 

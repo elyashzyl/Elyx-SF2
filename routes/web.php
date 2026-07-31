@@ -38,6 +38,10 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/results', [TeacherController::class, 'results'])->name('results');
     Route::delete('/results/attempt', [TeacherController::class, 'destroyAttempt'])->name('results.destroy-attempt');
     Route::get('/leaderboard', [TeacherController::class, 'leaderboard'])->name('leaderboard');
+    Route::get('/games', [GameController::class, 'index'])->name('games.index');
+    Route::post('/games', [GameController::class, 'store'])->name('games.store');
+    Route::put('/games/{game}', [GameController::class, 'update'])->name('games.update');
+    Route::delete('/games/{game}', [GameController::class, 'destroy'])->name('games.destroy');
 
     Route::get('/quizzes', [QuizController::class, 'index'])->name('quizzes.index');
     Route::get('/quizzes/create', [QuizController::class, 'create'])->name('quizzes.create');
@@ -195,9 +199,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
 
     Route::get('/leaderboard', [StudentController::class, 'leaderboard'])->name('leaderboard');
 
-    Route::get('/games', function () {
-        return \Inertia\Inertia::render('Student/Games');
-    })->name('games');
+    Route::get('/games', [GameController::class, 'studentGames'])->name('games');
 
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Student/Profile', [

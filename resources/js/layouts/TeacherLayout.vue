@@ -90,7 +90,7 @@
 
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, UserCheck, MessageCircle } from '@lucide/vue';
+import { GraduationCap, LayoutDashboard, Users, ClipboardList, ClipboardCheck, Shield, LogOut, FileQuestion, Trophy, UserCheck, MessageCircle, Gamepad2 } from '@lucide/vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import ThemeToggle from '@/components/ThemeToggle.vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
@@ -141,6 +141,7 @@ const nav = computed(() => [
     { name: 'Results', href: '/teacher/results', icon: ClipboardCheck, active: path.value.startsWith('/teacher/results') },
     { name: 'Messenger', href: '/teacher/messenger', icon: MessageCircle, active: path.value.startsWith('/teacher/messenger') },
     { name: 'Leaderboard', href: '/teacher/leaderboard', icon: Trophy, active: path.value.startsWith('/teacher/leaderboard') },
+    { name: 'Games', href: '/teacher/games', icon: Gamepad2, active: path.value.startsWith('/teacher/games') },
 ]);
 
 function logout() {
