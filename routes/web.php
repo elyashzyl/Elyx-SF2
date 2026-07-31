@@ -195,6 +195,10 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
 
     Route::get('/leaderboard', [StudentController::class, 'leaderboard'])->name('leaderboard');
 
+    Route::get('/games', function () {
+        return \Inertia\Inertia::render('Student/Games');
+    })->name('games');
+
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Student/Profile', [
             'gradeLevels' => \App\Models\GradeLevel::orderBy('name')->get(['id', 'name']),

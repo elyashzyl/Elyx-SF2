@@ -98,7 +98,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { GraduationCap, LayoutDashboard, FileQuestion, FileText, ClipboardList, FlaskConical, ClipboardCheck, LogOut, UserCheck, MessageCircle, Trophy } from '@lucide/vue';
+import { GraduationCap, LayoutDashboard, FileQuestion, FileText, ClipboardList, FlaskConical, ClipboardCheck, LogOut, UserCheck, MessageCircle, Trophy, Gamepad2 } from '@lucide/vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import ThemeToggle from '@/components/ThemeToggle.vue';
 
@@ -142,6 +142,8 @@ const nav = computed(() => [
     { name: 'Exams', href: '/student/exams', icon: FileText, active: path.value.startsWith('/student/exams') && !path.value.includes('/take') && !path.value.includes('/result') },
     { name: 'Seatworks', href: '/student/seatworks', icon: ClipboardList, active: path.value.startsWith('/student/seatworks') && !path.value.includes('/take') && !path.value.includes('/result') },
     { name: 'Practicals', href: '/student/practicals', icon: FlaskConical, active: path.value.startsWith('/student/practicals') && !path.value.includes('/take') && !path.value.includes('/result') },
+    { label: 'PRACTICE' },
+    { name: 'Games', href: '/student/games', icon: Gamepad2, active: path.value.startsWith('/student/games') },
     { label: 'PROGRESS' },
     { name: 'My Results', href: '/student/results', icon: ClipboardCheck, active: path.value.startsWith('/student/results') },
     { name: 'Leaderboard', href: '/student/leaderboard', icon: Trophy, active: path.value.startsWith('/student/leaderboard') },
