@@ -15,6 +15,7 @@ class GameController extends Controller
     {
         $student = Auth::user();
         $games = Game::with('cards')
+            ->where('hidden', false)
             ->where(function ($q) use ($student) {
                 $q->whereNull('grade')->orWhere('grade', $student->grade);
             })
@@ -106,6 +107,13 @@ class GameController extends Controller
         }
 
         return back()->with('success', 'Game updated.');
+    }
+
+    public function toggleHidden(Game $game): RedirectResponse
+    {
+        $this->authorizeOwner($game);
+        $game->update(['hidden' => !$game->hidden]);
+        return back();
     }
 
     public function destroy(Game $game): RedirectResponse

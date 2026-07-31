@@ -39,6 +39,7 @@
                     <th class="px-5 py-3 font-medium">Grade</th>
                     <th class="px-5 py-3 font-medium">Cards</th>
                     <th class="px-5 py-3 font-medium">XP</th>
+                    <th class="px-5 py-3 font-medium w-12">Visible</th>
                     <th class="px-5 py-3 font-medium text-right">Actions</th>
                 </tr>
             </thead>
@@ -49,6 +50,12 @@
                     <td class="px-5 py-3" style="color: var(--gl-text-secondary)">{{ g.grade || 'All' }}</td>
                     <td class="px-5 py-3" style="color: var(--gl-text-secondary)">{{ g.cards?.length ?? 0 }}</td>
                     <td class="px-5 py-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium" style="background: rgba(251,191,36,0.1); color: var(--gl-accent);">{{ g.xp_reward }} XP</span></td>
+                    <td class="px-5 py-3">
+                        <button @click="toggleHidden(g)" class="rounded-full p-1 transition-colors" :style="g.hidden ? 'color: var(--gl-text-muted);' : 'color: var(--gl-success);'" :title="g.hidden ? 'Show' : 'Hide'">
+                            <Eye v-if="!g.hidden" class="h-4 w-4" :stroke-width="2" />
+                            <EyeOff v-else class="h-4 w-4" :stroke-width="2" />
+                        </button>
+                    </td>
                     <td class="px-5 py-3 text-right">
                         <div class="flex items-center justify-end gap-1.5">
                             <button @click="openEdit(g)" class="rounded-lg p-2 transition-colors hover:bg-[rgba(59,130,246,0.08)]" style="color: var(--gl-text-secondary); border: 1px solid var(--gl-border);" title="Edit"><Pencil class="h-3.5 w-3.5" :stroke-width="2" /></button>
@@ -118,7 +125,7 @@
 
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Plus, Pencil, Trash2, X, Gamepad2 } from '@lucide/vue';
+import { Plus, Pencil, Trash2, X, Gamepad2, Eye, EyeOff } from '@lucide/vue';
 import { reactive, ref } from 'vue';
 
 defineProps<{ games: any[] }>();
@@ -153,5 +160,9 @@ function save() {
 
 function confirmDelete(g: any) {
     if (confirm(`Delete "${g.title}"?`)) router.delete(`/teacher/games/${g.id}`, { preserveScroll: true });
+}
+
+function toggleHidden(g: any) {
+    router.patch(`/teacher/games/${g.id}/toggle-hidden`, {}, { preserveScroll: true });
 }
 </script>

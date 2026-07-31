@@ -42,6 +42,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
     Route::get('/games', [GameController::class, 'index'])->name('games.index');
     Route::post('/games', [GameController::class, 'store'])->name('games.store');
     Route::put('/games/{game}', [GameController::class, 'update'])->name('games.update');
+    Route::patch('/games/{game}/toggle-hidden', [GameController::class, 'toggleHidden'])->name('games.toggleHidden');
     Route::delete('/games/{game}', [GameController::class, 'destroy'])->name('games.destroy');
 
     Route::get('/quizzes', [QuizController::class, 'index'])->name('quizzes.index');
