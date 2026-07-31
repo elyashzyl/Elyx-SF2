@@ -24,23 +24,6 @@ class StudentController extends Controller
     public function dashboard(): Response
     {
         $student = Auth::user();
-
-        // Daily login bonus: award 5 XP once per calendar day
-        $today = now()->toDateString();
-        $lastLogin = $student->last_login_at ? $student->last_login_at->toDateString() : null;
-        if ($lastLogin !== $today) {
-            $student->increment('total_points', 5);
-            \App\Models\StudentPoint::create([
-                'student_id' => $student->id,
-                'activity_type' => 'Login',
-                'activity_id' => 0,
-                'points' => 5,
-                'score' => 5,
-                'total' => 5,
-                'reason' => 'Daily login bonus',
-            ]);
-            $student->update(['last_login_at' => now()]);
-        }
         $teacherIds = $student->teachers()->pluck('users.id');
 
         $quizBase = Quiz::whereIn('teacher_id', $teacherIds)->where('is_published', true);
