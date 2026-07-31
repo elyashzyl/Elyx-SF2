@@ -124,6 +124,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
             'sections' => \App\Models\Section::orderBy('name')->get(['id', 'name', 'grade_level_id']),
         ]);
     })->name('profile');
+    Route::patch('/profile/toggle-messenger', [App\Http\Controllers\TeacherController::class, 'toggleMessenger'])->name('profile.toggleMessenger');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read', [NotificationController::class, 'read'])->name('notifications.read');

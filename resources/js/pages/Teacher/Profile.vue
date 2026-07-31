@@ -34,83 +34,25 @@
             style="background: radial-gradient(circle, var(--gl-primary), transparent 70%);"></div>
     </div>
 
-    <!-- Profile Form -->
+    <!-- Messenger Toggle -->
     <div class="gl-glow-card mb-6 overflow-hidden p-0">
         <div class="px-6 py-4 border-b" style="border-color: var(--gl-border);">
             <div class="flex items-center gap-3">
-                <div class="flex h-8 w-8 items-center justify-center rounded-lg" style="background: rgba(124,58,237,0.12);">
-                    <User class="h-4 w-4" style="color: var(--gl-secondary);" :stroke-width="2" />
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg" style="background: rgba(59,130,246,0.12);">
+                    <MessageCircle class="h-4 w-4" style="color: var(--gl-primary);" :stroke-width="2" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold" style="color: var(--gl-text-primary)">Profile Information</h3>
-                    <p class="text-xs" style="color: var(--gl-text-muted)">Update your name and email address.</p>
+                    <h3 class="text-sm font-semibold" style="color: var(--gl-text-primary)">Messenger</h3>
+                    <p class="text-xs" style="color: var(--gl-text-muted)">Enable or disable the messaging feature.</p>
                 </div>
             </div>
         </div>
-        <form @submit.prevent="updateProfile" class="p-6 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="field-label" style="color: var(--gl-text-secondary);">Name</label>
-                    <input v-model="profileForm.name" type="text" required
-                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all focus:shadow-[0_0_0_2px_var(--gl-primary-glow)]"
-                        style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
-                    <p v-if="profileForm.errors.name" class="mt-1 text-xs" style="color: var(--gl-danger)">{{ profileForm.errors.name }}</p>
-                </div>
-                <div>
-                    <label class="field-label" style="color: var(--gl-text-secondary);">Email</label>
-                    <input v-model="profileForm.email" type="email" required
-                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all focus:shadow-[0_0_0_2px_var(--gl-primary-glow)]"
-                        style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
-                    <p v-if="profileForm.errors.email" class="mt-1 text-xs" style="color: var(--gl-danger)">{{ profileForm.errors.email }}</p>
-                </div>
-                <div>
-                    <label class="field-label" style="color: var(--gl-text-secondary);">Gender</label>
-                    <select v-model="profileForm.gender"
-                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                        style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
-                        <option value="">Select gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                    <p v-if="profileForm.errors.gender" class="mt-1 text-xs" style="color: var(--gl-danger)">{{ profileForm.errors.gender }}</p>
-                </div>
-                <div>
-                    <label class="field-label" style="color: var(--gl-text-secondary);">Grade Level</label>
-                    <select v-model="profileForm.grade_level_id"
-                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                        style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
-                        <option value="">—</option>
-                        <option v-for="g in gradeLevels" :key="g.id" :value="g.id">{{ g.name }}</option>
-                    </select>
-                </div>
-            </div>
-            <div>
-                <label class="field-label" style="color: var(--gl-text-secondary);">Section</label>
-                <select v-model="profileForm.section_id"
-                    class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                    style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);">
-                    <option value="">—</option>
-                    <option v-for="s in filteredSections" :key="s.id" :value="s.id">{{ s.name }}</option>
-                </select>
-            </div>
-
-            <div v-if="mustVerifyEmail && !user.email_verified_at" class="rounded-xl px-4 py-3 text-sm"
-                style="background: var(--gl-warning-bg); color: var(--gl-accent); border: 1px solid rgba(251,191,36,0.2);">
-                <p>Your email is unverified.
-                    <button type="button" @click="resendVerification" class="underline font-medium" style="color: var(--gl-accent);">Click here to re-send the verification email.</button>
-                </p>
-                <p v-if="status === 'verification-link-sent'" class="mt-1 font-medium" style="color: var(--gl-success)">
-                    A new verification link has been sent.
-                </p>
-            </div>
-
-            <div class="flex items-center gap-3 pt-2">
-                <button type="submit" :disabled="profileForm.processing"
-                    class="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50"
-                    style="background: linear-gradient(135deg, var(--gl-secondary), var(--gl-primary)); box-shadow: 0 0 12px var(--gl-secondary-glow);">Save</button>
-                <span v-if="profileForm.recentlySuccessful" class="text-sm" style="color: var(--gl-success)">Saved.</span>
-            </div>
-        </form>
+        <div class="p-4 flex items-center justify-between">
+            <span class="text-sm" style="color: var(--gl-text-secondary)">Allow students to message you</span>
+            <button @click="toggleMessenger" class="relative w-12 h-6 rounded-full transition-colors" :style="{ background: messengerEnabled ? 'var(--gl-success)' : '#475569' }">
+                <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform" :style="{ transform: messengerEnabled ? 'translateX(24px)' : 'translateX(0)' }"></span>
+            </button>
+        </div>
     </div>
 
     <!-- Password Form -->
@@ -212,7 +154,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { Trash2, User, Lock } from '@lucide/vue';
+import { Trash2, User, Lock, MessageCircle } from '@lucide/vue';
 import { send } from '@/routes/verification';
 
 const props = defineProps<{
@@ -225,7 +167,13 @@ const props = defineProps<{
 const page = usePage();
 const flash = page.props.flash as any;
 const user = computed(() => (page.props.auth as any).user);
+const messengerEnabled = ref(user.value?.messenger_enabled !== false);
 const showDelete = ref(false);
+
+function toggleMessenger() {
+    messengerEnabled.value = !messengerEnabled.value;
+    router.patch('/teacher/profile/toggle-messenger');
+}
 
 const profileForm = useForm({
     name: user.value.name,

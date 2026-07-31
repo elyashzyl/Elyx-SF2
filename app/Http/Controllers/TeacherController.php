@@ -219,6 +219,13 @@ class TeacherController extends Controller
         return back()->with('success', 'Student removed from class.');
     }
 
+    public function toggleMessenger(): RedirectResponse
+    {
+        $user = Auth::user();
+        $user->update(['messenger_enabled' => !$user->messenger_enabled]);
+        return back();
+    }
+
     public function addXp(Request $request, User $user): JsonResponse
     {
         $teacher = Auth::user();
