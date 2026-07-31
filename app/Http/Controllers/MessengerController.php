@@ -38,12 +38,14 @@ class MessengerController extends Controller
             : ($user->isTeacher()
                 ? $user->students()->orderBy('name')->get(['users.id', 'users.name', 'users.role'])
                 : User::where(function ($q) use ($user) {
-                    $q->whereIn('id', $user->teachers()->pluck('teacher_id'))
-                      ->orWhere(function ($q2) use ($user) {
-                          $q2->where('role', 'student')
-                             ->where('section_id', $user->section_id)
-                             ->where('id', '!=', $user->id);
-                      });
+                    $q->where(function ($qt) use ($user) {
+                        $qt->whereIn('id', $user->teachers()->pluck('teacher_id'))
+                           ->where('messenger_enabled', true);
+                    })->orWhere(function ($q2) use ($user) {
+                        $q2->where('role', 'student')
+                           ->where('section_id', $user->section_id)
+                           ->where('id', '!=', $user->id);
+                    });
                 })->orderBy('name')->get(['id', 'name', 'role'])
             );
 
@@ -98,12 +100,14 @@ class MessengerController extends Controller
                 : ($user->isTeacher()
                     ? $user->students()->orderBy('name')->get(['users.id', 'users.name', 'users.role'])
                     : User::where(function ($q) use ($user) {
-                        $q->whereIn('id', $user->teachers()->pluck('teacher_id'))
-                          ->orWhere(function ($q2) use ($user) {
-                              $q2->where('role', 'student')
-                                 ->where('section_id', $user->section_id)
-                                 ->where('id', '!=', $user->id);
-                          });
+                        $q->where(function ($qt) use ($user) {
+                            $qt->whereIn('id', $user->teachers()->pluck('teacher_id'))
+                               ->where('messenger_enabled', true);
+                        })->orWhere(function ($q2) use ($user) {
+                            $q2->where('role', 'student')
+                               ->where('section_id', $user->section_id)
+                               ->where('id', '!=', $user->id);
+                        });
                     })->orderBy('name')->get(['id', 'name', 'role'])
                 ),
         ]);
@@ -119,6 +123,8 @@ class MessengerController extends Controller
         ]);
 
         $recipient = User::findOrFail($validated['recipient_id']);
+
+        abort_if($recipient->role === 'teacher' && !$recipient->messenger_enabled, 403, 'This teacher has disabled messenger.');
 
         $existing = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
             ->whereHas('participants', fn ($q) => $q->where('user_id', $recipient->id))
@@ -143,6 +149,11 @@ class MessengerController extends Controller
     {
         $user = Auth::user();
         abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
+
+        $otherParticipant = $conversation->participants()->where('user_id', '!=', $user->id)->first();
+        if ($otherParticipant && $otherParticipant->role !== 'student' && !$otherParticipant->messenger_enabled) {
+            abort(403, 'This user has disabled messenger.');
+        }
 
         $validated = $request->validate(['body' => ['required', 'string', 'max:10000']]);
 
