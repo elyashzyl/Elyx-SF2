@@ -6,40 +6,48 @@
             Back to quizzes
         </Link>
 
-        <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <div class="flex items-center gap-2.5">
-                    <h2 class="text-lg font-semibold" style="color: #1B2231">{{ quiz.title }}</h2>
-                    <StatusBadge :status="statusLabel" />
+        <div class="relative mb-8 overflow-hidden rounded-2xl p-6 gl-fade-in"
+            style="background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(124,58,237,0.06)); border: 1px solid var(--gl-border);">
+            <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
+                <div class="flex items-start gap-4">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                        style="background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)); box-shadow: 0 0 20px var(--gl-primary-glow);">
+                        <FileQuestion class="h-6 w-6 text-white" :stroke-width="2" />
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                            <h1 class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ quiz.title }}</h1>
+                            <StatusBadge :status="statusLabel" />
+                        </div>
+                        <p class="text-sm" style="color: var(--gl-text-secondary)">
+                            <template v-if="quiz.grade_levels">{{ quiz.grade_levels.map((g: any) => g.name).join(', ') }}</template>
+                            —
+                            <template v-if="quiz.sections">{{ quiz.sections.map((s: any) => s.name).join(', ') }}</template>
+                            · {{ quiz.questions.length }} questions · {{ totalPoints }} points
+                            <template v-if="quiz.closes_at">
+                                · <span :style="{ color: isClosed ? 'var(--gl-danger)' : 'var(--gl-success)' }">{{ isClosed ? 'Closed' : 'Closes ' + timeRemaining(quiz.closes_at) }}</span>
+                            </template>
+                        </p>
+                        <p v-if="quiz.description" class="mt-2 max-w-2xl text-sm" style="color: var(--gl-text-muted)">{{ quiz.description }}</p>
+                    </div>
                 </div>
-                <p class="mt-1 text-sm" style="color: #5A6376">
-                    <template v-if="quiz.grade_levels">{{ quiz.grade_levels.map((g: any) => g.name).join(', ') }}</template>
-                    —
-                    <template v-if="quiz.sections">{{ quiz.sections.map((s: any) => s.name).join(', ') }}</template>
-                    · {{ quiz.questions.length }} questions · {{ totalPoints }} points total
-                    <template v-if="quiz.closes_at">
-                        · <span :style="{ color: isClosed ? '#AA3C36' : '#2B9348' }">{{ isClosed ? 'Closed' : 'Closes ' + timeRemaining(quiz.closes_at) }}</span>
-                    </template>
-                </p>
-                <p v-if="quiz.description" class="mt-2 max-w-2xl text-sm" style="color: #404A5C">{{ quiz.description }}</p>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <button v-if="!isClosed" @click="togglePublish" class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border: 1px solid var(--gl-border);">
+                        <UploadCloud class="h-3.5 w-3.5" :stroke-width="2" /> {{ quiz.is_published ? 'Unpublish' : 'Publish' }}
+                    </button>
+                    <button v-if="quiz.is_published && !isClosed" @click="closeNow" class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style="color: var(--gl-danger); border: 1px solid rgba(239,68,68,0.2); background: var(--gl-danger-bg);">
+                        <Lock class="h-3.5 w-3.5" :stroke-width="2" /> Close now
+                    </button>
+                    <button v-if="isClosed" @click="toggleReopen" class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style="background: var(--gl-surface-2); color: var(--gl-primary); border: 1px solid rgba(59,130,246,0.3);">
+                        <RefreshCw class="h-3.5 w-3.5" :stroke-width="2" /> Reopen
+                    </button>
+                    <Link v-if="!quiz.is_published" :href="`/teacher/quizzes/${quiz.id}/edit`" class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border: 1px solid var(--gl-border);">
+                        <PenSquare class="h-3.5 w-3.5" :stroke-width="2" /> Edit
+                    </Link>
+                </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button v-if="!isClosed" @click="togglePublish" class="btn-secondary">
-                    <UploadCloud class="h-4 w-4" :stroke-width="2" />
-                    {{ quiz.is_published ? 'Unpublish' : 'Publish' }}
-                </button>
-                <button v-if="quiz.is_published && !isClosed" @click="closeNow" class="btn-secondary" style="color: #AA3C36; border-color: #F6DEDD;">
-                    <Lock class="h-4 w-4" :stroke-width="2" />
-                    Close now
-                </button>
-                <button v-if="isClosed" @click="toggleReopen" class="btn-secondary" style="color: #1D3557; border-color: #A8DADC">
-                    <RefreshCw class="h-4 w-4" :stroke-width="2" />
-                    Reopen
-                </button>
-                <Link v-if="!quiz.is_published" :href="`/teacher/quizzes/${quiz.id}/edit`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Edit quiz">
-                    <PenSquare class="h-4 w-4" :stroke-width="2" />
-                </Link>
-            </div>
+            <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-10" style="background: radial-gradient(circle, var(--gl-primary), transparent 70%);"></div>
+            <div class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full opacity-10" style="background: radial-gradient(circle, var(--gl-secondary), transparent 70%);"></div>
         </div>
 
         <div v-if="teachers?.length" class="mb-6 card flex flex-wrap items-center gap-3 px-5 py-3">
