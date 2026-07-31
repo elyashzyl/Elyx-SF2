@@ -32,10 +32,27 @@
             style="background: radial-gradient(circle, var(--gl-secondary), transparent 70%);"></div>
     </div>
 
-    <div v-if="!practicals.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style="background: var(--gl-surface-2);">
-            <FlaskConical class="h-6 w-6" style="color: var(--gl-text-muted);" :stroke-width="1.75" />
+    <!-- Stats -->
+    <div class="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon blue"><FlaskConical class="h-5 w-5" style="color: var(--gl-primary);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ practicals.length }}</p><p class="text-xs" style="color: var(--gl-text-muted)">Total Missions</p></div>
         </div>
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon green"><CheckCircle2 class="h-5 w-5" style="color: var(--gl-success);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ publishedCount }}</p><p class="text-xs" style="color: var(--gl-text-muted)">Published</p></div>
+        </div>
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon gold"><Zap class="h-5 w-5" style="color: var(--gl-accent);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ totalAttempts }}</p><p class="text-xs" style="color: var(--gl-text-muted)">Total Attempts</p></div>
+        </div>
+        <div class="gl-glow-card p-4 flex items-center gap-3">
+            <div class="gl-stat-icon purple"><ClipboardCheck class="h-5 w-5" style="color: var(--gl-secondary);" :stroke-width="2" /></div>
+            <div><p class="text-xl font-bold" style="color: var(--gl-text-primary)">{{ draftCount }}</p><p class="text-xs" style="color: var(--gl-text-muted)">Drafts</p></div>
+        </div>
+    </div>
+
+    <div v-if="!practicals.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
         <p class="text-sm font-medium" style="color: var(--gl-text-secondary)">No practicals yet</p>
         <p class="mt-1 text-sm" style="color: var(--gl-text-muted)">Create a practical activity with rubric criteria.</p>
         <button @click="showCreate = true" class="mt-4 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
@@ -197,10 +214,14 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage, useForm } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Plus, Eye, Pencil, Trash2, UploadCloud, FlaskConical, X, Check, RefreshCw } from '@lucide/vue';
-import { ref } from 'vue';
+import { Plus, Eye, Pencil, Trash2, UploadCloud, FlaskConical, X, Check, RefreshCw, CheckCircle2, Zap, ClipboardCheck } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
-defineProps<{ practicals: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
+const props = defineProps<{ practicals: any[]; isSuperadmin?: boolean; teachers?: any[]; gradeLevels: any[] }>();
+
+const publishedCount = computed(() => props.practicals.filter((p: any) => p.is_published).length);
+const totalAttempts = computed(() => props.practicals.reduce((s: number, p: any) => s + (p.attempts_count ?? 0), 0));
+const draftCount = computed(() => props.practicals.filter((p: any) => !p.is_published).length);
 
 const page = usePage();
 const flash = page.props.flash as any;
