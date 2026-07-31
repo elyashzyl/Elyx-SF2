@@ -222,8 +222,10 @@ class TeacherController extends Controller
     public function toggleMessenger(): RedirectResponse
     {
         $user = Auth::user();
-        $user->update(['messenger_enabled' => !$user->messenger_enabled]);
-        return back();
+        $user->messenger_enabled = !$user->messenger_enabled;
+        $user->save();
+
+        return redirect()->back();
     }
 
     public function addXp(Request $request, User $user): JsonResponse

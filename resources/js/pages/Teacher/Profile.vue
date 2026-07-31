@@ -171,8 +171,7 @@ const messengerEnabled = ref(user.value?.messenger_enabled != false);
 const showDelete = ref(false);
 
 function toggleMessenger() {
-    messengerEnabled.value = !messengerEnabled.value;
-    router.patch('/teacher/profile/toggle-messenger');
+    router.patch('/teacher/profile/toggle-messenger', {}, { preserveScroll: true });
 }
 
 const profileForm = useForm({
