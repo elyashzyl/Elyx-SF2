@@ -29,6 +29,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'impersonated_by' => session('impersonated_by'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'messenger_system_enabled' => \App\Models\Setting::find('messenger_system_enabled')?->value !== 'false',
         ];
     }
 }

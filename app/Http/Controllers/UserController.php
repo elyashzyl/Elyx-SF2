@@ -114,12 +114,19 @@ class UserController extends Controller
     public function leaveImpersonation(): RedirectResponse
     {
         $originalId = session('impersonated_by');
-        abort_unless($originalId, 403, 'Not currently impersonating.');
+        if ($originalId) {
+            Auth::loginUsingId($originalId);
+            session()->forget('impersonated_by');
+        }
+        return redirect()->route('teacher.dashboard');
+    }
 
-        $admin = User::findOrFail($originalId);
-        session()->forget('impersonated_by');
-        Auth::login($admin);
-
-        return redirect()->route('teacher.users.index')->with('success', 'Returned to your account.');
+    public function toggleSystemMessenger(): RedirectResponse
+    {
+        abort_unless(Auth::user()->isSuperadmin(), 403);
+        $setting = \App\Models\Setting::find('messenger_system_enabled');
+        $setting->value = $setting->value === 'true' ? 'false' : 'true';
+        $setting->save();
+        return redirect()->back();
     }
 }

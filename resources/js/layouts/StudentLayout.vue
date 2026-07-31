@@ -106,6 +106,7 @@ const page = usePage();
 const user = page.props.auth.user;
 const path = computed(() => usePage().url);
 const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
+const messengerSystemEnabled = computed(() => (page.props as any).messenger_system_enabled !== false);
 
 const totalPoints = computed(() => user?.total_points ?? 0);
 const userLevel = computed(() => Math.floor(totalPoints.value / 100) + 1);
@@ -148,7 +149,9 @@ const nav = computed(() => [
     { name: 'My Results', href: '/student/results', icon: ClipboardCheck, active: path.value.startsWith('/student/results') },
     { name: 'Leaderboard', href: '/student/leaderboard', icon: Trophy, active: path.value.startsWith('/student/leaderboard') },
     { label: 'CONNECT' },
-    { name: 'Messenger', href: '/student/messenger', icon: MessageCircle, active: path.value.startsWith('/student/messenger') },
+    ...(messengerSystemEnabled ? [
+        { name: 'Messenger', href: '/student/messenger', icon: MessageCircle, active: path.value.startsWith('/student/messenger') },
+    ] : []),
 ]);
 
 function logout() {

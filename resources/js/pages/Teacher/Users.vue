@@ -13,6 +13,20 @@
             style="background: var(--gl-accent); color: #0F172A;">Stop impersonating</button>
     </div>
 
+    <!-- System Messenger Toggle -->
+    <div v-if="(page.props.auth as any)?.user?.role === 'superadmin'" class="gl-glow-card mb-4 p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <MessageCircle class="h-5 w-5" style="color: var(--gl-primary);" :stroke-width="2" />
+            <div>
+                <span class="text-sm font-medium" style="color: var(--gl-text-primary)">System Messenger</span>
+                <span class="text-xs ml-2" style="color: var(--gl-text-muted)">{{ systemMessengerEnabled ? 'Enabled for all users' : 'Disabled for all users' }}</span>
+            </div>
+        </div>
+        <button @click="toggleSystemMessenger" class="relative w-12 h-6 rounded-full transition-colors" :style="{ background: systemMessengerEnabled ? 'var(--gl-success)' : '#475569' }">
+            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform" :style="{ transform: systemMessengerEnabled ? 'translateX(24px)' : 'translateX(0)' }"></span>
+        </button>
+    </div>
+
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
             <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Users</h2>
@@ -204,7 +218,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { Pencil, Trash2, Plus, UserCheck, Search, Users } from '@lucide/vue';
+import { Pencil, Trash2, Plus, UserCheck, Search, Users, MessageCircle } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const page = usePage();
@@ -287,6 +301,7 @@ function confirmDelete(u: any) {
 }
 
 const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
+const systemMessengerEnabled = computed(() => (page.props as any).messenger_system_enabled !== false);
 
 function impersonate(u: any) {
     router.post(`/teacher/users/${u.id}/impersonate`, {}, {
@@ -300,5 +315,9 @@ function leaveImpersonation() {
         preserveScroll: true,
         onSuccess: () => { window.location.reload(); },
     });
+}
+
+function toggleSystemMessenger() {
+    router.patch('/teacher/users/toggle-system-messenger', {}, { preserveScroll: true });
 }
 </script>

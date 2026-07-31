@@ -125,6 +125,7 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
         ]);
     })->name('profile');
     Route::patch('/profile/toggle-messenger', [App\Http\Controllers\TeacherController::class, 'toggleMessenger'])->name('profile.toggleMessenger');
+    Route::patch('/users/toggle-system-messenger', [App\Http\Controllers\UserController::class, 'toggleSystemMessenger'])->name('users.toggleSystemMessenger');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
