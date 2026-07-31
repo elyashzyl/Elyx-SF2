@@ -1,34 +1,40 @@
 <template>
     <Head title="Users" />
 
-    <div v-if="flash?.success" class="mb-6 rounded-lg px-4 py-3 text-sm" style="background-color: #DCEEE3; color: #2F7A54">
+    <div v-if="flash?.success" class="mb-6 rounded-xl px-4 py-3 text-sm gl-fade-in"
+        style="background: var(--gl-success-bg); color: var(--gl-success); border: 1px solid rgba(16,185,129,0.2);">
         {{ flash.success }}
     </div>
 
-    <div v-if="isImpersonating" class="mb-6 flex items-center gap-3 rounded-lg px-4 py-3 text-sm" style="background-color: #FFF3D6; color: #A5701A">
+    <div v-if="isImpersonating" class="mb-6 rounded-xl px-4 py-3 text-sm gl-fade-in"
+        style="background: var(--gl-warning-bg); color: var(--gl-accent); border: 1px solid rgba(251,191,36,0.2);">
         <span class="font-medium">Impersonating {{ page.props.auth.user.name }}</span>
-        <button @click="leaveImpersonation" class="ml-auto rounded-md px-3 py-1 text-xs font-semibold text-white" style="background-color: #A5701A">Stop impersonating</button>
+        <button @click="leaveImpersonation" class="ml-auto rounded-lg px-3 py-1 text-xs font-semibold"
+            style="background: var(--gl-accent); color: #0F172A;">Stop impersonating</button>
     </div>
 
-    <div class="mb-6 flex items-center justify-between gap-4">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h2 class="text-lg font-semibold" style="color: #1B2231">Users</h2>
-            <p class="text-sm" style="color: #5A6376">Manage all users in the system.</p>
+            <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Users</h2>
+            <p class="text-sm" style="color: var(--gl-text-secondary)">Manage all users in the system.</p>
         </div>
-        <button @click="openAddUser" class="btn-primary">
-            <Plus class="h-4 w-4" :stroke-width="2" />
-            Add User
+        <button @click="openAddUser"
+            class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
+            style="background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary)); box-shadow: 0 0 12px var(--gl-primary-glow);">
+            <Plus class="h-4 w-4" :stroke-width="2" /> Add User
         </button>
     </div>
 
     <div class="mb-4">
         <div class="relative">
-            <input v-model="search" type="text" placeholder="Search by name or email..." class="w-full rounded-lg border border-[#D2D6DE] px-3 py-2 pl-9 text-sm outline-none focus:border-[#1D3557]" style="color: #1B2231" />
-            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: #7C8598" />
+            <input v-model="search" type="text" placeholder="Search by name or email..."
+                class="w-full rounded-xl border px-3 py-2.5 pl-9 text-sm outline-none transition-all focus:shadow-[0_0_0_2px_var(--gl-primary-glow)]"
+                style="background: var(--gl-surface-2); color: var(--gl-text-primary); border-color: var(--gl-border);" />
+            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" :stroke-width="2" style="color: var(--gl-text-muted);" />
         </div>
     </div>
 
-    <div class="card overflow-hidden">
+    <div class="gl-glow-card overflow-hidden">
         <table class="w-full text-sm" v-if="filteredUsers.length">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">

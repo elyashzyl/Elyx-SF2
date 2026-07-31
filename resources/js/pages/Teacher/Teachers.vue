@@ -1,23 +1,24 @@
 <template>
     <Head title="Teachers" />
 
-    <div v-if="flash?.success" class="mb-6 rounded-lg px-4 py-3 text-sm" style="background-color: #DCEEE3; color: #2F7A54">
+    <div v-if="flash?.success" class="mb-6 rounded-xl px-4 py-3 text-sm gl-fade-in"
+        style="background: var(--gl-success-bg); color: var(--gl-success); border: 1px solid rgba(16,185,129,0.2);">
         {{ flash.success }}
     </div>
 
     <div class="mb-6">
-        <h2 class="text-lg font-semibold" style="color: #1B2231">Teachers</h2>
-        <p class="text-sm" style="color: #5A6376">All registered teachers in the system.</p>
+        <h2 class="text-xl font-bold" style="color: var(--gl-text-primary)">Teachers</h2>
+        <p class="text-sm" style="color: var(--gl-text-secondary)">All registered teachers in the system.</p>
     </div>
 
-    <div v-if="!teachers.length" class="card flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#E9EBEF]">
-            <Users class="h-6 w-6" :stroke-width="1.75" style="color: #7C8598" />
+    <div v-if="!teachers.length" class="gl-glow-card flex flex-col items-center justify-center px-8 py-16 text-center">
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style="background: var(--gl-surface-2);">
+            <Users class="h-6 w-6" style="color: var(--gl-text-muted);" :stroke-width="1.75" />
         </div>
-        <p class="text-sm font-medium" style="color: #404A5C">No teachers yet</p>
+        <p class="text-sm font-medium" style="color: var(--gl-text-secondary)">No teachers yet</p>
     </div>
 
-    <div v-else class="card overflow-hidden">
+    <div v-else class="gl-glow-card overflow-hidden">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
