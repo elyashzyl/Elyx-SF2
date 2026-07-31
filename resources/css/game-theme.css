@@ -163,6 +163,20 @@
 .dark-mode [class*="bg-\\[\\#E4E6EB\\]"] { background-color: var(--gl-surface-3) !important; }
 .dark-mode [class*="bg-\\[\\#E7F3FF\\]"] { background-color: rgba(59,130,246,0.1) !important; }
 
+/* Recheck page Tailwind classes */
+.dark-mode [class*="bg-\\[\\#DCEEE3\\]"] { background-color: var(--gl-success-bg) !important; }
+.dark-mode [class*="bg-\\[\\#F6DEDD\\]"] { background-color: var(--gl-danger-bg) !important; }
+.dark-mode [class*="bg-\\[\\#FFF3D6\\]"] { background-color: var(--gl-warning-bg) !important; }
+.dark-mode [class*="border-\\[\\#2F7A54\\]"],
+.dark-mode [class*="border-\\[\\#DCEEE3\\]"],
+.dark-mode [class*="border-\\[\\#D2D6DE\\]"],
+.dark-mode [class*="border-\\[\\#E9EBEF\\]"] { border-color: var(--gl-border) !important; }
+.dark-mode [class*="border-\\[\\#AA3C36\\]"] { border-color: var(--gl-danger) !important; }
+.dark-mode [class*="border-\\[\\#1D3557\\]"] { border-color: var(--gl-primary) !important; }
+.dark-mode [class*="text-\\[\\#2F7A54\\]"] { color: var(--gl-success) !important; }
+.dark-mode [class*="text-\\[\\#1D3557\\]"] { color: var(--gl-text-primary) !important; }
+.dark-mode [class*="focus:ring-\\[\\#1D3557\\]"]:focus { --tw-ring-color: var(--gl-primary) !important; }
+
 /* Catch Tailwind text-* classes */
 .dark-mode [class*="text-\\[\\#1B2231\\]"],
 .dark-mode [class*="text-\\[\\#1D3557\\]"] { color: var(--gl-text-primary) !important; }
@@ -232,6 +246,7 @@
 .dark-mode input[type="password"],
 .dark-mode textarea { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
 .dark-mode input[type="radio"] { accent-color: var(--gl-primary); }
+.dark-mode input[type="checkbox"] { accent-color: var(--gl-primary); }
 
 /* ── Create Modal Form Overrides (dark) ─────────────────── */
 .dark-mode .input-field { background: var(--gl-surface-2) !important; border-color: var(--gl-border) !important; color: var(--gl-text-primary) !important; }
