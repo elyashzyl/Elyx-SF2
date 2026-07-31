@@ -230,8 +230,14 @@ const totalPoints = computed(() => {
 });
 
 const gradedCount = computed(() => {
-    const r = props.recentResults;
-    return r.filter(x => x.pct !== null && x.pct !== undefined).length;
+    const r = props.recentResults.filter(x => x.pct !== null && x.pct !== undefined);
+    const seen = new Set<string>();
+    return r.filter(x => {
+        const key = x.type + '|' + x.title;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    }).length;
 });
 
 const streakDots = computed(() => {
