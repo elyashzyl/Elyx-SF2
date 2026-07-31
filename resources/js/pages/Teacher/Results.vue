@@ -81,49 +81,48 @@
     <div v-else class="gl-glow-card overflow-hidden">
         <table class="w-full text-sm">
             <thead>
-                <tr class="border-b border-[#E9EBEF] text-left" style="color: #5A6376">
-                    <th class="px-6 py-3 font-medium">Student</th>
-                    <th class="px-6 py-3 font-medium">Teacher</th>
-                    <th class="px-6 py-3 font-medium">Type</th>
-                    <th class="px-6 py-3 font-medium">Activity</th>
-                    <th class="px-6 py-3 font-medium">Score</th>
-                    <th class="px-6 py-3 font-medium">Date</th>
-                    <th class="px-6 py-3 font-medium">Actions</th>
+                <tr style="color: var(--gl-text-muted); border-bottom: 1px solid var(--gl-border); background: var(--gl-surface-2);">
+                    <th class="px-5 py-3 font-medium">Student</th>
+                    <th class="px-5 py-3 font-medium">Teacher</th>
+                    <th class="px-5 py-3 font-medium">Type</th>
+                    <th class="px-5 py-3 font-medium">Activity</th>
+                    <th class="px-5 py-3 font-medium">Score</th>
+                    <th class="px-5 py-3 font-medium">Date</th>
+                    <th class="px-5 py-3 font-medium text-right">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-[#E9EBEF]">
-                <tr v-for="item in filtered" :key="item.type + item.id" class="hover:bg-[#F9FAFB]">
-                    <td class="px-6 py-3">
-                        <div>
-                            <p class="font-medium" style="color: #1B2231">{{ item.student_name }}</p>
-                            <p class="text-xs" style="color: #7C8598">{{ item.student_grade }}</p>
-                        </div>
+            <tbody class="divide-y" style="border-color: var(--gl-border);">
+                <tr v-for="item in filtered" :key="item.type + item.id" class="transition-colors hover:bg-[rgba(59,130,246,0.03)]">
+                    <td class="px-5 py-3">
+                        <p class="font-medium" style="color: var(--gl-text-primary)">{{ item.student_name }}</p>
+                        <p class="text-xs" style="color: var(--gl-text-muted)">{{ item.student_grade }}</p>
                     </td>
-                    <td class="px-6 py-3 text-sm" style="color: #5A6376">{{ item.teacher_name ?? '—' }}</td>
-                    <td class="px-6 py-3">
+                    <td class="px-5 py-3 text-sm" style="color: var(--gl-text-secondary)">{{ item.teacher_name ?? '—' }}</td>
+                    <td class="px-5 py-3">
                         <span class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium" :class="badgeClass(item.type)">
                             <component :is="typeIcon(item.type)" class="h-3.5 w-3.5" :stroke-width="2" />
                             {{ item.type }}
                         </span>
                     </td>
-                    <td class="px-6 py-3" style="color: #1B2231">{{ item.title }}</td>
-                    <td class="px-6 py-3">
-                        <span class="font-medium" style="color: #1B2231">{{ item.score }}/{{ item.total }}</span>
-                        <span class="ml-1.5 text-xs font-medium" :style="item.percentage >= 50 ? 'color: #2F7A54' : 'color: #AA3C36'">({{ item.percentage }}%)</span>
+                    <td class="px-5 py-3" style="color: var(--gl-text-primary)">{{ item.title }}</td>
+                    <td class="px-5 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="gl-xp-bar w-16" style="height: 4px; border-radius: 2px;">
+                                <div class="gl-xp-bar-fill" :style="{ width: item.percentage + '%', borderRadius: '2px', background: scoreBarColor(item.percentage) }"></div>
+                            </div>
+                            <span class="text-sm font-semibold" style="color: var(--gl-text-primary)">{{ item.score }}/{{ item.total }}</span>
+                            <span class="text-xs font-medium" :style="{ color: scoreTextColor(item.percentage) }">({{ item.percentage }}%)</span>
+                        </div>
                     </td>
-                    <td class="px-6 py-3 text-xs" style="color: #7C8598">{{ formatDate(item.submitted_at) }}</td>
-                    <td class="px-6 py-3">
-                        <div class="flex items-center gap-1.5">
-                            <button v-if="item.type === 'Quiz' || item.type === 'Seatwork'" @click="autoRecheck(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="Auto recheck">
-                                <RotateCw class="h-3.5 w-3.5" :stroke-width="2" />
-                            </button>
-                            <Link :href="recheckUrl(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" :title="item.type === 'Practical' ? 'Recheck' : 'View'">
+                    <td class="px-5 py-3 text-xs" style="color: var(--gl-text-muted)">{{ formatDate(item.submitted_at) }}</td>
+                    <td class="px-5 py-3 text-right">
+                        <div class="flex items-center justify-end gap-1.5">
+                            <button v-if="item.type === 'Quiz' || item.type === 'Seatwork'" @click="autoRecheck(item)" class="rounded-lg p-2 transition-colors hover:bg-[rgba(59,130,246,0.08)]" style="color: var(--gl-text-muted); border: 1px solid var(--gl-border);" title="Auto recheck"><RotateCw class="h-3.5 w-3.5" :stroke-width="2" /></button>
+                            <Link :href="recheckUrl(item)" class="rounded-lg p-2 transition-colors hover:bg-[rgba(124,58,237,0.08)]" style="color: var(--gl-text-muted); border: 1px solid var(--gl-border);" :title="item.type === 'Practical' ? 'Recheck' : 'View'">
                                 <ClipboardCheck v-if="item.type === 'Practical'" class="h-3.5 w-3.5" :stroke-width="2" />
                                 <Eye v-else class="h-3.5 w-3.5" :stroke-width="2" />
                             </Link>
-                            <button @click="confirmDelete(item)" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-red-50 inline-block" style="color: #AA3C36" title="Delete attempt">
-                                <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
-                            </button>
+                            <button @click="confirmDelete(item)" class="rounded-lg p-2 transition-colors hover:bg-[var(--gl-danger-bg)]" style="color: var(--gl-text-muted); border: 1px solid var(--gl-border);" title="Delete"><Trash2 class="h-3.5 w-3.5" :stroke-width="2" /></button>
                         </div>
                     </td>
                 </tr>
@@ -132,18 +131,16 @@
     </div>
 
     <Teleport to="body">
-        <div v-if="deleteItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="deleteItem = null">
-            <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
-                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style="background-color: #FDE8E8">
-                    <Trash2 class="h-7 w-7" style="color: #AA3C36" :stroke-width="2.5" />
+        <div v-if="deleteItem" class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);" @click.self="deleteItem = null">
+            <div class="mx-4 w-full max-w-sm rounded-2xl p-6" style="background: var(--gl-surface); border: 1px solid var(--gl-border); box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style="background: var(--gl-danger-bg);">
+                    <Trash2 class="h-7 w-7" style="color: var(--gl-danger);" :stroke-width="2.5" />
                 </div>
-                <h3 class="mb-1 text-lg font-semibold" style="color: #1B2231">Delete attempt?</h3>
-                <p class="mb-6 text-sm" style="color: #5A6376">
-                    This will remove <strong>{{ deleteItem?.student_name }}</strong>'s attempt on <strong>{{ deleteItem?.title }}</strong>. The student can then retake it.
-                </p>
-                <div class="flex gap-3">
-                    <button @click="deleteItem = null" class="btn-secondary flex-1">Cancel</button>
-                    <button @click="deleteAttempt" class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold text-white" style="background-color: #AA3C36">Delete</button>
+                <h3 class="mb-1 text-lg font-semibold text-center" style="color: var(--gl-text-primary)">Delete attempt?</h3>
+                <p class="mb-6 text-sm text-center" style="color: var(--gl-text-secondary)">This will remove <strong>{{ deleteItem?.student_name }}</strong>'s attempt on <strong>{{ deleteItem?.title }}</strong>.</p>
+                <div class="flex gap-3 justify-center">
+                    <button @click="deleteItem = null" class="rounded-xl px-4 py-2.5 text-sm font-medium" style="background: var(--gl-surface-2); color: var(--gl-text-primary); border: 1px solid var(--gl-border);">Cancel</button>
+                    <button @click="deleteAttempt" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02]" style="background: var(--gl-danger);">Delete</button>
                 </div>
             </div>
         </div>
@@ -203,12 +200,24 @@ function typeIcon(type: string) {
 
 function badgeClass(type: string) {
     const classes: Record<string, string> = {
-        Quiz: 'bg-[#EEF2F7] text-[#1D3557]',
-        Exam: 'bg-[#F5EBD8] text-[#A5701A]',
-        Seatwork: 'bg-[#DCEEE3] text-[#2F7A54]',
-        Practical: 'bg-[#E9EBEF] text-[#5A6376]',
+        Quiz: 'bg-[rgba(59,130,246,0.12)] text-[#3B82F6]',
+        Exam: 'bg-[rgba(251,191,36,0.12)] text-[#FBBF24]',
+        Seatwork: 'bg-[rgba(16,185,129,0.12)] text-[#10B981]',
+        Practical: 'bg-[rgba(124,58,237,0.12)] text-[#7C3AED]',
     };
-    return classes[type] ?? 'bg-[#E9EBEF] text-[#5A6376]';
+    return classes[type] ?? 'bg-[var(--gl-surface-2)] text-[var(--gl-text-secondary)]';
+}
+
+function scoreBarColor(pct: number) {
+    if (pct >= 80) return 'linear-gradient(90deg, var(--gl-success), #34D399)';
+    if (pct >= 60) return 'linear-gradient(90deg, var(--gl-accent), #F59E0B)';
+    return 'linear-gradient(90deg, var(--gl-danger), #F87171)';
+}
+
+function scoreTextColor(pct: number) {
+    if (pct >= 80) return 'var(--gl-success)';
+    if (pct >= 60) return 'var(--gl-accent)';
+    return 'var(--gl-danger)';
 }
 
 function autoRecheck(item: any) {
