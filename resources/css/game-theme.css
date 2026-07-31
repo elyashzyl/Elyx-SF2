@@ -111,44 +111,45 @@
   color: white !important;
 }
 
-/* ── Background & text overrides (dark) ──────────────────── */
-.dark-mode { background-color: var(--gl-bg) !important; color: var(--gl-text-primary); }
-.dark-mode * { border-color: var(--gl-border); }
-.dark-mode .card { background: var(--gl-surface) !important; border-color: var(--gl-border) !important; }
-.dark-mode .card [class*="border-b"],
-.dark-mode .card [class*="border-t"] { border-color: var(--gl-border) !important; }
+/* ══════════════════════════════════════════════════════════
+   AGGRESSIVE text visibility fallback
+   ══════════════════════════════════════════════════════════ */
+.dark-mode table td,
+.dark-mode table th,
+.dark-mode p,
+.dark-mode span,
+.dark-mode h1, .dark-mode h2, .dark-mode h3, .dark-mode h4,
+.dark-mode label,
+.dark-mode a,
+.dark-mode li { color: var(--gl-text-primary); }
 
-/* Catch ALL inline light backgrounds - hex and rgb */
-.dark-mode [style*="#FFFFFF"], .dark-mode [style*="background: #FFF"],
-.dark-mode [style*="background-color: rgb(255"] { background-color: var(--gl-surface) !important; }
-.dark-mode [style*="#F4F5F7"], .dark-mode [style*="#F9FAFB"] { background-color: var(--gl-bg) !important; }
-.dark-mode [style*="#F0F2F5"], .dark-mode [style*="#F5F6F8"] { background-color: var(--gl-surface-2) !important; }
-.dark-mode [style*="#E4E6EB"], .dark-mode [style*="#E9EBEF"] { background-color: var(--gl-surface-3) !important; }
-.dark-mode [style*="#1B74E4"] { background-color: var(--gl-primary) !important; }
+/* Catch inline styles by hex value (no spaces) - most reliable */
+.dark-mode [style*="#1B2231"],
+.dark-mode [style*="#1D3557"],
+.dark-mode [style*="#404A5C"],
+.dark-mode [style*="#2B3444"] { color: var(--gl-text-primary) !important; }
 
-/* Catch ALL inline dark text */
-.dark-mode [style*="color: #1B2231"], .dark-mode [style*="color: #1D3557"],
-.dark-mode [style*="color: #404A5C"], .dark-mode [style*="color: #2B3444"] {
-  color: var(--gl-text-primary) !important;
-}
-.dark-mode [style*="color: #5A6376"] { color: var(--gl-text-secondary) !important; }
-.dark-mode [style*="color: #7C8598"], .dark-mode [style*="color: #AEB4C0"],
-.dark-mode [style*="color: #8A8D91"] { color: var(--gl-text-muted) !important; }
+/* Fine-tune: these hex colors can appear in background too, so scope carefully */
+.dark-mode [style*="color:"]:not([style*="background"]) { color: var(--gl-text-primary) !important; }
 
-/* Missing inline text colors from view/edit/result pages */
-.dark-mode [style*="color: #2B9348"] { color: var(--gl-success) !important; }
-.dark-mode [style*="color: #AA3C36"], .dark-mode [style*="color: #E63946"] { color: var(--gl-danger) !important; }
-.dark-mode [style*="color: #B76E00"], .dark-mode [style*="color: #8D6E00"] { color: var(--gl-accent) !important; }
-.dark-mode [style*="color: #1B2231"], .dark-mode [style*="color: #1D3557"],
-.dark-mode [style*="color: #404A5C"], .dark-mode [style*="color: #2B3444"] { color: var(--gl-text-primary) !important; }
+.dark-mode [style*="#7C8598"],
+.dark-mode [style*="#AEB4C0"],
+.dark-mode [style*="#8A8D91"],
+.dark-mode [style*="#64748B"] { color: var(--gl-text-muted) !important; }
 
-/* Tailwind utility classes that may not resolve on dark mode */
+.dark-mode [style*="#5A6376"] { color: var(--gl-text-secondary) !important; }
+
+.dark-mode [style*="#2B9348"] { color: var(--gl-success) !important; }
+.dark-mode [style*="#AA3C36"],
+.dark-mode [style*="#E63946"] { color: var(--gl-danger) !important; }
+.dark-mode [style*="#B76E00"],
+.dark-mode [style*="#8D6E00"] { color: var(--gl-accent) !important; }
+
+/* Tailwind utility classes */
 .dark-mode .text-foreground { color: var(--gl-text-primary) !important; }
 .dark-mode .text-muted-foreground { color: var(--gl-text-secondary) !important; }
 .dark-mode .text-green-600 { color: var(--gl-success) !important; }
 .dark-mode .text-red-600 { color: var(--gl-danger) !important; }
-
-/* Missing Tailwind text classes */
 .dark-mode [class*="text-\\[\\#2F7A54\\]"] { color: var(--gl-success) !important; }
 .dark-mode [class*="text-\\[\\#AA3C36\\]"] { color: var(--gl-danger) !important; }
 .dark-mode [class*="text-\\[\\#A5701A\\]"] { color: var(--gl-accent) !important; }
