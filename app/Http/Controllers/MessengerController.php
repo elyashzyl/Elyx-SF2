@@ -14,10 +14,18 @@ use Inertia\Response;
 
 class MessengerController extends Controller
 {
+    private function checkSystemEnabled(): void
+    {
+        $setting = \App\Models\Setting::find('messenger_system_enabled');
+        if ($setting && $setting->value === 'false') {
+            abort(404);
+        }
+    }
+
     public function index(): Response
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
-
         $conversations = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id)
                 ->when(!$user->isSuperadmin(), fn ($q) => $q->whereNull('archived_at'))
             )
@@ -57,6 +65,7 @@ class MessengerController extends Controller
 
     public function show(Conversation $conversation): Response
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
         abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
 
@@ -115,6 +124,7 @@ class MessengerController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
 
         $validated = $request->validate([
@@ -147,6 +157,7 @@ class MessengerController extends Controller
 
     public function sendMessage(Request $request, Conversation $conversation): RedirectResponse
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
         abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
 
@@ -180,6 +191,7 @@ class MessengerController extends Controller
 
     public function archive(Conversation $conversation): RedirectResponse
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
         abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
 
@@ -194,6 +206,7 @@ class MessengerController extends Controller
 
     public function poll(Request $request, Conversation $conversation)
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
         abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
 
@@ -223,6 +236,7 @@ class MessengerController extends Controller
 
     public function unreadCount(): JsonResponse
     {
+        $this->checkSystemEnabled();
         $user = Auth::user();
 
         $count = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
