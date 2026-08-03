@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CheckMessengerEnabled;
 use App\Http\Middleware\EnsureUserIsStudent;
 use App\Http\Middleware\EnsureUserIsTeacher;
 use App\Http\Middleware\HandleAppearance;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role.teacher' => EnsureUserIsTeacher::class,
             'role.student' => EnsureUserIsStudent::class,
+            'messenger.enabled' => CheckMessengerEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
