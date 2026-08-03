@@ -171,8 +171,10 @@ class MessengerController extends Controller
         $conversation->messages()->create(['sender_id' => $user->id, 'body' => $validated['body']]);
         $conversation->touch();
 
-        // Award XP every 1000 messages sent
-        $messageCount = \App\Models\Message::where('sender_id', $user->id)->count();
+        // Award XP every 1000 substantial messages (10+ chars to prevent spam)
+        $messageCount = \App\Models\Message::where('sender_id', $user->id)
+            ->whereRaw('LENGTH(body) >= 10')
+            ->count();
         if ($messageCount > 0 && $messageCount % 1000 === 0) {
             $user->increment('total_points', 10);
             \App\Models\StudentPoint::create([
