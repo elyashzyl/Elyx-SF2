@@ -9,7 +9,10 @@ const page = usePage();
 const user = page.props.auth.user;
 const path = computed(() => usePage().url);
 const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
-const messengerSystemEnabled = computed(() => (page.props as any).messenger_system_enabled !== false);
+const messengerSystemEnabled = computed(() => {
+    const val = (page.props as any).messenger_system_enabled;
+    return val !== false && val !== 'false' && val !== 0;
+});
 
 const totalPoints = computed(() => user?.total_points ?? 0);
 const userLevel = computed(() => Math.floor(totalPoints.value / 100) + 1);
