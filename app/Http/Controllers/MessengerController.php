@@ -160,6 +160,18 @@ class MessengerController extends Controller
         $conversation->messages()->create(['sender_id' => $user->id, 'body' => $validated['body']]);
         $conversation->touch();
 
+        // Award 1 XP per message sent
+        $user->increment('total_points', 1);
+        \App\Models\StudentPoint::create([
+            'student_id' => $user->id,
+            'activity_type' => 'Message',
+            'activity_id' => 0,
+            'points' => 1,
+            'score' => 1,
+            'total' => 1,
+            'reason' => 'Message sent',
+        ]);
+
         return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
     }
 
