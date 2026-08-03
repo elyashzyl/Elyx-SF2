@@ -27,7 +27,7 @@ class StudentController extends Controller
 
         // Daily login XP bonus — once per calendar day
         $today = now()->startOfDay();
-        if (!$student->last_login_at || $student->last_login_at->lt($today)) {
+        if (!$student->last_login_at || $student->last_login_at->startOfDay()->lt($today)) {
             $student->increment('total_points', 5);
             \App\Models\StudentPoint::create([
                 'student_id' => $student->id,
