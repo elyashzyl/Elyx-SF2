@@ -9,29 +9,19 @@ const page = usePage();
 const user = page.props.auth.user;
 const path = computed(() => usePage().url);
 const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
-const messengerSystemEnabled = computed(() => {
-    const val = (page.props as any).messenger_system_enabled;
-    return val !== false && val !== 'false' && val !== 0;
-});
+const messengerSystemEnabled = ref(true);
 
-const totalPoints = computed(() => user?.total_points ?? 0);
-const userLevel = computed(() => Math.floor(totalPoints.value / 100) + 1);
-const xpNextLevel = computed(() => userLevel.value * 100);
-const xpProgress = computed(() => totalPoints.value % 100);
-const xpProgressPct = computed(() => Math.min(100, Math.round((xpProgress.value / xpNextLevel.value) * 100)));
-
-const messengerUnread = ref(0);
-let messengerTimer: ReturnType<typeof setInterval> | null = null;
-
-async function fetchMessengerUnread() {
-    if (!messengerSystemEnabled.value) { messengerUnread.value = 0; return; }
+async function checkMessengerStatus() {
     try {
-        const res = await fetch('/student/messenger/unread-count');
-        if (res.ok) { const data = await res.json(); messengerUnread.value = data.count; }
-    } catch { /* silent */ }
+        const res = await fetch('/api/messenger-status');
+        if (res.ok) {
+            const data = await res.json();
+            messengerSystemEnabled.value = data.enabled;
+        }
+    } catch { messengerSystemEnabled.value = true; }
 }
 
-onMounted(() => { fetchMessengerUnread(); messengerTimer = setInterval(fetchMessengerUnread, 3000); });
+onMounted(() => { checkMessengerStatus(); fetchMessengerUnread(); messengerTimer = setInterval(fetchMessengerUnread, 3000); });
 onUnmounted(() => { if (messengerTimer) clearInterval(messengerTimer); });
 
 const nav = computed(() => [

@@ -226,5 +226,6 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
 });
 
 Route::middleware(['auth', 'verified'])->post('/leave-impersonation', [UserController::class, 'leaveImpersonation'])->name('users.leave-impersonation');
+Route::middleware(['auth', 'verified'])->get('/api/messenger-status', [MessengerController::class, 'status']);
 
 require __DIR__.'/settings.php';

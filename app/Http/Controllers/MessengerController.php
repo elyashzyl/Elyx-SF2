@@ -22,6 +22,14 @@ class MessengerController extends Controller
         if ($disabled) abort(404);
     }
 
+    public function status(): JsonResponse
+    {
+        $disabled = \Illuminate\Support\Facades\DB::table('settings')
+            ->where('key', 'messenger_system_enabled')
+            ->value('value') === 'false';
+        return response()->json(['enabled' => !$disabled]);
+    }
+
     public function index(): Response
     {
         $this->checkSystemEnabled();
