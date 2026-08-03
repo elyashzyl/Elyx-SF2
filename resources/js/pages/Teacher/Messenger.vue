@@ -1,7 +1,17 @@
 <template>
     <Head title="Messenger" />
 
-    <div class="flex" style="background: var(--gl-bg); position: fixed; top: 64px; left: 16rem; right: 0; bottom: 0;">
+    <div v-if="!messengerEnabled" class="flex" style="background: var(--gl-bg); position: fixed; top: 64px; left: 0; right: 0; bottom: 0; align-items: center; justify-content: center;">
+        <div class="text-center">
+            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl" style="background: var(--gl-surface-2);">
+                <MessageCircle class="h-8 w-8" style="color: var(--gl-text-muted);" :stroke-width="1.5" />
+            </div>
+            <p class="text-lg font-semibold" style="color: var(--gl-text-primary)">Messenger Unavailable</p>
+            <p class="text-sm mt-2" style="color: var(--gl-text-secondary)">The messenger has been disabled by the administrator.</p>
+        </div>
+    </div>
+
+    <div v-else class="flex" style="background: var(--gl-bg); position: fixed; top: 64px; left: 16rem; right: 0; bottom: 0;">
         <!-- Conversation Sidebar -->
         <div class="flex w-80 shrink-0 flex-col" style="height: 100%; border-right: 1px solid var(--gl-border);">
             <!-- Sidebar Header -->
@@ -246,6 +256,12 @@ import { Search, Plus, Send, MessageCircle, Trash2, Zap } from '@lucide/vue';
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 
 const page = usePage();
+const messengerEnabled = ref(true);
+onMounted(async () => {
+    try { const r = await fetch('/api/messenger-status'); if (r.ok) { const d = await r.json(); messengerEnabled.value = d.enabled; } } catch {}
+    pollInterval = window.setInterval(pollMessages, 3000);
+});
+
 const props = defineProps<{
     conversations: any[];
     contacts: any[];
@@ -392,10 +408,6 @@ watch(activeConversation, (val) => {
 
 watch(messages, () => {
     if (isNearBottom()) scrollToBottom(true);
-});
-
-onMounted(() => {
-    pollInterval = window.setInterval(pollMessages, 3000);
 });
 
 onUnmounted(() => {
