@@ -107,6 +107,7 @@ const messengerUnread = ref(0);
 let messengerTimer: ReturnType<typeof setInterval> | null = null;
 
 async function fetchMessengerUnread() {
+    if (!messengerSystemEnabled.value || user.messenger_enabled == false) { messengerUnread.value = 0; return; }
     try {
         const res = await fetch('/teacher/messenger/unread-count');
         if (res.ok) {
