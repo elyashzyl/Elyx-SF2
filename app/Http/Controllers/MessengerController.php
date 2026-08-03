@@ -16,10 +16,10 @@ class MessengerController extends Controller
 {
     private function checkSystemEnabled(): void
     {
-        $setting = \App\Models\Setting::find('messenger_system_enabled');
-        if ($setting && $setting->value === 'false') {
-            abort(404);
-        }
+        $disabled = \Illuminate\Support\Facades\DB::table('settings')
+            ->where('key', 'messenger_system_enabled')
+            ->value('value') === 'false';
+        if ($disabled) abort(404);
     }
 
     public function index(): Response

@@ -124,9 +124,10 @@ class UserController extends Controller
     public function toggleSystemMessenger(): RedirectResponse
     {
         abort_unless(Auth::user()->isSuperadmin(), 403);
-        $setting = \App\Models\Setting::find('messenger_system_enabled');
-        $setting->value = $setting->value === 'true' ? 'false' : 'true';
-        $setting->save();
+        $current = \App\Models\Setting::where('key', 'messenger_system_enabled')->value('value');
+        \Illuminate\Support\Facades\DB::table('settings')->where('key', 'messenger_system_enabled')->update([
+            'value' => $current === 'true' ? 'false' : 'true',
+        ]);
         return redirect()->route('teacher.users.index');
     }
 }
