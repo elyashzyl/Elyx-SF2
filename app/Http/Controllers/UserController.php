@@ -127,6 +127,6 @@ class UserController extends Controller
         $setting = \App\Models\Setting::find('messenger_system_enabled');
         $setting->value = $setting->value === 'true' ? 'false' : 'true';
         $setting->save();
-        return redirect()->back();
+        return redirect()->route('teacher.users.index');
     }
 }

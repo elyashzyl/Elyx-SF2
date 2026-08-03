@@ -318,6 +318,8 @@ function leaveImpersonation() {
 }
 
 function toggleSystemMessenger() {
-    router.patch('/teacher/users/toggle-system-messenger', {}, { preserveScroll: true });
+    router.patch('/teacher/users/toggle-system-messenger', {}, {
+        preserveScroll: true,
+    });
 }
 </script>
