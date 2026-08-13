@@ -45,7 +45,7 @@
             <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div v-for="pr in practicals" :key="pr.id"
                     class="gl-glow-card group flex flex-col p-5 cursor-pointer gl-fade-in"
-                    :class="{ 'opacity-60': pr.status === 'submitted' }">
+                    :class="{ 'opacity-60': pr.status === 'submitted' || pr.closed }">
                     <div class="mb-3 flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
                             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
@@ -91,7 +91,21 @@
                         </div>
                     </div>
                     <div class="mt-auto flex flex-wrap gap-2">
-                        <Link v-if="pr.status !== 'submitted'"
+                        <template v-if="pr.closed">
+                            <Link v-if="pr.status === 'submitted' && pr.attempt_id"
+                                :href="`/student/practicals/${pr.attempt_id}/result`"
+                                class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200"
+                                style="background: var(--gl-surface-2); color: var(--gl-text-primary); border: 1px solid var(--gl-border);">
+                                <Eye class="h-4 w-4" :stroke-width="2" />
+                                View result
+                            </Link>
+                            <span v-else class="inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium"
+                                style="background: var(--gl-surface-2); color: var(--gl-text-muted); border: 1px solid var(--gl-border);">
+                                <Lock class="h-4 w-4" :stroke-width="2" />
+                                Closed
+                            </span>
+                        </template>
+                        <Link v-else-if="pr.status !== 'submitted'"
                             :href="`/student/practicals/${pr.id}/take`"
                             class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02]"
                             style="background: linear-gradient(135deg, #EF4444, var(--gl-secondary)); box-shadow: 0 0 12px rgba(239,68,68,0.3);">
@@ -186,7 +200,7 @@
 
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { FlaskConical, Clock, RotateCw, PlayCircle, Eye, Trophy, Star, Gift, Zap, Award, ListChecks, CheckCircle2, Circle, Play } from '@lucide/vue';
+import { FlaskConical, Clock, RotateCw, PlayCircle, Eye, Trophy, Star, Gift, Zap, Award, ListChecks, CheckCircle2, Circle, Play, Lock } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps<{ practicals: any[] }>();
@@ -224,12 +238,12 @@ function xpForItem(item: any): number {
 }
 
 function statusLabel(status: string): string {
-    const labels: Record<string, string> = { not_started: 'Ready', in_progress: 'In Progress', submitted: 'Completed' };
+    const labels: Record<string, string> = { not_started: 'Ready', in_progress: 'In Progress', submitted: 'Completed', closed: 'Closed' };
     return labels[status] ?? status;
 }
 
 function statusIcon(status: string) {
-    const icons: Record<string, any> = { not_started: Circle, in_progress: Play, submitted: CheckCircle2 };
+    const icons: Record<string, any> = { not_started: Circle, in_progress: Play, submitted: CheckCircle2, closed: Lock };
     return icons[status] ?? Circle;
 }
 
@@ -240,6 +254,7 @@ function statusBadgeBg(status: string): string {
         not_started: 'rgba(59,130,246,0.12)',
         in_progress: 'rgba(251,191,36,0.12)',
         submitted: 'rgba(16,185,129,0.12)',
+        closed: 'rgba(148,163,184,0.12)',
     };
     return colors[status] ?? 'rgba(148,163,184,0.12)';
 }
@@ -249,6 +264,7 @@ function statusBadgeText(status: string): string {
         not_started: '#3B82F6',
         in_progress: '#FBBF24',
         submitted: '#10B981',
+        closed: '#94A3B8',
     };
     return colors[status] ?? '#94A3B8';
 }
@@ -258,6 +274,7 @@ function statusGradient(status: string): string {
         not_started: 'linear-gradient(135deg, #3B82F6, #2563EB)',
         in_progress: 'linear-gradient(135deg, #F59E0B, #D97706)',
         submitted: 'linear-gradient(135deg, #10B981, #059669)',
+        closed: 'linear-gradient(135deg, #64748B, #475569)',
     };
     return gradients[status] ?? 'linear-gradient(135deg, #64748B, #475569)';
 }

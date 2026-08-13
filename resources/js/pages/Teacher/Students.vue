@@ -245,6 +245,9 @@ async function awardXp() {
             const data = await res.json();
             xpStudent.value.total_points = data.total_points;
             xpStudent.value = null;
+        } else {
+            const msg = res.status === 419 ? 'Session expired, please refresh the page.' : 'Failed to update XP. Please try again.';
+            alert(msg);
         }
     } catch {} finally { xpSaving.value = false; }
 }

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GameCard extends Model
 {
-    protected $fillable = ['game_id', 'question', 'answer', 'order', 'options'];
+    protected $fillable = ['game_id', 'question', 'answer', 'color', 'order', 'options'];
     protected $casts = ['options' => 'array'];
 
     public function game(): BelongsTo

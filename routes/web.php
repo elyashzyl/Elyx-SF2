@@ -206,6 +206,8 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
     Route::get('/leaderboard', [StudentController::class, 'leaderboard'])->name('leaderboard');
 
     Route::get('/games', [GameController::class, 'studentGames'])->name('games');
+    Route::post('/games/{game}/progress', [GameController::class, 'saveProgress'])->name('games.progress');
+    Route::post('/games/{game}/answer', [GameController::class, 'correctAnswer'])->name('games.answer');
 
     Route::get('/profile', function () {
         return \Inertia\Inertia::render('Student/Profile', [

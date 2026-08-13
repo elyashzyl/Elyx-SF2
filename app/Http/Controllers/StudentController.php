@@ -84,10 +84,10 @@ class StudentController extends Controller
             ->where('student_id', $student->id)->where('status', 'submitted')->whereNotNull('total_score')
             ->with('practical:id,title,max_score')->get(['id', 'practical_id', 'total_score', 'submitted_at']);
 
-        $quizSubmitted = $quizAttempts->count();
-        $examSubmitted = $examAttempts->count();
-        $seatworkSubmitted = $seatworkAttempts->count();
-        $practicalSubmitted = $practicalAttempts->count();
+        $quizSubmitted = $quizAttempts->pluck('quiz_id')->unique()->count();
+        $examSubmitted = $examAttempts->pluck('exam_id')->unique()->count();
+        $seatworkSubmitted = $seatworkAttempts->pluck('seatwork_id')->unique()->count();
+        $practicalSubmitted = $practicalAttempts->pluck('practical_id')->unique()->count();
 
         $quizAvg = static::calcAvg($quizAttempts, 'score', 'total_points');
         $seatworkAvg = static::calcAvg($seatworkAttempts, 'score', 'total_points');
@@ -102,8 +102,8 @@ class StudentController extends Controller
         foreach ($practicalAttempts as $a) { $allScore += $a->total_score; $allMax += ($a->practical->max_score ?? 0); }
         $overallAvg = $allMax > 0 ? round(($allScore / $allMax) * 100, 1) : 0;
 
-        $pendingCount = ($quizTotal - $quizSubmitted) + ($examTotal - $examSubmitted)
-            + ($seatworkTotal - $seatworkSubmitted) + ($practicalTotal - $practicalSubmitted);
+        $pendingCount = max(0, ($quizTotal - $quizSubmitted) + ($examTotal - $examSubmitted)
+            + ($seatworkTotal - $seatworkSubmitted) + ($practicalTotal - $practicalSubmitted));
 
         $recent = collect();
         foreach ($quizAttempts as $a) {
@@ -345,7 +345,6 @@ class StudentController extends Controller
 
         $practicals = Practical::whereIn('teacher_id', $teacherIds)
             ->where('is_published', true)
-            ->where(fn ($q) => $q->whereNull('closes_at')->orWhere('closes_at', '>', now()))
             ->where(function ($q) use ($student) {
                 if ($student->grade_level_id) {
                     $q->whereHas('gradeLevels', fn ($sq) => $sq->where('grade_level_id', $student->grade_level_id));
@@ -364,6 +363,11 @@ class StudentController extends Controller
                 $inProgressAttempt = $practical->attempts->where('status', 'in_progress')->first();
                 $bestAttempt = $practical->attempts->where('status', 'submitted')->sortByDesc('total_score')->first();
                 $displayAttempt = $bestAttempt ?? $inProgressAttempt;
+                $closed = $practical->isClosed();
+                $status = $displayAttempt ? $displayAttempt->status : 'not_started';
+                if ($closed && $status !== 'submitted') {
+                    $status = 'closed';
+                }
                 return [
                     'id' => $practical->id,
                     'title' => $practical->title,
@@ -372,7 +376,8 @@ class StudentController extends Controller
                     'max_score' => $practical->max_score,
                     'max_attempts' => $practical->max_attempts,
                     'attempts_count' => $submittedAttempts,
-                    'status' => $displayAttempt ? $displayAttempt->status : 'not_started',
+                    'closed' => $closed,
+                    'status' => $status,
                     'score' => $bestAttempt?->total_score,
                     'attempt_id' => $bestAttempt?->id ?? $inProgressAttempt?->id,
                     'closed_at' => $bestAttempt?->closed_at,

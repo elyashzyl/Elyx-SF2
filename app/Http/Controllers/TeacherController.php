@@ -132,6 +132,9 @@ class TeacherController extends Controller
         $teachers = User::where('role', 'teacher')
             ->withCount('students')
             ->withCount('quizzes')
+            ->withCount('exams')
+            ->withCount('seatworks')
+            ->withCount('practicals')
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'created_at']);
 
@@ -240,23 +243,29 @@ class TeacherController extends Controller
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        if ($data['xp'] > 0) {
-            $user->increment('total_points', $data['xp']);
+        if ($data['xp'] < 0) {
+            $delta = max(-$user->total_points, $data['xp']);
         } else {
-            $user->decrement('total_points', abs($data['xp']));
+            $delta = $data['xp'];
         }
 
-        \App\Models\StudentPoint::create([
-            'student_id' => $user->id,
-            'activity_type' => $data['xp'] > 0 ? 'Manual' : 'Deduction',
-            'activity_id' => 0,
-            'points' => $data['xp'],
-            'score' => abs($data['xp']),
-            'total' => abs($data['xp']),
-            'reason' => $data['reason'] ?? ($data['xp'] > 0 ? 'Manually awarded by ' . $teacher->name : 'Manually deducted by ' . $teacher->name),
-        ]);
+        \DB::transaction(function () use ($user, $delta, $data, $teacher) {
+            $user->increment('total_points', $delta);
 
-        return response()->json(['ok' => true, 'total_points' => $user->total_points]);
+            if ($delta !== 0) {
+                \App\Models\StudentPoint::create([
+                    'student_id' => $user->id,
+                    'activity_type' => $delta > 0 ? 'Manual' : 'Deduction',
+                    'activity_id' => 0,
+                    'points' => $delta,
+                    'score' => abs($delta),
+                    'total' => abs($delta),
+                    'reason' => $data['reason'] ?? ($delta > 0 ? 'Manually awarded by ' . $teacher->name : 'Manually deducted by ' . $teacher->name),
+                ]);
+            }
+        });
+
+        return response()->json(['ok' => true, 'total_points' => $user->fresh()->total_points]);
     }
 
     public function students(): Response

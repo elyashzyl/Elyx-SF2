@@ -26,6 +26,9 @@
                     <th class="px-6 py-3 font-medium">Email</th>
                     <th class="px-6 py-3 font-medium">Students</th>
                     <th class="px-6 py-3 font-medium">Quizzes</th>
+                    <th class="px-6 py-3 font-medium">Exams</th>
+                    <th class="px-6 py-3 font-medium">Seatworks</th>
+                    <th class="px-6 py-3 font-medium">Practicals</th>
                     <th class="px-6 py-3 font-medium">Actions</th>
                 </tr>
             </thead>
@@ -35,6 +38,9 @@
                     <td class="px-6 py-3" style="color: #5A6376">{{ t.email }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ t.students_count }}</td>
                     <td class="px-6 py-3" style="color: #5A6376">{{ t.quizzes_count }}</td>
+                    <td class="px-6 py-3" style="color: #5A6376">{{ t.exams_count }}</td>
+                    <td class="px-6 py-3" style="color: #5A6376">{{ t.seatworks_count }}</td>
+                    <td class="px-6 py-3" style="color: #5A6376">{{ t.practicals_count }}</td>
                     <td class="px-6 py-3">
                         <div class="flex items-center gap-2">
                             <Link :href="`/teacher/teachers/${t.id}`" class="rounded-lg border border-[#D2D6DE] p-2 hover:bg-[#F5F6F8] inline-block" style="color: #5A6376" title="View">

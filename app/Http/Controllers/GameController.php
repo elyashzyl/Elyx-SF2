@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Game;
+use App\Models\GameProgress;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,13 +17,139 @@ class GameController extends Controller
     {
         $student = Auth::user();
         $games = Game::with('cards')
+            ->with(['progress' => fn ($q) => $q->where('user_id', $student->id)])
             ->where('hidden', false)
             ->where(function ($q) use ($student) {
-                $q->whereNull('grade')->orWhere('grade', $student->grade);
+                $q->whereNull('grade');
+                if ($student->grade) {
+                    $q->orWhere('grade', $student->grade)
+                        ->orWhere('grade', preg_replace('/\s*Grade\s*/i', '', $student->grade));
+                }
             })
             ->latest()->get();
 
         return Inertia::render('Student/Games', ['games' => $games]);
+    }
+
+    public function saveProgress(Request $request, Game $game): JsonResponse
+    {
+        $student = Auth::user();
+
+        $existingProgress = GameProgress::where('user_id', $student->id)
+            ->where('game_id', $game->id)
+            ->first();
+
+        if ($existingProgress && $existingProgress->completed) {
+            return response()->json(['ok' => true, 'progress' => $existingProgress, 'awarded' => false, 'xp' => 0]);
+        }
+
+        $data = $request->validate([
+            'current_card' => ['nullable', 'integer', 'min:0'],
+            'done_count' => ['nullable', 'integer', 'min:0'],
+            'score' => ['nullable', 'integer', 'min:0'],
+            'completed' => ['nullable', 'boolean'],
+            'card_order' => ['nullable', 'string', 'max:2000'],
+            'graded' => ['nullable', 'array'],
+        ]);
+
+        $progress = GameProgress::updateOrCreate(
+            ['user_id' => $student->id, 'game_id' => $game->id],
+            [
+                'current_card' => $data['current_card'] ?? 0,
+                'done_count' => $data['done_count'] ?? 0,
+                'score' => $data['score'] ?? 0,
+                'completed' => !empty($data['completed']),
+                'card_order' => $data['card_order'] ?? null,
+                'graded' => isset($data['graded']) ? json_encode($data['graded']) : null,
+            ]
+        );
+
+        $awarded = false;
+        $xp = 0;
+        if (!empty($data['completed']) && $game->type === 'flashcard') {
+            $existing = \App\Models\StudentPoint::where('student_id', $student->id)
+                ->where('activity_type', 'Game')
+                ->where('activity_id', $game->id)
+                ->exists();
+
+            if (!$existing) {
+                $game->loadCount('cards');
+                \App\Models\StudentPoint::create([
+                    'student_id' => $student->id,
+                    'activity_type' => 'Game',
+                    'activity_id' => $game->id,
+                    'points' => $game->xp_reward,
+                    'score' => $data['done_count'] ?? 0,
+                    'total' => $game->cards_count,
+                    'reason' => 'Completed game: ' . $game->title,
+                ]);
+                $student->increment('total_points', $game->xp_reward);
+                $awarded = true;
+                $xp = $game->xp_reward;
+            }
+        }
+
+        if (!empty($data['completed'])) {
+            $progress->update(['completed' => true]);
+        }
+
+        return response()->json(['ok' => true, 'progress' => $progress, 'awarded' => $awarded, 'xp' => $xp]);
+    }
+
+    public function correctAnswer(Request $request, Game $game): JsonResponse
+    {
+        $student = Auth::user();
+
+        $existingProgress = GameProgress::where('user_id', $student->id)
+            ->where('game_id', $game->id)
+            ->first();
+
+        if ($existingProgress && $existingProgress->completed) {
+            return response()->json(['ok' => false, 'message' => 'This game has already been completed and cannot be retaken.'], 403);
+        }
+
+        $data = $request->validate([
+            'card_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $card = $game->cards()->where('id', $data['card_id'])->first();
+        if (!$card) {
+            return response()->json(['ok' => false, 'message' => 'Card not found.'], 422);
+        }
+
+        $already = \Illuminate\Support\Facades\DB::table('game_correct_answers')
+            ->where('user_id', $student->id)
+            ->where('game_id', $game->id)
+            ->where('card_id', $card->id)
+            ->exists();
+
+        $awarded = false;
+        $xp = 0;
+        if (!$already) {
+            \Illuminate\Support\Facades\DB::table('game_correct_answers')->insert([
+                'user_id' => $student->id,
+                'game_id' => $game->id,
+                'card_id' => $card->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $game->loadCount('cards');
+            \App\Models\StudentPoint::create([
+                'student_id' => $student->id,
+                'activity_type' => 'Game',
+                'activity_id' => $card->id,
+                'points' => 1,
+                'score' => 1,
+                'total' => $game->cards_count,
+                'reason' => 'Correct answer in game: ' . $game->title,
+            ]);
+            $student->increment('total_points', 1);
+            $awarded = true;
+            $xp = 1;
+        }
+
+        return response()->json(['ok' => true, 'awarded' => $awarded, 'xp' => $xp]);
     }
 
     public function index(): Response
@@ -42,10 +170,11 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
-            'type' => ['required', 'in:flashcard,quiz,fillblank'],
+            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony'],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],
+            'cards.*.color' => ['nullable', 'string', 'max:20'],
             'cards.*.options' => ['nullable', 'array'],
         ]);
 
@@ -63,6 +192,7 @@ class GameController extends Controller
             $game->cards()->create([
                 'question' => $card['question'],
                 'answer' => $card['answer'],
+                'color' => $card['color'] ?? null,
                 'order' => $i,
                 'options' => $card['options'] ?? null,
             ]);
@@ -81,10 +211,11 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
-            'type' => ['required', 'in:flashcard,quiz,fillblank'],
+            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony'],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],
+            'cards.*.color' => ['nullable', 'string', 'max:20'],
             'cards.*.options' => ['nullable', 'array'],
         ]);
 
@@ -102,7 +233,9 @@ class GameController extends Controller
             $game->cards()->create([
                 'question' => $card['question'],
                 'answer' => $card['answer'],
+                'color' => $card['color'] ?? null,
                 'order' => $i,
+                'options' => $card['options'] ?? null,
             ]);
         }
 

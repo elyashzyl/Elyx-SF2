@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\GradeLevel;
+use App\Models\Game;
 use App\Models\Quiz;
 use App\Models\Section;
 use App\Models\User;
@@ -91,6 +92,44 @@ class DatabaseSeeder extends Seeder
         $q2->options()->createMany([
             ['option_text' => 'True', 'is_correct' => true, 'order' => 0],
             ['option_text' => 'False', 'is_correct' => false, 'order' => 1],
+        ]);
+
+        $colorGame = Game::create([
+            'teacher_id' => $teacher->id,
+            'title' => 'Color Theory & Harmony',
+            'subject' => 'Arts',
+            'grade' => 'Grade 10',
+            'description' => 'Pick the swatch that completes the correct color harmony.',
+            'xp_reward' => 2,
+            'type' => 'colorharmony',
+        ]);
+
+        $colorGame->cards()->createMany([
+            [
+                'question' => 'Which color is complementary to this red?',
+                'answer' => '#06B6D4', 'color' => '#DC2626', 'order' => 0,
+                'options' => ['#06B6D4', '#3B82F6', '#7C3AED', '#F59E0B', '#EC4899'],
+            ],
+            [
+                'question' => 'Which color is complementary to this blue?',
+                'answer' => '#F59E0B', 'color' => '#2563EB', 'order' => 1,
+                'options' => ['#F59E0B', '#22C55E', '#EF4444', '#06B6D4'],
+            ],
+            [
+                'question' => 'Which color is complementary to this green?',
+                'answer' => '#D946EF', 'color' => '#16A34A', 'order' => 2,
+                'options' => ['#D946EF', '#F97316', '#3B82F6', '#84CC16'],
+            ],
+            [
+                'question' => 'Which swatch is a monochromatic (same-hue) variant of this violet?',
+                'answer' => '#A78BFA', 'color' => '#7C3AED', 'order' => 3,
+                'options' => ['#A78BFA', '#22C55E', '#FB923C', '#F472B6'],
+            ],
+            [
+                'question' => 'Which color is analogous (neighbor) to this orange?',
+                'answer' => '#EAB308', 'color' => '#F97316', 'order' => 4,
+                'options' => ['#EAB308', '#2563EB', '#22C55E', '#7C3AED', '#EF4444'],
+            ],
         ]);
     }
 }

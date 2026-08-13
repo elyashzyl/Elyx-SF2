@@ -384,3 +384,78 @@
   50% { box-shadow: 0 0 16px var(--gl-primary-glow), 0 0 24px var(--gl-primary-glow); }
 }
 .gl-pulse-glow { animation: gl-pulse-glow 2s ease-in-out infinite; }
+@keyframes gl-xp-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.gl-xp-chip { animation: gl-xp-pop 0.3s ease both; }
+
+/* ── Game question typography (non-flashcard) ─────────────── */
+.gl-eyebrow {
+  display: inline-block;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gl-primary);
+  background: var(--gl-primary-glow);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  margin-bottom: 0.9rem;
+}
+.gl-q-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+.gl-q-num {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--gl-primary), var(--gl-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gl-q-sep { color: var(--gl-text-muted); font-weight: 600; font-size: 1rem; }
+.gl-q-total { color: var(--gl-text-muted); font-size: 0.9rem; font-weight: 700; }
+.gl-question {
+  margin: 0 auto;
+  max-width: 22rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: 0.012em;
+  color: var(--gl-text-primary);
+}
+.gl-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.gl-feedback.correct {
+  color: var(--gl-success);
+  background: var(--gl-success-bg);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.gl-feedback.wrong {
+  color: var(--gl-danger);
+  background: var(--gl-danger-bg);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.gl-answer-reveal {
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.01em;
+  color: var(--gl-text-secondary);
+}

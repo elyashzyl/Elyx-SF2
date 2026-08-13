@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Game extends Model
 {
@@ -19,5 +20,10 @@ class Game extends Model
     public function cards(): HasMany
     {
         return $this->hasMany(GameCard::class)->orderBy('order');
+    }
+
+    public function progress(): HasOne
+    {
+        return $this->hasOne(GameProgress::class);
     }
 }
