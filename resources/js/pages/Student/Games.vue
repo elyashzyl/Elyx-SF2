@@ -956,28 +956,9 @@
                         <div
                             class="flex items-center justify-between gap-3 p-6 pt-0"
                         >
-                            <button
-                                @click="
-                                    flipped = false;
-                                    prevCard();
-                                "
-                                :disabled="currentCard === 0"
-                                class="rounded-xl px-4 py-2 text-xs font-medium transition-all disabled:opacity-30"
-                                style="
-                                    background: var(--gl-surface-2);
-                                    color: var(--gl-text-primary);
-                                    border: 1px solid var(--gl-border);
-                                "
-                            >
-                                <ArrowLeft
-                                    class="mr-1 inline h-3.5 w-3.5"
-                                    :stroke-width="2"
-                                />
-                                Previous
-                            </button>
                             <span
                                 v-if="currentGame.type === 'flashcard'"
-                                class="text-xs font-semibold"
+                                class="flex-1 text-center text-xs font-semibold"
                                 style="color: var(--gl-text-primary)"
                                 >Card {{ currentCard + 1 }} of
                                 {{ currentGame.cards.length }}</span
@@ -1049,7 +1030,6 @@ import {
     X,
     Zap,
     ArrowRight,
-    ArrowLeft,
     Trophy,
     Code,
     Palette,
@@ -1345,26 +1325,6 @@ function nextCard() {
         currentCard.value < currentGame.value.cards.length - 1
     ) {
         currentCard.value++;
-        flipped.value = false;
-        answered.value = false;
-        selectedOption.value = '';
-        typedAnswer.value = '';
-        fillCorrect.value = false;
-        answerResult.value = null;
-        correctOnLast.value = false;
-        jumbleAnswer.value = [];
-
-        if (currentGame.value.type === 'wordjumble') {
-            scrambleFor(currentGame.value.cards[currentCard.value]);
-        }
-
-        saveProgress(false);
-    }
-}
-
-function prevCard() {
-    if (currentCard.value > 0) {
-        currentCard.value--;
         flipped.value = false;
         answered.value = false;
         selectedOption.value = '';
