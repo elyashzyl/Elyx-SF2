@@ -19,7 +19,7 @@
                 Learning Games
             </h2>
             <p class="text-sm" style="color: var(--gl-text-secondary)">
-                Create and manage flashcard games for your students.
+                Create and manage learning games for your students.
             </p>
         </div>
         <button
@@ -52,7 +52,7 @@
             No games yet
         </p>
         <p class="mt-1 text-sm" style="color: var(--gl-text-muted)">
-            Create your first flashcard game for students.
+            Create your first learning game for students.
         </p>
         <button
             @click="openCreate"
@@ -338,11 +338,11 @@
                             border: 1px solid var(--gl-border);
                         "
                     >
-                        <div class="mb-3 flex items-center justify-between">
+                        <div class="mb-1 flex items-center justify-between">
                             <span
                                 class="text-xs font-semibold"
                                 style="color: var(--gl-text-primary)"
-                                >Flashcards</span
+                                >{{ cardSectionLabel }}</span
                             >
                             <button
                                 type="button"
@@ -356,9 +356,16 @@
                                     );
                                 "
                             >
-                                <Plus class="inline h-3 w-3" /> Add Card
+                                <Plus class="inline h-3 w-3" />
+                                {{ addCardLabel }}
                             </button>
                         </div>
+                        <p
+                            class="mb-3 text-[11px]"
+                            style="color: var(--gl-text-muted)"
+                        >
+                            {{ typeHint }}
+                        </p>
                         <div
                             v-for="(c, i) in form.cards"
                             :key="i"
@@ -382,10 +389,24 @@
                                     :placeholder="
                                         form.type === 'ordering'
                                             ? 'Step text (in correct order)'
-                                            : form.type === 'memorymatch' ||
-                                                form.type === 'dragdrop'
-                                              ? 'Term / Question'
-                                              : 'Question'
+                                            : form.type === 'memorymatch'
+                                              ? 'Term (front of card)'
+                                              : form.type === 'dragdrop'
+                                                ? 'Term (what students drag)'
+                                                : form.type === 'wordjumble' ||
+                                                    form.type === 'hangman'
+                                                  ? 'Hint / clue'
+                                                  : form.type === 'flashcard'
+                                                    ? 'Front (question)'
+                                                    : form.type === 'fillblank'
+                                                      ? 'Sentence with ___ blank'
+                                                      : form.type ===
+                                                          'truefalse'
+                                                        ? 'Statement to judge'
+                                                        : form.type ===
+                                                            'colorharmony'
+                                                          ? 'Label (optional)'
+                                                          : 'Question'
                                     "
                                     class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none"
                                     style="
@@ -404,16 +425,22 @@
                                     v-model="c.answer"
                                     type="text"
                                     :placeholder="
-                                        form.type === 'wordjumble' ||
-                                        form.type === 'hangman'
-                                            ? 'Answer (single word)'
-                                            : form.type === 'memorymatch'
-                                              ? 'Answer (matching card text)'
-                                              : form.type === 'dragdrop'
-                                                ? 'Definition (match)'
-                                                : form.type === 'ordering'
-                                                  ? 'Step label (optional)'
-                                                  : 'Answer'
+                                        form.type === 'wordjumble'
+                                            ? 'Answer (single word, letters scrambled)'
+                                            : form.type === 'hangman'
+                                              ? 'Answer (single word, guessed letter by letter)'
+                                              : form.type === 'memorymatch'
+                                                ? 'Matching definition (back)'
+                                                : form.type === 'dragdrop'
+                                                  ? 'Definition (drop target)'
+                                                  : form.type === 'ordering'
+                                                    ? 'Step label (optional)'
+                                                    : form.type === 'flashcard'
+                                                      ? 'Back (answer)'
+                                                      : form.type ===
+                                                          'fillblank'
+                                                        ? 'Answer (fills the blank)'
+                                                        : 'Answer'
                                     "
                                     class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none"
                                     style="
@@ -694,7 +721,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { Plus, Pencil, Trash2, X, Gamepad2, Eye, EyeOff } from '@lucide/vue';
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 defineProps<{ games: any[] }>();
 const page = usePage();
@@ -713,6 +740,70 @@ const form = reactive({
     type: 'flashcard',
     cards: [{ question: '', answer: '', color: '', options: [] as string[] }],
 });
+
+const typeMeta: Record<string, { section: string; add: string; hint: string }> =
+    {
+        flashcard: {
+            section: 'Flashcards',
+            add: 'Add Flashcard',
+            hint: 'Question on the front, answer on the back.',
+        },
+        quiz: {
+            section: 'Questions',
+            add: 'Add Question',
+            hint: 'Students pick the correct option.',
+        },
+        fillblank: {
+            section: 'Fill in the Blank',
+            add: 'Add Sentence',
+            hint: 'Use ___ in the question where the answer goes.',
+        },
+        truefalse: {
+            section: 'Statements',
+            add: 'Add Statement',
+            hint: 'Students judge each statement true or false.',
+        },
+        wordjumble: {
+            section: 'Words',
+            add: 'Add Word',
+            hint: 'Give a hint; the answer letters are scrambled.',
+        },
+        colorharmony: {
+            section: 'Color Pairs',
+            add: 'Add Color Pair',
+            hint: 'Students pick the color that harmonizes with the base color.',
+        },
+        memorymatch: {
+            section: 'Matching Pairs',
+            add: 'Add Pair',
+            hint: 'Each term is matched with its answer card.',
+        },
+        hangman: {
+            section: 'Hangman Words',
+            add: 'Add Word',
+            hint: 'Give a hint; students guess the word letter by letter (max 6 mistakes).',
+        },
+        speedquiz: {
+            section: 'Questions',
+            add: 'Add Question',
+            hint: 'Students answer before the 15-second timer runs out.',
+        },
+        dragdrop: {
+            section: 'Matching Pairs',
+            add: 'Add Pair',
+            hint: 'Students drag each term onto its definition.',
+        },
+        ordering: {
+            section: 'Steps',
+            add: 'Add Step',
+            hint: 'List the steps in the correct order — students rearrange them.',
+        },
+    };
+
+const typeMetaFor = computed(() => typeMeta[form.type] ?? typeMeta.flashcard);
+const cardSectionLabel = computed(() => typeMetaFor.value.section);
+const addCardLabel = computed(() => typeMetaFor.value.add);
+const typeHint = computed(() => typeMetaFor.value.hint);
 
 function randomHex() {
     return (
