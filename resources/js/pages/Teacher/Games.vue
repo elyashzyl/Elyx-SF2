@@ -300,6 +300,17 @@
                                 <option value="colorharmony">
                                     Color Harmony
                                 </option>
+                                <option value="memorymatch">
+                                    Memory Match
+                                </option>
+                                <option value="hangman">Hangman</option>
+                                <option value="speedquiz">Speed Quiz</option>
+                                <option value="dragdrop">
+                                    Drag &amp; Drop Matching
+                                </option>
+                                <option value="ordering">
+                                    Order the Steps
+                                </option>
                             </select>
                         </div>
                     </div>
@@ -368,7 +379,14 @@
                                 <input
                                     v-model="c.question"
                                     type="text"
-                                    placeholder="Question"
+                                    :placeholder="
+                                        form.type === 'ordering'
+                                            ? 'Step text (in correct order)'
+                                            : form.type === 'memorymatch' ||
+                                                form.type === 'dragdrop'
+                                              ? 'Term / Question'
+                                              : 'Question'
+                                    "
                                     class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none"
                                     style="
                                         background: var(--gl-surface-2);
@@ -379,15 +397,23 @@
                                 <input
                                     v-if="
                                         form.type !== 'quiz' &&
+                                        form.type !== 'speedquiz' &&
                                         form.type !== 'truefalse' &&
                                         form.type !== 'colorharmony'
                                     "
                                     v-model="c.answer"
                                     type="text"
                                     :placeholder="
-                                        form.type === 'wordjumble'
+                                        form.type === 'wordjumble' ||
+                                        form.type === 'hangman'
                                             ? 'Answer (single word)'
-                                            : 'Answer'
+                                            : form.type === 'memorymatch'
+                                              ? 'Answer (matching card text)'
+                                              : form.type === 'dragdrop'
+                                                ? 'Definition (match)'
+                                                : form.type === 'ordering'
+                                                  ? 'Step label (optional)'
+                                                  : 'Answer'
                                     "
                                     class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none"
                                     style="
@@ -436,7 +462,12 @@
                                     <X class="h-3.5 w-3.5" />
                                 </button>
                             </div>
-                            <template v-if="form.type === 'quiz'">
+                            <template
+                                v-if="
+                                    form.type === 'quiz' ||
+                                    form.type === 'speedquiz'
+                                "
+                            >
                                 <div class="ml-6 space-y-1">
                                     <div
                                         class="flex flex-wrap items-center gap-2"

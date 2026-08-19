@@ -66,7 +66,7 @@ class GameController extends Controller
 
         $awarded = false;
         $xp = 0;
-        if (!empty($data['completed']) && $game->type === 'flashcard') {
+        if (!empty($data['completed'])) {
             $existing = \App\Models\StudentPoint::where('student_id', $student->id)
                 ->where('activity_type', 'Game')
                 ->where('activity_id', $game->id)
@@ -170,7 +170,7 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
-            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony'],
+            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony,memorymatch,hangman,speedquiz,dragdrop,ordering'],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],
@@ -211,7 +211,7 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
-            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony'],
+            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony,memorymatch,hangman,speedquiz,dragdrop,ordering'],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],

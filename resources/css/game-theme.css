@@ -459,3 +459,9 @@
   letter-spacing: 0.01em;
   color: var(--gl-text-secondary);
 }
+
+@keyframes gl-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
