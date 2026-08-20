@@ -17,6 +17,7 @@ import {
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import ThemeToggle from '@/components/ThemeToggle.vue';
+import { levelForPoints, titleForLevel, progressPct } from '@/lib/levels';
 
 const page = usePage();
 const user = page.props.auth.user;
@@ -25,6 +26,11 @@ const isImpersonating = computed(() => !!(page.props as any).impersonated_by);
 const messengerSystemEnabled = ref(true);
 const messengerUnread = ref(0);
 let messengerTimer: ReturnType<typeof setInterval> | null = null;
+
+const totalPoints = computed(() => Number(user?.total_points ?? 0));
+const userLevel = computed(() => levelForPoints(totalPoints.value));
+const levelTitle = computed(() => titleForLevel(userLevel.value));
+const xpProgressPct = computed(() => progressPct(totalPoints.value));
 
 async function checkMessengerStatus() {
     try {
@@ -317,11 +323,18 @@ function stopImpersonating() {
                                 class="mt-0.5 flex items-center gap-2 text-xs"
                                 style="color: var(--gl-text-muted)"
                             >
-                                <span>Level {{ userLevel }}</span
-                                ><span
-                                    class="h-1 w-1 rounded-full"
-                                    style="background: var(--gl-text-muted)"
-                                ></span
+                                <span
+                                    class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                    style="
+                                        background: linear-gradient(
+                                            135deg,
+                                            rgba(59, 130, 246, 0.15),
+                                            rgba(124, 58, 237, 0.12)
+                                        );
+                                        color: var(--gl-primary);
+                                    "
+                                    >Level {{ userLevel }} ·
+                                    {{ levelTitle }}</span
                                 ><span>{{ totalPoints }} XP</span>
                             </div>
                             <div

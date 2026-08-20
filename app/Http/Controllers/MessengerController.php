@@ -84,18 +84,22 @@ class MessengerController extends Controller
 
         $conversation->participants()->updateExistingPivot($user->id, ['last_read_at' => now()]);
 
+        $messageRows = $conversation->messages()->withTrashed()->with('sender:id,name')->orderBy('created_at')->get();
+
         return Inertia::render($user->isStudent() ? 'Student/Messenger' : 'Teacher/Messenger', [
             'conversation' => [
                 'id' => $conversation->id,
                 'subject' => $conversation->subject,
                 'other' => $otherParticipant?->only(['id', 'name', 'role']),
                 'other_last_read_at' => $otherLastReadAt,
-                'messages' => $conversation->messages->map(fn ($m) => [
+                'messages' => $messageRows->map(fn ($m) => [
                     'id' => $m->id,
                     'sender_id' => $m->sender_id,
                     'sender_name' => $m->sender->name,
                     'body' => $m->body,
                     'created_at' => $m->created_at,
+                    'edited_at' => $m->edited_at,
+                    'deleted_at' => $m->deleted_at,
                 ]),
             ],
             'conversations' => Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id)
@@ -200,6 +204,37 @@ class MessengerController extends Controller
         return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
     }
 
+    public function updateMessage(Request $request, Conversation $conversation, Message $message): RedirectResponse
+    {
+        $this->checkSystemEnabled();
+        $user = Auth::user();
+        abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
+        abort_if($message->sender_id !== $user->id, 403, 'You can only edit your own messages.');
+        abort_if($message->conversation_id !== $conversation->id || $message->trashed(), 404);
+
+        $validated = $request->validate(['body' => ['required', 'string', 'max:10000']]);
+
+        $message->update([
+            'body' => $validated['body'],
+            'edited_at' => now(),
+        ]);
+
+        return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
+    }
+
+    public function destroyMessage(Conversation $conversation, Message $message): RedirectResponse
+    {
+        $this->checkSystemEnabled();
+        $user = Auth::user();
+        abort_unless($conversation->participants()->where('user_id', $user->id)->exists(), 403);
+        abort_if($message->sender_id !== $user->id, 403, 'You can only remove your own messages.');
+        abort_if($message->conversation_id !== $conversation->id || $message->trashed(), 404);
+
+        $message->delete();
+
+        return redirect()->route($user->isStudent() ? 'student.messenger.show' : 'teacher.messenger.show', $conversation);
+    }
+
     public function archive(Conversation $conversation): RedirectResponse
     {
         $this->checkSystemEnabled();
@@ -228,6 +263,7 @@ class MessengerController extends Controller
             ->first()?->pivot?->last_read_at;
 
         $messages = $conversation->messages()
+            ->withTrashed()
             ->with('sender:id,name')
             ->when($since, fn ($q) => $q->where('created_at', '>', $since))
             ->orderBy('created_at')
@@ -238,6 +274,8 @@ class MessengerController extends Controller
                 'sender_name' => $m->sender->name,
                 'body' => $m->body,
                 'created_at' => $m->created_at,
+                'edited_at' => $m->edited_at,
+                'deleted_at' => $m->deleted_at,
             ]);
 
         $conversation->participants()->updateExistingPivot($user->id, ['last_read_at' => now()]);

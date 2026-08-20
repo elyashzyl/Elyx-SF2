@@ -465,3 +465,41 @@
   25% { transform: translateX(-4px); }
   75% { transform: translateX(4px); }
 }
+
+/* ── Secret reward reveal ─────────────────────────────── */
+@keyframes gl-reveal-pop {
+  0% { transform: scale(0.6) translateY(24px); opacity: 0; }
+  55% { transform: scale(1.05) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.gl-reveal-pop { animation: gl-reveal-pop 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes gl-shine-sweep {
+  0% { transform: translateX(-130%) skewX(-20deg); }
+  100% { transform: translateX(230%) skewX(-20deg); }
+}
+.gl-shine { position: relative; overflow: hidden; }
+.gl-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  animation: gl-shine-sweep 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes gl-sparkle {
+  0% { transform: translateY(0) scale(0); opacity: 0; }
+  35% { transform: translateY(-12px) scale(1); opacity: 1; }
+  100% { transform: translateY(-70px) scale(0.3); opacity: 0; }
+}
+.gl-sparkle { animation: gl-sparkle 1.4s ease-out infinite; }
+
+@keyframes gl-reward-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.gl-reward-in { animation: gl-reward-in 0.4s ease both; }

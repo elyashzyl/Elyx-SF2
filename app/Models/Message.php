@@ -4,10 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Message extends Model
 {
-    protected $fillable = ['conversation_id', 'sender_id', 'body'];
+    use SoftDeletes;
+
+    protected $fillable = ['conversation_id', 'sender_id', 'body', 'edited_at'];
+
+    protected $casts = [
+        'edited_at' => 'datetime',
+    ];
 
     public function conversation(): BelongsTo
     {

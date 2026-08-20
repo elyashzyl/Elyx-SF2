@@ -136,6 +136,8 @@ Route::middleware(['auth', 'verified', 'role.teacher'])->prefix('teacher')->name
         Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
         Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
         Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
+        Route::patch('/messenger/{conversation}/messages/{message}', [MessengerController::class, 'updateMessage'])->name('messenger.message.update');
+        Route::delete('/messenger/{conversation}/messages/{message}', [MessengerController::class, 'destroyMessage'])->name('messenger.message.destroy');
         Route::get('/messenger/{conversation}/poll', [MessengerController::class, 'poll'])->name('messenger.poll');
         Route::delete('/messenger/{conversation}', [MessengerController::class, 'archive'])->name('messenger.archive');
     });
@@ -213,6 +215,7 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
         return \Inertia\Inertia::render('Student/Profile', [
             'gradeLevels' => \App\Models\GradeLevel::orderBy('name')->get(['id', 'name']),
             'sections' => \App\Models\Section::orderBy('name')->get(['id', 'name', 'grade_level_id']),
+            'secretRewards' => \App\Helpers\LevelHelper::unlockedRewards((int) \Illuminate\Support\Facades\Auth::user()->total_points),
         ]);
     })->name('profile');
 
@@ -222,6 +225,8 @@ Route::middleware(['auth', 'verified', 'role.student'])->prefix('student')->name
         Route::get('/messenger/{conversation}', [MessengerController::class, 'show'])->name('messenger.show');
         Route::post('/messenger/start', [MessengerController::class, 'store'])->name('messenger.start');
         Route::post('/messenger/{conversation}/send', [MessengerController::class, 'sendMessage'])->name('messenger.send');
+        Route::patch('/messenger/{conversation}/messages/{message}', [MessengerController::class, 'updateMessage'])->name('messenger.message.update');
+        Route::delete('/messenger/{conversation}/messages/{message}', [MessengerController::class, 'destroyMessage'])->name('messenger.message.destroy');
         Route::get('/messenger/{conversation}/poll', [MessengerController::class, 'poll'])->name('messenger.poll');
         Route::delete('/messenger/{conversation}', [MessengerController::class, 'archive'])->name('messenger.archive');
     });
