@@ -5,12 +5,13 @@ import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
 import studentRoutes from './routes/students.js'
 import attendanceRoutes from './routes/attendance.js'
-import scheduleRoutes from './routes/schedules.js'
 import settingsRoutes from './routes/settings.js'
 import eventRoutes from './routes/events.js'
 import dashboardRoutes from './routes/dashboard.js'
 import monthlyRoutes from './routes/monthly.js'
 import exportRoutes from './routes/export.js'
+import schoolRoutes from './routes/schools.js'
+import logRoutes from './routes/logs.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -43,12 +44,13 @@ app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/students', studentRoutes)
 app.use('/api/attendance', attendanceRoutes)
-app.use('/api/schedules', scheduleRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/monthly', monthlyRoutes)
 app.use('/api/export', exportRoutes)
+app.use('/api/schools', schoolRoutes)
+app.use('/api/logs', logRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: dbReady ? 'ok' : 'starting' })

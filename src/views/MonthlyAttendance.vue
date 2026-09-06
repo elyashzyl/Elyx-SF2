@@ -1,8 +1,33 @@
 <template>
   <div class="monthly-page">
     <div v-if="!record" class="select-screen">
-      <h1>Monthly Attendance</h1>
-      <div class="form-card">
+      <div class="dashboard-header">
+        <div class="dashboard-header-left">
+          <h1>Monthly Attendance (SF2)</h1>
+          <p>Select the class grade, section, and month to open or generate the monthly attendance sheet.</p>
+        </div>
+        <div class="dashboard-header-actions">
+          <div class="dashboard-date-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span>SF2 Report</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card" style="max-width: 860px;">
+        <h3>Generate SF2</h3>
+        <div class="form-group" v-if="auth.isSuperadmin">
+          <label>School</label>
+          <select v-model="selectedSchoolId" required @change="onSchoolChange">
+            <option value="">None</option>
+            <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}{{ s.school_id ? ' (' + s.school_id + ')' : '' }}</option>
+          </select>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>Month</label>
@@ -17,30 +42,38 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Grade</label>
-            <select v-model="form.grade" @change="form.section = ''" required>
+            <label>Grade Level</label>
+            <select v-model="form.grade" @change="form.section = ''" required :disabled="auth.isTeacher">
+              <option value="" disabled v-if="!grades.length">No grade levels defined</option>
               <option v-for="g in grades" :key="g">{{ g }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>Section</label>
-            <select v-model="form.section" required>
+            <select v-model="form.section" required :disabled="auth.isTeacher">
               <option value="" disabled>Select section</option>
               <option v-for="s in availableSections" :key="s">{{ s }}</option>
             </select>
           </div>
         </div>
-        <button @click="openMonthly" class="btn-primary">Open Monthly Record</button>
+        <div class="form-actions">
+          <button @click="openMonthly" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+            Generate SF2
+          </button>
+        </div>
         <p v-if="loadError" class="error-msg">{{ loadError }}</p>
       </div>
     </div>
 
     <div v-else class="sheet-container">
       <div class="sheet-header">
-        <img src="/bphs-logo.jpg" alt="BPHS" class="school-logo" />
         <div class="school-info">
-          <h1>BAGUIO PATRIOTIC HIGH SCHOOL</h1>
-          <p>Baguio City</p>
+          <h1>{{ school.school_name }}</h1>
+          <p>School ID: {{ school.school_id }}</p>
+          <p v-if="school.school_address">{{ school.school_address }}</p>
         </div>
       </div>
       <div class="sheet-date">{{ months[form.month-1] }} {{ form.year }}</div>
@@ -49,6 +82,7 @@
         <span>Grade: {{ record.grade }}</span>
         <span>Section: {{ record.section }}</span>
         <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
+        <span>School Head: <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" /></span>
       </div>
 
       <div class="table-wrapper">
@@ -219,86 +253,135 @@
       </div>
 
       <div class="sheet-actions">
-        <div class="export-group" v-if="record && availableSheets.length">
-          <select v-if="availableSheets.length > 1" v-model="selectedSheet" class="sheet-select">
-            <option value="" disabled>Select month sheet...</option>
-            <option v-for="s in availableSheets" :key="s" :value="s">{{ s }}</option>
-          </select>
-          <button @click="exportToSF2" class="btn-primary" :disabled="!selectedSheet || exporting">
-            {{ exporting ? 'Exporting...' : 'Export to SF2' }}
-          </button>
-        </div>
-        <button @click="goBack" class="btn-secondary">Back</button>
+        <button @click="exportToSF2" class="btn-primary" :disabled="exporting">
+          <span v-if="exporting" class="spinner" style="margin-right: 6px;"></span>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          {{ exporting ? 'Exporting...' : 'Export to SF2 (Excel)' }}
+        </button>
+        <button @click="goBack" class="btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+          </svg>
+          Back to Selection
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
+import { useGradeLevels } from '../composables/useGradeLevels'
+import { loadPageState } from '../composables/usePageState'
 
 const store = useAttendanceStore()
 const auth = useAuthStore()
+const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
+const savedState = loadPageState(auth.user)
+const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
 
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
-const sectionsByGrade = {
-  'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress', 'Narra'],
-  'Grade 9': ['Kamagong', 'Mahogany'],
-  'Grade 10': ['Acacia', 'Yakal']
-}
-const availableSections = computed(() => sectionsByGrade[form.grade] || [])
+const availableSections = computed(() => sectionsByGrade.value[form.grade] || [])
 
 const now = new Date()
 const years = []
 for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 2; y++) years.push(y)
 
 const form = reactive({
-  month: now.getMonth() + 1,
-  year: now.getFullYear(),
-  grade: 'Grade 7',
-  section: ''
+  month: savedState?.month ?? (now.getMonth() + 1),
+  year: savedState?.year ?? now.getFullYear(),
+  grade: savedState?.grade ?? (auth.isTeacher && auth.user?.grade ? auth.user.grade : ''),
+  section: savedState?.section ?? (auth.isTeacher && auth.user?.section ? auth.user.section : '')
 })
+
+function applyGradeDefaults() {
+  if (!grades.value.length) { form.grade = ''; form.section = ''; return }
+  if (auth.isTeacher && auth.user?.grade && grades.value.includes(auth.user.grade)) {
+    form.grade = auth.user.grade
+    const secs = sectionsByGrade.value[form.grade] || []
+    form.section = secs.includes(auth.user.section) ? auth.user.section : ''
+  } else if (!grades.value.includes(form.grade)) {
+    form.grade = grades.value[0]
+    form.section = ''
+  }
+}
 
 const record = ref(null)
 const loadError = ref('')
 const studentsLookup = ref({})
+const schools = ref([])
+const selectedSchoolId = ref(savedState?.school || '')
+const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
 const summaryEdits = reactive({ enr_m: 0, enr_f: 0, enr_t: 0, late_m: 0, late_f: 0, late_t: 0, reg_m: 0, reg_f: 0, reg_t: 0, pct_enr_m: 0, pct_enr_f: 0, pct_enr_t: 0, ada_m: 0, ada_f: 0, ada_t: 0, pct_m: 0, pct_f: 0, pct_t: 0, abs5_m: 0, abs5_f: 0, abs5_t: 0, nls_m: 0, nls_f: 0, nls_t: 0, transfer_out_m: 0, transfer_out_f: 0, transfer_out_t: 0, transfer_in_m: 0, transfer_in_f: 0, transfer_in_t: 0 })
 
-const availableSheets = ref([])
-const selectedSheet = ref('')
+async function onSchoolChange() {
+  await loadGradeLevels(selectedSchoolId.value || undefined)
+  applyGradeDefaults()
+}
+
 const exporting = ref(false)
+const sheetName = ref('')
 
 onMounted(async () => {
+  if (auth.isSuperadmin) {
+    try { schools.value = await auth.getSchools() } catch {}
+  }
+  await loadGradeLevels(effectiveSchoolId.value || undefined)
+  applyGradeDefaults()
+  try {
+    const data = await auth.getSchoolInfo()
+    if (data) Object.assign(school, data)
+    else if (auth.user?.school) {
+      school.school_name = auth.user.school.name || auth.user.school.school_name || ''
+      school.school_id = auth.user.school.school_id || ''
+      school.school_short = auth.user.school.short || auth.user.school.school_short || ''
+      school.school_address = auth.user.school.address || auth.user.school.school_address || ''
+    }
+  } catch {}
   try {
     const res = await fetch('/api/export/sheets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const data = await res.json()
-    if (data.sheets) {
-      availableSheets.value = data.sheets
-      if (data.sheets.length === 1) selectedSheet.value = data.sheets[0]
+    if (data.sheets?.length) {
+      sheetName.value = data.sheets[0]
+    }
+  } catch {}
+  try {
+    const saved = localStorage.getItem('monthlyAttendance')
+    if (saved) {
+      const p = JSON.parse(saved)
+      form.month = p.month
+      form.year = p.year
+      form.grade = p.grade
+      form.section = p.section
+      await openMonthly()
     }
   } catch {}
 })
 
 async function exportToSF2() {
-  if (!selectedSheet.value || !record.value?.entries) return
+  if (!record.value?.entries) return
   exporting.value = true
   try {
     const res = await fetch('/api/export/sf2', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sheetName: selectedSheet.value,
+        userId: auth.user?.id || '',
+        userRole: auth.user?.role || '',
+        schoolId: auth.schoolId || '',
+        sheetName: sheetName.value || 'Sheet1',
         entries: record.value.entries,
         month: form.month,
         year: form.year,
         grade: form.grade,
         section: form.section,
         adviser: record.value.adviser || '',
+        schoolHead: record.value.schoolHead || '',
         summary_data: {
           enr_m: summaryEdits.enr_m,
           enr_f: summaryEdits.enr_f,
@@ -343,7 +426,7 @@ async function exportToSF2() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `SF2_${selectedSheet.value}_${form.year}.xlsx`
+    a.download = `SF2_${record.value.grade}_${record.value.section}_${months[form.month-1]}_${form.year}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
   } catch (err) {
@@ -477,9 +560,9 @@ const summaryData = computed(() => {
   const mPresent = boys ? boys.sumPresent : 0
   const fPresent = girls ? girls.sumPresent : 0
   const sd = schoolDays.value || 1
-  const mADA = Math.round((mPresent / sd) * 10) / 10
-  const fADA = Math.round((fPresent / sd) * 10) / 10
-  const tADA = Math.round(((mPresent + fPresent) / sd) * 10) / 10
+  const mADA = Math.floor((mPresent / sd) * 100) / 100
+  const fADA = Math.floor((fPresent / sd) * 100) / 100
+  const tADA = Math.floor(((mPresent + fPresent) / sd) * 100) / 100
   const mInit = mCount - lateM
   const fInit = fCount - lateF
   const tInit = mInit + fInit
@@ -492,17 +575,21 @@ const summaryData = computed(() => {
     },
     registeredLearners: { m: mCount, f: fCount, total: mCount + fCount },
     pctEnrolment: {
-      m: mInit > 0 ? Math.round(mCount / mInit * 100) : 0,
-      f: fInit > 0 ? Math.round(fCount / fInit * 100) : 0,
-      total: tInit > 0 ? Math.round((mCount + fCount) / tInit * 100) : 0
+      m: mCount > 0 ? Math.round((mCount - lateM) / mCount * 100) : 0,
+      f: fCount > 0 ? Math.round((fCount - lateF) / fCount * 100) : 0,
+      total: (mCount + fCount) > 0 ? Math.round(((mCount + fCount - lateM - lateF) / (mCount + fCount)) * 100) : 0
     },
     avgDailyAttendance: { m: mADA, f: fADA, total: tADA },
     pctAttendance: {
-      m: mCount ? Math.round((mPresent / sd / mCount) * 100) : 0,
-      f: fCount ? Math.round((fPresent / sd / fCount) * 100) : 0,
-      total: (mCount + fCount) ? Math.round(((mPresent + fPresent) / sd / (mCount + fCount)) * 100) : 0
+      m: mCount ? Math.floor((mPresent / sd / mCount) * 100 * 100) / 100 : 0,
+      f: fCount ? Math.floor((fPresent / sd / fCount) * 100 * 100) / 100 : 0,
+      total: (mCount + fCount) ? Math.floor(((mPresent + fPresent) / sd / (mCount + fCount)) * 100 * 100) / 100 : 0
     },
-    absent5: { m: 0, f: 0, total: 0 }
+    absent5: {
+      m: boys ? boys.entries.filter(e => entryAbsent(e) >= 5).length : 0,
+      f: girls ? girls.entries.filter(e => entryAbsent(e) >= 5).length : 0,
+      total: record.value.entries.filter(e => entryAbsent(e) >= 5).length
+    }
   }
 })
 
@@ -519,12 +606,17 @@ async function openMonthly() {
     loadError.value = 'Please fill in all fields'
     return
   }
+  if (auth.isSuperadmin && !selectedSchoolId.value) {
+    loadError.value = 'Please select a school'
+    return
+  }
   loadError.value = ''
-  const students = await store.getStudents({ grade: form.grade, section: form.section })
+  const sid = effectiveSchoolId.value
+  const students = await store.getStudents({ grade: form.grade, section: form.section, ...(sid ? { schoolId: sid } : {}) })
   const lookup = {}
   for (const s of students) lookup[s.id] = s.gender || ''
   studentsLookup.value = lookup
-  let data = await store.fetchMonthly(form.grade, form.section, form.month, form.year)
+  let data = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined)
   if (!data) {
     const entries = students.map(s => ({
       studentId: s.id,
@@ -537,7 +629,7 @@ async function openMonthly() {
       late_enrollee: 0
     }))
     data = { month: form.month, year: form.year, grade: form.grade, section: form.section, adviser: auth.user?.name || '', entries }
-    const result = await store.saveMonthly(data, auth.user)
+    const result = await store.saveMonthly(data, auth.user, effectiveSchoolId.value || undefined)
     if (result) data.id = result.id
   } else {
     const currentIds = new Set(students.map(s => s.id))
@@ -560,7 +652,7 @@ async function openMonthly() {
           late_enrollee: 1
         })
       }
-      await store.saveMonthly(data, auth.user)
+      await store.saveMonthly(data, auth.user, effectiveSchoolId.value || undefined)
     }
   }
   record.value = data
@@ -576,9 +668,24 @@ function initSummaryEdits() {
   summaryEdits.pct_m = summaryData.value?.pctAttendance?.m ?? 0
   summaryEdits.pct_f = summaryData.value?.pctAttendance?.f ?? 0
   summaryEdits.pct_t = summaryData.value?.pctAttendance?.total ?? 0
-  summaryEdits.abs5_m = sd.abs5_m != null ? sd.abs5_m : 0
-  summaryEdits.abs5_f = sd.abs5_f != null ? sd.abs5_f : 0
-  summaryEdits.abs5_t = sd.abs5_t != null ? sd.abs5_t : 0
+  summaryEdits.abs5_m = summaryData.value?.absent5?.m ?? 0
+  summaryEdits.abs5_f = summaryData.value?.absent5?.f ?? 0
+  summaryEdits.abs5_t = summaryData.value?.absent5?.total ?? 0
+  summaryEdits.enr_m = summaryData.value?.enrollment?.m ?? 0
+  summaryEdits.enr_f = summaryData.value?.enrollment?.f ?? 0
+  summaryEdits.enr_t = summaryData.value?.enrollment?.total ?? 0
+  summaryEdits.reg_m = summaryData.value?.registeredLearners?.m ?? 0
+  summaryEdits.reg_f = summaryData.value?.registeredLearners?.f ?? 0
+  summaryEdits.reg_t = summaryData.value?.registeredLearners?.total ?? 0
+  summaryEdits.pct_enr_m = summaryData.value?.pctEnrolment?.m ?? 0
+  summaryEdits.pct_enr_f = summaryData.value?.pctEnrolment?.f ?? 0
+  summaryEdits.pct_enr_t = summaryData.value?.pctEnrolment?.total ?? 0
+  const entries = record.value.entries || []
+  const lateM = entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'male').length
+  const lateF = entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'female').length
+  summaryEdits.late_m = lateM
+  summaryEdits.late_f = lateF
+  summaryEdits.late_t = lateM + lateF
   summaryEdits.nls_m = sd.nls_m ?? 0
   summaryEdits.nls_f = sd.nls_f ?? 0
   summaryEdits.nls_t = sd.nls_t ?? 0
@@ -588,21 +695,6 @@ function initSummaryEdits() {
   summaryEdits.transfer_in_m = sd.transfer_in_m ?? 0
   summaryEdits.transfer_in_f = sd.transfer_in_f ?? 0
   summaryEdits.transfer_in_t = sd.transfer_in_t ?? 0
-  const entries = record.value.entries || []
-  const lateM = entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'male').length
-  const lateF = entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'female').length
-  summaryEdits.late_m = sd.late_m != null ? sd.late_m : lateM
-  summaryEdits.late_f = sd.late_f != null ? sd.late_f : lateF
-  summaryEdits.late_t = sd.late_t != null ? sd.late_t : (lateM + lateF)
-  summaryEdits.enr_m = sd.enr_m ?? (summaryData.value?.enrollment?.m ?? 0)
-  summaryEdits.enr_f = sd.enr_f ?? (summaryData.value?.enrollment?.f ?? 0)
-  summaryEdits.enr_t = sd.enr_t ?? (summaryData.value?.enrollment?.total ?? 0)
-  summaryEdits.reg_m = sd.reg_m ?? (summaryData.value?.registeredLearners?.m ?? 0)
-  summaryEdits.reg_f = sd.reg_f ?? (summaryData.value?.registeredLearners?.f ?? 0)
-  summaryEdits.reg_t = sd.reg_t ?? (summaryData.value?.registeredLearners?.total ?? 0)
-  summaryEdits.pct_enr_m = sd.pct_enr_m ?? (summaryData.value?.pctEnrolment?.m ?? 0)
-  summaryEdits.pct_enr_f = sd.pct_enr_f ?? (summaryData.value?.pctEnrolment?.f ?? 0)
-  summaryEdits.pct_enr_t = sd.pct_enr_t ?? (summaryData.value?.pctEnrolment?.total ?? 0)
 }
 
 async function saveSummary() {
@@ -611,7 +703,11 @@ async function saveSummary() {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      userId: auth.user?.id || '',
+      userRole: auth.user?.role || '',
+      ...(effectiveSchoolId.value ? { schoolId: effectiveSchoolId.value } : {}),
       adviser: record.value.adviser,
+      schoolHead: record.value.schoolHead,
       summary_data: {
         enr_m: summaryEdits.enr_m,
         enr_f: summaryEdits.enr_f,
@@ -665,7 +761,7 @@ async function updateDay(entry, day, status) {
   }
   entry.days[day] = status
   await store.updateMonthlyEntry(record.value.id, entry.studentId, day, status, auth.user?.id, auth.user?.role)
-  const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year)
+  const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined)
   if (res) {
     const updated = res.entries.find(e => e.studentId === entry.studentId)
     if (updated) {
@@ -706,9 +802,14 @@ async function toggleExcludeDate(d) {
   await fetch(`/api/monthly/${record.value.id}/excluded-dates`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ excluded_dates: excluded })
+    body: JSON.stringify({
+      userId: auth.user?.id || '',
+      userRole: auth.user?.role || '',
+      ...(effectiveSchoolId.value ? { schoolId: effectiveSchoolId.value } : {}),
+      excluded_dates: excluded
+    })
   })
-  const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year)
+  const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined)
   if (res) {
     record.value = res
     initSummaryEdits()

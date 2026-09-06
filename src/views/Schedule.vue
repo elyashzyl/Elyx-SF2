@@ -280,10 +280,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useToast } from '../composables/useToast'
+import { useNotifications } from '../composables/useNotifications'
 
 const auth = useAuthStore()
-const { addToast } = useToast()
+const { notify } = useNotifications()
 const isAdmin = computed(() => auth.isAdmin)
 
 const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
@@ -479,17 +479,17 @@ async function handleSaveEvent() {
       await fetch('/api/events/calendar/' + editingEvent.value.id, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       })
-      addToast('Event updated', 'success')
+      notify('Event updated', 'success')
     } else {
       await fetch('/api/events/calendar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       })
-      addToast('Event added', 'success')
+      notify('Event added', 'success')
     }
     closeEventForm()
     await loadEvents()
   } catch {
-    addToast('Failed to save event', 'error')
+    notify('Failed to save event', 'error')
   } finally {
     savingEvent.value = false
   }
@@ -499,11 +499,11 @@ async function deleteEvent() {
   if (!editingEvent.value) return
   try {
     await fetch('/api/events/calendar/' + editingEvent.value.id, { method: 'DELETE' })
-    addToast('Event deleted', 'success')
+    notify('Event deleted', 'success')
     closeEventForm()
     await loadEvents()
   } catch {
-    addToast('Failed to delete event', 'error')
+    notify('Failed to delete event', 'error')
   }
 }
 
@@ -543,17 +543,17 @@ async function handleSaveQuarterly() {
       await fetch('/api/events/quarterly/' + editingQuarterly.value.id, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       })
-      addToast('Updated', 'success')
+      notify('Updated', 'success')
     } else {
       await fetch('/api/events/quarterly', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       })
-      addToast('Added', 'success')
+      notify('Added', 'success')
     }
     closeQuarterlyForm()
     await loadQuarterly()
   } catch {
-    addToast('Failed to save', 'error')
+    notify('Failed to save', 'error')
   } finally {
     savingQuarterly.value = false
   }
@@ -562,10 +562,10 @@ async function handleSaveQuarterly() {
 async function deleteQuarterly(id) {
   try {
     await fetch('/api/events/quarterly/' + id, { method: 'DELETE' })
-    addToast('Deleted', 'success')
+    notify('Deleted', 'success')
     await loadQuarterly()
   } catch {
-    addToast('Failed to delete', 'error')
+    notify('Failed to delete', 'error')
   }
 }
 
@@ -650,10 +650,10 @@ async function saveTimeSettings() {
       body: JSON.stringify({ settings })
     })
     await loadTimeSettings()
-    addToast('Period times saved', 'success')
+    notify('Period times saved', 'success')
     showTimeEditor.value = false
   } catch {
-    addToast('Failed to save times', 'error')
+    notify('Failed to save times', 'error')
   } finally {
     savingTimes.value = false
   }
@@ -735,7 +735,7 @@ async function handleSave() {
       section: form.value.sections.join(', ')
     }
     const tid = teacherId.value
-    if (!tid) { addToast('No teacher selected', 'error'); return }
+    if (!tid) { notify('No teacher selected', 'error'); return }
 
     if (editingEntry.value) {
       await fetch(`/api/schedules/${tid}/${editingEntry.value.id}`, {
@@ -743,19 +743,19 @@ async function handleSave() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      addToast('Entry updated', 'success')
+      notify('Entry updated', 'success')
     } else {
       await fetch(`/api/schedules/${tid}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      addToast('Entry added', 'success')
+      notify('Entry added', 'success')
     }
     closeForm()
     await loadSchedule()
   } catch {
-    addToast('Failed to save entry', 'error')
+    notify('Failed to save entry', 'error')
   } finally {
     saving.value = false
   }
@@ -765,11 +765,11 @@ async function handleDelete() {
   if (!editingEntry.value) return
   try {
     await fetch(`/api/schedules/${teacherId.value}/${editingEntry.value.id}`, { method: 'DELETE' })
-    addToast('Entry deleted', 'success')
+    notify('Entry deleted', 'success')
     closeForm()
     await loadSchedule()
   } catch {
-    addToast('Failed to delete entry', 'error')
+    notify('Failed to delete entry', 'error')
   }
 }
 </script>

@@ -1,33 +1,57 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run } from '../db.js'
+import { query, run, getSettings } from '../db.js'
+import { requireRole, resolveScopeSchool } from './_context.js'
 
 const router = Router()
 
-function dayOfWeek(dateStr) {
-  return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(dateStr + 'T00:00:00').getDay()]
+function guardAttendanceRecord(req, res) {
+  const { me, error } = requireRole(req, res, 'superadmin', 'admin', 'teacher')
+  if (error) return null
+  return me
 }
 
-function canEdit(record, userId, userRole) {
-  if (userRole === 'admin') return true
-  if (userRole === 'teacher') {
-    const sched = query('SELECT COUNT(*) as cnt FROM teacher_schedules WHERE teacher_id = ?', [userId])
-    return sched.length > 0 && sched[0].cnt > 0
+function recordSchoolOk(me, record) {
+  if (!record) return true
+  if (me.role === 'superadmin') return true
+  return record.school_id === me.school_id
+}
+
+function canEdit(record, actor) {
+  if (!actor) return false
+  if (actor.role === 'superadmin' || actor.role === 'admin') return true
+  if (actor.role === 'teacher') {
+    // Teachers may edit records of their advisory class in their school
+    if (record.school_id && actor.school_id !== record.school_id) return false
+    if (actor.grade && actor.section) {
+      return record.grade === actor.grade && record.section === actor.section
+    }
+    return true
   }
   return false
 }
 
 router.get('/all', (req, res) => {
-  const records = query('SELECT * FROM attendance_records ORDER BY date DESC, grade, section')
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
+  const scope = resolveScopeSchool(req, res, req.query.schoolId)
+  if (!scope) return
+  const records = scope.schoolId
+    ? query('SELECT * FROM attendance_records WHERE school_id = ? ORDER BY date DESC, grade, section', [scope.schoolId])
+    : query('SELECT * FROM attendance_records ORDER BY date DESC, grade, section')
   res.json(records)
 })
 
 router.get('/', (req, res) => {
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
+  const scope = resolveScopeSchool(req, res, req.query.schoolId)
+  if (!scope) return
   const { date, grade, section } = req.query
-  const records = query(
-    'SELECT * FROM attendance_records WHERE date = ? AND grade = ? AND section = ?',
-    [date, grade, section]
-  )
+  const params = [date, grade, section]
+  let sql = 'SELECT * FROM attendance_records WHERE date = ? AND grade = ? AND section = ?'
+  if (scope.schoolId) { sql += ' AND school_id = ?'; params.push(scope.schoolId) }
+  const records = query(sql, params)
 
   if (records.length === 0) {
     return res.json(null)
@@ -57,21 +81,27 @@ router.get('/', (req, res) => {
 })
 
 router.post('/', (req, res) => {
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
+  const scope = resolveScopeSchool(req, res, req.body.schoolId)
+  if (!scope) return
+  if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
   const { date, grade, section, adviser, entries, created_by, created_by_name } = req.body
   const existing = query(
-    'SELECT id, created_by, created_by_name FROM attendance_records WHERE date = ? AND grade = ? AND section = ?',
-    [date, grade, section]
+    'SELECT id, created_by, created_by_name, school_id FROM attendance_records WHERE date = ? AND grade = ? AND section = ? AND school_id = ?',
+    [date, grade, section, scope.schoolId]
   )
 
   let recordId
   if (existing.length > 0) {
     recordId = existing[0].id
+    if (!recordSchoolOk(me, existing[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
     run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
     run('UPDATE attendance_records SET adviser=? WHERE id=?', [adviser, recordId])
   } else {
     recordId = uuidv4()
-    run('INSERT INTO attendance_records (id, date, grade, section, adviser, created_by, created_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [recordId, date, grade, section, adviser, created_by || '', created_by_name || ''])
+    run('INSERT INTO attendance_records (id, date, grade, section, adviser, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [recordId, date, grade, section, adviser, created_by || '', created_by_name || '', scope.schoolId])
   }
 
   for (const entry of entries) {
@@ -120,6 +150,11 @@ function getAttendanceStatus(entry) {
 }
 
 router.get('/monthly', (req, res) => {
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
+  const scope = resolveScopeSchool(req, res, req.query.schoolId)
+  if (!scope) return
+  if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
   const { grade, section, month, year } = req.query
   if (!grade || !section || !month || !year) {
     return res.status(400).json({ error: 'grade, section, month, and year are required' })
@@ -127,10 +162,10 @@ router.get('/monthly', (req, res) => {
 
   const m = String(month).padStart(2, '0')
   const prefix = `${year}-${m}`
-  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? ORDER BY name', [grade, section])
+  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? AND school_id = ? ORDER BY name', [grade, section, scope.schoolId])
   const records = query(
-    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? ORDER BY date',
-    [grade, section, prefix + '%']
+    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? AND school_id = ? ORDER BY date',
+    [grade, section, prefix + '%', scope.schoolId]
   )
 
   const dateSet = [...new Set(records.map(r => r.date))].sort()
@@ -188,6 +223,11 @@ router.get('/monthly', (req, res) => {
 })
 
 router.get('/monthly/excel', async (req, res) => {
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
+  const scope = resolveScopeSchool(req, res, req.query.schoolId)
+  if (!scope) return
+  if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
   const { grade, section, month, year } = req.query
   if (!grade || !section || !month || !year) {
     return res.status(400).json({ error: 'grade, section, month, and year are required' })
@@ -195,10 +235,10 @@ router.get('/monthly/excel', async (req, res) => {
 
   const m = String(month).padStart(2, '0')
   const prefix = `${year}-${m}`
-  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? ORDER BY name', [grade, section])
+  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? AND school_id = ? ORDER BY name', [grade, section, scope.schoolId])
   const records = query(
-    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? ORDER BY date',
-    [grade, section, prefix + '%']
+    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? AND school_id = ? ORDER BY date',
+    [grade, section, prefix + '%', scope.schoolId]
   )
 
   const dateSet = [...new Set(records.map(r => r.date))].sort()
@@ -266,10 +306,12 @@ router.get('/monthly/excel', async (req, res) => {
     r1[0] = '(This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)'
     wsData.push(r1)
 
+    const school = getSettings(scope.schoolId)
+
     // Row 2: School ID, School Year, Month
     const r2 = Array(maxCol).fill(null)
     r2[0] = 'School ID:'
-    r2[1] = '406219'
+    r2[1] = school.school_id
     r2[3] = 'School Year:'
     r2[4] = sy
     r2[6] = 'Month:'
@@ -279,7 +321,7 @@ router.get('/monthly/excel', async (req, res) => {
     // Row 3: Name of School, Grade Level, Section
     const r3 = Array(maxCol).fill(null)
     r3[0] = 'Name of School:'
-    r3[1] = 'BAGUIO PATRIOTIC HIGH SCHOOL'
+    r3[1] = school.school_name
     r3[4] = 'Grade Level:'
     r3[5] = grade.replace('Grade ', '')
     r3[7] = 'Section:'
@@ -381,12 +423,15 @@ router.get('/monthly/excel', async (req, res) => {
 })
 
 router.get('/:id', (req, res) => {
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
   const { id } = req.params
   const records = query('SELECT * FROM attendance_records WHERE id = ?', [id])
 
   if (records.length === 0) {
     return res.status(404).json({ error: 'Record not found' })
   }
+  if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
 
   const record = records[0]
   const entries = query(
@@ -419,9 +464,12 @@ router.put('/:recordId/entry', (req, res) => {
   if (records.length === 0) {
     return res.status(404).json({ error: 'Record not found' })
   }
+  const actor = query('SELECT * FROM users WHERE id = ?', [userId])[0]
+  if (!actor) return res.status(401).json({ error: 'Not authenticated' })
+  if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
 
-  if (!canEdit(records[0], userId, userRole)) {
-    return res.status(403).json({ error: 'Only the teacher who created this record or an admin can edit it' })
+  if (!canEdit(records[0], actor)) {
+    return res.status(403).json({ error: 'Only the advisory teacher or an admin can edit this record' })
   }
 
   if (field.startsWith('periods.')) {
@@ -429,14 +477,6 @@ router.put('/:recordId/entry', (req, res) => {
     const validPeriods = ['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4']
     if (!validPeriods.includes(periodKey)) {
       return res.status(400).json({ error: 'Invalid period' })
-    }
-    if (userRole === 'teacher') {
-      const dow = dayOfWeek(records[0].date)
-      const sched = query('SELECT COUNT(*) as cnt FROM teacher_schedules WHERE teacher_id = ? AND day_of_week = ? AND period = ?',
-        [userId, dow, periodKey])
-      if (sched.length === 0 || sched[0].cnt === 0) {
-        return res.status(403).json({ error: 'You can only edit your assigned periods' })
-      }
     }
     run(`UPDATE attendance_entries SET ${periodKey}=? WHERE record_id=? AND student_id=?`,
       [value, recordId, studentId])
@@ -461,7 +501,7 @@ router.put('/:recordId/unlock', (req, res) => {
   const { recordId } = req.params
   const { userId, userRole } = req.body
 
-  if (userRole !== 'admin') {
+  if (userRole !== 'admin' && userRole !== 'superadmin') {
     return res.status(403).json({ error: 'Only admins can unlock records' })
   }
 
@@ -469,6 +509,9 @@ router.put('/:recordId/unlock', (req, res) => {
   if (records.length === 0) {
     return res.status(404).json({ error: 'Record not found' })
   }
+  const actor = query('SELECT * FROM users WHERE id = ?', [userId])[0]
+  if (!actor) return res.status(401).json({ error: 'Not authenticated' })
+  if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
 
   run('UPDATE attendance_records SET created_by=?, created_by_name=? WHERE id=?',
     [userId, '', recordId])
@@ -477,8 +520,13 @@ router.put('/:recordId/unlock', (req, res) => {
 })
 
 router.put('/:recordId', (req, res) => {
+  const me = guardAttendanceRecord(req, res)
+  if (!me) return
   const { recordId } = req.params
   const { date, grade, section, adviser } = req.body
+  const records = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+  if (records.length === 0) return res.status(404).json({ error: 'Record not found' })
+  if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
   try {
     run('UPDATE attendance_records SET date=?, grade=?, section=?, adviser=? WHERE id=?',
       [date, grade, section, adviser, recordId])
@@ -497,8 +545,11 @@ router.delete('/:recordId', (req, res) => {
   if (records.length === 0) {
     return res.status(404).json({ error: 'Record not found' })
   }
+  const actor = query('SELECT * FROM users WHERE id = ?', [userId])[0]
+  if (!actor) return res.status(401).json({ error: 'Not authenticated' })
+  if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
 
-  if (userRole !== 'admin' && records[0].created_by !== userId) {
+  if (userRole !== 'admin' && userRole !== 'superadmin' && records[0].created_by !== userId) {
     return res.status(403).json({ error: 'Only the owner or an admin can delete this record' })
   }
 

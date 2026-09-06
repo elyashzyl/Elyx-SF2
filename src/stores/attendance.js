@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia'
+import { useAuthStore } from './auth'
 
 const API = '/api'
+
+function getAuth() {
+  try {
+    return useAuthStore()
+  } catch {
+    return null
+  }
+}
 
 async function fetchJson(url, options) {
   let res
@@ -30,9 +39,19 @@ async function fetchJson(url, options) {
 
 export const useAttendanceStore = defineStore('attendance', () => {
 
+  function actor(extra = {}) {
+    const auth = getAuth()
+    return {
+      userId: auth?.user?.id || '',
+      userRole: auth?.user?.role || '',
+      ...(auth?.user?.school_id ? { schoolId: auth.user.school_id } : {}),
+      ...extra
+    }
+  }
+
   async function getStudents(params = {}) {
     try {
-      const query = new URLSearchParams(params).toString()
+      const query = new URLSearchParams(actor(params)).toString()
       return await fetchJson(`${API}/students?${query}`) || []
     } catch {
       return []
@@ -43,15 +62,16 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return await fetchJson(`${API}/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(actor(data))
     })
   }
 
   async function updateStudent(id, data) {
+    const auth = getAuth()
     await fetchJson(`${API}/students/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ ...actor(data), ...(auth?.user ? { userId: auth.user.id, userRole: auth.user.role } : {}) })
     })
   }
 
@@ -59,24 +79,26 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return await fetchJson(`${API}/students/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(actor(data))
     })
   }
 
   async function deleteStudent(id) {
-    await fetchJson(`${API}/students/${id}`, { method: 'DELETE' })
+    const auth = getAuth()
+    const params = new URLSearchParams({ userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }).toString()
+    await fetchJson(`${API}/students/${id}?${params}`, { method: 'DELETE' })
   }
 
   async function deleteStudents(ids) {
     return await fetchJson(`${API}/students/bulk-delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids })
+      body: JSON.stringify(actor({ ids }))
     })
   }
 
   async function getRecord(date, grade, section) {
-    const params = new URLSearchParams({ date, grade, section }).toString()
+    const params = new URLSearchParams(actor({ date, grade, section })).toString()
     return await fetchJson(`${API}/attendance?${params}`)
   }
 
@@ -84,11 +106,11 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return await fetchJson(`${API}/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: JSON.stringify(actor({
         ...record,
         created_by: user?.id || '',
         created_by_name: user?.name || ''
-      })
+      }))
     })
   }
 
@@ -156,7 +178,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
     await fetchJson(`${API}/attendance/${recordId}/entry`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, field, value, userId, userRole })
+      body: JSON.stringify(actor({ studentId, field, value, userId, userRole }))
     })
   }
 
@@ -164,39 +186,40 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return await fetchJson(`${API}/attendance/${recordId}/unlock`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, userRole })
+      body: JSON.stringify(actor({ userId, userRole }))
     })
   }
 
   async function getAllRecords() {
     try {
-      return await fetchJson(`${API}/attendance/all`) || []
+      const params = new URLSearchParams(actor()).toString()
+      return await fetchJson(`${API}/attendance/all?${params}`) || []
     } catch {
       return []
     }
   }
 
   async function deleteRecord(recordId, userId, userRole) {
-    const params = new URLSearchParams({ userId, userRole }).toString()
+    const params = new URLSearchParams(actor({ userId, userRole })).toString()
     return await fetchJson(`${API}/attendance/${recordId}?${params}`, {
       method: 'DELETE'
     })
   }
 
-  async function fetchMonthly(grade, section, month, year) {
+  async function fetchMonthly(grade, section, month, year, schoolId) {
     try {
-      const params = new URLSearchParams({ grade, section, month, year }).toString()
+      const params = new URLSearchParams(actor({ grade, section, month, year, ...(schoolId ? { schoolId } : {}) }))
       return await fetchJson(`${API}/monthly?${params}`)
     } catch {
       return null
     }
   }
 
-  async function saveMonthly(data, user) {
+  async function saveMonthly(data, user, schoolId) {
     return await fetchJson(`${API}/monthly`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, created_by: user?.id || '', created_by_name: user?.name || '' })
+      body: JSON.stringify(actor({ ...data, created_by: user?.id || '', created_by_name: user?.name || '', userRole: user?.role || '', ...(schoolId ? { schoolId } : {}) }))
     })
   }
 
@@ -204,15 +227,16 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return await fetchJson(`${API}/monthly/${recordId}/entry`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, day, status, userId, userRole })
+      body: JSON.stringify(actor({ studentId, day, status, userId, userRole }))
     })
   }
 
   async function updateMonthlyRemarks(recordId, studentId, remarks) {
+    const auth = getAuth()
     return await fetchJson(`${API}/monthly/${recordId}/remarks`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, remarks })
+      body: JSON.stringify(actor({ studentId, remarks, userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }))
     })
   }
 

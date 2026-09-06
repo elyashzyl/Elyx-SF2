@@ -1,85 +1,335 @@
 <template>
   <div class="dashboard">
-    <div class="page-header">
-      <h1>Teacher Dashboard</h1>
-      <p>Welcome, {{ auth.user.name }}. Manage your schedule and attendance records.</p>
-    </div>
-    <div class="dash-cards">
-      <router-link to="/attendance" class="dash-card">
-        <h3>Take Attendance</h3>
-        <p>Record daily attendance for your class</p>
-      </router-link>
-      <router-link to="/schedule" class="dash-card">
-        <h3>My Schedule</h3>
-        <p>View and manage your teaching schedule</p>
-      </router-link>
+    <!-- Header -->
+    <div class="dashboard-header">
+      <div class="dashboard-header-left">
+        <h1>Teacher Dashboard</h1>
+        <p v-if="teacherClass?.hasAdvisory">
+          Welcome back, <strong>{{ auth.user?.name }}</strong>. 
+          Adviser overview & attendance tracking for <strong>{{ teacherClass.grade }} — {{ teacherClass.section }}</strong>.
+        </p>
+        <p v-else>
+          Welcome back, <strong>{{ auth.user?.name }}</strong>. 
+          Faculty attendance overview & class records.
+        </p>
+      </div>
+
+      <div class="dashboard-header-actions">
+        <div class="dashboard-date-badge">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>{{ currentDateStr }}</span>
+        </div>
+
+        <button @click="loadStats" class="btn-refresh" :disabled="loading" title="Refresh Statistics">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ 'spinner': loading }">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span>{{ loading ? 'Updating…' : 'Refresh' }}</span>
+        </button>
+      </div>
     </div>
 
-    <div class="schedule-sidebar-layout" style="margin-top:24px">
-      <div class="card school-calendar-card">
-        <div class="card-header"><h2>School Calendar</h2></div>
-        <div class="month-cal">
-          <div class="month-cal-header">
-            <div class="month-cal-nav">
-              <button @click="prevMonth" class="btn-sm btn-secondary">&lsaquo;</button>
-              <button @click="nextMonth" class="btn-sm btn-secondary">&rsaquo;</button>
+    <!-- If Assigned Advisory Class -->
+    <template v-if="teacherClass?.hasAdvisory">
+      <!-- Top KPI Cards -->
+      <div class="stats-grid">
+        <!-- Class Enrollment -->
+        <div class="stat-card-expanded">
+          <div class="stat-card-top">
+            <div class="stat-icon stat-icon-students">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/>
+              </svg>
             </div>
-            <span class="month-cal-title">{{ monthNames[calMonth] }} {{ calYear }}</span>
-            <button @click="todayMonth" class="btn-sm btn-secondary today-btn">Today</button>
+            <span class="stat-pill stat-pill--info">{{ teacherClass.grade }} - {{ teacherClass.section }}</span>
           </div>
-          <div class="month-cal-grid">
-            <div v-for="d in dayHeaders" :key="d" class="month-cal-day-header">{{ d }}</div>
-            <div v-for="(day, i) in calendarDays" :key="i"
-                 class="month-cal-day"
-                 :class="{ 'month-other': day.other, 'month-today': day.today, 'month-has-events': day.events.length > 0 }">
-              <span class="month-cal-day-num">{{ day.num }}</span>
-              <div class="month-cal-day-entries">
-                <div v-for="ev in day.events.slice(0, 2)" :key="ev.id"
-                     class="month-cal-event"
-                     :style="{ background: ev.color || eventTypeColor(ev.type) }">
-                  <span class="month-cal-event-title">{{ ev.title }}</span>
-                </div>
-                <div v-if="day.events.length > 2" class="month-cal-more">+{{ day.events.length - 2 }} more</div>
-              </div>
+          <div>
+            <div class="stat-value">{{ teacherClass.students.total }}</div>
+            <div class="stat-label">Advisory Class Students</div>
+            <div class="stat-subtext">
+              <span><strong>{{ teacherClass.students.male }}</strong> Male</span>
+              <span>•</span>
+              <span><strong>{{ teacherClass.students.female }}</strong> Female</span>
             </div>
           </div>
         </div>
-        <div class="cal-event-legend">
-          <span v-for="t in eventTypes" :key="t.key" class="cal-event-legend-item">
-            <span class="cal-event-dot" :style="{ background: t.color }"></span>
-            {{ t.label }}
-          </span>
+
+        <!-- Class Attendance Rate -->
+        <div class="stat-card-expanded">
+          <div class="stat-card-top">
+            <div class="stat-icon stat-icon-records">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </div>
+            <span 
+              class="stat-pill" 
+              :class="teacherClass.attendance.rate >= 95 ? 'stat-pill--success' : teacherClass.attendance.rate >= 90 ? 'stat-pill--warning' : 'stat-pill--danger'"
+            >
+              {{ teacherClass.attendance.rate >= 95 ? 'Target Met' : teacherClass.attendance.rate >= 90 ? 'Acceptable' : 'Needs Focus' }}
+            </span>
+          </div>
+          <div>
+            <div class="stat-value">{{ teacherClass.attendance.rate }}%</div>
+            <div class="stat-label">Class Attendance Rate</div>
+            <div class="stat-subtext">
+              <span>Target Standard: <strong>≥ 95%</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Class Days Tracked -->
+        <div class="stat-card-expanded">
+          <div class="stat-card-top">
+            <div class="stat-icon stat-icon-teachers">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>
+              </svg>
+            </div>
+            <span class="stat-pill stat-pill--info">Daily Logs</span>
+          </div>
+          <div>
+            <div class="stat-value">{{ Number(teacherClass.attendance.present + teacherClass.attendance.absent).toLocaleString() }}</div>
+            <div class="stat-label">Total Days Logged</div>
+            <div class="stat-subtext">
+              <span><strong>{{ Number(teacherClass.attendance.present).toLocaleString() }}</strong> Present</span>
+              <span>•</span>
+              <span><strong>{{ Number(teacherClass.attendance.absent).toLocaleString() }}</strong> Absent</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly SF2 Reports -->
+        <div class="stat-card-expanded">
+          <div class="stat-card-top">
+            <div class="stat-icon stat-icon-entries">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
+            <span class="stat-pill stat-pill--success">DepEd SF2</span>
+          </div>
+          <div>
+            <div class="stat-value">{{ teacherClass.records.length }}</div>
+            <div class="stat-label">Monthly SF2 Sheets Filed</div>
+            <div class="stat-subtext">
+              <span>Current School Year Records</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><h2>My Weekly Schedule</h2></div>
-        <div class="cal-grid">
-          <div class="cal-header-row">
-            <div class="cal-time-header"></div>
-            <div v-for="day in daysOfWeek" :key="day" class="cal-day-header">{{ day }}</div>
-          </div>
-          <div v-for="p in periodsWithTime" :key="p.key" class="cal-body-row">
-            <div class="cal-time-cell">
-              <span class="cal-period-label">{{ p.key.toUpperCase() }}</span>
-              <span class="cal-time-label">{{ p.time }}</span>
+      <!-- Analytics Row: Monthly Records & Class Watchlist -->
+      <div class="dashboard-grid-2">
+        <!-- Monthly SF2 Records List -->
+        <div class="widget-card">
+          <div class="widget-header">
+            <div>
+              <h3>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <span>My Class Monthly SF2 Reports</span>
+              </h3>
+              <p>Submitted attendance sheets for {{ teacherClass.grade }} - {{ teacherClass.section }}</p>
             </div>
-            <div v-for="day in daysOfWeek" :key="day" class="cal-day-cell">
-              <div v-for="entry in getEntries(day, p.key)" :key="entry.id"
-                   class="cal-entry-card"
-                   :style="{ background: entryColor(entry) }">
-                <div class="cal-entry-subjects">
-                  <span v-for="s in (entry.subject || '').split(',').map(x=>x.trim()).filter(Boolean)" :key="s" class="entry-subject-tag">{{ s }}</span>
-                  <span v-if="!entry.subject" class="entry-subject-none">—</span>
-                </div>
-                <div class="cal-entry-detail">{{ entry.grade }}<span v-if="entry.grade && entry.section"> / </span>{{ entry.section }}</div>
-                <div class="cal-entry-time">{{ to12h(entry.start_time) || '--:--' }} - {{ to12h(entry.end_time) || '--:--' }}</div>
+            <router-link :to="`/monthly?grade=${encodeURIComponent(teacherClass.grade)}&section=${encodeURIComponent(teacherClass.section)}`" class="table-action-btn">
+              <span>Open Monthly View</span>
+            </router-link>
+          </div>
+
+          <div v-if="teacherClass.records.length" class="table-wrapper">
+            <table class="widget-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th style="text-align: center;">Enrolled</th>
+                  <th style="text-align: center;">ADA</th>
+                  <th style="text-align: center;">Attendance %</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in teacherClass.records" :key="r.id">
+                  <td>
+                    <strong>{{ r.monthName }} {{ r.year }}</strong>
+                  </td>
+                  <td style="text-align: center; font-weight: 600;">
+                    {{ r.enrolled ?? teacherClass.students.total }}
+                  </td>
+                  <td style="text-align: center; font-weight: 600;">
+                    {{ r.ada ?? '—' }}
+                  </td>
+                  <td style="text-align: center;">
+                    <span 
+                      v-if="r.attendanceRate !== null" 
+                      class="rate-pill"
+                      :class="r.attendanceRate >= 95 ? 'rate-pill--high' : r.attendanceRate >= 90 ? 'rate-pill--mid' : 'rate-pill--low'"
+                    >
+                      {{ r.attendanceRate }}%
+                    </span>
+                    <span v-else style="color: var(--muted-foreground);">—</span>
+                  </td>
+                  <td style="text-align: right;">
+                    <router-link 
+                      :to="`/monthly?month=${r.month}&year=${r.year}&grade=${encodeURIComponent(teacherClass.grade)}&section=${encodeURIComponent(teacherClass.section)}`" 
+                      class="table-action-btn"
+                    >
+                      Open Sheet
+                    </router-link>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-else class="empty-state-card">
+            No monthly attendance records filed for your section yet.
+          </div>
+        </div>
+
+        <!-- Class Watchlist (SARDO Alert) -->
+        <div class="widget-card">
+          <div class="widget-header">
+            <div>
+              <h3>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--destructive);">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span>Class Attendance Watchlist</span>
+              </h3>
+              <p>Students in your advisory class with highest absences</p>
+            </div>
+          </div>
+
+          <div v-if="filteredAtRisk.length" class="risk-list">
+            <div v-for="st in filteredAtRisk" :key="st.student_id" class="risk-item">
+              <div class="risk-item-info">
+                <span class="risk-item-name">{{ st.student_name }}</span>
+                <span class="risk-item-class">{{ st.total_present }} days present · {{ st.total_tardy || 0 }} tardy</span>
               </div>
+              <span class="risk-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>{{ st.total_absent }} Absences</span>
+              </span>
+            </div>
+          </div>
+
+          <div v-else class="empty-state-card">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <strong>Good Attendance Standing</strong>
+              <span style="font-size: 0.78rem;">No students in your advisory class have recorded significant absences.</span>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- Class Roster Attendance Performance -->
+      <div class="widget-card">
+        <div class="widget-header">
+          <div>
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>Advisory Class Student Roster & Attendance Status</span>
+            </h3>
+            <p>Individual student attendance totals and attendance health for {{ teacherClass.grade }} - {{ teacherClass.section }}</p>
+          </div>
+        </div>
+
+        <div v-if="teacherClass.roster?.length" class="table-wrapper">
+          <table class="widget-table">
+            <thead>
+              <tr>
+                <th style="width: 45px;">#</th>
+                <th>Student Name</th>
+                <th style="text-align: center;">Gender</th>
+                <th style="text-align: center;">Days Present</th>
+                <th style="text-align: center;">Days Absent</th>
+                <th style="text-align: center;">Tardy</th>
+                <th style="text-align: center;">Half Day</th>
+                <th style="text-align: center;">Attendance Rate</th>
+                <th style="text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(student, idx) in teacherClass.roster" :key="student.id">
+                <td style="color: var(--muted-foreground); font-size: 0.78rem;">{{ idx + 1 }}</td>
+                <td>
+                  <strong>{{ student.name }}</strong>
+                </td>
+                <td style="text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
+                  {{ student.gender || '—' }}
+                </td>
+                <td style="text-align: center; font-weight: 600; color: var(--success);">
+                  {{ student.present }}
+                </td>
+                <td style="text-align: center; font-weight: 600;" :style="{ color: student.absent > 0 ? 'var(--destructive)' : 'var(--muted-foreground)' }">
+                  {{ student.absent }}
+                </td>
+                <td style="text-align: center;">
+                  <span v-if="student.tardy > 0" class="pill--amber">{{ student.tardy }}</span>
+                  <span v-else style="color: var(--muted-foreground); font-size: 0.8rem;">0</span>
+                </td>
+                <td style="text-align: center;">
+                  <span v-if="student.half_day && student.half_day > 0" class="pill--neutral">{{ student.half_day }}</span>
+                  <span v-else style="color: var(--muted-foreground); font-size: 0.8rem;">0</span>
+                </td>
+                <td style="text-align: center;">
+                  <span v-if="student.present + student.absent > 0" style="font-weight: 700;">
+                    {{ Math.round((student.present / (student.present + student.absent)) * 100) }}%
+                  </span>
+                  <span v-else style="color: var(--muted-foreground); font-size: 0.8rem;">—</span>
+                </td>
+                <td style="text-align: center;">
+                  <template v-if="student.present + student.absent > 0">
+                    <span 
+                      class="rate-pill"
+                      :class="((student.present / (student.present + student.absent)) * 100) >= 95 ? 'rate-pill--high' : ((student.present / (student.present + student.absent)) * 100) >= 90 ? 'rate-pill--mid' : 'rate-pill--low'"
+                    >
+                      {{ ((student.present / (student.present + student.absent)) * 100) >= 95 ? 'Regular' : ((student.present / (student.present + student.absent)) * 100) >= 90 ? 'Warning' : 'At Risk' }}
+                    </span>
+                  </template>
+                  <span v-else class="rate-pill rate-pill--mid">No logs</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else class="empty-state-card">
+          No students found enrolled in your advisory class.
+        </div>
+      </div>
+    </template>
+
+    <!-- If No Advisory Class Assigned -->
+    <template v-else>
+      <div class="empty-state-card" style="padding: 48px 24px; max-width: 650px; margin: 20px auto;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--warning); margin-bottom: 12px;">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--foreground); margin: 0 0 8px 0;">No Advisory Class Assigned</h3>
+        <p style="font-size: 0.88rem; color: var(--muted-foreground); line-height: 1.5; margin: 0 0 16px 0;">
+          Your teacher account is currently not assigned as an adviser to any grade and section. 
+          Please contact your school administrator to link your account to your advisory section.
+        </p>
+        <router-link to="/monthly" class="btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+          <span>View Monthly Attendance</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </router-link>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -88,161 +338,45 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
+const loading = ref(false)
+const teacherClass = ref(null)
 
-const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-const periodKeys = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6', 'pm1', 'pm2', 'pm3', 'pm4']
-const periodColors = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#db2777', '#be123c', '#4f46e5']
-const subjectColors = {}
-
-const eventTypes = [
-  { key: 'holiday', label: 'Holiday', color: '#ef4444' },
-  { key: 'inset', label: 'Inset', color: '#f59e0b' },
-  { key: 'co-curricular', label: 'Co-curricular', color: '#10b981' },
-  { key: 'home-school', label: 'Home-School Collaboration', color: '#3b82f6' },
-  { key: 'quarterly-exam', label: 'Quarterly Exam', color: '#8b5cf6' }
-]
-
-function eventTypeColor(type) {
-  const t = eventTypes.find(e => e.key === type)
-  return t ? t.color : '#6b7280'
-}
-
-function periodColor(p) {
-  const idx = periodKeys.indexOf(p)
-  return periodColors[idx] || '#6b7280'
-}
-
-function entryColor(entry) {
-  const key = entry.subject || 'none'
-  if (!subjectColors[key]) {
-    const hue = (Object.keys(subjectColors).length * 47) % 360
-    subjectColors[key] = `hsl(${hue}, 55%, 85%)`
-  }
-  return subjectColors[key]
-}
-
-function to12h(t) {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  const hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const h12 = hour % 12 || 12
-  return h12 + ':' + m + ' ' + ampm
-}
-
-const schedule = ref([])
-const loading = ref(true)
-const timeSettings = ref({})
-
-const periodsWithTime = computed(() => {
-  const s = timeSettings.value
-  return periodKeys.map(p => {
-    const start = s[p + '_start'] ?? '07:00'
-    const end = s[p + '_end'] ?? '07:50'
-    return { key: p, time: start && end ? to12h(start) + ' - ' + to12h(end) : '' }
+const currentDateStr = computed(() => {
+  const now = new Date()
+  return now.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
   })
 })
 
-const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const dayHeaders = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const now = new Date()
-const calMonth = ref(now.getMonth())
-const calYear = ref(now.getFullYear())
-const events = ref([])
-
-function prevMonth() {
-  if (calMonth.value === 0) { calMonth.value = 11; calYear.value-- }
-  else { calMonth.value-- }
-}
-function nextMonth() {
-  if (calMonth.value === 11) { calMonth.value = 0; calYear.value++ }
-  else { calMonth.value++ }
-}
-function todayMonth() {
-  const n = new Date()
-  calMonth.value = n.getMonth()
-  calYear.value = n.getFullYear()
-}
-
-const calendarDays = computed(() => {
-  const year = calYear.value
-  const month = calMonth.value
-  const first = new Date(year, month, 1)
-  const startDow = first.getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const daysInPrev = new Date(year, month, 0).getDate()
-  const todayStr = new Date().toISOString().split('T')[0]
-  const pad = (n) => String(n).padStart(2, '0')
-  const rows = []
-  for (let i = startDow - 1; i >= 0; i--) {
-    const d = daysInPrev - i; const pm = month - 1 < 0 ? 11 : month - 1; const py = month - 1 < 0 ? year - 1 : year
-    rows.push({ num: d, other: true, today: false, events: getEventsForDate(`${py}-${pad(pm + 1)}-${pad(d)}`) })
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    const ds = `${year}-${pad(month + 1)}-${pad(d)}`
-    rows.push({ num: d, other: false, today: ds === todayStr, events: getEventsForDate(ds) })
-  }
-  const remaining = 7 - (rows.length % 7)
-  if (remaining < 7) {
-    for (let d = 1; d <= remaining; d++) {
-      const nm = month + 1 > 11 ? 0 : month + 1; const ny = month + 1 > 11 ? year + 1 : year
-      rows.push({ num: d, other: true, today: false, events: getEventsForDate(`${ny}-${pad(nm + 1)}-${pad(d)}`) })
-    }
-  }
-  return rows
+const filteredAtRisk = computed(() => {
+  if (!teacherClass.value?.atRisk) return []
+  return teacherClass.value.atRisk.filter(st => st.total_absent > 0)
 })
 
-function getEventsForDate(dateStr) {
-  return events.value.filter(e => e.event_date === dateStr)
-}
-
-function getEntries(day, period) {
-  return schedule.value.filter(e => e.day_of_week === day && e.period === period)
-}
-
-onMounted(async () => {
-  await loadTimeSettings()
-  await loadSchedule()
-  await loadEvents()
-  loading.value = false
-})
-
-async function loadTimeSettings() {
+async function loadStats() {
+  loading.value = true
   try {
-    const res = await fetch('/api/settings')
+    const params = new URLSearchParams({
+      userId: auth.user?.id || '',
+      userRole: auth.user?.role || '',
+      ...(auth.schoolId ? { schoolId: auth.schoolId } : {})
+    })
+
+    const res = await fetch(`/api/dashboard/stats?${params}`)
     const data = await res.json()
-    const next = {}
-    for (const p of periodKeys) {
-      const val = data['period_' + p]
-      if (val) {
-        const parts = val.split('-')
-        next[p + '_start'] = parts[0] || ''
-        next[p + '_end'] = parts[1] || ''
-      } else {
-        next[p + '_start'] = ''
-        next[p + '_end'] = ''
-      }
+
+    if (data && data.teacherClass) {
+      teacherClass.value = data.teacherClass
     }
-    timeSettings.value = next
-  } catch {
-    const next = {}
-    for (const p of periodKeys) { next[p + '_start'] = ''; next[p + '_end'] = '' }
-    timeSettings.value = next
+  } catch (err) {
+    console.error('Error loading teacher stats:', err)
+  } finally {
+    loading.value = false
   }
 }
 
-async function loadSchedule() {
-  if (!auth.user?.id) { schedule.value = []; return }
-  try {
-    const res = await fetch('/api/schedules/' + auth.user.id)
-    schedule.value = await res.json()
-  } catch { schedule.value = [] }
-}
-
-async function loadEvents() {
-  try {
-    const res = await fetch('/api/events/calendar')
-    events.value = await res.json()
-  } catch { events.value = [] }
-}
+onMounted(loadStats)
 </script>

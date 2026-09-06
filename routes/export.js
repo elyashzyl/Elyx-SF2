@@ -2,16 +2,49 @@ import express from 'express'
 import XLSX from 'xlsx-js-style'
 import path from 'path'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
+import { getSettings } from '../db.js'
+import { requireRole, resolveScopeSchool } from './_context.js'
 
 const router = express.Router()
 
-const DEFAULT_TEMPLATE = 'C:\\Users\\New User\\Documents\\BPHS 2026\\SF2.xlsx'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const TEMPLATE_DIR = path.join(__dirname, '..', 'templates')
+const LOCAL_TEMPLATE = path.join(TEMPLATE_DIR, 'SF2.xlsx')
+const DEFAULT_TEMPLATE = path.join(__dirname, '..', 'test_final2.xlsx')
 
 function resolveTemplate(templatePath) {
   if (templatePath && fs.existsSync(templatePath)) return templatePath
+  if (fs.existsSync(LOCAL_TEMPLATE)) return LOCAL_TEMPLATE
   if (fs.existsSync(DEFAULT_TEMPLATE)) return DEFAULT_TEMPLATE
   return null
 }
+
+// Check if a template is available
+router.get('/template', (req, res) => {
+  const tp = resolveTemplate()
+  if (!tp) return res.json({ exists: false })
+  try {
+    const wb = XLSX.readFile(tp)
+    res.json({ exists: true, path: tp, name: path.basename(tp), sheets: wb.SheetNames })
+  } catch (err) {
+    res.json({ exists: false })
+  }
+})
+
+// Upload a new SF2 template (raw binary xlsx body)
+router.post('/template', express.raw({ type: () => true, limit: '30mb' }), (req, res) => {
+  try {
+    if (!req.body || !req.body.length) return res.status(400).json({ error: 'No file received' })
+    if (!fs.existsSync(TEMPLATE_DIR)) fs.mkdirSync(TEMPLATE_DIR, { recursive: true })
+    fs.writeFileSync(LOCAL_TEMPLATE, req.body)
+    const wb = XLSX.readFile(LOCAL_TEMPLATE)
+    res.json({ success: true, name: path.basename(LOCAL_TEMPLATE), sheets: wb.SheetNames })
+  } catch (err) {
+    console.error('Error saving template:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
 
 router.post('/sheets', (req, res) => {
   try {
@@ -28,9 +61,22 @@ router.post('/sheets', (req, res) => {
 
 router.post('/sf2', (req, res) => {
   try {
-    const { sheetName, entries, month, year, grade, section, templatePath, summary_data, excluded_dates, adviser } = req.body
+    const { sheetName, entries, month, year, grade, section, templatePath, summary_data, excluded_dates, adviser, schoolHead } = req.body
     if (!sheetName) return res.status(400).json({ error: 'sheetName is required' })
     if (!entries || !entries.length) return res.status(400).json({ error: 'No entries provided' })
+    const { me, error } = requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+
+    const scope = resolveScopeSchool(req, res, req.body.schoolId)
+    if (!scope) return
+    if (scope.me.role === 'teacher') {
+      const recGrade = req.body.grade
+      const recSection = req.body.section
+      if (recGrade && recSection && (recGrade !== scope.me.grade || recSection !== scope.me.section)) {
+        return res.status(403).json({ error: 'Forbidden: outside your advisory class' })
+      }
+    }
+    const school = getSettings(scope.schoolId || undefined)
 
     const tp = resolveTemplate(templatePath)
     if (!tp) return res.status(400).json({ error: 'Template file not found' })
@@ -161,7 +207,7 @@ router.post('/sf2', (req, res) => {
     // Row 4 (r:3): First Info Row
     // School ID(A-D) (E-g) | School Year(h-j) (k-o) | Month(p-s) (u-z)
     addMerge(newWs, 3, 0, 3, 3);  setVal(newWs, 3, 0, 's', 'School ID');  applyStyle(newWs, 3, 0, PLAIN_LABEL_STYLE)
-    addMerge(newWs, 3, 4, 3, 6);  setVal(newWs, 3, 4, 's', '406219');  applyStyle(newWs, 3, 4, VALUE_STYLE)
+    addMerge(newWs, 3, 4, 3, 6);  setVal(newWs, 3, 4, 's', school.school_id);  applyStyle(newWs, 3, 4, VALUE_STYLE)
     addMerge(newWs, 3, 7, 3, 9);  setVal(newWs, 3, 7, 's', 'School Year');  applyStyle(newWs, 3, 7, PLAIN_LABEL_STYLE)
     addMerge(newWs, 3, 10, 3, 14); setVal(newWs, 3, 10, 's', schoolYear);  applyStyle(newWs, 3, 10, VALUE_STYLE)
     addMerge(newWs, 3, 15, 3, 18); setVal(newWs, 3, 15, 's', 'Month');  applyStyle(newWs, 3, 15, PLAIN_LABEL_STYLE)
@@ -170,7 +216,7 @@ router.post('/sf2', (req, res) => {
     // Row 5 (r:4): Second Info Row
     // School Name(a-d)(e-o) | Grade Level(p-t)(u-z) | Section(aa-ac)(ad-ak)
     addMerge(newWs, 4, 0, 4, 3);  setVal(newWs, 4, 0, 's', 'Name of School');  applyStyle(newWs, 4, 0, PLAIN_LABEL_STYLE)
-    addMerge(newWs, 4, 4, 4, 14); setVal(newWs, 4, 4, 's', 'Baguio Patriotic High School');  applyStyle(newWs, 4, 4, VALUE_STYLE)
+    addMerge(newWs, 4, 4, 4, 14); setVal(newWs, 4, 4, 's', school.school_name);  applyStyle(newWs, 4, 4, VALUE_STYLE)
     addMerge(newWs, 4, 15, 4, 19); setVal(newWs, 4, 15, 's', 'Grade Level');  applyStyle(newWs, 4, 15, PLAIN_LABEL_STYLE)
     addMerge(newWs, 4, 20, 4, 25); setVal(newWs, 4, 20, 's', gradeNum !== '' ? String(gradeNum) : '');  applyStyle(newWs, 4, 20, VALUE_STYLE)
     addMerge(newWs, 4, 26, 4, 28); setVal(newWs, 4, 26, 's', 'Section');  applyStyle(newWs, 4, 26, PLAIN_LABEL_STYLE)
@@ -401,7 +447,7 @@ router.post('/sf2', (req, res) => {
         if (col === undefined || !status) continue
         const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? 'E' : status
         setVal(newWs, row, col, 's', sym)
-        applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
       }
       setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
       addMerge(newWs, row, 30, row, 32)
@@ -430,7 +476,7 @@ router.post('/sf2', (req, res) => {
           if (col === undefined || !status) continue
           const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? 'E' : status
           setVal(newWs, row, col, 's', sym)
-          applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' } })
+          applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
         setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
         addMerge(newWs, row, 30, row, 32)
@@ -495,7 +541,8 @@ router.post('/sf2', (req, res) => {
       for (let ci = 0; ci < numDateCols; ci++) {
         const c = DATE_COL_START + ci
         const addr = XLSX.utils.encode_cell({ r, c })
-        if (newWs[addr] && (newWs[addr].v === '◤' || newWs[addr].v === '◢')) applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 36 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci) })
+        if (newWs[addr] && (newWs[addr].v === '◤' || newWs[addr].v === '◢')) applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci) })
+        else if (newWs[addr] && (newWs[addr].v === 'x' || newWs[addr].v === 'E')) applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 26 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci) })
       }
     }
 
@@ -504,12 +551,12 @@ router.post('/sf2', (req, res) => {
     const totalCount = maleCount + femaleCount
     const mTotalPresent = sumPresent(maleEntriesAll)
     const fTotalPresent = sumPresent(femaleEntriesAll)
-    const mADA = sd.ada_m != null ? sd.ada_m : (numDateCols > 0 ? Math.round((mTotalPresent / numDateCols) * 10) / 10 : 0)
-    const fADA = sd.ada_f != null ? sd.ada_f : (numDateCols > 0 ? Math.round((fTotalPresent / numDateCols) * 10) / 10 : 0)
-    const tADA = sd.ada_t != null ? sd.ada_t : (numDateCols > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols) * 10) / 10 : 0)
-    const mPct = sd.pct_m != null ? sd.pct_m : (maleCount > 0 ? Math.round((mTotalPresent / numDateCols / maleCount) * 100 * 100) / 100 : 0)
-    const fPct = sd.pct_f != null ? sd.pct_f : (femaleCount > 0 ? Math.round((fTotalPresent / numDateCols / femaleCount) * 100 * 100) / 100 : 0)
-    const tPct = sd.pct_t != null ? sd.pct_t : (totalCount > 0 ? Math.round(((mTotalPresent + fTotalPresent) / numDateCols / totalCount) * 100 * 100) / 100 : 0)
+    const mADA = numDateCols > 0 ? Math.floor((mTotalPresent / numDateCols) * 100) / 100 : 0
+    const fADA = numDateCols > 0 ? Math.floor((fTotalPresent / numDateCols) * 100) / 100 : 0
+    const tADA = numDateCols > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / numDateCols) * 100) / 100 : 0
+    const mPct = maleCount > 0 ? Math.floor((mTotalPresent / numDateCols / maleCount) * 100 * 100) / 100 : 0
+    const fPct = femaleCount > 0 ? Math.floor((fTotalPresent / numDateCols / femaleCount) * 100 * 100) / 100 : 0
+    const tPct = totalCount > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / numDateCols / totalCount) * 100 * 100) / 100 : 0
 
     // ── Compute late/enrolment values for summary section ──
     const lateM = sd.late_m != null ? sd.late_m : 0
@@ -752,24 +799,28 @@ router.post('/sf2', (req, res) => {
     descRow(newWs, S + 9, S + 10, 'Registered Learners as of end of month', S9_ITALIC_CENTER_WRAP)
     valCols(newWs, S + 9, S + 10, maleCount, femaleCount, maleCount + femaleCount)
     // Percentage of Enrolment (rows 61-62)
-    const pctEnrM = initM > 0 ? Math.round(maleCount / initM * 100) : 0
-    const pctEnrF = initF > 0 ? Math.round(femaleCount / initF * 100) : 0
-    const pctEnrT = initT > 0 ? Math.round((maleCount + femaleCount) / initT * 100) : 0
+    const pctEnrM = sd.pct_enr_m != null ? sd.pct_enr_m : (initM > 0 ? Math.round((maleCount - lateM) / maleCount * 100) : 0)
+    const pctEnrF = sd.pct_enr_f != null ? sd.pct_enr_f : (initF > 0 ? Math.round((femaleCount - lateF) / femaleCount * 100) : 0)
+    const pctEnrT = sd.pct_enr_t != null ? sd.pct_enr_t : (initT > 0 ? Math.round((maleCount + femaleCount - lateM - lateF) / (maleCount + femaleCount) * 100) : 0)
     descRow(newWs, S + 11, S + 12, 'Percentage of Enrolment as of end of month', S9_ITALIC_CENTER_WRAP)
     valCols(newWs, S + 11, S + 12, `${pctEnrM}%`, `${pctEnrF}%`, `${pctEnrT}%`)
     // ADA (rows 63-64)
     descRow(newWs, S + 13, S + 14, 'Average Daily Attendance', S9_ITALIC_CENTER)
     valCols(newWs, S + 13, S + 14, mADA, fADA, tADA)
+    for (const c of [34, 35, 36, 37]) applyStyle(newWs, S + 13, c, { ...S9_VALUE_CENTER, numFmt: '0.00' })
+    for (const c of [34, 35, 36, 37]) applyStyle(newWs, S + 14, c, { ...S9_VALUE_CENTER, numFmt: '0.00' })
     // Percentage of Attendance (row 65)
-    const pctAttM2 = sd.pct_m != null ? sd.pct_m : mPct
-    const pctAttF2 = sd.pct_f != null ? sd.pct_f : fPct
-    const pctAttT2 = sd.pct_t != null ? sd.pct_t : tPct
+    const pctAttM2 = mPct
+    const pctAttF2 = fPct
+    const pctAttT2 = tPct
     descRow(newWs, S + 15, S + 15, 'Percentage of Attendance for the month', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, S + 15, S + 15, pctAttM2, pctAttF2, pctAttT2)
     for (const c of [34, 35, 36, 37]) applyStyle(newWs, S + 15, c, { ...S9_VALUE_CENTER, numFmt: '0.00' })
     // Number of students absent for 5 consecutive days (rows 60-61)
+    const abs5M = maleEntriesAll.filter(e => calcEntryAbsent(e) >= 5).length
+    const abs5F = femaleEntriesAll.filter(e => calcEntryAbsent(e) >= 5).length
     descRow(newWs, S + 16, S + 17, 'Number of students absent for 5 consecutive days', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
-    valCols(newWs, S + 16, S + 17, 0, 0, 0)
+    valCols(newWs, S + 16, S + 17, abs5M, abs5F, abs5M + abs5F)
     // NLS (row 62)
     const nlsM2 = sd.nls_m != null ? sd.nls_m : 0
     const nlsF2 = sd.nls_f != null ? sd.nls_f : 0
@@ -827,7 +878,7 @@ router.post('/sf2', (req, res) => {
     // Attested by (row 79, AD80)
     sec(newWs, S + 29, 29, S + 29, 29, 'Attested by:', A8_ITALIC_LEFT)
     // School head name (row 80, AE81:AK81) with signature line
-    sec(newWs, S + 30, 30, S + 30, 36, 'MRS. MYRNA KAY - AN', { ...A8_BOLD_CENTER, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } } })
+    sec(newWs, S + 30, 30, S + 30, 36, (schoolHead || 'MRS. MYRNA KAY - AN').toUpperCase(), { ...A8_BOLD_CENTER, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } } })
     // School head signature + designation (row 81, AE82:AK82)
     sec(newWs, S + 31, 30, S + 31, 36, '(Signature of School Head over Printed Name)', A8_CENTER)
 

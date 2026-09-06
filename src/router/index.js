@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
-  { path: '/', redirect: '/login' },
+  { path: '/', name: 'Landing', component: () => import('../views/Landing.vue') },
   { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
   {
     path: '/admin',
@@ -35,16 +35,34 @@ const routes = [
     meta: { role: 'admin' }
   },
   {
-    path: '/schedule',
-    name: 'Schedule',
-    component: () => import('../views/Schedule.vue'),
-    meta: { role: ['admin', 'teacher'] }
-  },
-  {
     path: '/monthly',
     name: 'MonthlyAttendance',
     component: () => import('../views/MonthlyAttendance.vue'),
     meta: { role: ['admin', 'teacher'] }
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('../views/Settings.vue'),
+    meta: { role: ['superadmin', 'admin', 'teacher'] }
+  },
+  {
+    path: '/logs',
+    name: 'ActivityLogs',
+    component: () => import('../views/ActivityLogs.vue'),
+    meta: { role: 'superadmin' }
+  },
+  {
+    path: '/schools',
+    name: 'Schools',
+    component: () => import('../views/Schools.vue'),
+    meta: { role: 'superadmin' }
+  },
+  {
+    path: '/grade-levels',
+    name: 'GradeLevels',
+    component: () => import('../views/GradeLevels.vue'),
+    meta: { role: ['superadmin', 'admin'] }
   }
 ]
 
@@ -53,19 +71,31 @@ const router = createRouter({
   routes
 })
 
+function homeFor(role) {
+  if (role === 'superadmin') return '/schools'
+  if (role === 'admin') return '/admin'
+  return '/teacher'
+}
+
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
   if (to.meta.role && !auth.user) {
     return next('/login')
   }
-  if (to.meta.role === 'admin' && auth.user?.role !== 'admin') {
-    return next('/teacher')
-  }
-  if (to.meta.role === 'teacher' && auth.user?.role !== 'teacher') {
-    return next('/admin')
+  if (to.meta.role) {
+    const allowed = Array.isArray(to.meta.role) ? to.meta.role : [to.meta.role]
+    // Legacy 'admin' routes admit superadmin too
+    if (allowed.includes('admin') && auth.user?.role === 'superadmin') {
+      // fall through — superadmin may access admin pages
+    } else if (!allowed.includes(auth.user?.role)) {
+      return next(homeFor(auth.user?.role))
+    }
   }
   if (to.path === '/login' && auth.user) {
-    return next(auth.user.role === 'admin' ? '/admin' : '/teacher')
+    return next(homeFor(auth.user.role))
+  }
+  if (to.path === '/' && auth.user) {
+    return next(homeFor(auth.user.role))
   }
   next()
 })

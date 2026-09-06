@@ -1,7 +1,14 @@
 import { Router } from 'express'
-import { query } from '../db.js'
+import { query, getSchoolById, logAudit } from '../db.js'
+import { schoolToResponse, requireRole } from './_context.js'
 
 const router = Router()
+
+function publicUser(row) {
+  const { password: _, ...userData } = row
+  const school = userData.school_id ? schoolToResponse(getSchoolById(userData.school_id)) : null
+  return { ...userData, school }
+}
 
 router.post('/login', (req, res) => {
   const { username, password } = req.body
@@ -9,8 +16,49 @@ router.post('/login', (req, res) => {
   if (users.length === 0) {
     return res.status(401).json({ error: 'Invalid username or password' })
   }
-  const { password: _, ...userData } = users[0]
-  res.json({ user: userData })
+  res.json({ user: publicUser(users[0]) })
+})
+
+// Superadmin starts impersonating another user (admin or teacher).
+// The client swaps its session to the returned user but keeps the original
+// superadmin id so it can stop impersonating later.
+router.post('/impersonate', (req, res) => {
+  const { me, error } = requireRole(req, res, 'superadmin')
+  if (error) return
+  const { targetId } = req.body || {}
+  if (!targetId) return res.status(400).json({ error: 'targetId is required' })
+  if (targetId === me.id) return res.status(400).json({ error: 'Cannot impersonate yourself' })
+  const target = query('SELECT * FROM users WHERE id = ?', [targetId])[0]
+  if (!target) return res.status(404).json({ error: 'User not found' })
+  if (target.role === 'superadmin') return res.status(403).json({ error: 'Cannot impersonate another superadmin' })
+  logAudit({
+    actor_id: me.id, actor_name: me.name, actor_role: me.role, actor_school_id: me.school_id || '',
+    action: 'impersonate.start',
+    target_type: 'user', target_id: target.id, target_name: target.name,
+    target_school_id: target.school_id || '',
+    detail: `Started impersonating ${target.name} (${target.role})`
+  })
+  res.json({ user: publicUser(target), impersonatedBy: { id: me.id, name: me.name } })
+})
+
+// Stop impersonating: verify the original superadmin still exists, then
+// restore their session. The client sends back the stored superadmin id.
+router.post('/impersonate/stop', (req, res) => {
+  const { superadminId, userId } = req.body || {}
+  if (!superadminId) return res.status(400).json({ error: 'superadminId is required' })
+  const admin = query('SELECT * FROM users WHERE id = ?', [superadminId])[0]
+  if (!admin || admin.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Original superadmin session is no longer valid' })
+  }
+  const stopped = userId ? query('SELECT * FROM users WHERE id = ?', [userId])[0] : null
+  logAudit({
+    actor_id: admin.id, actor_name: admin.name, actor_role: admin.role, actor_school_id: admin.school_id || '',
+    action: 'impersonate.stop',
+    target_type: 'user', target_id: stopped?.id || '', target_name: stopped?.name || '',
+    target_school_id: stopped?.school_id || '',
+    detail: stopped ? `Stopped impersonating ${stopped.name}` : 'Stopped impersonation'
+  })
+  res.json({ user: publicUser(admin) })
 })
 
 export default router

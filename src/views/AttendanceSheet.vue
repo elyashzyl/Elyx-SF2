@@ -1,9 +1,19 @@
 <template>
   <div class="attendance-page">
     <div v-if="!record" class="select-screen">
-      <div class="page-header">
-        <h1>Attendance Record</h1>
-        <p>View daily attendance records.</p>
+      <div class="dashboard-header">
+        <div class="dashboard-header-left">
+          <h1>Attendance Record</h1>
+          <p>View daily attendance records by class and date.</p>
+        </div>
+        <div class="dashboard-header-actions">
+          <div class="dashboard-date-badge">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span>Daily Attendance</span>
+          </div>
+        </div>
       </div>
 
       <div class="form-card">
@@ -15,6 +25,7 @@
           <div class="form-group">
             <label>Grade</label>
             <select v-model="form.grade" @change="form.section = ''" required>
+              <option value="" disabled v-if="!grades.length">No grade levels defined</option>
               <option v-for="g in grades" :key="g">{{ g }}</option>
             </select>
           </div>
@@ -37,34 +48,87 @@
         <p v-if="loadError" class="error-msg">{{ loadError }}</p>
       </div>
 
-      <div v-if="savedRecords.length" class="saved-records">
-        <h3>Recent Records</h3>
+      <div v-if="savedRecords.length" class="table-card" style="margin-top: 18px;">
+        <div class="table-toolbar">
+          <div class="table-toolbar-left">
+            <span class="show-wrap">Show
+              <select v-model="recordsPageSize" @change="recordsPage = 1" class="show-select">
+                <option :value="5">5</option>
+                <option :value="10">10</option>
+                <option :value="25">25</option>
+              </select>
+            </span>
+            <strong style="font-size: .9rem;">Recent Records</strong>
+          </div>
+          <div class="table-toolbar-right">
+            <span class="tbl-search">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input v-model="recordsSearch" @input="recordsPage = 1" type="text" placeholder="Search records" />
+            </span>
+          </div>
+        </div>
+        <div style="overflow-x: auto;">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Date</th>
+              <th class="cell-id">ID</th>
+              <th>Record</th>
               <th>Grade</th>
-              <th>Section</th>
+              <th>Issued Date</th>
               <th>Adviser</th>
-              <th>Created By</th>
-              <th>Action</th>
+              <th style="text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in savedRecords" :key="r.id">
-              <td>{{ r.date }}</td>
-              <td>{{ r.grade }}</td>
-              <td>{{ r.section }}</td>
-              <td>{{ r.adviser }}</td>
-              <td>{{ r.created_by_name || '—' }}</td>
+            <tr v-for="(r, i) in pagedRecords" :key="r.id">
+              <td class="cell-id">#{{ (recordsPage - 1) * recordsPageSize + i + 1 }}</td>
               <td>
-                <button @click="loadRecord(r)" class="btn-sm">Open</button>
-                <button @click="openEditRecord(r)" class="btn-sm btn-secondary">Edit</button>
-                <button @click="deleteSavedRecord(r)" class="btn-sm btn-danger">Delete</button>
+                <div class="cell-person">
+                  <span class="status-dot status-dot--green">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+                  </span>
+                  <div style="min-width: 0;">
+                    <div class="cell-main">{{ r.section }}</div>
+                    <div class="cell-sub">{{ r.created_by_name || '—' }}</div>
+                  </div>
+                </div>
+              </td>
+              <td>{{ r.grade }}</td>
+              <td>{{ r.date }}</td>
+              <td>{{ r.adviser }}</td>
+              <td style="text-align: right;">
+                <div class="row-actions">
+                  <button @click="loadRecord(r)" class="icon-btn" title="Open">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                  <button @click="openEditRecord(r)" class="icon-btn" title="Edit">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                  </button>
+                  <button @click="deleteSavedRecord(r)" class="icon-btn icon-btn--danger" title="Delete">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
+        <div class="table-footer">
+          <span class="table-count">Showing {{ recordsShowingFrom }} to {{ recordsShowingTo }} of {{ filteredRecords.length }} entries</span>
+          <div class="pager">
+            <button class="pager-btn" @click="recordsPage > 1 && recordsPage--" :disabled="recordsPage === 1">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              Previous
+            </button>
+            <button class="pager-num active">{{ recordsPage }}</button>
+            <button class="pager-btn" @click="recordsPage < recordsTotalPages && recordsPage++" :disabled="recordsPage === recordsTotalPages">
+              Next
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -75,15 +139,15 @@
       </div>
       <div class="sheet-container">
       <div class="sheet-header">
-        <img src="/bphs-logo.jpg" alt="BPHS" class="school-logo" />
         <div class="school-info">
-          <h1>BAGUIO PATRIOTIC HIGH SCHOOL</h1>
-          <p>#21 Harrison Road, Baguio City, Philippines</p>
+          <h1>{{ school.school_name }}</h1>
+          <p>School ID: {{ school.school_id }}</p>
+          <p v-if="school.school_address">{{ school.school_address }}</p>
         </div>
       </div>
 
       <div v-if="auth.isTeacher && !isOwner" class="readonly-banner">
-        You can only edit your assigned period(s) for this date.
+        This record belongs to another class. Only its advisory teacher or an admin can edit it.
       </div>
       <div v-if="auth.isAdmin && !isOwner" class="readonly-banner">
         Recorded by {{ record.created_by_name || 'Unknown' }}
@@ -125,7 +189,7 @@
                   <td>{{ item._num }}</td>
                   <td class="name-cell clickable" @click="selectStudent(item)">{{ item.name }}</td>
                   <td v-for="pk in visibleAmPeriods" :key="pk" class="period-cell">
-                    <select :value="item.periods[pk] || ''" @change="updatePeriodCell(item, pk, $event.target.value)" class="period-select" :disabled="!canEditPeriod(pk)">
+                    <select :value="item.periods[pk] || ''" @change="updatePeriodCell(item, pk, $event.target.value)" class="period-select" :disabled="!canEdit">
                       <option value=""></option>
                       <option value="E">E</option>
                       <option value="T">T</option>
@@ -141,7 +205,7 @@
                     </select>
                   </td>
                   <td v-for="pk in visiblePmPeriods" :key="pk" class="period-cell">
-                    <select :value="item.periods[pk] || ''" @change="updatePeriodCell(item, pk, $event.target.value)" class="period-select" :disabled="!canEditPeriod(pk)">
+                    <select :value="item.periods[pk] || ''" @change="updatePeriodCell(item, pk, $event.target.value)" class="period-select" :disabled="!canEdit">
                       <option value=""></option>
                       <option value="E">E</option>
                       <option value="T">T</option>
@@ -231,55 +295,77 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
-import { useToast } from '../composables/useToast'
+import { useNotifications } from '../composables/useNotifications'
+import { actorQs, actorBody } from '../composables/useActor'
+import { useGradeLevels } from '../composables/useGradeLevels'
+import { loadPageState, savePageState } from '../composables/usePageState'
 
 const store = useAttendanceStore()
 const auth = useAuthStore()
-const { addToast } = useToast()
+const { notify } = useNotifications()
+const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
 const loading = ref(false)
-const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
-const sectionsByGrade = {
-  'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress', 'Narra'],
-  'Grade 9': ['Kamagong', 'Mahogany'],
-  'Grade 10': ['Acacia', 'Yakal']
-}
-const availableSections = computed(() => sectionsByGrade[form.grade] || [])
+const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
+const savedState = loadPageState(auth.user)
+const availableSections = computed(() => sectionsByGrade.value[form.grade] || [])
 const amPeriods = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6']
 const pmPeriods = ['pm1', 'pm2', 'pm3', 'pm4']
-const dayPeriods = ref([])
 
 const visibleAmPeriods = computed(() => amPeriods)
 const visiblePmPeriods = computed(() => pmPeriods)
 
-function canEditPeriod(pk) {
+// Teachers edit records of their advisory class; admins edit anything.
+const canEdit = computed(() => {
+  if (!record.value) return false
   if (auth.isAdmin) return true
-  if (!dayPeriods.value.length) return false
-  return dayPeriods.value.includes(pk)
-}
+  if (!auth.isTeacher) return false
+  if (!auth.user?.grade || !auth.user?.section) return true
+  return record.value.grade === auth.user.grade && record.value.section === auth.user.section
+})
 const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 function gradeNum(g) {
   return (g || '').replace('Grade ', '')
 }
 
-function getDayOfWeek(dateStr) {
-  return daysOfWeek[new Date(dateStr + 'T00:00:00').getDay()]
-}
-
+const now = new Date().toISOString().split('T')[0]
 const form = reactive({
-  date: new Date().toISOString().split('T')[0],
-  grade: 'Grade 7',
-  section: '',
-  adviser: ''
+  date: savedState?.date ?? now,
+  grade: savedState?.grade ?? '',
+  section: savedState?.section ?? '',
+  adviser: savedState?.adviser ?? ''
 })
+
+watch(
+  () => [form.date, form.grade, form.section, form.adviser],
+  () => {
+    if (auth.user) {
+      savePageState(auth.user, { date: form.date, grade: form.grade, section: form.section, adviser: form.adviser })
+    }
+  }
+)
 
 const record = ref(null)
 const loadError = ref('')
 const savedRecords = ref([])
+const recordsSearch = ref('')
+const recordsPage = ref(1)
+const recordsPageSize = ref(5)
+const filteredRecords = computed(() => {
+  const q = recordsSearch.value.trim().toLowerCase()
+  if (!q) return savedRecords.value
+  return savedRecords.value.filter(r => [r.date, r.grade, r.section, r.adviser, r.created_by_name].filter(Boolean).join(' ').toLowerCase().includes(q))
+})
+const recordsTotalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / recordsPageSize.value)))
+const pagedRecords = computed(() => {
+  const start = (recordsPage.value - 1) * recordsPageSize.value
+  return filteredRecords.value.slice(start, start + recordsPageSize.value)
+})
+const recordsShowingFrom = computed(() => (filteredRecords.value.length ? (recordsPage.value - 1) * recordsPageSize.value + 1 : 0))
+const recordsShowingTo = computed(() => Math.min(filteredRecords.value.length, recordsPage.value * recordsPageSize.value))
 const isOwner = ref(true)
 const selectedStudent = ref(null)
 const studentGenderMap = ref({})
@@ -305,10 +391,10 @@ function closeEditRecord() {
 async function handleSaveRecord() {
   savingRecord.value = true
   try {
-    const res = await fetch('/api/attendance/' + editRecordForm.id, {
+    const res = await fetch('/api/attendance/' + editRecordForm.id + '?' + actorQs(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: actorBody({
         date: editRecordForm.date,
         grade: editRecordForm.grade,
         section: editRecordForm.section,
@@ -317,12 +403,12 @@ async function handleSaveRecord() {
     })
     const data = await res.json()
     if (!data.success) throw new Error(data.error || 'Failed to save')
-    addToast('Record updated', 'success')
+    notify('Record updated', 'success')
     closeEditRecord()
     const all = await store.getAllRecords()
     savedRecords.value = all.slice(-10).reverse()
   } catch {
-    addToast('Failed to update record', 'error')
+    notify('Failed to update record', 'error')
   } finally {
     savingRecord.value = false
   }
@@ -366,18 +452,21 @@ async function loadStudentGenderMap() {
   } catch {}
 }
 
-async function loadDaySchedule() {
-  dayPeriods.value = []
-  if (!auth.isTeacher || !auth.user?.id || !record.value) return
-  try {
-    const res = await fetch('/api/schedules/' + auth.user.id)
-    const sched = await res.json()
-    const today = getDayOfWeek(record.value.date)
-    dayPeriods.value = sched.filter(s => s.day_of_week === today).map(s => s.period)
-  } catch {}
-}
+
 
 onMounted(async () => {
+  await loadGradeLevels()
+  if (!form.grade && grades.value.length) form.grade = grades.value[0]
+  try {
+    const data = await auth.getSchoolInfo()
+    if (data) Object.assign(school, data)
+    else if (auth.user?.school) {
+      school.school_name = auth.user.school.name || auth.user.school.school_name || ''
+      school.school_id = auth.user.school.school_id || ''
+      school.school_short = auth.user.school.short || auth.user.school.school_short || ''
+      school.school_address = auth.user.school.address || auth.user.school.school_address || ''
+    }
+  } catch {}
   const all = await store.getAllRecords()
   savedRecords.value = all.slice(-10).reverse()
 })
@@ -398,7 +487,6 @@ async function openRecord() {
   )
   loading.value = false
   updateCanEdit()
-  await loadDaySchedule()
   await loadStudentGenderMap()
 }
 
@@ -411,7 +499,6 @@ async function loadRecord(r) {
   record.value = await store.getOrCreateRecord(r.date, r.grade, r.section, r.adviser, auth.user)
   loading.value = false
   updateCanEdit()
-  await loadDaySchedule()
   await loadStudentGenderMap()
 }
 
@@ -428,9 +515,9 @@ async function handleUnlock() {
     record.value.created_by = auth.user?.id
     record.value.created_by_name = auth.user?.name
     isOwner.value = true
-    addToast('Ownership transferred to you', 'success')
+    notify('Ownership transferred to you', 'success')
   } catch (e) {
-    addToast(e.message, 'error')
+    notify(e.message, 'error')
   }
 }
 
@@ -447,9 +534,9 @@ async function deleteSavedRecord(r) {
   try {
     await store.deleteRecord(r.id, auth.user?.id, auth.user?.role)
     savedRecords.value = savedRecords.value.filter(x => x.id !== r.id)
-    addToast('Record deleted', 'success')
+    notify('Record deleted', 'success')
   } catch (e) {
-    addToast(e.message, 'error')
+    notify(e.message, 'error')
   }
 }
 

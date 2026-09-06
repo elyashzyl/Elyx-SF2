@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "vite",
-    "dev:backend": "nodemon --watch './routes/*.js' --watch './db.js' --watch './server.js' --watch './package.json' node server.js",
+    "dev:backend": "nodemon --watch routes --watch db.js --watch server.js --watch package.json node server.js",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js"
