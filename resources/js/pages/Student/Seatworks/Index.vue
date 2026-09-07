@@ -175,6 +175,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ClipboardList, Clock, PlayCircle, Eye, Trophy, Star, Gift, Zap, Award, ClipboardCheck, CheckCircle2, Circle, Play } from '@lucide/vue';
 import { computed } from 'vue';
+import { xpForPercentage, maxPossibleXp } from '@/lib/xp';
 
 const props = defineProps<{ seatworks: any[] }>();
 
@@ -186,7 +187,11 @@ const totalPoints = computed(() => user?.total_points ?? 0);
 const completedCount = computed(() => props.seatworks.filter(s => s.status === 'submitted').length);
 const avgScore = computed(() => {
     const submitted = props.seatworks.filter(s => s.status === 'submitted' && s.total_points > 0);
-    if (!submitted.length) return 0;
+
+    if (!submitted.length) {
+return 0;
+}
+
     return Math.round(submitted.reduce((a, s) => a + (s.score / s.total_points) * 100, 0) / submitted.length);
 });
 
@@ -196,27 +201,32 @@ const xpProgress = computed(() => totalPoints.value % 100);
 const xpProgressPct = computed(() => Math.min(100, Math.round((xpProgress.value / xpNextLevel.value) * 100)));
 
 function scorePct(item: any): number {
-    if (!item.total_points) return 0;
+    if (!item.total_points) {
+return 0;
+}
+
     return Math.round((item.score / item.total_points) * 100);
 }
 
 function xpForItem(item: any): number {
     if (item.status === 'submitted' && item.total_points) {
         const pct = (item.score / item.total_points) * 100;
-        if (pct >= 80) return 10;
-        if (pct >= 60) return 5;
-        return 1;
+
+        return xpForPercentage(pct);
     }
-    return 10;
+
+    return maxPossibleXp();
 }
 
 function statusLabel(status: string): string {
     const labels: Record<string, string> = { not_started: 'Ready', in_progress: 'In Progress', submitted: 'Completed' };
+
     return labels[status] ?? status;
 }
 
 function statusIcon(status: string) {
     const icons: Record<string, any> = { not_started: Circle, in_progress: Play, submitted: CheckCircle2 };
+
     return icons[status] ?? Circle;
 }
 
@@ -230,6 +240,7 @@ function statusBadgeBg(status: string): string {
         in_progress: 'rgba(251,191,36,0.12)',
         submitted: 'rgba(16,185,129,0.12)',
     };
+
     return colors[status] ?? 'rgba(148,163,184,0.12)';
 }
 
@@ -239,6 +250,7 @@ function statusBadgeText(status: string): string {
         in_progress: '#FBBF24',
         submitted: '#10B981',
     };
+
     return colors[status] ?? '#94A3B8';
 }
 
@@ -248,6 +260,7 @@ function statusGradient(status: string): string {
         in_progress: 'linear-gradient(135deg, #F59E0B, #D97706)',
         submitted: 'linear-gradient(135deg, #10B981, #059669)',
     };
+
     return gradients[status] ?? 'linear-gradient(135deg, #64748B, #475569)';
 }
 </script>

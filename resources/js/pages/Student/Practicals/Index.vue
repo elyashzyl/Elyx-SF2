@@ -202,6 +202,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { FlaskConical, Clock, RotateCw, PlayCircle, Eye, Trophy, Star, Gift, Zap, Award, ListChecks, CheckCircle2, Circle, Play, Lock } from '@lucide/vue';
 import { computed } from 'vue';
+import { xpForPercentage, maxPossibleXp } from '@/lib/xp';
 
 const props = defineProps<{ practicals: any[] }>();
 
@@ -213,7 +214,11 @@ const totalPoints = computed(() => user?.total_points ?? 0);
 const completedCount = computed(() => props.practicals.filter(p => p.status === 'submitted').length);
 const avgScore = computed(() => {
     const submitted = props.practicals.filter(p => p.status === 'submitted' && p.max_score > 0);
-    if (!submitted.length) return 0;
+
+    if (!submitted.length) {
+return 0;
+}
+
     return Math.round(submitted.reduce((a, p) => a + (p.score / p.max_score) * 100, 0) / submitted.length);
 });
 
@@ -223,31 +228,38 @@ const xpProgress = computed(() => totalPoints.value % 100);
 const xpProgressPct = computed(() => Math.min(100, Math.round((xpProgress.value / xpNextLevel.value) * 100)));
 
 function scorePct(item: any): number {
-    if (!item.max_score) return 0;
+    if (!item.max_score) {
+return 0;
+}
+
     return Math.round((item.score / item.max_score) * 100);
 }
 
 function xpForItem(item: any): number {
     if (item.status === 'submitted' && item.max_score) {
         const pct = (item.score / item.max_score) * 100;
-        if (pct >= 80) return 10;
-        if (pct >= 60) return 5;
-        return 1;
+
+        return xpForPercentage(pct);
     }
-    return 10;
+
+    return maxPossibleXp();
 }
 
 function statusLabel(status: string): string {
     const labels: Record<string, string> = { not_started: 'Ready', in_progress: 'In Progress', submitted: 'Completed', closed: 'Closed' };
+
     return labels[status] ?? status;
 }
 
 function statusIcon(status: string) {
     const icons: Record<string, any> = { not_started: Circle, in_progress: Play, submitted: CheckCircle2, closed: Lock };
+
     return icons[status] ?? Circle;
 }
 
-function statusBadgeIcon(status: string) { return statusIcon(status); }
+function statusBadgeIcon(status: string) {
+ return statusIcon(status); 
+}
 
 function statusBadgeBg(status: string): string {
     const colors: Record<string, string> = {
@@ -256,6 +268,7 @@ function statusBadgeBg(status: string): string {
         submitted: 'rgba(16,185,129,0.12)',
         closed: 'rgba(148,163,184,0.12)',
     };
+
     return colors[status] ?? 'rgba(148,163,184,0.12)';
 }
 
@@ -266,6 +279,7 @@ function statusBadgeText(status: string): string {
         submitted: '#10B981',
         closed: '#94A3B8',
     };
+
     return colors[status] ?? '#94A3B8';
 }
 
@@ -276,6 +290,7 @@ function statusGradient(status: string): string {
         submitted: 'linear-gradient(135deg, #10B981, #059669)',
         closed: 'linear-gradient(135deg, #64748B, #475569)',
     };
+
     return gradients[status] ?? 'linear-gradient(135deg, #64748B, #475569)';
 }
 </script>

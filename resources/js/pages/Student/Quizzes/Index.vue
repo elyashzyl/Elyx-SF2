@@ -205,6 +205,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { FileQuestion, Clock, PlayCircle, Eye, Trophy, Star, Gift, Zap, Award, Shield, Bell, CheckCircle2, Circle, Play } from '@lucide/vue';
 import { computed } from 'vue';
+import { xpForPercentage, maxPossibleXp } from '@/lib/xp';
 
 const props = defineProps<{ quizzes: any[] }>();
 
@@ -217,8 +218,13 @@ const completedCount = computed(() => props.quizzes.filter(q => q.status === 'su
 
 const avgScore = computed(() => {
     const submitted = props.quizzes.filter(q => q.status === 'submitted' && q.total_points > 0);
-    if (!submitted.length) return 0;
+
+    if (!submitted.length) {
+return 0;
+}
+
     const pcts = submitted.map(q => (q.score / q.total_points) * 100);
+
     return Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
 });
 
@@ -228,34 +234,41 @@ const xpProgress = computed(() => totalPoints.value % 100);
 const xpProgressPct = computed(() => Math.min(100, Math.round((xpProgress.value / xpNextLevel.value) * 100)));
 
 function scorePct(quiz: any): number {
-    if (!quiz.total_points) return 0;
+    if (!quiz.total_points) {
+return 0;
+}
+
     return Math.round((quiz.score / quiz.total_points) * 100);
 }
 
 function xpForQuiz(quiz: any): number {
-    // XP is calculated based on potential score, same as PointsHelper::calculate
-    // For display purposes, show potential max XP for the quiz (10 pts for ≥80%)
-    const estimatedPct = quiz.status === 'submitted' && quiz.total_points
-        ? (quiz.score / quiz.total_points) * 100
-        : 0;
-    if (estimatedPct >= 80) return 10;
-    if (estimatedPct >= 60) return 5;
-    if (quiz.status === 'submitted') return 1;
-    return 10; // show max potential XP for unsubmitted quizzes
+    const estimatedPct =
+        quiz.status === 'submitted' && quiz.total_points
+            ? (quiz.score / quiz.total_points) * 100
+            : 0;
+
+    if (quiz.status === 'submitted') {
+return xpForPercentage(estimatedPct);
+}
+
+    return maxPossibleXp();
 }
 
 function statusLabel(status: string): string {
     const labels: Record<string, string> = { not_started: 'Ready', in_progress: 'In Progress', submitted: 'Completed' };
+
     return labels[status] ?? status;
 }
 
 function statusIcon(status: string) {
     const icons: Record<string, any> = { not_started: Circle, in_progress: Play, submitted: CheckCircle2 };
+
     return icons[status] ?? Circle;
 }
 
 function statusBadgeIcon(status: string) {
     const icons: Record<string, any> = { not_started: Circle, in_progress: Play, submitted: CheckCircle2 };
+
     return icons[status] ?? Circle;
 }
 
@@ -265,6 +278,7 @@ function statusBadgeBg(status: string): string {
         in_progress: 'rgba(251,191,36,0.12)',
         submitted: 'rgba(16,185,129,0.12)',
     };
+
     return colors[status] ?? 'rgba(148,163,184,0.12)';
 }
 
@@ -274,6 +288,7 @@ function statusBadgeText(status: string): string {
         in_progress: '#FBBF24',
         submitted: '#10B981',
     };
+
     return colors[status] ?? '#94A3B8';
 }
 
@@ -283,6 +298,7 @@ function statusGradient(status: string): string {
         in_progress: 'linear-gradient(135deg, #F59E0B, #D97706)',
         submitted: 'linear-gradient(135deg, #10B981, #059669)',
     };
+
     return gradients[status] ?? 'linear-gradient(135deg, #64748B, #475569)';
 }
 </script>

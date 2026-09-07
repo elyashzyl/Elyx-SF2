@@ -78,7 +78,7 @@ class ExamController extends Controller
                 'grade' => $grade,
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
-                'max_score' => $data['max_score'] ?? 100,
+                'max_score' => $data['max_score'] ?? (int) config('gamification.exam_max_score'),
                 'is_published' => false,
             ]);
 
@@ -163,7 +163,7 @@ class ExamController extends Controller
 
         $attempts = $exam->attempts()
             ->with('student:id,name,grade')
-            ->where('status', 'submitted')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)
             ->orderByDesc('total_score')
             ->get();
 
@@ -218,7 +218,7 @@ class ExamController extends Controller
         $student = Auth::user();
         $existing = ExamAttempt::where('exam_id', $exam->id)->where('student_id', $student->id)->first();
 
-        if ($existing && $existing->status === 'submitted') {
+        if ($existing && $existing->status === \App\Enums\AttemptStatus::Submitted->value) {
             return redirect()->route('student.exams.result', ['attempt' => $existing->id])
                 ->with('info', 'Already submitted.');
         }
@@ -227,7 +227,7 @@ class ExamController extends Controller
             $existing = ExamAttempt::create([
                 'exam_id' => $exam->id,
                 'student_id' => $student->id,
-                'status' => 'in_progress',
+                'status' => \App\Enums\AttemptStatus::InProgress->value,
                 'started_at' => now(),
             ]);
         }
@@ -274,7 +274,7 @@ class ExamController extends Controller
         $student = Auth::user();
         $attempt = ExamAttempt::where('exam_id', $exam->id)->where('student_id', $student->id)->firstOrFail();
 
-        if ($attempt->status === 'submitted') {
+        if ($attempt->status === \App\Enums\AttemptStatus::Submitted->value) {
             return redirect()->route('student.exams.result', ['attempt' => $attempt->id])
                 ->with('info', 'Already submitted.');
         }
@@ -319,7 +319,7 @@ class ExamController extends Controller
 
             $attempt->update([
                 'total_score' => $totalScore,
-                'status' => 'submitted',
+                'status' => \App\Enums\AttemptStatus::Submitted->value,
                 'submitted_at' => now(),
             ]);
         });
@@ -384,7 +384,7 @@ class ExamController extends Controller
         });
 
         $totalScore = $autoScore + $totalPractical;
-        PointsHelper::award($attempt->student_id, 'Exam', $exam->id, $totalScore, $exam->max_score ?? 0);
+        PointsHelper::award($attempt->student_id, \App\Enums\ActivityType::Exam->value, $exam->id, $totalScore, $exam->max_score ?? 0);
 
         return back()->with('success', 'Practical scores updated.');
     }
@@ -396,7 +396,7 @@ class ExamController extends Controller
 
         $attempts = $exam->attempts()
             ->with('student:id,name,grade', 'sectionScores.criterion', 'answers.question')
-            ->where('status', 'submitted')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)
             ->orderByDesc('total_score')
             ->get();
 

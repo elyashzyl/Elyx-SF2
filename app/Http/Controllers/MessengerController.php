@@ -184,19 +184,22 @@ class MessengerController extends Controller
         $conversation->touch();
 
         // Award XP every 1000 unique substantial messages (10+ chars, no duplicate spam)
+        $messageMinChars = (int) config('gamification.message_min_chars');
+        $messageMilestone = (int) config('gamification.message_milestone');
+        $messageMilestoneXp = (int) config('gamification.message_milestone_xp');
         $messageCount = \App\Models\Message::where('sender_id', $user->id)
-            ->whereRaw('LENGTH(body) >= 10')
+            ->whereRaw('LENGTH(body) >= ' . $messageMinChars)
             ->distinct('body')
             ->count('body');
-        if ($messageCount > 0 && $messageCount % 1000 === 0) {
-            $user->increment('total_points', 10);
+        if ($messageCount > 0 && $messageCount % $messageMilestone === 0) {
+            $user->increment('total_points', $messageMilestoneXp);
             \App\Models\StudentPoint::create([
                 'student_id' => $user->id,
-                'activity_type' => 'Message',
+                'activity_type' => \App\Enums\ActivityType::Message->value,
                 'activity_id' => 0,
-                'points' => 10,
-                'score' => 10,
-                'total' => 10,
+                'points' => $messageMilestoneXp,
+                'score' => $messageMilestoneXp,
+                'total' => $messageMilestoneXp,
                 'reason' => "{$messageCount} messages milestone",
             ]);
         }

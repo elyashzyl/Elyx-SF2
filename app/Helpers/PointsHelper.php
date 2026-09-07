@@ -9,9 +9,14 @@ class PointsHelper
 {
     public static function calculate(float $percentage): int
     {
-        if ($percentage >= 80) return 10;
-        if ($percentage >= 60) return 5;
-        if ($percentage >= 1) return 1;
+        $tiers = config('gamification.xp_tiers');
+
+        foreach ($tiers as $tier) {
+            if ($percentage >= $tier['min_pct']) {
+                return $tier['points'];
+            }
+        }
+
         return 0;
     }
 

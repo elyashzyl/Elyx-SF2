@@ -65,8 +65,8 @@ class PracticalController extends Controller
                 'grade' => $grade,
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
-                'max_score' => $data['max_score'] ?? 100,
-                'max_attempts' => $data['max_attempts'] ?? 3,
+                'max_score' => $data['max_score'] ?? (int) config('gamification.practical_max_score'),
+                'max_attempts' => $data['max_attempts'] ?? (int) config('gamification.practical_max_attempts'),
                 'is_published' => false,
             ]);
 
@@ -124,8 +124,8 @@ class PracticalController extends Controller
                 'title' => $data['title'],
                 'instructions' => $data['instructions'] ?? null,
                 'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
-                'max_score' => $data['max_score'] ?? 100,
-                'max_attempts' => $data['max_attempts'] ?? 3,
+                'max_score' => $data['max_score'] ?? (int) config('gamification.practical_max_score'),
+                'max_attempts' => $data['max_attempts'] ?? (int) config('gamification.practical_max_attempts'),
             ];
 
             if (Auth::user()->isSuperadmin() && $data['teacher_id']) {
@@ -260,7 +260,7 @@ class PracticalController extends Controller
 
         $submittedCount = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)
-            ->where('status', 'submitted')->count();
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)->count();
 
         if ($submittedCount >= $practical->max_attempts) {
             return redirect()->route('student.dashboard')
@@ -275,13 +275,13 @@ class PracticalController extends Controller
 
         $existing = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)
-            ->where('status', 'in_progress')
+            ->where('status', \App\Enums\AttemptStatus::InProgress->value)
             ->first();
 
         if (!$existing) {
             $existing = PracticalAttempt::create([
                 'practical_id' => $practical->id, 'student_id' => $student->id,
-                'status' => 'in_progress', 'started_at' => now(),
+                'status' => \App\Enums\AttemptStatus::InProgress->value, 'started_at' => now(),
             ]);
         }
 
@@ -306,7 +306,7 @@ class PracticalController extends Controller
 
         $attempt = PracticalAttempt::where('practical_id', $practical->id)
             ->where('student_id', $student->id)
-            ->where('status', 'in_progress')
+            ->where('status', \App\Enums\AttemptStatus::InProgress->value)
             ->latest()
             ->firstOrFail();
 
@@ -323,7 +323,7 @@ class PracticalController extends Controller
         $attempt->update([
             'submission_text' => $data['submission_text'] ?? null,
             'submission_file' => $filePath,
-            'status' => 'submitted',
+            'status' => \App\Enums\AttemptStatus::Submitted->value,
             'submitted_at' => now(),
         ]);
 
@@ -344,7 +344,7 @@ class PracticalController extends Controller
     {
         $student = Auth::user();
         abort_if($attempt->student_id !== $student->id, 403);
-        abort_if($attempt->status !== 'submitted', 403);
+        abort_if($attempt->status !== \App\Enums\AttemptStatus::Submitted->value, 403);
         abort_if($attempt->closed_at, 403);
 
         $attempt->update(['closed_at' => now()]);
@@ -396,7 +396,7 @@ class PracticalController extends Controller
             $attempt->update(['total_score' => $totalScore]);
         });
 
-        PointsHelper::award($attempt->student_id, 'Practical', $practical->id, $totalScore, $practical->max_score ?? 0);
+        PointsHelper::award($attempt->student_id, \App\Enums\ActivityType::Practical->value, $practical->id, $totalScore, $practical->max_score ?? 0);
 
         return redirect()->route('teacher.practicals.show', $practical)
             ->with('saved', true);
@@ -444,7 +444,7 @@ class PracticalController extends Controller
             $attempt->update(['total_score' => $totalScore]);
         });
 
-        PointsHelper::award($attempt->student_id, 'Practical', $practical->id, $totalScore, $practical->max_score ?? 0);
+        PointsHelper::award($attempt->student_id, \App\Enums\ActivityType::Practical->value, $practical->id, $totalScore, $practical->max_score ?? 0);
 
         return redirect()->route('teacher.practicals.show', $practical)
             ->with('saved', true);

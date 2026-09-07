@@ -28,14 +28,15 @@ class StudentController extends Controller
         // Daily login XP bonus — once per calendar day
         $today = now()->startOfDay();
         if (!$student->last_login_at || $student->last_login_at->startOfDay()->lt($today)) {
-            $student->increment('total_points', 5);
+            $bonus = (int) config('gamification.login_bonus');
+            $student->increment('total_points', $bonus);
             \App\Models\StudentPoint::create([
                 'student_id' => $student->id,
-                'activity_type' => 'Login',
+                'activity_type' => \App\Enums\ActivityType::Login->value,
                 'activity_id' => 0,
-                'points' => 5,
-                'score' => 5,
-                'total' => 5,
+                'points' => $bonus,
+                'score' => $bonus,
+                'total' => $bonus,
                 'reason' => 'Daily login bonus',
             ]);
             $student->last_login_at = now();
@@ -163,7 +164,7 @@ class StudentController extends Controller
             ->where('student_id', $student->id)
             ->first();
 
-        if ($existing && $existing->status === 'submitted') {
+        if ($existing && $existing->status === \App\Enums\AttemptStatus::Submitted->value) {
             return redirect()->route('student.dashboard')
                 ->with('info', 'You have already submitted this quiz.');
         }
@@ -172,7 +173,7 @@ class StudentController extends Controller
             $existing = QuizAttempt::create([
                 'quiz_id' => $quiz->id,
                 'student_id' => $student->id,
-                'status' => 'in_progress',
+                'status' => \App\Enums\AttemptStatus::InProgress->value,
                 'started_at' => now(),
                 'total_points' => $quiz->totalPoints(),
             ]);
@@ -205,7 +206,7 @@ class StudentController extends Controller
             ->where('student_id', $student->id)
             ->firstOrFail();
 
-        if ($attempt->status === 'submitted') {
+        if ($attempt->status === \App\Enums\AttemptStatus::Submitted->value) {
             return redirect()->route('student.dashboard')->with('info', 'This quiz was already submitted.');
         }
 
@@ -237,7 +238,7 @@ class StudentController extends Controller
             DB::table('quiz_attempts')->where('id', $attempt->id)->update([
                 'score' => $score,
                 'total_points' => $quiz->totalPoints(),
-                'status' => 'submitted',
+                'status' => \App\Enums\AttemptStatus::Submitted->value,
                 'submitted_at' => now(),
             ]);
         });
@@ -297,7 +298,7 @@ class StudentController extends Controller
                     'description' => $quiz->description,
                     'questions_count' => $quiz->questions_count,
                     'time_limit_minutes' => $quiz->time_limit_minutes,
-                    'status' => $attempt ? $attempt->status : 'not_started',
+                    'status' => $attempt ? $attempt->status : \App\Enums\AttemptStatus::NotStarted->value,
                     'score' => $attempt?->score,
                     'total_points' => $attempt?->total_points,
                     'attempt_id' => $attempt?->id,
@@ -328,7 +329,7 @@ class StudentController extends Controller
                     'title' => $seatwork->title,
                     'questions_count' => $seatwork->questions_count,
                     'time_limit_minutes' => $seatwork->time_limit_minutes,
-                    'status' => $attempt ? $attempt->status : 'not_started',
+                    'status' => $attempt ? $attempt->status : \App\Enums\AttemptStatus::NotStarted->value,
                     'score' => $attempt?->score,
                     'total_points' => $attempt?->total_points,
                     'attempt_id' => $attempt?->id,
@@ -359,14 +360,14 @@ class StudentController extends Controller
             ->latest()
             ->get()
             ->map(function ($practical) {
-                $submittedAttempts = $practical->attempts->where('status', 'submitted')->count();
-                $inProgressAttempt = $practical->attempts->where('status', 'in_progress')->first();
-                $bestAttempt = $practical->attempts->where('status', 'submitted')->sortByDesc('total_score')->first();
+                $submittedAttempts = $practical->attempts->where('status', \App\Enums\AttemptStatus::Submitted->value)->count();
+                $inProgressAttempt = $practical->attempts->where('status', \App\Enums\AttemptStatus::InProgress->value)->first();
+                $bestAttempt = $practical->attempts->where('status', \App\Enums\AttemptStatus::Submitted->value)->sortByDesc('total_score')->first();
                 $displayAttempt = $bestAttempt ?? $inProgressAttempt;
                 $closed = $practical->isClosed();
-                $status = $displayAttempt ? $displayAttempt->status : 'not_started';
-                if ($closed && $status !== 'submitted') {
-                    $status = 'closed';
+                $status = $displayAttempt ? $displayAttempt->status : \App\Enums\AttemptStatus::NotStarted->value;
+                if ($closed && $status !== \App\Enums\AttemptStatus::Submitted->value) {
+                    $status = \App\Enums\AttemptStatus::Closed->value;
                 }
                 return [
                     'id' => $practical->id,
@@ -410,7 +411,7 @@ class StudentController extends Controller
                     'sections_count' => $exam->sections_count,
                     'time_limit_minutes' => $exam->time_limit_minutes,
                     'max_score' => $exam->max_score,
-                    'status' => $attempt ? $attempt->status : 'not_started',
+                    'status' => $attempt ? $attempt->status : \App\Enums\AttemptStatus::NotStarted->value,
                     'score' => $attempt?->total_score,
                     'attempt_id' => $attempt?->id,
                 ];
@@ -427,7 +428,7 @@ class StudentController extends Controller
 
         $quizAttempts = QuizAttempt::with('quiz:id,title,grade')
             ->where('student_id', $student->id)
-            ->where('status', 'submitted')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)
             ->latest('submitted_at')
             ->get()
             ->map(fn ($a) => [
@@ -438,12 +439,12 @@ class StudentController extends Controller
                 'total' => $a->total_points,
                 'percentage' => $a->total_points ? round(($a->score / $a->total_points) * 100) : 0,
                 'submitted_at' => $a->submitted_at,
-                'resultUrl' => "/student/quizzes/{$a->id}/result",
+                'resultUrl' => route('student.quizzes.result', $a->id),
             ]);
 
         $seatworkAttempts = \App\Models\SeatworkAttempt::with('seatwork:id,title')
             ->where('student_id', $student->id)
-            ->where('status', 'submitted')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)
             ->latest('submitted_at')
             ->get()
             ->map(fn ($a) => [
@@ -454,12 +455,12 @@ class StudentController extends Controller
                 'total' => $a->total_points,
                 'percentage' => $a->total_points ? round(($a->score / $a->total_points) * 100) : 0,
                 'submitted_at' => $a->submitted_at,
-                'resultUrl' => "/student/seatworks/{$a->id}/result",
+                'resultUrl' => route('student.seatworks.result', $a->id),
             ]);
 
         $practicalAttempts = \App\Models\PracticalAttempt::with('practical.criteria')
             ->where('student_id', $student->id)
-            ->where('status', 'submitted')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)
             ->latest('submitted_at')
             ->get()
             ->groupBy('practical_id')
@@ -472,12 +473,12 @@ class StudentController extends Controller
                 'total' => $a->practical->criteria->sum('max_points'),
                 'percentage' => $a->practical->criteria->sum('max_points') ? round(($a->total_score / $a->practical->criteria->sum('max_points')) * 100) : 0,
                 'submitted_at' => $a->submitted_at,
-                'resultUrl' => "/student/practicals/{$a->id}/result",
+                'resultUrl' => route('student.practicals.result', $a->id),
             ]);
 
         $examAttempts = \App\Models\ExamAttempt::with('exam:id,title,max_score')
             ->where('student_id', $student->id)
-            ->where('status', 'submitted')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)
             ->latest('submitted_at')
             ->get()
             ->map(fn ($a) => [
@@ -488,7 +489,7 @@ class StudentController extends Controller
                 'total' => $a->exam->max_score,
                 'percentage' => $a->exam->max_score ? round(($a->total_score / $a->exam->max_score) * 100) : 0,
                 'submitted_at' => $a->submitted_at,
-                'resultUrl' => "/student/exams/{$a->id}/result",
+                'resultUrl' => route('student.exams.result', $a->id),
             ]);
 
         $all = collect($quizAttempts)

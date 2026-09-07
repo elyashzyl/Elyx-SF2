@@ -253,7 +253,7 @@ class SeatworkController extends Controller
         $this->authorizeOwner($seatwork);
         $seatwork->load(['questions.options', 'questions.matchingPairs', 'gradeLevels:id,name']);
         $teacher = Auth::user();
-        $attempts = $seatwork->attempts()->with('student:id,name,grade')->where('status', 'submitted')->orderByDesc('score')->get();
+        $attempts = $seatwork->attempts()->with('student:id,name,grade')->where('status', \App\Enums\AttemptStatus::Submitted->value)->orderByDesc('score')->get();
 
         return Inertia::render('Teacher/Seatworks/Show', [
             'seatwork' => $seatwork,
@@ -306,14 +306,14 @@ class SeatworkController extends Controller
         abort_if($seatwork->isClosed(), 403, 'This seatwork has closed.');
 
         $existing = SeatworkAttempt::where('seatwork_id', $seatwork->id)->where('student_id', $student->id)->first();
-        if ($existing && $existing->status === 'submitted') {
+        if ($existing && $existing->status === \App\Enums\AttemptStatus::Submitted->value) {
             return redirect()->route('student.dashboard')->with('info', 'You have already submitted this seatwork.');
         }
 
         if (!$existing) {
             $existing = SeatworkAttempt::create([
                 'seatwork_id' => $seatwork->id, 'student_id' => $student->id,
-                'status' => 'in_progress', 'started_at' => now(),
+                'status' => \App\Enums\AttemptStatus::InProgress->value, 'started_at' => now(),
                 'total_points' => $seatwork->totalPoints(),
             ]);
         }
@@ -330,7 +330,7 @@ class SeatworkController extends Controller
         abort_if($seatwork->isClosed(), 403, 'This seatwork has closed.');
 
         $attempt = SeatworkAttempt::where('seatwork_id', $seatwork->id)->where('student_id', $student->id)->firstOrFail();
-        if ($attempt->status === 'submitted') {
+        if ($attempt->status === \App\Enums\AttemptStatus::Submitted->value) {
             return redirect()->route('student.dashboard')->with('info', 'Already submitted.');
         }
 
@@ -347,10 +347,10 @@ class SeatworkController extends Controller
                     $answerData
                 );
             }
-            $attempt->update(['score' => $score, 'total_points' => $seatwork->totalPoints(), 'status' => 'submitted', 'submitted_at' => now()]);
+            $attempt->update(['score' => $score, 'total_points' => $seatwork->totalPoints(), 'status' => \App\Enums\AttemptStatus::Submitted->value, 'submitted_at' => now()]);
         });
 
-        PointsHelper::award($student->id, 'Seatwork', $seatwork->id, $score, $seatwork->totalPoints());
+        PointsHelper::award($student->id, \App\Enums\ActivityType::Seatwork->value, $seatwork->id, $score, $seatwork->totalPoints());
 
         return redirect()->route('student.seatworks.result', ['attempt' => $attempt->id])->with('success', 'Seatwork submitted.');
     }
@@ -408,7 +408,7 @@ class SeatworkController extends Controller
             $attempt->update(['score' => $score]);
         });
 
-        PointsHelper::award($attempt->student_id, 'Seatwork', $seatwork->id, $score, $seatwork->totalPoints());
+        PointsHelper::award($attempt->student_id, \App\Enums\ActivityType::Seatwork->value, $seatwork->id, $score, $seatwork->totalPoints());
 
         return back()->with('success', 'Seatwork auto-rechecked successfully.');
     }
@@ -453,7 +453,7 @@ class SeatworkController extends Controller
             $attempt->update(['score' => $score]);
         });
 
-        PointsHelper::award($attempt->student_id, 'Seatwork', $seatwork->id, $score, $seatwork->totalPoints());
+        PointsHelper::award($attempt->student_id, \App\Enums\ActivityType::Seatwork->value, $seatwork->id, $score, $seatwork->totalPoints());
 
         return redirect()->route('teacher.seatworks.show', $seatwork)->with('success', 'Seatwork rechecked successfully.');
     }

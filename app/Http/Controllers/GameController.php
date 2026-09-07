@@ -68,7 +68,7 @@ class GameController extends Controller
         $xp = 0;
         if (!empty($data['completed'])) {
             $existing = \App\Models\StudentPoint::where('student_id', $student->id)
-                ->where('activity_type', 'Game')
+                ->where('activity_type', \App\Enums\ActivityType::Game->value)
                 ->where('activity_id', $game->id)
                 ->exists();
 
@@ -76,7 +76,7 @@ class GameController extends Controller
                 $game->loadCount('cards');
                 \App\Models\StudentPoint::create([
                     'student_id' => $student->id,
-                    'activity_type' => 'Game',
+                    'activity_type' => \App\Enums\ActivityType::Game->value,
                     'activity_id' => $game->id,
                     'points' => $game->xp_reward,
                     'score' => $data['done_count'] ?? 0,
@@ -135,18 +135,19 @@ class GameController extends Controller
             ]);
 
             $game->loadCount('cards');
+            $correctAnswerXp = (int) config('gamification.correct_answer_xp');
             \App\Models\StudentPoint::create([
                 'student_id' => $student->id,
-                'activity_type' => 'Game',
+                'activity_type' => \App\Enums\ActivityType::Game->value,
                 'activity_id' => $card->id,
-                'points' => 1,
-                'score' => 1,
+                'points' => $correctAnswerXp,
+                'score' => $correctAnswerXp,
                 'total' => $game->cards_count,
                 'reason' => 'Correct answer in game: ' . $game->title,
             ]);
-            $student->increment('total_points', 1);
+            $student->increment('total_points', $correctAnswerXp);
             $awarded = true;
-            $xp = 1;
+            $xp = $correctAnswerXp;
         }
 
         return response()->json(['ok' => true, 'awarded' => $awarded, 'xp' => $xp]);
@@ -170,7 +171,7 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
-            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony,memorymatch,hangman,speedquiz,dragdrop,ordering'],
+            'type' => ['required', 'in:' . \App\Enums\GameType::validationList()],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],
@@ -211,7 +212,7 @@ class GameController extends Controller
             'grade' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'xp_reward' => ['required', 'integer', 'min:1', 'max:100'],
-            'type' => ['required', 'in:flashcard,quiz,fillblank,truefalse,wordjumble,colorharmony,memorymatch,hangman,speedquiz,dragdrop,ordering'],
+            'type' => ['required', 'in:' . \App\Enums\GameType::validationList()],
             'cards' => ['required', 'array', 'min:1'],
             'cards.*.question' => ['required', 'string'],
             'cards.*.answer' => ['required', 'string'],

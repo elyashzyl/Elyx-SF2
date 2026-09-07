@@ -30,7 +30,7 @@ class NotificationController extends Controller
             : $notifications;
 
         return response()->json([
-            'notifications' => array_slice($notifications, 0, 30),
+            'notifications' => array_slice($notifications, 0, (int) config('gamification.notification_limit_teacher')),
             'count' => count($unseen),
         ]);
     }
@@ -48,65 +48,65 @@ class NotificationController extends Controller
         $isSuper = $user->isSuperadmin();
 
         // Practicals
-        $practicalQuery = PracticalAttempt::where('status', 'submitted')->whereNull('total_score');
+        $practicalQuery = PracticalAttempt::where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNull('total_score');
         if (!$isSuper) {
             $practicalQuery->whereIn('practical_id', $user->practicals()->pluck('id'));
         }
-        foreach ($practicalQuery->with('practical:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
+        foreach ($practicalQuery->with('practical:id,title', 'student:id,name')->latest()->limit((int) config('gamification.notification_limit_teacher'))->get() as $a) {
             $notifs[] = [
                 'id' => 'practical_' . $a->id,
                 'type' => 'practical',
                 'title' => 'Practical needs grading',
                 'body' => "{$a->student->name} — {$a->practical->title}",
-                'link' => "/teacher/practicals/{$a->practical_id}/grade/{$a->id}",
+                'link' => route('teacher.practicals.grade', [$a->practical_id, $a->id]),
                 'time' => $a->submitted_at,
             ];
         }
 
         // Quizzes
-        $quizQuery = QuizAttempt::where('status', 'submitted')->whereNull('score');
+        $quizQuery = QuizAttempt::where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNull('score');
         if (!$isSuper) {
             $quizQuery->whereIn('quiz_id', $user->quizzes()->pluck('id'));
         }
-        foreach ($quizQuery->with('quiz:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
+        foreach ($quizQuery->with('quiz:id,title', 'student:id,name')->latest()->limit((int) config('gamification.notification_limit_teacher'))->get() as $a) {
             $notifs[] = [
                 'id' => 'quiz_' . $a->id,
                 'type' => 'quiz',
                 'title' => 'Quiz needs grading',
                 'body' => "{$a->student->name} — {$a->quiz->title}",
-                'link' => "/teacher/quizzes/{$a->quiz_id}/recheck/{$a->id}",
+                'link' => route('teacher.quizzes.recheck', [$a->quiz_id, $a->id]),
                 'time' => $a->submitted_at,
             ];
         }
 
         // Seatworks
-        $swQuery = SeatworkAttempt::where('status', 'submitted')->whereNull('score');
+        $swQuery = SeatworkAttempt::where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNull('score');
         if (!$isSuper) {
             $swQuery->whereIn('seatwork_id', $user->seatworks()->pluck('id'));
         }
-        foreach ($swQuery->with('seatwork:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
+        foreach ($swQuery->with('seatwork:id,title', 'student:id,name')->latest()->limit((int) config('gamification.notification_limit_teacher'))->get() as $a) {
             $notifs[] = [
                 'id' => 'seatwork_' . $a->id,
                 'type' => 'seatwork',
                 'title' => 'Seatwork needs grading',
                 'body' => "{$a->student->name} — {$a->seatwork->title}",
-                'link' => "/teacher/seatworks/{$a->seatwork_id}/recheck/{$a->id}",
+                'link' => route('teacher.seatworks.recheck', [$a->seatwork_id, $a->id]),
                 'time' => $a->submitted_at,
             ];
         }
 
         // Exams
-        $examQuery = ExamAttempt::where('status', 'submitted')->whereNull('total_score');
+        $examQuery = ExamAttempt::where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNull('total_score');
         if (!$isSuper) {
             $examQuery->whereIn('exam_id', $user->exams()->pluck('id'));
         }
-        foreach ($examQuery->with('exam:id,title', 'student:id,name')->latest()->limit(30)->get() as $a) {
+        foreach ($examQuery->with('exam:id,title', 'student:id,name')->latest()->limit((int) config('gamification.notification_limit_teacher'))->get() as $a) {
             $notifs[] = [
                 'id' => 'exam_' . $a->id,
                 'type' => 'exam',
                 'title' => 'Exam needs grading',
                 'body' => "{$a->student->name} — {$a->exam->title}",
-                'link' => "/teacher/exams/{$a->exam_id}",
+                'link' => route('teacher.exams.show', $a->exam_id),
                 'time' => $a->submitted_at,
             ];
         }
@@ -122,64 +122,64 @@ class NotificationController extends Controller
 
         // Practicals
         foreach (PracticalAttempt::where('student_id', $user->id)
-            ->where('status', 'submitted')->whereNotNull('total_score')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNotNull('total_score')
             ->where('updated_at', '>=', $since)
             ->with('practical:id,title')
-            ->latest()->limit(20)->get() as $a) {
+            ->latest()->limit((int) config('gamification.notification_limit_student_practical'))->get() as $a) {
             $notifs[] = [
                 'id' => 'practical_result_' . $a->id,
                 'type' => 'practical',
                 'title' => 'Practical graded',
                 'body' => "{$a->practical->title} — Score: {$a->total_score}",
-                'link' => "/student/practicals/{$a->id}/result",
+                'link' => route('student.practicals.result', $a->id),
                 'time' => $a->updated_at,
             ];
         }
 
         // Quizzes
         foreach (QuizAttempt::where('student_id', $user->id)
-            ->where('status', 'submitted')->whereNotNull('score')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNotNull('score')
             ->where('updated_at', '>=', $since)
             ->with('quiz:id,title')
-            ->latest()->limit(5)->get() as $a) {
+            ->latest()->limit((int) config('gamification.notification_limit_student_other'))->get() as $a) {
             $notifs[] = [
                 'id' => 'quiz_result_' . $a->id,
                 'type' => 'quiz',
                 'title' => 'Quiz graded',
                 'body' => "{$a->quiz->title} — Score: {$a->score}/{$a->total_points}",
-                'link' => "/student/quizzes/{$a->id}/result",
+                'link' => route('student.quizzes.result', $a->id),
                 'time' => $a->updated_at,
             ];
         }
 
         // Seatworks
         foreach (SeatworkAttempt::where('student_id', $user->id)
-            ->where('status', 'submitted')->whereNotNull('score')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNotNull('score')
             ->where('updated_at', '>=', $since)
             ->with('seatwork:id,title')
-            ->latest()->limit(5)->get() as $a) {
+            ->latest()->limit((int) config('gamification.notification_limit_student_other'))->get() as $a) {
             $notifs[] = [
                 'id' => 'seatwork_result_' . $a->id,
                 'type' => 'seatwork',
                 'title' => 'Seatwork graded',
                 'body' => "{$a->seatwork->title} — Score: {$a->score}/{$a->total_points}",
-                'link' => "/student/seatworks/{$a->id}/result",
+                'link' => route('student.seatworks.result', $a->id),
                 'time' => $a->updated_at,
             ];
         }
 
         // Exams
         foreach (ExamAttempt::where('student_id', $user->id)
-            ->where('status', 'submitted')->whereNotNull('total_score')
+            ->where('status', \App\Enums\AttemptStatus::Submitted->value)->whereNotNull('total_score')
             ->where('updated_at', '>=', $since)
             ->with('exam:id,title')
-            ->latest()->limit(5)->get() as $a) {
+            ->latest()->limit((int) config('gamification.notification_limit_student_other'))->get() as $a) {
             $notifs[] = [
                 'id' => 'exam_result_' . $a->id,
                 'type' => 'exam',
                 'title' => 'Exam graded',
                 'body' => "{$a->exam->title} — Score: {$a->total_score}",
-                'link' => "/student/exams/{$a->id}/result",
+                'link' => route('student.exams.result', $a->id),
                 'time' => $a->updated_at,
             ];
         }
