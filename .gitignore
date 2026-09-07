@@ -31,6 +31,7 @@ sf2_*.html
 server.log
 exports/
 *.xlsx
+!templates/*.xlsx
 check_*.cjs
 debug_*.cjs
 test_*
