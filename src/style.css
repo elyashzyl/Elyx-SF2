@@ -190,6 +190,15 @@ html {
   color: var(--foreground);
 }
 
+/* Native form controls (dropdowns, number inputs, scrollbars) follow the theme
+   instead of the browser defaulting to a light or inverted scheme. */
+:root {
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--background);
@@ -2065,13 +2074,9 @@ code, kbd, samp, pre {
   left: 0;
   z-index: 1;
   background: var(--card) !important;
-  color: #ffffff !important;
+  color: var(--foreground) !important;
   padding-left: 10px !important;
   font-weight: 600;
-}
-
-[data-theme="light"] .name-col {
-  color: var(--foreground) !important;
 }
 
 .monthly-table thead .name-col {
@@ -3176,15 +3181,66 @@ code, kbd, samp, pre {
     display: none !important;
   }
 
-  body {
-    background: white !important;
-    color: black !important;
+  /* The generated SF2 (print/PDF) must always look like paper: black on white,
+     regardless of the currently displayed light/dark theme. */
+  html,
+  body,
+  .sheet-container,
+  .sheet-info,
+  .table-wrapper,
+  .summary-section,
+  .legends {
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border-color: #999999 !important;
   }
 
-  .sheet-container {
-    box-shadow: none !important;
-    border: none !important;
-    padding: 0 !important;
+  .attendance-table th,
+  .attendance-table td,
+  .monthly-table th,
+  .monthly-table td,
+  .summary-table th,
+  .summary-table td,
+  .name-col {
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .monthly-table thead .name-col,
+  .monthly-table tbody tr:hover .name-col {
+    background: #f1f1f1 !important;
+    color: #000000 !important;
+  }
+
+  .monthly-table thead th,
+  .gender-sep-row td,
+  .summary-row td,
+  .summary-row.combined td,
+  .summary-table th,
+  .sheet-info {
+    background: #f1f1f1 !important;
+    color: #000000 !important;
+  }
+
+  .weekend,
+  .excluded {
+    background: #eeeeee !important;
+    opacity: 1 !important;
+  }
+
+  .day-select,
+  .summary-input,
+  .adviser-input,
+  .remarks-input,
+  .sheet-info input,
+  input,
+  select {
+    color: #000000 !important;
+    background: #ffffff !important;
+    border-color: #555555 !important;
+    color-scheme: light !important;
+    -webkit-text-fill-color: #000000;
   }
 
   .monthly-table {
@@ -3193,7 +3249,7 @@ code, kbd, samp, pre {
 
   .monthly-table th,
   .monthly-table td {
-    border: 1px solid #333 !important;
+    border: 1px solid #333333 !important;
   }
 }
 

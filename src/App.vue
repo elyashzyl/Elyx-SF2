@@ -205,6 +205,7 @@ import { useToast } from './composables/useToast'
 import { useNotifications } from './composables/useNotifications'
 import { useTheme } from './composables/useTheme'
 import { useActiveSchool } from './composables/useActiveSchool'
+import { restoreScrollAfterLoad } from './router'
 import { watch, onBeforeUnmount } from 'vue'
 
 const auth = useAuthStore()
@@ -268,7 +269,10 @@ async function loadSchool() {
   } catch {}
 }
 
-onMounted(loadSchool)
+onMounted(() => {
+  loadSchool()
+  restoreScrollAfterLoad()
+})
 
 function handleLogout() {
   auth.logout()
