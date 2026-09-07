@@ -8,6 +8,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'attendance.db')
 const USE_PG = !!process.env.DATABASE_URL
 
+// Reports which backend the process is running on (used by /api/health).
+export const DB_MODE = USE_PG ? 'postgres' : 'sqlite'
+
 let pgPool = null
 let sqlite = null
 
@@ -249,11 +252,26 @@ async function initPostgres() {
     connectionTimeoutMillis: 10000
   }
   // Some PaaS databases (e.g. Render) require SSL; detect via sslmode in the
-  // connection string or an explicit PGSSL flag.
+  // connection string or an explicit PGSSL flag, otherwise auto-retry with TLS
+  // when the first connection is rejected for SSsL reasons.
   if (/sslmode=(require|verify-ca|verify-full)|\bssl=(true|1)\b/i.test(process.env.DATABASE_URL) || process.env.PGSSL === '1') {
     poolCfg.ssl = { rejectUnauthorized: process.env.PGSSL_VERIFY === '1' }
   }
   pgPool = new pg.Pool(poolCfg)
+  try {
+    await pgPool.query('SELECT 1')
+  } catch (err) {
+    const msg = String(err.message)
+    // Render (and others) can reject a non-TLS connection; reconnect encrypted.
+    if (!poolCfg.ssl && /\b(ssl|certificate)\b/i.test(msg)) {
+      await pgPool.end().catch(() => {})
+      poolCfg.ssl = { rejectUnauthorized: false }
+      pgPool = new pg.Pool(poolCfg)
+      await pgPool.query('SELECT 1')
+    } else {
+      throw err
+    }
+  }
   for (const ddl of PG_DDL) await pgPool.query(ddl)
   // Add a UNIQUE constraint helper for username lookups used by login.
   const cnt = await pgPool.query(`SELECT COUNT(*) AS cnt FROM users`)
@@ -579,10 +597,29 @@ function seedGradeLevelsForSchoolSync(schoolDbId) {
 export async function initDatabase() {
   if (USE_PG) {
     await initPostgres()
+    console.log(`[db] PostgreSQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
+  } else if (process.env.REQUIRE_POSTGRES === '1' || process.env.NODE_ENV === 'production') {
+    // Silently using SQLite on an ephemeral container disk is what caused all
+    // data to vanish on every redeploy. Refuse to start instead.
+    console.error('[db] FATAL: DATABASE_URL is not set.')
+    console.error('[db] Production/forced mode refuses to run on the ephemeral SQLite fallback, because the database file lives inside the container and is deleted on every redeploy.')
+    console.error('[db] Fix: add the platform\'s PostgreSQL connection string as the DATABASE_URL environment variable, then redeploy.')
+    throw new Error('DATABASE_URL is required (Postgres must be enabled). The SQLite fallback is disabled when NODE_ENV=production or REQUIRE_POSTGRES=1.')
   } else {
     await initSqlite()
+    console.warn('[db] SQLite backend ready (attendance.db) — LOCAL DEV ONLY. Data is stored in the container filesystem and WILL BE LOST on redeploy. Set DATABASE_URL on a production host.')
   }
   return getDb()
+}
+
+function redactUrl(url) {
+  try {
+    const u = new URL(url)
+    u.password = '***'
+    return u.href
+  } catch {
+    return url ? '(set)' : '(missing)'
+  }
 }
 
 export { PG_DDL, DEFAULT_GRADE_SKELETON }

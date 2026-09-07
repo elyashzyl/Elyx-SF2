@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import { initDatabase } from './db.js'
+import { initDatabase, DB_MODE } from './db.js'
 import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
 import studentRoutes from './routes/students.js'
@@ -54,7 +54,7 @@ app.use('/api/schools', schoolRoutes)
 app.use('/api/logs', logRoutes)
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: dbReady ? 'ok' : 'starting' })
+  res.json({ status: dbReady ? 'ok' : 'starting', db: dbReady ? DB_MODE : 'unknown' })
 })
 
 import { fileURLToPath } from 'url'
