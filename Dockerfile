@@ -1,16 +1,17 @@
 # ---- Stage 1: Build the Vite frontend ----
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
 COPY package*.json ./
+ENV NODE_ENV=development
 RUN npm ci
 
 COPY . .
 RUN npm run build
 
 # ---- Stage 2: Production server ----
-FROM node:20-alpine
+FROM node:22-alpine
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
