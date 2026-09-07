@@ -242,12 +242,18 @@ const PG_DDL = [
 ]
 
 async function initPostgres() {
-  pgPool = new pg.Pool({
+  const poolCfg = {
     connectionString: process.env.DATABASE_URL,
     max: parseInt(process.env.PG_POOL_MAX || '10', 10),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000
-  })
+  }
+  // Some PaaS databases (e.g. Render) require SSL; detect via sslmode in the
+  // connection string or an explicit PGSSL flag.
+  if (/sslmode=(require|verify-ca|verify-full)|\bssl=(true|1)\b/i.test(process.env.DATABASE_URL) || process.env.PGSSL === '1') {
+    poolCfg.ssl = { rejectUnauthorized: process.env.PGSSL_VERIFY === '1' }
+  }
+  pgPool = new pg.Pool(poolCfg)
   for (const ddl of PG_DDL) await pgPool.query(ddl)
   // Add a UNIQUE constraint helper for username lookups used by login.
   const cnt = await pgPool.query(`SELECT COUNT(*) AS cnt FROM users`)
