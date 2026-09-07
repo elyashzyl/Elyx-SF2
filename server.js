@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { initDatabase } from './db.js'
@@ -56,13 +57,27 @@ app.get('/api/health', (req, res) => {
   res.json({ status: dbReady ? 'ok' : 'starting' })
 })
 
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+app.use(express.static(join(__dirname, 'dist')))
+
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, 'dist', 'index.html'))
+})
+
 app.use((err, req, res, next) => {
   console.error('Server error:', err.message)
   res.status(500).json({ error: 'Internal server error' })
 })
 
-app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`)
+const HOST = process.env.HOST || '0.0.0.0'
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server listening on http://${HOST}:${PORT}`)
 })
 
 initDatabase().then(() => {

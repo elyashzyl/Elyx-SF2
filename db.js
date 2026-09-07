@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = path.join(__dirname, 'attendance.db')
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'attendance.db')
 
 let db = null
 
@@ -157,9 +157,6 @@ export async function initDatabase() {
   try { db.run("ALTER TABLE monthly_records ADD COLUMN school_head TEXT DEFAULT ''") } catch {}
   try { db.run("ALTER TABLE monthly_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
   try { db.run("ALTER TABLE attendance_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE teacher_schedules ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE calendar_events ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE quarterly_events ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS monthly_entries (
@@ -177,6 +174,74 @@ export async function initDatabase() {
     )
   `)
   try { db.run("ALTER TABLE monthly_entries ADD COLUMN late_enrollee INTEGER DEFAULT 0") } catch {}
+
+  // Settings key/value store (legacy single-school settings).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT DEFAULT ''
+    )
+  `)
+
+  // Per-student attendance entries for a daily attendance record.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS attendance_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      name TEXT DEFAULT '',
+      am1 TEXT DEFAULT '', am2 TEXT DEFAULT '', am3 TEXT DEFAULT '',
+      am4 TEXT DEFAULT '', am5 TEXT DEFAULT '', am6 TEXT DEFAULT '',
+      pm1 TEXT DEFAULT '', pm2 TEXT DEFAULT '', pm3 TEXT DEFAULT '', pm4 TEXT DEFAULT '',
+      reason TEXT DEFAULT '',
+      excused INTEGER DEFAULT 0,
+      unexcused INTEGER DEFAULT 0,
+      nls INTEGER DEFAULT 0,
+      FOREIGN KEY (record_id) REFERENCES attendance_records(id)
+    )
+  `)
+
+  // Teacher weekly schedules.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS teacher_schedules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      teacher_id TEXT NOT NULL,
+      day_of_week INTEGER DEFAULT 0,
+      period TEXT DEFAULT '',
+      start_time TEXT DEFAULT '',
+      end_time TEXT DEFAULT '',
+      subject TEXT DEFAULT '',
+      grade TEXT DEFAULT '',
+      section TEXT DEFAULT '',
+      school_id TEXT DEFAULT ''
+    )
+  `)
+
+  // School calendar events.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT DEFAULT '',
+      type TEXT DEFAULT '',
+      event_date TEXT DEFAULT '',
+      color TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      school_id TEXT DEFAULT ''
+    )
+  `)
+
+  // Quarterly events per school.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS quarterly_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_name TEXT DEFAULT '',
+      first_grading TEXT DEFAULT '',
+      second_grading TEXT DEFAULT '',
+      third_grading TEXT DEFAULT '',
+      fourth_grading TEXT DEFAULT '',
+      school_id TEXT DEFAULT ''
+    )
+  `)
 
   const row = db.exec("SELECT COUNT(*) as cnt FROM users")
   const count = row[0]?.values[0][0] || 0

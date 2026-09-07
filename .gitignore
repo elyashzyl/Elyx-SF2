@@ -36,3 +36,8 @@ debug_*.cjs
 test_*
 scratch.*
 check_*.js
+
+# Environment variables
+.env
+.env.local
+.env.*.local
