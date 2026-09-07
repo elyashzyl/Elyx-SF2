@@ -31,6 +31,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY server.js db.js ./
 COPY routes ./routes
+COPY templates ./templates
 
 # Run as non-root
 USER app

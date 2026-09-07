@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - elyx-data:/data
+    restart: unless-stopped
+
+volumes:
+  elyx-data:
