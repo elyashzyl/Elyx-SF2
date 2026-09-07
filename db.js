@@ -1,25 +1,330 @@
-import initSqlJs from 'sql.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import pg from 'pg'
+import initSqlJs from 'sql.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'attendance.db')
+const USE_PG = !!process.env.DATABASE_URL
 
-let db = null
+let pgPool = null
+let sqlite = null
 
-export async function initDatabase() {
+// Postgres returns BIGINT (type 20) as strings; the route layer expects numbers.
+pg.types.setTypeParser(20, v => (v === null ? null : parseInt(v, 10)))
+
+// Tables without an `id` column must not get an automatic RETURNING id clause.
+const NO_INSERT_RETURN = new Set(['settings'])
+
+// Translate SQLite SQL placeholders (?) and LIKE semantics so the route SQL
+// runs unchanged on Postgres.
+function translateSql(sql) {
+  let n = 0
+  let out = ''
+  let inStr = false
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i]
+    if (c === "'") {
+      inStr = !inStr
+      out += c
+      continue
+    }
+    if (inStr) {
+      out += c
+      continue
+    }
+    if (c === '?') {
+      n += 1
+      out += '$' + n
+      continue
+    }
+    if (sql.slice(i, i + 4).toLowerCase() === 'like'
+      && !/[a-z]/i.test(sql[i + 4] ?? '')
+      && (i === 0 || !/[a-z]/i.test(sql[i - 1]))) {
+      out += 'ILIKE'
+      i += 3
+      continue
+    }
+    out += c
+  }
+  return out
+}
+
+async function pgExec(sql, params = []) {
+  const q = translateSql(sql)
+  const isInsert = /^\s*insert\s+into\s+"?([a-z_0-9]+)"?/i.exec(sql)
+  const table = isInsert?.[1]?.toLowerCase()
+  const needsReturning = isInsert && !NO_INSERT_RETURN.has(table) && !/\breturning\b/i.test(q)
+  const res = await pgPool.query(needsReturning ? `${q} RETURNING id` : q, params)
+  const lastInsertRowid = res.rows.length ? (res.rows[0].id ?? null) : null
+  return { rows: res.rows, changes: res.rowCount, lastInsertRowid }
+}
+
+function sqliteExec(sql, params = []) {
+  const stmt = sqlite.prepare(sql)
+  if (params.length > 0) stmt.bind(params)
+  const isSelect = /^\s*(select|pragma|with|explain)/i.test(sql.trim())
+  const rows = []
+  let changes = 0
+  let lastInsertRowid = null
+  if (isSelect) {
+    while (stmt.step()) rows.push(stmt.getAsObject())
+  } else {
+    stmt.step()
+    changes = sqlite.getRowsModified()
+    if (/^\s*insert/i.test(sql.trim())) {
+      lastInsertRowid = sqlite.exec('SELECT last_insert_rowid() AS id')[0]?.values[0]?.[0] ?? null
+    }
+    stmt.free()
+    return { rows, changes, lastInsertRowid }
+  }
+  stmt.free()
+  return { rows, changes, lastInsertRowid }
+}
+
+async function execSql(sql, params = []) {
+  return USE_PG ? await pgExec(sql, params) : sqliteExec(sql, params)
+}
+
+function annotateRows(rows, meta) {
+  Object.defineProperty(rows, 'insertId', { value: meta.lastInsertRowid, enumerable: true })
+  Object.defineProperty(rows, 'lastInsertRowid', { value: meta.lastInsertRowid, enumerable: true })
+  Object.defineProperty(rows, 'changes', { value: meta.changes, enumerable: true })
+  return rows
+}
+
+// async query(sql, params) -> array of row objects (with insertId etc. attached)
+export async function query(sql, params = []) {
+  const r = await execSql(sql, params)
+  return annotateRows(r.rows, r)
+}
+
+// async run(sql, params) -> { lastInsertRowid, changes }
+export async function run(sql, params = []) {
+  const r = await execSql(sql, params)
+  return { lastInsertRowid: r.lastInsertRowid ?? null, changes: r.changes ?? 0 }
+}
+
+const PG_DDL = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    grade TEXT NOT NULL DEFAULT '',
+    section TEXT NOT NULL DEFAULT '',
+    period TEXT NOT NULL DEFAULT '',
+    school_id TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS schools (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    school_id TEXT NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    short TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS grade_levels (
+    id TEXT PRIMARY KEY,
+    school_id TEXT NOT NULL,
+    grade TEXT NOT NULL,
+    sections TEXT NOT NULL DEFAULT '[]',
+    sort INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+    created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+    actor_id TEXT NOT NULL DEFAULT '',
+    actor_name TEXT NOT NULL DEFAULT '',
+    actor_role TEXT NOT NULL DEFAULT '',
+    actor_school_id TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL DEFAULT '',
+    target_id TEXT NOT NULL DEFAULT '',
+    target_name TEXT NOT NULL DEFAULT '',
+    target_school_id TEXT NOT NULL DEFAULT '',
+    detail TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    grade TEXT NOT NULL,
+    section TEXT NOT NULL,
+    gender TEXT NOT NULL DEFAULT '',
+    school_id TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS attendance_records (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    grade TEXT NOT NULL,
+    section TEXT NOT NULL,
+    adviser TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_by_name TEXT NOT NULL DEFAULT '',
+    summary_data TEXT NOT NULL DEFAULT '{}',
+    school_id TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS monthly_records (
+    id TEXT PRIMARY KEY,
+    month INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    grade TEXT NOT NULL,
+    section TEXT NOT NULL,
+    adviser TEXT NOT NULL DEFAULT '',
+    school_head TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_by_name TEXT NOT NULL DEFAULT '',
+    school_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+    summary_data TEXT NOT NULL DEFAULT '{}',
+    excluded_dates TEXT NOT NULL DEFAULT '[]'
+  )`,
+  `CREATE TABLE IF NOT EXISTS monthly_entries (
+    id SERIAL PRIMARY KEY,
+    record_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    days TEXT NOT NULL DEFAULT '{}',
+    present INTEGER NOT NULL DEFAULT 0,
+    absent INTEGER NOT NULL DEFAULT 0,
+    tardy INTEGER NOT NULL DEFAULT 0,
+    remarks TEXT NOT NULL DEFAULT '',
+    late_enrollee INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS attendance_entries (
+    id SERIAL PRIMARY KEY,
+    record_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    am1 TEXT NOT NULL DEFAULT '', am2 TEXT NOT NULL DEFAULT '', am3 TEXT NOT NULL DEFAULT '',
+    am4 TEXT NOT NULL DEFAULT '', am5 TEXT NOT NULL DEFAULT '', am6 TEXT NOT NULL DEFAULT '',
+    pm1 TEXT NOT NULL DEFAULT '', pm2 TEXT NOT NULL DEFAULT '', pm3 TEXT NOT NULL DEFAULT '', pm4 TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    excused INTEGER NOT NULL DEFAULT 0,
+    unexcused INTEGER NOT NULL DEFAULT 0,
+    nls INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS teacher_schedules (
+    id SERIAL PRIMARY KEY,
+    teacher_id TEXT NOT NULL,
+    day_of_week INTEGER NOT NULL DEFAULT 0,
+    period TEXT NOT NULL DEFAULT '',
+    start_time TEXT NOT NULL DEFAULT '',
+    end_time TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL DEFAULT '',
+    grade TEXT NOT NULL DEFAULT '',
+    section TEXT NOT NULL DEFAULT '',
+    school_id TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS calendar_events (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT '',
+    event_date TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    school_id TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS quarterly_events (
+    id SERIAL PRIMARY KEY,
+    event_name TEXT NOT NULL DEFAULT '',
+    first_grading TEXT NOT NULL DEFAULT '',
+    second_grading TEXT NOT NULL DEFAULT '',
+    third_grading TEXT NOT NULL DEFAULT '',
+    fourth_grading TEXT NOT NULL DEFAULT '',
+    school_id TEXT NOT NULL DEFAULT ''
+  )`
+]
+
+async function initPostgres() {
+  pgPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: parseInt(process.env.PG_POOL_MAX || '10', 10),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
+  })
+  for (const ddl of PG_DDL) await pgPool.query(ddl)
+  // Add a UNIQUE constraint helper for username lookups used by login.
+  const cnt = await pgPool.query(`SELECT COUNT(*) AS cnt FROM users`)
+  if ((cnt.rows[0]?.cnt ?? 0) === 0) {
+    await pgPool.query(
+      `INSERT INTO users (id, username, password, name, role, school_id) VALUES ('1', 'admin', 'admin123', 'System Admin', 'superadmin', '')`)
+    await pgPool.query(
+      `INSERT INTO schools (id, name, school_id, address, short) VALUES ('school-1', 'BAGUIO PATRIOTIC HIGH SCHOOL', '406219', 'Baguio City', 'BPHS')`)
+  }
+  await migrateToMultiSchoolPG()
+  await seedGradeLevelsPG()
+}
+
+async function migrateToMultiSchoolPG() {
+  try {
+    const schoolCount = (await pgPool.query('SELECT COUNT(*) AS cnt FROM schools')).rows[0]?.cnt || 0
+    if (schoolCount > 0) return
+    const legacy = { ...DEFAULT_SCHOOL_FALLBACK }
+    try {
+      const rows = (await pgPool.query('SELECT key, value FROM settings')).rows
+      for (const r of rows) {
+        if (r.key in legacy) legacy[r.key] = r.value
+      }
+    } catch {}
+    const schoolId = 'school-' + Date.now().toString(36)
+    await pgPool.query('INSERT INTO schools (id, name, school_id, address, short) VALUES ($1, $2, $3, $4, $5)',
+      [schoolId, legacy.school_name, legacy.school_id, legacy.school_address, legacy.school_short])
+    const tables = ['users', 'students', 'monthly_records', 'attendance_records', 'calendar_events', 'quarterly_events']
+    for (const t of tables) {
+      try { await pgPool.query(`UPDATE "${t}" SET school_id = $1 WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
+    }
+    try {
+      await pgPool.query("UPDATE users SET role = 'superadmin' WHERE role = 'admin' AND (school_id = $1 OR school_id = '')", [schoolId])
+    } catch {}
+  } catch (err) {
+    console.error('Multi-school migration error:', err.message)
+  }
+}
+
+const DEFAULT_GRADE_SKELETON = [
+  { grade: 'Grade 7', sections: ['Pine', 'Molave'] },
+  { grade: 'Grade 8', sections: ['Cypress', 'Narra'] },
+  { grade: 'Grade 9', sections: ['Kamagong', 'Mahogany'] },
+  { grade: 'Grade 10', sections: ['Acacia', 'Yakal'] }
+]
+
+export async function seedGradeLevelsForSchool(schoolDbId) {
+  const existing = await query('SELECT COUNT(*) AS cnt FROM grade_levels WHERE school_id = ?', [schoolDbId])
+  if ((existing[0]?.cnt ?? 0) > 0) return
+  for (let i = 0; i < DEFAULT_GRADE_SKELETON.length; i++) {
+    const g = DEFAULT_GRADE_SKELETON[i]
+    await run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
+      [`gl-${schoolDbId}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections), i])
+  }
+}
+
+async function seedGradeLevelsPG() {
+  try {
+    const schools = (await pgPool.query('SELECT id FROM schools')).rows
+    for (const s of schools) {
+      try { await seedGradeLevelsForSchool(s.id) } catch {}
+    }
+  } catch (err) {
+    console.error('Grade levels seed error:', err.message)
+  }
+}
+
+async function initSqlite() {
   const SQL = await initSqlJs()
-
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH)
-    db = new SQL.Database(buffer)
+    sqlite = new SQL.Database(buffer)
   } else {
-    db = new SQL.Database()
+    sqlite = new SQL.Database()
   }
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
+  for (const ddl of [
+    `CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
@@ -29,60 +334,22 @@ export async function initDatabase() {
       section TEXT DEFAULT '',
       period TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
-    )
-  `)
-  try { db.run("ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE users ADD COLUMN section TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE users ADD COLUMN period TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE users ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-  // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
-  try {
-    const tbl = query("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
-    if (tbl.length && !tbl[0].sql.includes('superadmin')) {
-      db.run(`CREATE TABLE users_new (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('superadmin', 'admin', 'teacher')),
-        grade TEXT DEFAULT '',
-        section TEXT DEFAULT '',
-        period TEXT DEFAULT '',
-        school_id TEXT DEFAULT ''
-      )`)
-      db.run(`INSERT INTO users_new (id, username, password, name, role, grade, section, period, school_id)
-        SELECT id, username, password, name, role,
-          COALESCE(grade, ''), COALESCE(section, ''), COALESCE(period, ''), COALESCE(school_id, '')
-        FROM users`)
-      db.run(`DROP TABLE users`)
-      db.run(`ALTER TABLE users_new RENAME TO users`)
-    }
-  } catch (err) { console.error('Users role migration error:', err.message) }
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS schools (
+    )`,
+    `CREATE TABLE IF NOT EXISTS schools (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       school_id TEXT DEFAULT '',
       address TEXT DEFAULT '',
       short TEXT DEFAULT ''
-    )
-  `)
-
-  // Per-school grade levels + sections. sections stored as JSON array.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS grade_levels (
+    )`,
+    `CREATE TABLE IF NOT EXISTS grade_levels (
       id TEXT PRIMARY KEY,
       school_id TEXT NOT NULL,
       grade TEXT NOT NULL,
       sections TEXT NOT NULL DEFAULT '[]',
       sort INTEGER DEFAULT 0
-    )
-  `)
-
-  // Superadmin activity log.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
+    )`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       actor_id TEXT DEFAULT '',
@@ -95,23 +362,15 @@ export async function initDatabase() {
       target_name TEXT DEFAULT '',
       target_school_id TEXT DEFAULT '',
       detail TEXT DEFAULT ''
-    )
-  `)
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS students (
+    )`,
+    `CREATE TABLE IF NOT EXISTS students (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       grade TEXT NOT NULL,
       section TEXT NOT NULL,
       gender TEXT DEFAULT ''
-    )
-  `)
-  try { db.run("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE students ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS attendance_records (
+    )`,
+    `CREATE TABLE IF NOT EXISTS attendance_records (
       id TEXT PRIMARY KEY,
       date TEXT NOT NULL,
       grade TEXT NOT NULL,
@@ -120,11 +379,8 @@ export async function initDatabase() {
       created_by TEXT DEFAULT '',
       created_by_name TEXT DEFAULT '',
       summary_data TEXT DEFAULT '{}'
-    )
-  `)
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS monthly_records (
+    )`,
+    `CREATE TABLE IF NOT EXISTS monthly_records (
       id TEXT PRIMARY KEY,
       month INTEGER NOT NULL,
       year INTEGER NOT NULL,
@@ -138,17 +394,8 @@ export async function initDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       summary_data TEXT DEFAULT '{}',
       excluded_dates TEXT DEFAULT '[]'
-    )
-  `)
-  try { db.run("ALTER TABLE monthly_records ADD COLUMN created_at TEXT DEFAULT (datetime('now'))") } catch {}
-  try { db.run("ALTER TABLE monthly_records ADD COLUMN summary_data TEXT DEFAULT '{}'") } catch {}
-  try { db.run("ALTER TABLE monthly_records ADD COLUMN excluded_dates TEXT DEFAULT '[]'") } catch {}
-  try { db.run("ALTER TABLE monthly_records ADD COLUMN school_head TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE monthly_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-  try { db.run("ALTER TABLE attendance_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS monthly_entries (
+    )`,
+    `CREATE TABLE IF NOT EXISTS monthly_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       record_id TEXT NOT NULL,
       student_id TEXT NOT NULL,
@@ -158,23 +405,13 @@ export async function initDatabase() {
       absent INTEGER DEFAULT 0,
       tardy INTEGER DEFAULT 0,
       remarks TEXT DEFAULT '',
-      late_enrollee INTEGER DEFAULT 0,
-      FOREIGN KEY (record_id) REFERENCES monthly_records(id)
-    )
-  `)
-  try { db.run("ALTER TABLE monthly_entries ADD COLUMN late_enrollee INTEGER DEFAULT 0") } catch {}
-
-  // Settings key/value store (legacy single-school settings).
-  db.run(`
-    CREATE TABLE IF NOT EXISTS settings (
+      late_enrollee INTEGER DEFAULT 0
+    )`,
+    `CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT DEFAULT ''
-    )
-  `)
-
-  // Per-student attendance entries for a daily attendance record.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS attendance_entries (
+    )`,
+    `CREATE TABLE IF NOT EXISTS attendance_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       record_id TEXT NOT NULL,
       student_id TEXT NOT NULL,
@@ -185,14 +422,9 @@ export async function initDatabase() {
       reason TEXT DEFAULT '',
       excused INTEGER DEFAULT 0,
       unexcused INTEGER DEFAULT 0,
-      nls INTEGER DEFAULT 0,
-      FOREIGN KEY (record_id) REFERENCES attendance_records(id)
-    )
-  `)
-
-  // Teacher weekly schedules.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS teacher_schedules (
+      nls INTEGER DEFAULT 0
+    )`,
+    `CREATE TABLE IF NOT EXISTS teacher_schedules (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       teacher_id TEXT NOT NULL,
       day_of_week INTEGER DEFAULT 0,
@@ -203,12 +435,8 @@ export async function initDatabase() {
       grade TEXT DEFAULT '',
       section TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
-    )
-  `)
-
-  // School calendar events.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS calendar_events (
+    )`,
+    `CREATE TABLE IF NOT EXISTS calendar_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT DEFAULT '',
       type TEXT DEFAULT '',
@@ -216,12 +444,8 @@ export async function initDatabase() {
       color TEXT DEFAULT '',
       created_by TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
-    )
-  `)
-
-  // Quarterly events per school.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS quarterly_events (
+    )`,
+    `CREATE TABLE IF NOT EXISTS quarterly_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_name TEXT DEFAULT '',
       first_grading TEXT DEFAULT '',
@@ -229,24 +453,65 @@ export async function initDatabase() {
       third_grading TEXT DEFAULT '',
       fourth_grading TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
-    )
-  `)
-
-  const row = db.exec("SELECT COUNT(*) as cnt FROM users")
-  const count = row[0]?.values[0][0] || 0
+    )`
+  ]) {
+    sqlite.run(ddl)
+  }
+  {
+    try { sqlite.run("ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE users ADD COLUMN section TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE users ADD COLUMN period TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE users ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN created_at TEXT DEFAULT (datetime('now'))") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN summary_data TEXT DEFAULT '{}'") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN excluded_dates TEXT DEFAULT '[]'") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN school_head TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_entries ADD COLUMN late_enrollee INTEGER DEFAULT 0") } catch {}
+  }
+  // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
+  const tbl = querySync("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
+  if (tbl.length && !tbl[0].sql.includes('superadmin')) {
+    sqlite.run(`CREATE TABLE users_new (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('superadmin', 'admin', 'teacher')),
+      grade TEXT DEFAULT '',
+      section TEXT DEFAULT '',
+      period TEXT DEFAULT '',
+      school_id TEXT DEFAULT ''
+    )`)
+    sqlite.run(`INSERT INTO users_new (id, username, password, name, role, grade, section, period, school_id)
+      SELECT id, username, password, name, role,
+        COALESCE(grade, ''), COALESCE(section, ''), COALESCE(period, ''), COALESCE(school_id, '')
+      FROM users`)
+    sqlite.run(`DROP TABLE users`)
+    sqlite.run(`ALTER TABLE users_new RENAME TO users`)
+  }
+  const count = querySync('SELECT COUNT(*) as cnt FROM users')[0]?.cnt || 0
   if (count === 0) {
-    db.run("INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)",
+    sqlite.run("INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)",
       ['1', 'admin', 'admin123', 'System Admin', 'superadmin', ''])
-    // Default school for the fresh install goes to the superadmin
-    db.run("INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)",
+    sqlite.run("INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)",
       ['school-1', 'BAGUIO PATRIOTIC HIGH SCHOOL', '406219', 'Baguio City', 'BPHS'])
   }
-
-  migrateToMultiSchool()
-  seedGradeLevels()
-
+  migrateToMultiSchoolSqlite()
+  seedGradeLevelsSqlite()
   saveDatabase()
-  return db
+}
+
+function querySync(sql, params = []) {
+  const stmt = sqlite.prepare(sql)
+  if (params.length > 0) stmt.bind(params)
+  const results = []
+  while (stmt.step()) results.push(stmt.getAsObject())
+  stmt.free()
+  return results
 }
 
 const DEFAULT_SCHOOL_FALLBACK = {
@@ -256,71 +521,68 @@ const DEFAULT_SCHOOL_FALLBACK = {
   school_short: 'BPHS'
 }
 
-// One-time migration: single-school DB -> multi-school.
-// Creates a school from legacy settings rows (or defaults), backfills
-// school_id on all existing data, promotes legacy sole admin to superadmin.
-function migrateToMultiSchool() {
+function migrateToMultiSchoolSqlite() {
   try {
-    const schoolCount = query('SELECT COUNT(*) as cnt FROM schools')[0]?.cnt || 0
+    const schoolCount = querySync('SELECT COUNT(*) as cnt FROM schools')[0]?.cnt || 0
     if (schoolCount > 0) return
     const legacy = { ...DEFAULT_SCHOOL_FALLBACK }
     try {
-      const rows = query('SELECT key, value FROM settings')
+      const rows = querySync('SELECT key, value FROM settings')
       for (const r of rows) {
         if (r.key in legacy) legacy[r.key] = r.value
       }
     } catch {}
     const schoolId = 'school-' + Date.now().toString(36)
-    run('INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
+    sqlite.run('INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
       [schoolId, legacy.school_name, legacy.school_id, legacy.school_address, legacy.school_short])
     const tables = ['users', 'students', 'monthly_records', 'attendance_records', 'calendar_events', 'quarterly_events']
     for (const t of tables) {
-      try { run(`UPDATE "${t}" SET school_id = ? WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
+      try { sqlite.run(`UPDATE "${t}" SET school_id = ? WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
     }
-    // Legacy single admin becomes superadmin
-    try { run("UPDATE users SET role = 'superadmin' WHERE role = 'admin' AND (school_id = ? OR school_id = '')", [schoolId]) } catch {}
+    try { sqlite.run("UPDATE users SET role = 'superadmin' WHERE role = 'admin' AND (school_id = ? OR school_id = '')", [schoolId]) } catch {}
     saveDatabase()
   } catch (err) {
     console.error('Multi-school migration error:', err.message)
   }
 }
 
-const DEFAULT_GRADE_SKELETON = [
-  { grade: 'Grade 7', sections: ['Pine', 'Molave'] },
-  { grade: 'Grade 8', sections: ['Cypress', 'Narra'] },
-  { grade: 'Grade 9', sections: ['Kamagong', 'Mahogany'] },
-  { grade: 'Grade 10', sections: ['Acacia', 'Yakal'] }
-]
-
-export function seedGradeLevelsForSchool(schoolDbId) {
-  const existing = query('SELECT COUNT(*) as cnt FROM grade_levels WHERE school_id = ?', [schoolDbId])[0]?.cnt || 0
-  if (existing > 0) return
-  DEFAULT_GRADE_SKELETON.forEach((g, i) => {
-    run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
-      [`gl-${schoolDbId}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections), i])
-  })
-}
-
-// One-time backfill: schools that predate grade_levels get the default
-// skeleton (existing data was created under it). New schools start EMPTY so
-// each school defines its own grades/sections in Settings.
-function seedGradeLevels() {
+function seedGradeLevelsSqlite() {
   try {
-    const done = query("SELECT value FROM settings WHERE key = 'grade_levels_seeded'")[0]?.value
+    const done = querySync("SELECT value FROM settings WHERE key = 'grade_levels_seeded'")[0]?.value
     if (done) return
-    const schools = query('SELECT id FROM schools')
+    const schools = querySync('SELECT id FROM schools')
     for (const s of schools) {
-      try { seedGradeLevelsForSchool(s.id) } catch {}
+      try { seedGradeLevelsForSchoolSync(s.id) } catch {}
     }
-    try { run("INSERT INTO settings (key, value) VALUES ('grade_levels_seeded', '1')") } catch {}
+    try { sqlite.run("INSERT INTO settings (key, value) VALUES ('grade_levels_seeded', '1')") } catch {}
     saveDatabase()
   } catch (err) {
     console.error('Grade levels seed error:', err.message)
   }
 }
 
-export function getGradeLevels(schoolDbId) {
-  const rows = query('SELECT grade, sections, sort FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [schoolDbId])
+function seedGradeLevelsForSchoolSync(schoolDbId) {
+  const existing = querySync('SELECT COUNT(*) as cnt FROM grade_levels WHERE school_id = ?', [schoolDbId])[0]?.cnt || 0
+  if (existing > 0) return
+  DEFAULT_GRADE_SKELETON.forEach((g, i) => {
+    sqlite.run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
+      [`gl-${schoolDbId}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections), i])
+  })
+}
+
+export async function initDatabase() {
+  if (USE_PG) {
+    await initPostgres()
+  } else {
+    await initSqlite()
+  }
+  return getDb()
+}
+
+export { PG_DDL, DEFAULT_GRADE_SKELETON }
+
+export async function getGradeLevels(schoolDbId) {
+  const rows = await query('SELECT grade, sections, sort FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [schoolDbId])
   return rows.map(r => {
     let sections = []
     try { sections = JSON.parse(r.sections || '[]') } catch {}
@@ -328,17 +590,26 @@ export function getGradeLevels(schoolDbId) {
   })
 }
 
-export function setGradeLevels(schoolDbId, levels) {
-  run('DELETE FROM grade_levels WHERE school_id = ?', [schoolDbId])
-  levels.forEach((g, i) => {
-    run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
-      [`gl-${schoolDbId}-${Date.now().toString(36)}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections || []), i])
-  })
-  saveDatabase()
+export async function setGradeLevels(schoolDbId, levels) {
+  if (USE_PG) {
+    await run('DELETE FROM grade_levels WHERE school_id = ?', [schoolDbId])
+    for (let i = 0; i < (levels || []).length; i++) {
+      const g = levels[i]
+      await run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
+        [`gl-${schoolDbId}-${Date.now().toString(36)}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections || []), i])
+    }
+  } else {
+    sqlite.run('DELETE FROM grade_levels WHERE school_id = ?', [schoolDbId])
+    ;(levels || []).forEach((g, i) => {
+      sqlite.run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
+        [`gl-${schoolDbId}-${Date.now().toString(36)}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections || []), i])
+    })
+    saveDatabase()
+  }
 }
 
-export function isValidClass(schoolDbId, grade, section) {
-  const rows = query('SELECT sections FROM grade_levels WHERE school_id = ? AND grade = ?', [schoolDbId, grade])
+export async function isValidClass(schoolDbId, grade, section) {
+  const rows = await query('SELECT sections FROM grade_levels WHERE school_id = ? AND grade = ?', [schoolDbId, grade])
   if (!rows.length) return false
   if (!section) return true
   try {
@@ -356,8 +627,8 @@ function schoolRowToSettings(row) {
   }
 }
 
-export function getSchoolById(schoolId) {
-  const rows = query('SELECT * FROM schools WHERE id = ?', [schoolId])
+export async function getSchoolById(schoolId) {
+  const rows = await query('SELECT * FROM schools WHERE id = ?', [schoolId])
   return rows[0] || null
 }
 
@@ -369,32 +640,40 @@ const DEFAULT_SETTINGS = {
 }
 
 export function getDb() {
-  return db
+  return { pg: pgPool, sqlite }
 }
 
-export function getSettings(schoolId) {
-  // Prefer the schools table when a school id is provided
+export async function getSettings(schoolId) {
   if (schoolId) {
     try {
-      const row = getSchoolById(schoolId)
+      const row = await getSchoolById(schoolId)
       if (row) return schoolRowToSettings(row)
     } catch {}
   }
-  // Legacy fallback: settings key/value store
   const settings = { ...DEFAULT_SETTINGS }
-  if (!db) return settings
-  try {
-    const rows = query('SELECT key, value FROM settings')
-    for (const r of rows) {
-      if (r.key in settings) settings[r.key] = r.value
-    }
-  } catch {}
+  if (USE_PG) {
+    if (!pgPool) return settings
+    try {
+      const rows = await query('SELECT key, value FROM settings')
+      for (const r of rows) {
+        if (r.key in settings) settings[r.key] = r.value
+      }
+    } catch {}
+  } else {
+    if (!sqlite) return settings
+    try {
+      const rows = querySync('SELECT key, value FROM settings')
+      for (const r of rows) {
+        if (r.key in settings) settings[r.key] = r.value
+      }
+    } catch {}
+  }
   return settings
 }
 
-export function logAudit({ actor_id = '', actor_name = '', actor_role = '', actor_school_id = '', action = '', target_type = '', target_id = '', target_name = '', target_school_id = '', detail = '' }) {
+export async function logAudit({ actor_id = '', actor_name = '', actor_role = '', actor_school_id = '', action = '', target_type = '', target_id = '', target_name = '', target_school_id = '', detail = '' }) {
   try {
-    run(`INSERT INTO audit_logs (actor_id, actor_name, actor_role, actor_school_id, action, target_type, target_id, target_name, target_school_id, detail)
+    await run(`INSERT INTO audit_logs (actor_id, actor_name, actor_role, actor_school_id, action, target_type, target_id, target_name, target_school_id, detail)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [actor_id, actor_name, actor_role, actor_school_id, action, target_type, target_id, target_name, target_school_id, detail])
   } catch (err) {
@@ -402,7 +681,7 @@ export function logAudit({ actor_id = '', actor_name = '', actor_role = '', acto
   }
 }
 
-export function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short }) {
+export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short }) {
   const sets = []
   const params = []
   if (school_name !== undefined) { sets.push('name = ?'); params.push(String(school_name)) }
@@ -411,40 +690,14 @@ export function updateSchoolRow(schoolId, { school_name, school_id, school_addre
   if (school_short !== undefined) { sets.push('short = ?'); params.push(String(school_short)) }
   if (!sets.length) return getSchoolById(schoolId)
   params.push(schoolId)
-  run(`UPDATE schools SET ${sets.join(', ')} WHERE id = ?`, params)
+  await run(`UPDATE schools SET ${sets.join(', ')} WHERE id = ?`, params)
   return getSchoolById(schoolId)
 }
 
 export function saveDatabase() {
-  if (db) {
-    const data = db.export()
+  if (sqlite && !USE_PG) {
+    const data = sqlite.export()
     const buffer = Buffer.from(data)
     fs.writeFileSync(DB_PATH, buffer)
-  }
-}
-
-export function query(sql, params = []) {
-  try {
-    const stmt = db.prepare(sql)
-    if (params.length > 0) stmt.bind(params)
-    const results = []
-    while (stmt.step()) {
-      results.push(stmt.getAsObject())
-    }
-    stmt.free()
-    return results
-  } catch (err) {
-    console.error('SQL query error:', err.message)
-    throw err
-  }
-}
-
-export function run(sql, params = []) {
-  try {
-    db.run(sql, params)
-    saveDatabase()
-  } catch (err) {
-    console.error('SQL run error:', err.message)
-    throw err
   }
 }

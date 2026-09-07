@@ -9,10 +9,10 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
 
-router.get('/stats', (req, res) => {
-  const { me, error } = requireRole(req, res, 'superadmin', 'admin', 'teacher')
+router.get('/stats', async (req, res) => {
+  const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
   if (error) return
-  const scope = resolveScopeSchool(req, res, req.query.schoolId)
+  const scope = await resolveScopeSchool(req, res, req.query.schoolId)
   if (!scope) return
 
   try {
@@ -21,19 +21,19 @@ router.get('/stats', (req, res) => {
     const studentParams = sid ? [sid] : []
 
     // 1. Overall Student Demographics
-    const genderCounts = query(`
+    const genderCounts = (await query(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) as male,
         SUM(CASE WHEN LOWER(gender) = 'female' THEN 1 ELSE 0 END) as female
       FROM students
       ${studentFilter}
-    `, studentParams)[0] || { total: 0, male: 0, female: 0 }
+    `, studentParams))[0] || { total: 0, male: 0, female: 0 }
 
     // 2. Teachers & Advisers
     const teacherFilter = sid ? "WHERE role = 'teacher' AND school_id = ?" : "WHERE role = 'teacher'"
     const teacherParams = sid ? [sid] : []
-    const teacherRows = query(`
+    const teacherRows = await query(`
       SELECT id, name, grade, section FROM users ${teacherFilter}
     `, teacherParams)
     const teachersCount = teacherRows.length
@@ -46,7 +46,7 @@ router.get('/stats', (req, res) => {
     })
 
     // 3. Overall Attendance Aggregates
-    const attendanceSums = query(`
+    const attendanceSums = (await query(`
       SELECT 
         COALESCE(SUM(me.present), 0) as present,
         COALESCE(SUM(me.absent), 0) as absent,
@@ -55,7 +55,7 @@ router.get('/stats', (req, res) => {
       FROM monthly_entries me
       JOIN monthly_records mr ON mr.id = me.record_id
       ${sid ? 'WHERE mr.school_id = ?' : ''}
-    `, sid ? [sid] : [])[0] || { present: 0, absent: 0, tardy: 0, students_tracked: 0 }
+    `, sid ? [sid] : []))[0] || { present: 0, absent: 0, tardy: 0, students_tracked: 0 }
 
     const totalDays = attendanceSums.present + attendanceSums.absent
     const overallRate = totalDays > 0
@@ -63,18 +63,18 @@ router.get('/stats', (req, res) => {
       : 0
 
     // 4. Monthly Records Count & Entries Count
-    const recordsCount = query(
+    const recordsCount = (await query(
       `SELECT COUNT(*) as cnt FROM monthly_records ${sid ? 'WHERE school_id = ?' : ''}`,
       sid ? [sid] : []
-    )[0]?.cnt || 0
+    ))[0]?.cnt || 0
 
-    const entriesCount = query(
+    const entriesCount = (await query(
       `SELECT COUNT(*) as cnt FROM monthly_entries me JOIN monthly_records mr ON mr.id = me.record_id ${sid ? 'WHERE mr.school_id = ?' : ''}`,
       sid ? [sid] : []
-    )[0]?.cnt || 0
+    ))[0]?.cnt || 0
 
     // 5. Grade-Level & Section-Level Breakdowns
-    const gradeCounts = query(`
+    const gradeCounts = await query(`
       SELECT 
         s.grade,
         COUNT(*) as total,
@@ -86,7 +86,7 @@ router.get('/stats', (req, res) => {
       ORDER BY s.grade
     `, studentParams)
 
-    const gradeAttendanceRows = query(`
+    const gradeAttendanceRows = await query(`
       SELECT 
         mr.grade,
         COALESCE(SUM(me.present), 0) as present,
@@ -101,7 +101,7 @@ router.get('/stats', (req, res) => {
       gradeAttMap[g.grade] = { present: g.present, absent: g.absent }
     })
 
-    const sectionCounts = query(`
+    const sectionCounts = await query(`
       SELECT 
         s.grade,
         s.section,
@@ -114,7 +114,7 @@ router.get('/stats', (req, res) => {
       ORDER BY s.grade, s.section
     `, studentParams)
 
-    const sectionAttRows = query(`
+    const sectionAttRows = await query(`
       SELECT 
         mr.grade,
         mr.section,
@@ -167,7 +167,7 @@ router.get('/stats', (req, res) => {
     })
 
     // 6. Monthly Attendance Trends
-    const monthlyTrends = query(`
+    const monthlyTrends = (await query(`
       SELECT 
         mr.year,
         mr.month,
@@ -180,7 +180,7 @@ router.get('/stats', (req, res) => {
       ${sid ? 'WHERE mr.school_id = ?' : ''}
       GROUP BY mr.year, mr.month
       ORDER BY mr.year ASC, mr.month ASC
-    `, sid ? [sid] : []).map(m => {
+    `, sid ? [sid] : [])).map(m => {
       const tot = m.present + m.absent
       const rate = tot > 0 ? Number(((m.present / tot) * 100).toFixed(1)) : 0
       return {
@@ -196,7 +196,7 @@ router.get('/stats', (req, res) => {
     })
 
     // 6b. Per-record attendance aggregates (fallback when summary_data is empty)
-    const entryAggRows = query(
+    const entryAggRows = await query(
       "SELECT me.record_id as rid, COUNT(*) as c, COALESCE(SUM(me.present), 0) as p, COALESCE(SUM(me.absent), 0) as a FROM monthly_entries me JOIN monthly_records mr ON mr.id = me.record_id " + (sid ? "WHERE mr.school_id = ?" : "") + " GROUP BY me.record_id",
       sid ? [sid] : []
     )
@@ -204,7 +204,7 @@ router.get('/stats', (req, res) => {
     entryAggRows.forEach(r => { entryAgg[r.rid] = r })
 
     // 7. Recent Monthly Records (SF2)
-    const recentRecords = query(`
+    const recentRecords = (await query(`
       SELECT 
         mr.id,
         mr.month,
@@ -219,7 +219,7 @@ router.get('/stats', (req, res) => {
       ${sid ? 'WHERE mr.school_id = ?' : ''}
       ORDER BY mr.year DESC, mr.month DESC, mr.grade, mr.section
       LIMIT 8
-    `, sid ? [sid] : []).map(r => {
+    `, sid ? [sid] : [])).map(r => {
       let summary = {}
       try { summary = JSON.parse(r.summary_data || '{}') } catch {}
       const agg = entryAgg[r.id]
@@ -243,7 +243,7 @@ router.get('/stats', (req, res) => {
     })
 
     // 8. Chronic Absenteeism (High Absences Alert)
-    const chronicAbsenteeism = query(`
+    const chronicAbsenteeism = await query(`
       SELECT 
         me.student_id as studentId,
         me.student_name as studentName,
@@ -269,16 +269,16 @@ router.get('/stats', (req, res) => {
       const hasAdvisory = Boolean(tGrade && tSection)
 
       if (hasAdvisory) {
-        const tStudents = query(`
+        const tStudents = (await query(`
           SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) as male,
             SUM(CASE WHEN LOWER(gender) = 'female' THEN 1 ELSE 0 END) as female
           FROM students
           WHERE school_id = ? AND grade = ? AND section = ?
-        `, [tSchoolId, tGrade, tSection])[0] || { total: 0, male: 0, female: 0 }
+        `, [tSchoolId, tGrade, tSection]))[0] || { total: 0, male: 0, female: 0 }
 
-        const tAtt = query(`
+        const tAtt = (await query(`
           SELECT 
             COALESCE(SUM(me.present), 0) as present,
             COALESCE(SUM(me.absent), 0) as absent,
@@ -286,24 +286,24 @@ router.get('/stats', (req, res) => {
           FROM monthly_entries me
           JOIN monthly_records mr ON mr.id = me.record_id
           WHERE mr.school_id = ? AND mr.grade = ? AND mr.section = ?
-        `, [tSchoolId, tGrade, tSection])[0] || { present: 0, absent: 0, tardy: 0 }
+        `, [tSchoolId, tGrade, tSection]))[0] || { present: 0, absent: 0, tardy: 0 }
 
         const tDays = tAtt.present + tAtt.absent
         const tRate = tDays > 0 ? Number(((tAtt.present / tDays) * 100).toFixed(1)) : 0
 
-        const tAggRows = query(
+        const tAggRows = await query(
           "SELECT me.record_id as rid, COUNT(*) as c, COALESCE(SUM(me.present), 0) as p, COALESCE(SUM(me.absent), 0) as a FROM monthly_entries me JOIN monthly_records mr ON mr.id = me.record_id WHERE mr.school_id = ? AND mr.grade = ? AND mr.section = ? GROUP BY me.record_id",
           [tSchoolId, tGrade, tSection]
         )
         const tAgg = {}
         tAggRows.forEach(r => { tAgg[r.rid] = r })
 
-        const tRecords = query(`
+        const tRecords = (await query(`
           SELECT id, month, year, summary_data, school_id
           FROM monthly_records
           WHERE school_id = ? AND grade = ? AND section = ?
           ORDER BY year DESC, month DESC
-        `, [tSchoolId, tGrade, tSection]).map(r => {
+        `, [tSchoolId, tGrade, tSection])).map(r => {
           let summary = {}
           try { summary = JSON.parse(r.summary_data || '{}') } catch {}
           const tRowAgg = tAgg[r.id]
@@ -322,7 +322,7 @@ router.get('/stats', (req, res) => {
           }
         })
 
-        const tRoster = query(`
+        const tRoster = await query(`
           SELECT
             s.id,
             s.name,
@@ -354,7 +354,7 @@ router.get('/stats', (req, res) => {
           GROUP BY s.id
           ORDER BY s.name ASC`, [tSchoolId, tGrade, tSection])
 
-        const tAtRisk = query(`
+        const tAtRisk = await query(`
           SELECT
             me.student_id as studentId,
             me.student_name as studentName,

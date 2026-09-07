@@ -59,15 +59,15 @@ router.post('/sheets', (req, res) => {
   }
 })
 
-router.post('/sf2', (req, res) => {
+router.post('/sf2', async (req, res) => {
   try {
     const { sheetName, entries, month, year, grade, section, templatePath, summary_data, excluded_dates, adviser, schoolHead } = req.body
     if (!sheetName) return res.status(400).json({ error: 'sheetName is required' })
     if (!entries || !entries.length) return res.status(400).json({ error: 'No entries provided' })
-    const { me, error } = requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
     if (error) return
 
-    const scope = resolveScopeSchool(req, res, req.body.schoolId)
+    const scope = await resolveScopeSchool(req, res, req.body.schoolId)
     if (!scope) return
     if (scope.me.role === 'teacher') {
       const recGrade = req.body.grade
@@ -76,7 +76,7 @@ router.post('/sf2', (req, res) => {
         return res.status(403).json({ error: 'Forbidden: outside your advisory class' })
       }
     }
-    const school = getSettings(scope.schoolId || undefined)
+    const school = await getSettings(scope.schoolId || undefined)
 
     const tp = resolveTemplate(templatePath)
     if (!tp) return res.status(400).json({ error: 'Template file not found' })

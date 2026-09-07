@@ -5,8 +5,8 @@ import { requireRole, resolveScopeSchool } from './_context.js'
 
 const router = Router()
 
-function guardAttendanceRecord(req, res) {
-  const { me, error } = requireRole(req, res, 'superadmin', 'admin', 'teacher')
+async function guardAttendanceRecord(req, res) {
+  const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
   if (error) return null
   return me
 }
@@ -31,94 +31,109 @@ function canEdit(record, actor) {
   return false
 }
 
-router.get('/all', (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const scope = resolveScopeSchool(req, res, req.query.schoolId)
-  if (!scope) return
-  const records = scope.schoolId
-    ? query('SELECT * FROM attendance_records WHERE school_id = ? ORDER BY date DESC, grade, section', [scope.schoolId])
-    : query('SELECT * FROM attendance_records ORDER BY date DESC, grade, section')
-  res.json(records)
+router.get('/all', async (req, res) => {
+  try {
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+    const records = scope.schoolId
+      ? await query('SELECT * FROM attendance_records WHERE school_id = ? ORDER BY date DESC, grade, section', [scope.schoolId])
+      : await query('SELECT * FROM attendance_records ORDER BY date DESC, grade, section')
+    res.json(records)
+  } catch (err) {
+    console.error('Failed to fetch attendance records:', err.message)
+    res.status(500).json({ error: 'Failed to fetch attendance records' })
+  }
 })
 
-router.get('/', (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const scope = resolveScopeSchool(req, res, req.query.schoolId)
-  if (!scope) return
-  const { date, grade, section } = req.query
-  const params = [date, grade, section]
-  let sql = 'SELECT * FROM attendance_records WHERE date = ? AND grade = ? AND section = ?'
-  if (scope.schoolId) { sql += ' AND school_id = ?'; params.push(scope.schoolId) }
-  const records = query(sql, params)
+router.get('/', async (req, res) => {
+  try {
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+    const { date, grade, section } = req.query
+    const params = [date, grade, section]
+    let sql = 'SELECT * FROM attendance_records WHERE date = ? AND grade = ? AND section = ?'
+    if (scope.schoolId) { sql += ' AND school_id = ?'; params.push(scope.schoolId) }
+    const records = await query(sql, params)
 
-  if (records.length === 0) {
-    return res.json(null)
+    if (records.length === 0) {
+      return res.json(null)
+    }
+
+    const record = records[0]
+    const entries = await query(
+      'SELECT * FROM attendance_entries WHERE record_id = ? ORDER BY id',
+      [record.id]
+    )
+
+    record.entries = entries.map(e => ({
+      studentId: e.student_id,
+      name: e.name,
+      periods: {
+        am1: e.am1 || '', am2: e.am2 || '', am3: e.am3 || '',
+        am4: e.am4 || '', am5: e.am5 || '', am6: e.am6 || '',
+        pm1: e.pm1 || '', pm2: e.pm2 || '', pm3: e.pm3 || '', pm4: e.pm4 || ''
+      },
+      reason: e.reason || '',
+      excused: !!e.excused,
+      unexcused: !!e.unexcused,
+      nls: !!e.nls
+    }))
+
+    res.json(record)
+  } catch (err) {
+    console.error('Failed to fetch attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to fetch attendance record' })
   }
-
-  const record = records[0]
-  const entries = query(
-    'SELECT * FROM attendance_entries WHERE record_id = ? ORDER BY id',
-    [record.id]
-  )
-
-  record.entries = entries.map(e => ({
-    studentId: e.student_id,
-    name: e.name,
-    periods: {
-      am1: e.am1 || '', am2: e.am2 || '', am3: e.am3 || '',
-      am4: e.am4 || '', am5: e.am5 || '', am6: e.am6 || '',
-      pm1: e.pm1 || '', pm2: e.pm2 || '', pm3: e.pm3 || '', pm4: e.pm4 || ''
-    },
-    reason: e.reason || '',
-    excused: !!e.excused,
-    unexcused: !!e.unexcused,
-    nls: !!e.nls
-  }))
-
-  res.json(record)
 })
 
-router.post('/', (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const scope = resolveScopeSchool(req, res, req.body.schoolId)
-  if (!scope) return
-  if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
-  const { date, grade, section, adviser, entries, created_by, created_by_name } = req.body
-  const existing = query(
-    'SELECT id, created_by, created_by_name, school_id FROM attendance_records WHERE date = ? AND grade = ? AND section = ? AND school_id = ?',
-    [date, grade, section, scope.schoolId]
-  )
+router.post('/', async (req, res) => {
+  try {
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const scope = await resolveScopeSchool(req, res, req.body.schoolId)
+    if (!scope) return
+    if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
+    const { date, grade, section, adviser, entries, created_by, created_by_name } = req.body
+    const existing = await query(
+      'SELECT id, created_by, created_by_name, school_id FROM attendance_records WHERE date = ? AND grade = ? AND section = ? AND school_id = ?',
+      [date, grade, section, scope.schoolId]
+    )
 
-  let recordId
-  if (existing.length > 0) {
-    recordId = existing[0].id
-    if (!recordSchoolOk(me, existing[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-    run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
-    run('UPDATE attendance_records SET adviser=? WHERE id=?', [adviser, recordId])
-  } else {
-    recordId = uuidv4()
-    run('INSERT INTO attendance_records (id, date, grade, section, adviser, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [recordId, date, grade, section, adviser, created_by || '', created_by_name || '', scope.schoolId])
+    let recordId
+    if (existing.length > 0) {
+      recordId = existing[0].id
+      if (!recordSchoolOk(me, existing[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+      await run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
+      await run('UPDATE attendance_records SET adviser=? WHERE id=?', [adviser, recordId])
+    } else {
+      recordId = uuidv4()
+      await run('INSERT INTO attendance_records (id, date, grade, section, adviser, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [recordId, date, grade, section, adviser, created_by || '', created_by_name || '', scope.schoolId])
+    }
+
+    for (const entry of entries) {
+      await run(`INSERT INTO attendance_entries
+        (record_id, student_id, name, am1, am2, am3, am4, am5, am6, pm1, pm2, pm3, pm4, reason, excused, unexcused, nls)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          recordId, entry.studentId, entry.name,
+          entry.periods.am1 || '', entry.periods.am2 || '', entry.periods.am3 || '',
+          entry.periods.am4 || '', entry.periods.am5 || '', entry.periods.am6 || '',
+          entry.periods.pm1 || '', entry.periods.pm2 || '', entry.periods.pm3 || '', entry.periods.pm4 || '',
+          entry.reason || '', entry.excused ? 1 : 0, entry.unexcused ? 1 : 0, entry.nls ? 1 : 0
+        ])
+    }
+
+    const updated = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    res.json({ id: recordId, success: true, record: updated[0] || null })
+  } catch (err) {
+    console.error('Failed to save attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to save attendance record' })
   }
-
-  for (const entry of entries) {
-    run(`INSERT INTO attendance_entries
-      (record_id, student_id, name, am1, am2, am3, am4, am5, am6, pm1, pm2, pm3, pm4, reason, excused, unexcused, nls)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        recordId, entry.studentId, entry.name,
-        entry.periods.am1 || '', entry.periods.am2 || '', entry.periods.am3 || '',
-        entry.periods.am4 || '', entry.periods.am5 || '', entry.periods.am6 || '',
-        entry.periods.pm1 || '', entry.periods.pm2 || '', entry.periods.pm3 || '', entry.periods.pm4 || '',
-        entry.reason || '', entry.excused ? 1 : 0, entry.unexcused ? 1 : 0, entry.nls ? 1 : 0
-      ])
-  }
-
-  const updated = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-  res.json({ id: recordId, success: true, record: updated[0] || null })
 })
 
 function getAttendanceStatus(entry) {
@@ -149,144 +164,149 @@ function getAttendanceStatus(entry) {
   return ''
 }
 
-router.get('/monthly', (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const scope = resolveScopeSchool(req, res, req.query.schoolId)
-  if (!scope) return
-  if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
-  const { grade, section, month, year } = req.query
-  if (!grade || !section || !month || !year) {
-    return res.status(400).json({ error: 'grade, section, month, and year are required' })
-  }
+router.get('/monthly', async (req, res) => {
+  try {
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+    if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
+    const { grade, section, month, year } = req.query
+    if (!grade || !section || !month || !year) {
+      return res.status(400).json({ error: 'grade, section, month, and year are required' })
+    }
 
-  const m = String(month).padStart(2, '0')
-  const prefix = `${year}-${m}`
-  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? AND school_id = ? ORDER BY name', [grade, section, scope.schoolId])
-  const records = query(
-    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? AND school_id = ? ORDER BY date',
-    [grade, section, prefix + '%', scope.schoolId]
-  )
+    const m = String(month).padStart(2, '0')
+    const prefix = `${year}-${m}`
+    const students = await query('SELECT * FROM students WHERE grade = ? AND section = ? AND school_id = ? ORDER BY name', [grade, section, scope.schoolId])
+    const records = await query(
+      'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? AND school_id = ? ORDER BY date',
+      [grade, section, prefix + '%', scope.schoolId]
+    )
 
-  const dateSet = [...new Set(records.map(r => r.date))].sort()
-  const entriesByRecord = {}
-  for (const r of records) {
-    entriesByRecord[r.id] = query('SELECT * FROM attendance_entries WHERE record_id = ?', [r.id])
-  }
-
-  const dayAbbr = { 'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'TH','Friday':'F','Saturday':'SA','Sunday':'SU' }
-  function getDayAbbr(dateStr) {
-    return dayAbbr[['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(dateStr + 'T00:00:00').getDay()]]
-  }
-
-  const dates = dateSet.map(d => ({
-    date: d,
-    day: parseInt(d.split('-')[2], 10),
-    dayName: getDayAbbr(d)
-  }))
-
-  const totalSchoolDays = dates.length
-
-  const rows = students.map(s => {
-    const dayStatus = {}
-    const reasons = []
-    let nls = false
+    const dateSet = [...new Set(records.map(r => r.date))].sort()
+    const entriesByRecord = {}
     for (const r of records) {
-      const recEntries = entriesByRecord[r.id] || []
-      const match = recEntries.find(e => e.student_id === s.id)
-      if (match) {
-        dayStatus[r.date] = getAttendanceStatus(match)
-        if (match.reason) reasons.push({ date: r.date, text: match.reason })
-        if (match.nls) nls = true
-      }
+      entriesByRecord[r.id] = await query('SELECT * FROM attendance_entries WHERE record_id = ?', [r.id])
     }
-    const absentCount = Object.values(dayStatus).reduce((sum, v) => {
-      if (v === 'x') return sum + 1
-      if (v === 'hd' || v === 'th') return sum + 0.5
-      return sum
-    }, 0)
-    const presentCount = totalSchoolDays - absentCount
-    const remark = nls ? 'NLS' : reasons.map(r => `${r.date}: ${r.text}`).join('; ')
-    return {
-      studentId: s.id,
-      name: s.name,
-      gender: s.gender || '',
-      dayStatus,
-      absentCount,
-      presentCount,
-      nls,
-      remark
-    }
-  })
 
-  res.json({ grade, section, month, year, dates, totalSchoolDays, rows })
+    const dayAbbr = { 'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'TH','Friday':'F','Saturday':'SA','Sunday':'SU' }
+    function getDayAbbr(dateStr) {
+      return dayAbbr[['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(dateStr + 'T00:00:00').getDay()]]
+    }
+
+    const dates = dateSet.map(d => ({
+      date: d,
+      day: parseInt(d.split('-')[2], 10),
+      dayName: getDayAbbr(d)
+    }))
+
+    const totalSchoolDays = dates.length
+
+    const rows = students.map(s => {
+      const dayStatus = {}
+      const reasons = []
+      let nls = false
+      for (const r of records) {
+        const recEntries = entriesByRecord[r.id] || []
+        const match = recEntries.find(e => e.student_id === s.id)
+        if (match) {
+          dayStatus[r.date] = getAttendanceStatus(match)
+          if (match.reason) reasons.push({ date: r.date, text: match.reason })
+          if (match.nls) nls = true
+        }
+      }
+      const absentCount = Object.values(dayStatus).reduce((sum, v) => {
+        if (v === 'x') return sum + 1
+        if (v === 'hd' || v === 'th') return sum + 0.5
+        return sum
+      }, 0)
+      const presentCount = totalSchoolDays - absentCount
+      const remark = nls ? 'NLS' : reasons.map(r => `${r.date}: ${r.text}`).join('; ')
+      return {
+        studentId: s.id,
+        name: s.name,
+        gender: s.gender || '',
+        dayStatus,
+        absentCount,
+        presentCount,
+        nls,
+        remark
+      }
+    })
+
+    res.json({ grade, section, month, year, dates, totalSchoolDays, rows })
+  } catch (err) {
+    console.error('Failed to fetch monthly attendance:', err.message)
+    res.status(500).json({ error: 'Failed to fetch monthly attendance' })
+  }
 })
 
 router.get('/monthly/excel', async (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const scope = resolveScopeSchool(req, res, req.query.schoolId)
-  if (!scope) return
-  if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
-  const { grade, section, month, year } = req.query
-  if (!grade || !section || !month || !year) {
-    return res.status(400).json({ error: 'grade, section, month, and year are required' })
-  }
-
-  const m = String(month).padStart(2, '0')
-  const prefix = `${year}-${m}`
-  const students = query('SELECT * FROM students WHERE grade = ? AND section = ? AND school_id = ? ORDER BY name', [grade, section, scope.schoolId])
-  const records = query(
-    'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? AND school_id = ? ORDER BY date',
-    [grade, section, prefix + '%', scope.schoolId]
-  )
-
-  const dateSet = [...new Set(records.map(r => r.date))].sort()
-  const entriesByRecord = {}
-  for (const r of records) {
-    entriesByRecord[r.id] = query('SELECT * FROM attendance_entries WHERE record_id = ?', [r.id])
-  }
-
-  const dayAbbr = { 'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'TH','Friday':'F','Saturday':'SA','Sunday':'SU' }
-  function getDayAbbr(dateStr) {
-    return dayAbbr[['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(dateStr + 'T00:00:00').getDay()]]
-  }
-
-  const dates = dateSet.map(d => ({
-    date: d,
-    day: parseInt(d.split('-')[2], 10),
-    dayName: getDayAbbr(d)
-  }))
-
-  const totalSchoolDays = dates.length
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
-  const monthName = monthNames[parseInt(month) - 1].toUpperCase()
-  const sy = `${year}-${parseInt(year) + 1}`
-
-  const rows = students.map(s => {
-    const dayStatus = {}
-    const reasons = []
-    let nls = false
-    for (const r of records) {
-      const recEntries = entriesByRecord[r.id] || []
-      const match = recEntries.find(e => e.student_id === s.id)
-      if (match) {
-        dayStatus[r.date] = getAttendanceStatus(match)
-        if (match.reason) reasons.push({ date: r.date, text: match.reason })
-        if (match.nls) nls = true
-      }
-    }
-    const absentCount = Object.values(dayStatus).reduce((sum, v) => {
-      if (v === 'x') return sum + 1
-      if (v === 'hd' || v === 'th') return sum + 0.5
-      return sum
-    }, 0)
-    const presentCount = totalSchoolDays - absentCount
-    const remark = nls ? 'NLS' : reasons.map(r => `${r.date}: ${r.text}`).join('; ')
-    return { name: s.name, dayStatus, absentCount, presentCount, remark }
-  })
-
   try {
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+    if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
+    const { grade, section, month, year } = req.query
+    if (!grade || !section || !month || !year) {
+      return res.status(400).json({ error: 'grade, section, month, and year are required' })
+    }
+
+    const m = String(month).padStart(2, '0')
+    const prefix = `${year}-${m}`
+    const students = await query('SELECT * FROM students WHERE grade = ? AND section = ? AND school_id = ? ORDER BY name', [grade, section, scope.schoolId])
+    const records = await query(
+      'SELECT * FROM attendance_records WHERE grade = ? AND section = ? AND date LIKE ? AND school_id = ? ORDER BY date',
+      [grade, section, prefix + '%', scope.schoolId]
+    )
+
+    const dateSet = [...new Set(records.map(r => r.date))].sort()
+    const entriesByRecord = {}
+    for (const r of records) {
+      entriesByRecord[r.id] = await query('SELECT * FROM attendance_entries WHERE record_id = ?', [r.id])
+    }
+
+    const dayAbbr = { 'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'TH','Friday':'F','Saturday':'SA','Sunday':'SU' }
+    function getDayAbbr(dateStr) {
+      return dayAbbr[['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(dateStr + 'T00:00:00').getDay()]]
+    }
+
+    const dates = dateSet.map(d => ({
+      date: d,
+      day: parseInt(d.split('-')[2], 10),
+      dayName: getDayAbbr(d)
+    }))
+
+    const totalSchoolDays = dates.length
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
+    const monthName = monthNames[parseInt(month) - 1].toUpperCase()
+    const sy = `${year}-${parseInt(year) + 1}`
+
+    const rows = students.map(s => {
+      const dayStatus = {}
+      const reasons = []
+      let nls = false
+      for (const r of records) {
+        const recEntries = entriesByRecord[r.id] || []
+        const match = recEntries.find(e => e.student_id === s.id)
+        if (match) {
+          dayStatus[r.date] = getAttendanceStatus(match)
+          if (match.reason) reasons.push({ date: r.date, text: match.reason })
+          if (match.nls) nls = true
+        }
+      }
+      const absentCount = Object.values(dayStatus).reduce((sum, v) => {
+        if (v === 'x') return sum + 1
+        if (v === 'hd' || v === 'th') return sum + 0.5
+        return sum
+      }, 0)
+      const presentCount = totalSchoolDays - absentCount
+      const remark = nls ? 'NLS' : reasons.map(r => `${r.date}: ${r.text}`).join('; ')
+      return { name: s.name, dayStatus, absentCount, presentCount, remark }
+    })
+
     const xlsxMod = await import('xlsx')
     const XLSX = xlsxMod.default || xlsxMod
     const wb = XLSX.utils.book_new()
@@ -306,7 +326,7 @@ router.get('/monthly/excel', async (req, res) => {
     r1[0] = '(This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)'
     wsData.push(r1)
 
-    const school = getSettings(scope.schoolId)
+    const school = await getSettings(scope.schoolId)
 
     // Row 2: School ID, School Year, Month
     const r2 = Array(maxCol).fill(null)
@@ -422,141 +442,162 @@ router.get('/monthly/excel', async (req, res) => {
   }
 })
 
-router.get('/:id', (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const { id } = req.params
-  const records = query('SELECT * FROM attendance_records WHERE id = ?', [id])
-
-  if (records.length === 0) {
-    return res.status(404).json({ error: 'Record not found' })
-  }
-  if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-
-  const record = records[0]
-  const entries = query(
-    'SELECT * FROM attendance_entries WHERE record_id = ? ORDER BY id',
-    [id]
-  )
-
-  record.entries = entries.map(e => ({
-    studentId: e.student_id,
-    name: e.name,
-    periods: {
-      am1: e.am1 || '', am2: e.am2 || '', am3: e.am3 || '',
-      am4: e.am4 || '', am5: e.am5 || '', am6: e.am6 || '',
-      pm1: e.pm1 || '', pm2: e.pm2 || '', pm3: e.pm3 || '', pm4: e.pm4 || ''
-    },
-    reason: e.reason || '',
-    excused: !!e.excused,
-    unexcused: !!e.unexcused,
-    nls: !!e.nls
-  }))
-
-  res.json(record)
-})
-
-router.put('/:recordId/entry', (req, res) => {
-  const { recordId } = req.params
-  const { studentId, field, value, userId, userRole } = req.body
-
-  const records = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-  if (records.length === 0) {
-    return res.status(404).json({ error: 'Record not found' })
-  }
-  const actor = query('SELECT * FROM users WHERE id = ?', [userId])[0]
-  if (!actor) return res.status(401).json({ error: 'Not authenticated' })
-  if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-
-  if (!canEdit(records[0], actor)) {
-    return res.status(403).json({ error: 'Only the advisory teacher or an admin can edit this record' })
-  }
-
-  if (field.startsWith('periods.')) {
-    const periodKey = field.split('.')[1]
-    const validPeriods = ['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4']
-    if (!validPeriods.includes(periodKey)) {
-      return res.status(400).json({ error: 'Invalid period' })
-    }
-    run(`UPDATE attendance_entries SET ${periodKey}=? WHERE record_id=? AND student_id=?`,
-      [value, recordId, studentId])
-  } else if (field === 'reason') {
-    run('UPDATE attendance_entries SET reason=? WHERE record_id=? AND student_id=?',
-      [value, recordId, studentId])
-  } else if (field === 'excused') {
-    run('UPDATE attendance_entries SET excused=? WHERE record_id=? AND student_id=?',
-      [value ? 1 : 0, recordId, studentId])
-  } else if (field === 'unexcused') {
-    run('UPDATE attendance_entries SET unexcused=? WHERE record_id=? AND student_id=?',
-      [value ? 1 : 0, recordId, studentId])
-  } else if (field === 'nls') {
-    run('UPDATE attendance_entries SET nls=? WHERE record_id=? AND student_id=?',
-      [value ? 1 : 0, recordId, studentId])
-  }
-
-  res.json({ success: true })
-})
-
-router.put('/:recordId/unlock', (req, res) => {
-  const { recordId } = req.params
-  const { userId, userRole } = req.body
-
-  if (userRole !== 'admin' && userRole !== 'superadmin') {
-    return res.status(403).json({ error: 'Only admins can unlock records' })
-  }
-
-  const records = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-  if (records.length === 0) {
-    return res.status(404).json({ error: 'Record not found' })
-  }
-  const actor = query('SELECT * FROM users WHERE id = ?', [userId])[0]
-  if (!actor) return res.status(401).json({ error: 'Not authenticated' })
-  if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-
-  run('UPDATE attendance_records SET created_by=?, created_by_name=? WHERE id=?',
-    [userId, '', recordId])
-
-  res.json({ success: true })
-})
-
-router.put('/:recordId', (req, res) => {
-  const me = guardAttendanceRecord(req, res)
-  if (!me) return
-  const { recordId } = req.params
-  const { date, grade, section, adviser } = req.body
-  const records = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-  if (records.length === 0) return res.status(404).json({ error: 'Record not found' })
-  if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+router.get('/:id', async (req, res) => {
   try {
-    run('UPDATE attendance_records SET date=?, grade=?, section=?, adviser=? WHERE id=?',
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const { id } = req.params
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [id])
+
+    if (records.length === 0) {
+      return res.status(404).json({ error: 'Record not found' })
+    }
+    if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+
+    const record = records[0]
+    const entries = await query(
+      'SELECT * FROM attendance_entries WHERE record_id = ? ORDER BY id',
+      [id]
+    )
+
+    record.entries = entries.map(e => ({
+      studentId: e.student_id,
+      name: e.name,
+      periods: {
+        am1: e.am1 || '', am2: e.am2 || '', am3: e.am3 || '',
+        am4: e.am4 || '', am5: e.am5 || '', am6: e.am6 || '',
+        pm1: e.pm1 || '', pm2: e.pm2 || '', pm3: e.pm3 || '', pm4: e.pm4 || ''
+      },
+      reason: e.reason || '',
+      excused: !!e.excused,
+      unexcused: !!e.unexcused,
+      nls: !!e.nls
+    }))
+
+    res.json(record)
+  } catch (err) {
+    console.error('Failed to fetch attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to fetch attendance record' })
+  }
+})
+
+router.put('/:recordId/entry', async (req, res) => {
+  try {
+    const { recordId } = req.params
+    const { studentId, field, value, userId, userRole } = req.body
+
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    if (records.length === 0) {
+      return res.status(404).json({ error: 'Record not found' })
+    }
+    const actor = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
+    if (!actor) return res.status(401).json({ error: 'Not authenticated' })
+    if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+
+    if (!canEdit(records[0], actor)) {
+      return res.status(403).json({ error: 'Only the advisory teacher or an admin can edit this record' })
+    }
+
+    if (field.startsWith('periods.')) {
+      const periodKey = field.split('.')[1]
+      const validPeriods = ['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4']
+      if (!validPeriods.includes(periodKey)) {
+        return res.status(400).json({ error: 'Invalid period' })
+      }
+      await run(`UPDATE attendance_entries SET ${periodKey}=? WHERE record_id=? AND student_id=?`,
+        [value, recordId, studentId])
+    } else if (field === 'reason') {
+      await run('UPDATE attendance_entries SET reason=? WHERE record_id=? AND student_id=?',
+        [value, recordId, studentId])
+    } else if (field === 'excused') {
+      await run('UPDATE attendance_entries SET excused=? WHERE record_id=? AND student_id=?',
+        [value ? 1 : 0, recordId, studentId])
+    } else if (field === 'unexcused') {
+      await run('UPDATE attendance_entries SET unexcused=? WHERE record_id=? AND student_id=?',
+        [value ? 1 : 0, recordId, studentId])
+    } else if (field === 'nls') {
+      await run('UPDATE attendance_entries SET nls=? WHERE record_id=? AND student_id=?',
+        [value ? 1 : 0, recordId, studentId])
+    }
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to update attendance entry:', err.message)
+    res.status(500).json({ error: 'Failed to update attendance entry' })
+  }
+})
+
+router.put('/:recordId/unlock', async (req, res) => {
+  try {
+    const { recordId } = req.params
+    const { userId, userRole } = req.body
+
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      return res.status(403).json({ error: 'Only admins can unlock records' })
+    }
+
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    if (records.length === 0) {
+      return res.status(404).json({ error: 'Record not found' })
+    }
+    const actor = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
+    if (!actor) return res.status(401).json({ error: 'Not authenticated' })
+    if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+
+    await run('UPDATE attendance_records SET created_by=?, created_by_name=? WHERE id=?',
+      [userId, '', recordId])
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to unlock attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to unlock attendance record' })
+  }
+})
+
+router.put('/:recordId', async (req, res) => {
+  try {
+    const me = await guardAttendanceRecord(req, res)
+    if (!me) return
+    const { recordId } = req.params
+    const { date, grade, section, adviser } = req.body
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    if (records.length === 0) return res.status(404).json({ error: 'Record not found' })
+    if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    await run('UPDATE attendance_records SET date=?, grade=?, section=?, adviser=? WHERE id=?',
       [date, grade, section, adviser, recordId])
     res.json({ success: true })
-  } catch {
-    res.status(500).json({ error: 'Failed to update record' })
+  } catch (err) {
+    console.error('Failed to update attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to update attendance record' })
   }
 })
 
-router.delete('/:recordId', (req, res) => {
-  const { recordId } = req.params
-  const userId = req.query.userId
-  const userRole = req.query.userRole
+router.delete('/:recordId', async (req, res) => {
+  try {
+    const { recordId } = req.params
+    const userId = req.query.userId
+    const userRole = req.query.userRole
 
-  const records = query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-  if (records.length === 0) {
-    return res.status(404).json({ error: 'Record not found' })
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    if (records.length === 0) {
+      return res.status(404).json({ error: 'Record not found' })
+    }
+    const actor = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
+    if (!actor) return res.status(401).json({ error: 'Not authenticated' })
+    if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+
+    if (userRole !== 'admin' && userRole !== 'superadmin' && records[0].created_by !== userId) {
+      return res.status(403).json({ error: 'Only the owner or an admin can delete this record' })
+    }
+
+    await run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
+    await run('DELETE FROM attendance_records WHERE id = ?', [recordId])
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to delete attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to delete attendance record' })
   }
-  const actor = query('SELECT * FROM users WHERE id = ?', [userId])[0]
-  if (!actor) return res.status(401).json({ error: 'Not authenticated' })
-  if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-
-  if (userRole !== 'admin' && userRole !== 'superadmin' && records[0].created_by !== userId) {
-    return res.status(403).json({ error: 'Only the owner or an admin can delete this record' })
-  }
-
-  run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
-  run('DELETE FROM attendance_records WHERE id = ?', [recordId])
-
-  res.json({ success: true })
 })
 
 export default router

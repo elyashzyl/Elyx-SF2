@@ -1,11 +1,49 @@
 services:
-  app:
-    build: .
-    ports:
-      - "3001:3001"
-    volumes:
-      - elyx-data:/data
+  db:
+    image: postgres:16-alpine
     restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-elyx}
+      POSTGRES_USER: ${POSTGRES_USER:-elyx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elyxsecret}
+    volumes:
+      - elyx-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-elyx} -d ${POSTGRES_DB:-elyx}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  app:
+    build:
+      context: .
+      target: app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-elyx}:${POSTGRES_PASSWORD:-elyxsecret}@db:5432/${POSTGRES_DB:-elyx}
+      HOST: 0.0.0.0
+      PORT: 3001
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
 
 volumes:
-  elyx-data:
+  elyx-pgdata:

@@ -11,3 +11,4 @@ dist
 attendance.db
 exports/
 *.xlsx
+!templates/*.xlsx
