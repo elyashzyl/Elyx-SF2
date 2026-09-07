@@ -24,9 +24,16 @@ export async function initDatabase() {
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('superadmin', 'admin', 'teacher'))
+      role TEXT NOT NULL CHECK(role IN ('superadmin', 'admin', 'teacher')),
+      grade TEXT DEFAULT '',
+      section TEXT DEFAULT '',
+      period TEXT DEFAULT '',
+      school_id TEXT DEFAULT ''
     )
   `)
+  try { db.run("ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''") } catch {}
+  try { db.run("ALTER TABLE users ADD COLUMN section TEXT DEFAULT ''") } catch {}
+  try { db.run("ALTER TABLE users ADD COLUMN period TEXT DEFAULT ''") } catch {}
   try { db.run("ALTER TABLE users ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
   // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
   try {
@@ -70,24 +77,6 @@ export async function initDatabase() {
       grade TEXT NOT NULL,
       sections TEXT NOT NULL DEFAULT '[]',
       sort INTEGER DEFAULT 0
-    )
-  `)
-
-  // Superadmin activity log.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      actor_id TEXT DEFAULT '',
-      actor_name TEXT DEFAULT '',
-      actor_role TEXT DEFAULT '',
-      actor_school_id TEXT DEFAULT '',
-      action TEXT NOT NULL,
-      target_type TEXT DEFAULT '',
-      target_id TEXT DEFAULT '',
-      target_name TEXT DEFAULT '',
-      target_school_id TEXT DEFAULT '',
-      detail TEXT DEFAULT ''
     )
   `)
 
