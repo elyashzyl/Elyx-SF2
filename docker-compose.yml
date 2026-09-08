@@ -3,36 +3,36 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-elyx}
       POSTGRES_USER: ${POSTGRES_USER:-elyx}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elyxsecret}
+      POSTGRES_DB: ${POSTGRES_DB:-elyx}
     volumes:
-      - elyx-pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-elyx} -d ${POSTGRES_DB:-elyx}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
+    networks:
+      - elyx-net
 
   app:
     build:
       context: .
       target: app
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-elyx}:${POSTGRES_PASSWORD:-elyxsecret}@db:5432/${POSTGRES_DB:-elyx}
-      HOST: 0.0.0.0
-      PORT: 3001
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
-      interval: 30s
-      timeout: 5s
-      start_period: 15s
-      retries: 3
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-elyx}:${POSTGRES_PASSWORD:-elyxsecret}@db:5432/${POSTGRES_DB:-elyx}}
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+    expose:
+      - "3001"
+    networks:
+      - elyx-net
 
   web:
     build:
@@ -40,10 +40,15 @@ services:
       target: web
     restart: unless-stopped
     depends_on:
-      app:
-        condition: service_healthy
+      - app
     ports:
-      - "80:80"
+      - "${APP_PORT:-80}:80"
+    networks:
+      - elyx-net
 
 volumes:
-  elyx-pgdata:
+  pgdata:
+
+networks:
+  elyx-net:
+    driver: bridge
