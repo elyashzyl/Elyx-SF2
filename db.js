@@ -595,19 +595,27 @@ function seedGradeLevelsForSchoolSync(schoolDbId) {
 }
 
 export async function initDatabase() {
+  // Diagnostic dump so deployments can see exactly what the container has.
+  console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_POSTGRES=${process.env.REQUIRE_POSTGRES ?? '(unset)'} ALLOW_PERSISTED_SQLITE=${process.env.ALLOW_PERSISTED_SQLITE ?? '(unset)'}`)
+  console.log(`[db] env: DATABASE_URL=${process.env.DATABASE_URL ? 'PRESENT' : 'MISSING'} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
   if (USE_PG) {
     await initPostgres()
     console.log(`[db] PostgreSQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
-  } else if (process.env.REQUIRE_POSTGRES === '1' || process.env.NODE_ENV === 'production') {
+  } else if (process.env.REQUIRE_POSTGRES === '1' || (process.env.NODE_ENV === 'production' && process.env.ALLOW_PERSISTED_SQLITE !== '1')) {
     // Silently using SQLite on an ephemeral container disk is what caused all
     // data to vanish on every redeploy. Refuse to start instead.
     console.error('[db] FATAL: DATABASE_URL is not set.')
     console.error('[db] Production/forced mode refuses to run on the ephemeral SQLite fallback, because the database file lives inside the container and is deleted on every redeploy.')
-    console.error('[db] Fix: add the platform\'s PostgreSQL connection string as the DATABASE_URL environment variable, then redeploy.')
+    console.error('[db] Fix (recommended): add the PostgreSQL connection string as the DATABASE_URL environment variable, then redeploy.')
+    console.error("[db] Emergency fallback ONLY: set ALLOW_PERSISTED_SQLITE=1 AND mount a persistent Docker volume to /data (DB_PATH=/data/attendance.db) to accept responsibility for a SQLite file on that volume.")
     throw new Error('DATABASE_URL is required (Postgres must be enabled). The SQLite fallback is disabled when NODE_ENV=production or REQUIRE_POSTGRES=1.')
   } else {
     await initSqlite()
-    console.warn('[db] SQLite backend ready (attendance.db) — LOCAL DEV ONLY. Data is stored in the container filesystem and WILL BE LOST on redeploy. Set DATABASE_URL on a production host.')
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[db] WARNING: running SQLite in PRODUCTION via ALLOW_PERSISTED_SQLITE=1. DB_PATH=' + (process.env.DB_PATH || 'default') + '. You must have a persistent volume mounted there or you WILL lose data on redeploy.')
+    } else {
+      console.warn('[db] SQLite backend ready (attendance.db) — LOCAL DEV ONLY. Set DATABASE_URL on a production host.')
+    }
   }
   return getDb()
 }

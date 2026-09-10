@@ -27,6 +27,10 @@ FROM node:22-alpine AS app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3001
+# Used ONLY when ALLOW_PERSISTED_SQLITE=1 (emergency fallback); Postgres
+# deployments ignore it. Points the SQLite file at a mountable volume so the
+# escape hatch can persist data across redeploys.
+ENV DB_PATH=/data/attendance.db
 
 WORKDIR /app
 
@@ -41,10 +45,15 @@ COPY templates ./templates
 COPY --from=build /app/dist ./dist
 
 # Allow template uploads (POST /export/template) to write templates/SF2.xlsx
-RUN chown -R node:node /app
+# and give the app user ownership of the SQLite-fallback data mount.
+RUN chown -R node:node /app \
+  && mkdir -p /data && chown node:node /data
 
 # Run as non-root
 USER node
+
+# Persistent mount point for the SQLite-fallback database (see ALLOW_PERSISTED_SQLITE)
+VOLUME ["/data"]
 
 EXPOSE 3001
 
