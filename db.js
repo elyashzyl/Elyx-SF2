@@ -597,7 +597,8 @@ function seedGradeLevelsForSchoolSync(schoolDbId) {
 export async function initDatabase() {
   // Diagnostic dump so deployments can see exactly what the container has.
   console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_POSTGRES=${process.env.REQUIRE_POSTGRES ?? '(unset)'} ALLOW_PERSISTED_SQLITE=${process.env.ALLOW_PERSISTED_SQLITE ?? '(unset)'}`)
-  console.log(`[db] env: DATABASE_URL=${process.env.DATABASE_URL ? 'PRESENT' : 'MISSING'} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
+  const urlState = !process.env.DATABASE_URL ? 'MISSING' : (process.env.DATABASE_URL === '' ? 'EMPTY-STRING (treated as missing!)' : 'PRESENT')
+  console.log(`[db] env: DATABASE_URL=${urlState} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
   if (USE_PG) {
     await initPostgres()
     console.log(`[db] PostgreSQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
