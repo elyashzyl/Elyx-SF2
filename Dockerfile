@@ -27,9 +27,10 @@ FROM node:22-alpine AS app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3001
-# Used ONLY when ALLOW_PERSISTED_SQLITE=1 (emergency fallback); Postgres
-# deployments ignore it. Points the SQLite file at a mountable volume so the
-# escape hatch can persist data across redeploys.
+# Use the persistent SQLite database in production when no Postgres is wired up
+# (single-container deployments). Data is stored on the mounted volume at /data.
+ENV ALLOW_PERSISTED_SQLITE=1
+# Points the SQLite file at a mountable volume so data persists across redeploys.
 ENV DB_PATH=/data/attendance.db
 
 WORKDIR /app
