@@ -3,13 +3,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-elyx}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elyxsecret}
-      POSTGRES_DB: ${POSTGRES_DB:-elyx}
+      POSTGRES_USER: elyx
+      POSTGRES_PASSWORD: elyxsecret
+      POSTGRES_DB: elyx
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-elyx} -d ${POSTGRES_DB:-elyx}"]
+      test: ["CMD-SHELL", "pg_isready -U elyx -d elyx"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-elyx}:${POSTGRES_PASSWORD:-elyxsecret}@db:5432/${POSTGRES_DB:-elyx}}
+      DATABASE_URL: postgres://elyx:elyxsecret@db:5432/elyx
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3001
