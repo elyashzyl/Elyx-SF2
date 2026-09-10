@@ -5,11 +5,15 @@ import pg from 'pg'
 import initSqlJs from 'sql.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'attendance.db')
-const USE_PG = !!process.env.DATABASE_URL
+const DB_PATH = (
+  process.env.NODE_ENV === 'production'
+    ? (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH) ? process.env.DB_PATH : '/data/attendance.db')
+    : (process.env.DB_PATH || path.join(__dirname, 'attendance.db'))
+)
+let USE_PG = !!process.env.DATABASE_URL
 
 // Reports which backend the process is running on (used by /api/health).
-export const DB_MODE = USE_PG ? 'postgres' : 'sqlite'
+export let DB_MODE = USE_PG ? 'postgres' : 'sqlite'
 
 let pgPool = null
 let sqlite = null
@@ -600,8 +604,20 @@ export async function initDatabase() {
   const urlState = !process.env.DATABASE_URL ? 'MISSING' : (process.env.DATABASE_URL === '' ? 'EMPTY-STRING (treated as missing!)' : 'PRESENT')
   console.log(`[db] env: DATABASE_URL=${urlState} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
   if (USE_PG) {
-    await initPostgres()
-    console.log(`[db] PostgreSQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
+    try {
+      await initPostgres()
+      console.log(`[db] PostgreSQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
+    } catch (err) {
+      const canFallback = process.env.ALLOW_PERSISTED_SQLITE === '1' && process.env.REQUIRE_POSTGRES !== '1'
+      if (!canFallback) throw err
+      console.error(`[db] WARNING: PostgreSQL connection failed (${err.message}). Falling back to SQLite because ALLOW_PERSISTED_SQLITE=1.`)
+      await pgPool?.end().catch(() => {})
+      pgPool = null
+      USE_PG = false
+      DB_MODE = 'sqlite'
+      await initSqlite()
+      console.warn(`[db] SQLite backend ready (fallback). DB_PATH=${DB_PATH} - mount a persistent volume here or you WILL lose data on redeploy.`)
+    }
   } else if (process.env.REQUIRE_POSTGRES === '1' || (process.env.NODE_ENV === 'production' && process.env.ALLOW_PERSISTED_SQLITE !== '1')) {
     // Silently using SQLite on an ephemeral container disk is what caused all
     // data to vanish on every redeploy. Refuse to start instead.
