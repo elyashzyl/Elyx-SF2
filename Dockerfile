@@ -26,7 +26,7 @@ FROM node:22-alpine AS app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=3001
+ENV PORT=5173
 # Use the persistent SQLite database in production when no Postgres is wired up
 # (single-container deployments). Data is stored on the mounted volume at /data.
 ENV ALLOW_PERSISTED_SQLITE=1
@@ -55,10 +55,9 @@ USER node
 
 # Persistent mount point for the SQLite-fallback database (see ALLOW_PERSISTED_SQLITE)
 VOLUME ["/data"]
-
-EXPOSE 3001
+EXPOSE 5173
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
+  CMD wget -qO- http://127.0.0.1:${PORT:-5173}/api/health || exit 1
 
 CMD ["node", "server.js"]
