@@ -1,15 +1,17 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8.0
     restart: unless-stopped
     environment:
-      POSTGRES_USER: elyx
-      POSTGRES_PASSWORD: elyxsecret
-      POSTGRES_DB: elyx
+      MYSQL_ROOT_PASSWORD: rootsecret
+      MYSQL_DATABASE: elyx
+      MYSQL_USER: elyx
+      MYSQL_PASSWORD: elyxsecret
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U elyx -d elyx"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -prootsecret"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +27,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://elyx:elyxsecret@db:5432/elyx
+      DATABASE_URL: mysql://elyx:elyxsecret@db:3306/elyx
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3001
@@ -47,7 +49,7 @@ services:
       - elyx-net
 
 volumes:
-  pgdata:
+  mysqldata:
 
 networks:
   elyx-net:

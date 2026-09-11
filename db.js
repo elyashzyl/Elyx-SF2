@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import pg from 'pg'
+import mysql from 'mysql2/promise'
 import initSqlJs from 'sql.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -10,65 +10,33 @@ const DB_PATH = (
     ? (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH) ? process.env.DB_PATH : '/data/attendance.db')
     : (process.env.DB_PATH || path.join(__dirname, 'attendance.db'))
 )
-let USE_PG = !!process.env.DATABASE_URL
+let USE_MYSQL = !!process.env.DATABASE_URL
 
 // Reports which backend the process is running on (used by /api/health).
-export let DB_MODE = USE_PG ? 'postgres' : 'sqlite'
+export let DB_MODE = USE_MYSQL ? 'mysql' : 'sqlite'
 
-let pgPool = null
+let mysqlPool = null
 let sqlite = null
 
-// Postgres returns BIGINT (type 20) as strings; the route layer expects numbers.
-pg.types.setTypeParser(20, v => (v === null ? null : parseInt(v, 10)))
-
-// Tables without an `id` column must not get an automatic RETURNING id clause.
-const NO_INSERT_RETURN = new Set(['settings'])
-
-// Translate SQLite SQL placeholders (?) and LIKE semantics so the route SQL
-// runs unchanged on Postgres.
-function translateSql(sql) {
-  let n = 0
-  let out = ''
-  let inStr = false
-  for (let i = 0; i < sql.length; i++) {
-    const c = sql[i]
-    if (c === "'") {
-      inStr = !inStr
-      out += c
-      continue
-    }
-    if (inStr) {
-      out += c
-      continue
-    }
-    if (c === '?') {
-      n += 1
-      out += '$' + n
-      continue
-    }
-    if (sql.slice(i, i + 4).toLowerCase() === 'like'
-      && !/[a-z]/i.test(sql[i + 4] ?? '')
-      && (i === 0 || !/[a-z]/i.test(sql[i - 1]))) {
-      out += 'ILIKE'
-      i += 3
-      continue
-    }
-    out += c
+async function mysqlExec(sql, params = []) {
+  const [res] = await mysqlPool.query(sql, params)
+  // SELECT returns an array of row objects; writes/DDL return an OkPacket.
+  if (Array.isArray(res)) {
+    return { rows: res, changes: 0, lastInsertRowid: null }
   }
-  return out
-}
-
-async function pgExec(sql, params = []) {
-  const q = translateSql(sql)
-  const isInsert = /^\s*insert\s+into\s+"?([a-z_0-9]+)"?/i.exec(sql)
-  const table = isInsert?.[1]?.toLowerCase()
-  const needsReturning = isInsert && !NO_INSERT_RETURN.has(table) && !/\breturning\b/i.test(q)
-  const res = await pgPool.query(needsReturning ? `${q} RETURNING id` : q, params)
-  const lastInsertRowid = res.rows.length ? (res.rows[0].id ?? null) : null
-  return { rows: res.rows, changes: res.rowCount, lastInsertRowid }
+  return {
+    rows: [],
+    changes: res.affectedRows ?? 0,
+    lastInsertRowid: res.insertId ?? null
+  }
 }
 
 function sqliteExec(sql, params = []) {
+  // CHAR_LENGTH() is used by routes for character-accurate counting on MySQL
+  // (where LENGTH() counts bytes and mis-counts multibyte marks like '◢').
+  // SQLite's LENGTH() already counts characters, and sql.js lacks
+  // CHAR_LENGTH(), so translate it for the SQLite backend.
+  sql = sql.replace(/\bCHAR_LENGTH\s*\(/gi, 'LENGTH(')
   const stmt = sqlite.prepare(sql)
   if (params.length > 0) stmt.bind(params)
   const isSelect = /^\s*(select|pragma|with|explain)/i.test(sql.trim())
@@ -91,7 +59,10 @@ function sqliteExec(sql, params = []) {
 }
 
 async function execSql(sql, params = []) {
-  return USE_PG ? await pgExec(sql, params) : sqliteExec(sql, params)
+  // undefined is an impossible SQL value; normalize to NULL so neither sql.js
+  // nor mysql2 (which throws on undefined) chokes when a route omits a param.
+  params = params.map(p => (p === undefined ? null : p))
+  return USE_MYSQL ? await mysqlExec(sql, params) : sqliteExec(sql, params)
 }
 
 function annotateRows(rows, meta) {
@@ -113,213 +84,247 @@ export async function run(sql, params = []) {
   return { lastInsertRowid: r.lastInsertRowid ?? null, changes: r.changes ?? 0 }
 }
 
-const PG_DDL = [
+// MySQL DDL mirrors the SQLite schema (TEXT/VARCHAR strings, INT numbers,
+// DATETIME defaults) so the SQL written for SQLite runs unchanged on MySQL.
+// Route code never uses dialect-specific functions (verified), and the app sets
+// session sql_mode='' so an omitted NOT NULL column inserts its empty default,
+// exactly like SQLite/Postgres did.
+const MYSQL_DDL = [
   `CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
+    id VARCHAR(96) PRIMARY KEY,
+    username VARCHAR(255) UNIQUE NOT NULL,
     password TEXT NOT NULL,
     name TEXT NOT NULL,
     role TEXT NOT NULL,
-    grade TEXT NOT NULL DEFAULT '',
-    section TEXT NOT NULL DEFAULT '',
-    period TEXT NOT NULL DEFAULT '',
-    school_id TEXT NOT NULL DEFAULT ''
-  )`,
+    grade TEXT NOT NULL DEFAULT (''),
+    section TEXT NOT NULL DEFAULT (''),
+    period TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS schools (
-    id TEXT PRIMARY KEY,
+    id VARCHAR(96) PRIMARY KEY,
     name TEXT NOT NULL,
-    school_id TEXT NOT NULL DEFAULT '',
-    address TEXT NOT NULL DEFAULT '',
-    short TEXT NOT NULL DEFAULT ''
-  )`,
+    school_id TEXT NOT NULL DEFAULT (''),
+    address TEXT NOT NULL DEFAULT (''),
+    short TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS grade_levels (
-    id TEXT PRIMARY KEY,
+    id VARCHAR(96) PRIMARY KEY,
     school_id TEXT NOT NULL,
     grade TEXT NOT NULL,
-    sections TEXT NOT NULL DEFAULT '[]',
-    sort INTEGER NOT NULL DEFAULT 0
-  )`,
+    sections TEXT NOT NULL DEFAULT ('[]'),
+    sort INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS audit_logs (
-    id SERIAL PRIMARY KEY,
-    created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
-    actor_id TEXT NOT NULL DEFAULT '',
-    actor_name TEXT NOT NULL DEFAULT '',
-    actor_role TEXT NOT NULL DEFAULT '',
-    actor_school_id TEXT NOT NULL DEFAULT '',
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actor_id TEXT NOT NULL DEFAULT (''),
+    actor_name TEXT NOT NULL DEFAULT (''),
+    actor_role TEXT NOT NULL DEFAULT (''),
+    actor_school_id TEXT NOT NULL DEFAULT (''),
     action TEXT NOT NULL,
-    target_type TEXT NOT NULL DEFAULT '',
-    target_id TEXT NOT NULL DEFAULT '',
-    target_name TEXT NOT NULL DEFAULT '',
-    target_school_id TEXT NOT NULL DEFAULT '',
-    detail TEXT NOT NULL DEFAULT ''
-  )`,
+    target_type TEXT NOT NULL DEFAULT (''),
+    target_id TEXT NOT NULL DEFAULT (''),
+    target_name TEXT NOT NULL DEFAULT (''),
+    target_school_id TEXT NOT NULL DEFAULT (''),
+    detail TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS students (
-    id TEXT PRIMARY KEY,
+    id VARCHAR(96) PRIMARY KEY,
     name TEXT NOT NULL,
     grade TEXT NOT NULL,
     section TEXT NOT NULL,
-    gender TEXT NOT NULL DEFAULT '',
-    school_id TEXT NOT NULL DEFAULT ''
-  )`,
+    gender TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS attendance_records (
-    id TEXT PRIMARY KEY,
+    id VARCHAR(96) PRIMARY KEY,
     date TEXT NOT NULL,
     grade TEXT NOT NULL,
     section TEXT NOT NULL,
-    adviser TEXT NOT NULL DEFAULT '',
-    created_by TEXT NOT NULL DEFAULT '',
-    created_by_name TEXT NOT NULL DEFAULT '',
-    summary_data TEXT NOT NULL DEFAULT '{}',
-    school_id TEXT NOT NULL DEFAULT ''
-  )`,
+    adviser TEXT NOT NULL DEFAULT (''),
+    created_by TEXT NOT NULL DEFAULT (''),
+    created_by_name TEXT NOT NULL DEFAULT (''),
+    summary_data TEXT NOT NULL DEFAULT ('{}'),
+    school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS monthly_records (
-    id TEXT PRIMARY KEY,
-    month INTEGER NOT NULL,
-    year INTEGER NOT NULL,
+    id VARCHAR(96) PRIMARY KEY,
+    month INT NOT NULL,
+    year INT NOT NULL,
     grade TEXT NOT NULL,
     section TEXT NOT NULL,
-    adviser TEXT NOT NULL DEFAULT '',
-    school_head TEXT NOT NULL DEFAULT '',
-    created_by TEXT NOT NULL DEFAULT '',
-    created_by_name TEXT NOT NULL DEFAULT '',
-    school_id TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
-    summary_data TEXT NOT NULL DEFAULT '{}',
-    excluded_dates TEXT NOT NULL DEFAULT '[]'
-  )`,
+    adviser TEXT NOT NULL DEFAULT (''),
+    school_head TEXT NOT NULL DEFAULT (''),
+    created_by TEXT NOT NULL DEFAULT (''),
+    created_by_name TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT (''),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    summary_data TEXT NOT NULL DEFAULT ('{}'),
+    excluded_dates TEXT NOT NULL DEFAULT ('[]')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS monthly_entries (
-    id SERIAL PRIMARY KEY,
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     record_id TEXT NOT NULL,
     student_id TEXT NOT NULL,
     student_name TEXT NOT NULL,
-    days TEXT NOT NULL DEFAULT '{}',
-    present INTEGER NOT NULL DEFAULT 0,
-    absent INTEGER NOT NULL DEFAULT 0,
-    tardy INTEGER NOT NULL DEFAULT 0,
-    remarks TEXT NOT NULL DEFAULT '',
-    late_enrollee INTEGER NOT NULL DEFAULT 0
-  )`,
+    days TEXT NOT NULL DEFAULT ('{}'),
+    present INT NOT NULL DEFAULT 0,
+    absent INT NOT NULL DEFAULT 0,
+    tardy INT NOT NULL DEFAULT 0,
+    remarks TEXT NOT NULL DEFAULT (''),
+    late_enrollee INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL DEFAULT ''
-  )`,
+    \`key\` VARCHAR(255) PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS attendance_entries (
-    id SERIAL PRIMARY KEY,
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     record_id TEXT NOT NULL,
     student_id TEXT NOT NULL,
-    name TEXT NOT NULL DEFAULT '',
-    am1 TEXT NOT NULL DEFAULT '', am2 TEXT NOT NULL DEFAULT '', am3 TEXT NOT NULL DEFAULT '',
-    am4 TEXT NOT NULL DEFAULT '', am5 TEXT NOT NULL DEFAULT '', am6 TEXT NOT NULL DEFAULT '',
-    pm1 TEXT NOT NULL DEFAULT '', pm2 TEXT NOT NULL DEFAULT '', pm3 TEXT NOT NULL DEFAULT '', pm4 TEXT NOT NULL DEFAULT '',
-    reason TEXT NOT NULL DEFAULT '',
-    excused INTEGER NOT NULL DEFAULT 0,
-    unexcused INTEGER NOT NULL DEFAULT 0,
-    nls INTEGER NOT NULL DEFAULT 0
-  )`,
+    name TEXT NOT NULL DEFAULT (''),
+    am1 TEXT NOT NULL DEFAULT (''), am2 TEXT NOT NULL DEFAULT (''), am3 TEXT NOT NULL DEFAULT (''),
+    am4 TEXT NOT NULL DEFAULT (''), am5 TEXT NOT NULL DEFAULT (''), am6 TEXT NOT NULL DEFAULT (''),
+    pm1 TEXT NOT NULL DEFAULT (''), pm2 TEXT NOT NULL DEFAULT (''), pm3 TEXT NOT NULL DEFAULT (''), pm4 TEXT NOT NULL DEFAULT (''),
+    reason TEXT NOT NULL DEFAULT (''),
+    excused INT NOT NULL DEFAULT 0,
+    unexcused INT NOT NULL DEFAULT 0,
+    nls INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS teacher_schedules (
-    id SERIAL PRIMARY KEY,
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     teacher_id TEXT NOT NULL,
-    day_of_week INTEGER NOT NULL DEFAULT 0,
-    period TEXT NOT NULL DEFAULT '',
-    start_time TEXT NOT NULL DEFAULT '',
-    end_time TEXT NOT NULL DEFAULT '',
-    subject TEXT NOT NULL DEFAULT '',
-    grade TEXT NOT NULL DEFAULT '',
-    section TEXT NOT NULL DEFAULT '',
-    school_id TEXT NOT NULL DEFAULT ''
-  )`,
+    day_of_week INT NOT NULL DEFAULT 0,
+    period TEXT NOT NULL DEFAULT (''),
+    start_time TEXT NOT NULL DEFAULT (''),
+    end_time TEXT NOT NULL DEFAULT (''),
+    subject TEXT NOT NULL DEFAULT (''),
+    grade TEXT NOT NULL DEFAULT (''),
+    section TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS calendar_events (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL DEFAULT '',
-    type TEXT NOT NULL DEFAULT '',
-    event_date TEXT NOT NULL DEFAULT '',
-    color TEXT NOT NULL DEFAULT '',
-    created_by TEXT NOT NULL DEFAULT '',
-    school_id TEXT NOT NULL DEFAULT ''
-  )`,
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT (''),
+    type TEXT NOT NULL DEFAULT (''),
+    event_date TEXT NOT NULL DEFAULT (''),
+    color TEXT NOT NULL DEFAULT (''),
+    created_by TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS quarterly_events (
-    id SERIAL PRIMARY KEY,
-    event_name TEXT NOT NULL DEFAULT '',
-    first_grading TEXT NOT NULL DEFAULT '',
-    second_grading TEXT NOT NULL DEFAULT '',
-    third_grading TEXT NOT NULL DEFAULT '',
-    fourth_grading TEXT NOT NULL DEFAULT '',
-    school_id TEXT NOT NULL DEFAULT ''
-  )`
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    event_name TEXT NOT NULL DEFAULT (''),
+    first_grading TEXT NOT NULL DEFAULT (''),
+    second_grading TEXT NOT NULL DEFAULT (''),
+    third_grading TEXT NOT NULL DEFAULT (''),
+    fourth_grading TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
-async function initPostgres() {
+// MySQL only allows TEXT default values as DEFAULT ('...') expressions on
+// 8.0.13+/MariaDB 10.2+, which older MySQL 5.7 servers reject outright. The
+// session non-strict sql_mode below inserts the column type's empty default for
+// any omitted column (exactly like SQLite/Postgres did), so the TEXT defaults
+// are unnecessary for runtime correctness — strip them for maximum compatibility.
+function stripTextDefaults(ddl) {
+  return ddl.replace(/\sDEFAULT\s*\(\s*('[^']*')\s*\)/g, '')
+}
+
+// Parse mysql:// URLs into a mysql2 config object. Done manually so URL query
+// params (sslmode, ssl, ...) never leak into mysql2's own URL parser, which
+// warns/errors on unknown keys like "sslmode".
+function parseMysqlUrl(url) {
+  const u = new URL(url)
+  return {
+    host: u.hostname,
+    port: u.port ? Number(u.port) : 3306,
+    user: u.username ? decodeURIComponent(u.username) : undefined,
+    password: u.password ? decodeURIComponent(u.password) : undefined,
+    database: u.pathname ? decodeURIComponent(u.pathname.replace(/^\//, '')) : undefined
+  }
+}
+
+async function initMysql() {
   const poolCfg = {
-    connectionString: process.env.DATABASE_URL,
-    max: parseInt(process.env.PG_POOL_MAX || '10', 10),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    ...parseMysqlUrl(process.env.DATABASE_URL),
+    connectionLimit: parseInt(process.env.MYSQL_POOL_MAX || '10', 10),
+    connectTimeout: 10000,
+    dateStrings: true,
+    charset: 'utf8mb4_unicode_ci',
+    waitForConnections: true
   }
-  // Some PaaS databases (e.g. Render) require SSL; detect via sslmode in the
-  // connection string or an explicit PGSSL flag, otherwise auto-retry with TLS
-  // when the first connection is rejected for SSsL reasons.
-  // Explicit sslmode=disable in the URL forces no-SSL (useful for internal networks).
-  if (/sslmode=disable/i.test(process.env.DATABASE_URL)) {
-    poolCfg.ssl = false
-  } else if (/sslmode=(require|verify-ca|verify-full)|\bssl=(true|1)\b/i.test(process.env.DATABASE_URL) || process.env.PGSSL === '1') {
-    poolCfg.ssl = { rejectUnauthorized: process.env.PGSSL_VERIFY === '1' }
+  // Some managed MySQL providers (Aiven, DigitalOcean, etc.) require SSL.
+  if (/sslmode=(require|verify-ca|verify-full)|\bssl=(?:true|1|\d+)\b|ssl-mode=required/i.test(process.env.DATABASE_URL) || process.env.MYSQL_SSL === '1') {
+    poolCfg.ssl = { rejectUnauthorized: process.env.MYSQL_SSL_VERIFY === '1' }
   }
-  pgPool = new pg.Pool(poolCfg)
+  mysqlPool = mysql.createPool(poolCfg)
+  // Non-strict mode: an omitted column inserts its empty default (like SQLite/Postgres).
+  mysqlPool.on('connection', conn => {
+    conn.query("SET SESSION sql_mode=''").catch(() => {})
+  })
   try {
-    await pgPool.query('SELECT 1')
+    await mysqlPool.query('SELECT 1')
   } catch (err) {
     const msg = String(err.message)
-    // Server doesn't support SSL (e.g. internal Coolify/Compose Postgres) — retry without.
-    if (poolCfg.ssl && /does not support SSL/i.test(msg)) {
-      console.warn('[db] Postgres rejected SSL; retrying without TLS (internal network).')
-      await pgPool.end().catch(() => {})
-      delete poolCfg.ssl
-      pgPool = new pg.Pool(poolCfg)
-      await pgPool.query('SELECT 1')
-    // Server requires SSL (e.g. Render) — retry with TLS.
-    } else if (!poolCfg.ssl && /\b(ssl|certificate)\b/i.test(msg)) {
-      console.warn('[db] Postgres requires SSL; retrying with TLS.')
-      await pgPool.end().catch(() => {})
+    if (!poolCfg.ssl && /\b(ssl|tls|pem|certificate)\b/i.test(msg)) {
+      console.warn('[db] MySQL requires SSL; retrying with TLS (rejectUnauthorized=false).')
+      await mysqlPool.end().catch(() => {})
       poolCfg.ssl = { rejectUnauthorized: false }
-      pgPool = new pg.Pool(poolCfg)
-      await pgPool.query('SELECT 1')
+      mysqlPool = mysql.createPool(poolCfg)
+      mysqlPool.on('connection', conn => {
+        conn.query("SET SESSION sql_mode=''").catch(() => {})
+      })
+      await mysqlPool.query('SELECT 1')
+    } else if (poolCfg.ssl && /does not support SSL|failed to connect|handshake/i.test(msg)) {
+      console.warn('[db] MySQL rejected SSL; retrying without TLS (internal network).')
+      await mysqlPool.end().catch(() => {})
+      delete poolCfg.ssl
+      mysqlPool = mysql.createPool(poolCfg)
+      mysqlPool.on('connection', conn => {
+        conn.query("SET SESSION sql_mode=''").catch(() => {})
+      })
+      await mysqlPool.query('SELECT 1')
     } else {
       throw err
     }
   }
-  for (const ddl of PG_DDL) await pgPool.query(ddl)
-  // Add a UNIQUE constraint helper for username lookups used by login.
-  const cnt = await pgPool.query(`SELECT COUNT(*) AS cnt FROM users`)
-  if ((cnt.rows[0]?.cnt ?? 0) === 0) {
-    await pgPool.query(
-      `INSERT INTO users (id, username, password, name, role, school_id) VALUES ('1', 'admin', 'admin123', 'System Admin', 'superadmin', '')`)
-    await pgPool.query(
-      `INSERT INTO schools (id, name, school_id, address, short) VALUES ('school-1', 'BAGUIO PATRIOTIC HIGH SCHOOL', '406219', 'Baguio City', 'BPHS')`)
+  for (const raw of MYSQL_DDL) await mysqlPool.query(stripTextDefaults(raw))
+  const [[cntRows]] = await mysqlPool.query('SELECT COUNT(*) AS cnt FROM users')
+  if ((cntRows?.cnt ?? 0) === 0) {
+    await mysqlPool.query(
+      `INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['1', 'admin', 'admin123', 'System Admin', 'superadmin', ''])
+    await mysqlPool.query(
+      `INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)`,
+      ['school-1', 'BAGUIO PATRIOTIC HIGH SCHOOL', '406219', 'Baguio City', 'BPHS'])
   }
-  await migrateToMultiSchoolPG()
-  await seedGradeLevelsPG()
+  await migrateToMultiSchoolMysql()
+  await seedGradeLevelsMysql()
 }
 
-async function migrateToMultiSchoolPG() {
+async function migrateToMultiSchoolMysql() {
   try {
-    const schoolCount = (await pgPool.query('SELECT COUNT(*) AS cnt FROM schools')).rows[0]?.cnt || 0
-    if (schoolCount > 0) return
+    const [[cntRows]] = await mysqlPool.query('SELECT COUNT(*) AS cnt FROM schools')
+    if ((cntRows?.cnt ?? 0) > 0) return
     const legacy = { ...DEFAULT_SCHOOL_FALLBACK }
     try {
-      const rows = (await pgPool.query('SELECT key, value FROM settings')).rows
-      for (const r of rows) {
+      const [[sRows]] = await mysqlPool.query('SELECT `key`, value FROM settings')
+      for (const r of sRows) {
         if (r.key in legacy) legacy[r.key] = r.value
       }
     } catch {}
     const schoolId = 'school-' + Date.now().toString(36)
-    await pgPool.query('INSERT INTO schools (id, name, school_id, address, short) VALUES ($1, $2, $3, $4, $5)',
+    await mysqlPool.query('INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
       [schoolId, legacy.school_name, legacy.school_id, legacy.school_address, legacy.school_short])
     const tables = ['users', 'students', 'monthly_records', 'attendance_records', 'calendar_events', 'quarterly_events']
     for (const t of tables) {
-      try { await pgPool.query(`UPDATE "${t}" SET school_id = $1 WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
+      try { await mysqlPool.query(`UPDATE ${t} SET school_id = ? WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
     }
     try {
-      await pgPool.query("UPDATE users SET role = 'superadmin' WHERE role = 'admin' AND (school_id = $1 OR school_id = '')", [schoolId])
+      await mysqlPool.query("UPDATE users SET role = 'superadmin' WHERE role = 'admin' AND (school_id = ? OR school_id = '')", [schoolId])
     } catch {}
   } catch (err) {
     console.error('Multi-school migration error:', err.message)
@@ -343,9 +348,9 @@ export async function seedGradeLevelsForSchool(schoolDbId) {
   }
 }
 
-async function seedGradeLevelsPG() {
+async function seedGradeLevelsMysql() {
   try {
-    const schools = (await pgPool.query('SELECT id FROM schools')).rows
+    const [[schools]] = await mysqlPool.query('SELECT id FROM schools')
     for (const s of schools) {
       try { await seedGradeLevelsForSchool(s.id) } catch {}
     }
@@ -611,32 +616,32 @@ function seedGradeLevelsForSchoolSync(schoolDbId) {
 
 export async function initDatabase() {
   // Diagnostic dump so deployments can see exactly what the container has.
-  console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_POSTGRES=${process.env.REQUIRE_POSTGRES ?? '(unset)'} ALLOW_PERSISTED_SQLITE=${process.env.ALLOW_PERSISTED_SQLITE ?? '(unset)'}`)
+  console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_MYSQL=${process.env.REQUIRE_MYSQL ?? '(unset)'} ALLOW_PERSISTED_SQLITE=${process.env.ALLOW_PERSISTED_SQLITE ?? '(unset)'}`)
   const urlState = !process.env.DATABASE_URL ? 'MISSING' : (process.env.DATABASE_URL === '' ? 'EMPTY-STRING (treated as missing!)' : 'PRESENT')
   console.log(`[db] env: DATABASE_URL=${urlState} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
-  if (USE_PG) {
+  if (USE_MYSQL) {
     try {
-      await initPostgres()
-      console.log(`[db] PostgreSQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
+      await initMysql()
+      console.log(`[db] MySQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
     } catch (err) {
-      const canFallback = process.env.ALLOW_PERSISTED_SQLITE === '1' && process.env.REQUIRE_POSTGRES !== '1'
+      const canFallback = process.env.ALLOW_PERSISTED_SQLITE === '1' && process.env.REQUIRE_MYSQL !== '1' && process.env.REQUIRE_POSTGRES !== '1'
       if (!canFallback) throw err
-      console.error(`[db] WARNING: PostgreSQL connection failed (${err.message}). Falling back to SQLite because ALLOW_PERSISTED_SQLITE=1.`)
-      await pgPool?.end().catch(() => {})
-      pgPool = null
-      USE_PG = false
+      console.error(`[db] WARNING: MySQL connection failed (${err.message}). Falling back to SQLite because ALLOW_PERSISTED_SQLITE=1.`)
+      await mysqlPool?.end().catch(() => {})
+      mysqlPool = null
+      USE_MYSQL = false
       DB_MODE = 'sqlite'
       await initSqlite()
       console.warn(`[db] SQLite backend ready (fallback). DB_PATH=${DB_PATH} - mount a persistent volume here or you WILL lose data on redeploy.`)
     }
-  } else if (process.env.REQUIRE_POSTGRES === '1' || (process.env.NODE_ENV === 'production' && process.env.ALLOW_PERSISTED_SQLITE !== '1')) {
+  } else if (process.env.REQUIRE_MYSQL === '1' || process.env.REQUIRE_POSTGRES === '1' || (process.env.NODE_ENV === 'production' && process.env.ALLOW_PERSISTED_SQLITE !== '1')) {
     // Silently using SQLite on an ephemeral container disk is what caused all
     // data to vanish on every redeploy. Refuse to start instead.
     console.error('[db] FATAL: DATABASE_URL is not set.')
     console.error('[db] Production/forced mode refuses to run on the ephemeral SQLite fallback, because the database file lives inside the container and is deleted on every redeploy.')
-    console.error('[db] Fix (recommended): add the PostgreSQL connection string as the DATABASE_URL environment variable, then redeploy.')
+    console.error('[db] Fix (recommended): add the MySQL connection string (mysql://user:pass@host:3306/dbname) as the DATABASE_URL environment variable, then redeploy.')
     console.error("[db] Emergency fallback ONLY: set ALLOW_PERSISTED_SQLITE=1 AND mount a persistent Docker volume to /data (DB_PATH=/data/attendance.db) to accept responsibility for a SQLite file on that volume.")
-    throw new Error('DATABASE_URL is required (Postgres must be enabled). The SQLite fallback is disabled when NODE_ENV=production or REQUIRE_POSTGRES=1.')
+    throw new Error('DATABASE_URL is required (MySQL must be enabled). The SQLite fallback is disabled when NODE_ENV=production or REQUIRE_MYSQL=1.')
   } else {
     await initSqlite()
     if (process.env.NODE_ENV === 'production') {
@@ -658,7 +663,7 @@ function redactUrl(url) {
   }
 }
 
-export { PG_DDL, DEFAULT_GRADE_SKELETON }
+export { MYSQL_DDL, DEFAULT_GRADE_SKELETON }
 
 export async function getGradeLevels(schoolDbId) {
   const rows = await query('SELECT grade, sections, sort FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [schoolDbId])
@@ -670,7 +675,7 @@ export async function getGradeLevels(schoolDbId) {
 }
 
 export async function setGradeLevels(schoolDbId, levels) {
-  if (USE_PG) {
+  if (USE_MYSQL) {
     await run('DELETE FROM grade_levels WHERE school_id = ?', [schoolDbId])
     for (let i = 0; i < (levels || []).length; i++) {
       const g = levels[i]
@@ -719,7 +724,7 @@ const DEFAULT_SETTINGS = {
 }
 
 export function getDb() {
-  return { pg: pgPool, sqlite }
+  return { mysql: mysqlPool, sqlite }
 }
 
 export async function getSettings(schoolId) {
@@ -730,10 +735,10 @@ export async function getSettings(schoolId) {
     } catch {}
   }
   const settings = { ...DEFAULT_SETTINGS }
-  if (USE_PG) {
-    if (!pgPool) return settings
+  if (USE_MYSQL) {
+    if (!mysqlPool) return settings
     try {
-      const rows = await query('SELECT key, value FROM settings')
+      const rows = await query('SELECT `key`, value FROM settings')
       for (const r of rows) {
         if (r.key in settings) settings[r.key] = r.value
       }
@@ -774,7 +779,7 @@ export async function updateSchoolRow(schoolId, { school_name, school_id, school
 }
 
 export function saveDatabase() {
-  if (sqlite && !USE_PG) {
+  if (sqlite && !USE_MYSQL) {
     const data = sqlite.export()
     const buffer = Buffer.from(data)
     fs.writeFileSync(DB_PATH, buffer)
