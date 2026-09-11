@@ -258,7 +258,10 @@ async function initPostgres() {
   // Some PaaS databases (e.g. Render) require SSL; detect via sslmode in the
   // connection string or an explicit PGSSL flag, otherwise auto-retry with TLS
   // when the first connection is rejected for SSsL reasons.
-  if (/sslmode=(require|verify-ca|verify-full)|\bssl=(true|1)\b/i.test(process.env.DATABASE_URL) || process.env.PGSSL === '1') {
+  // Explicit sslmode=disable in the URL forces no-SSL (useful for internal networks).
+  if (/sslmode=disable/i.test(process.env.DATABASE_URL)) {
+    poolCfg.ssl = false
+  } else if (/sslmode=(require|verify-ca|verify-full)|\bssl=(true|1)\b/i.test(process.env.DATABASE_URL) || process.env.PGSSL === '1') {
     poolCfg.ssl = { rejectUnauthorized: process.env.PGSSL_VERIFY === '1' }
   }
   pgPool = new pg.Pool(poolCfg)
@@ -266,8 +269,16 @@ async function initPostgres() {
     await pgPool.query('SELECT 1')
   } catch (err) {
     const msg = String(err.message)
-    // Render (and others) can reject a non-TLS connection; reconnect encrypted.
-    if (!poolCfg.ssl && /\b(ssl|certificate)\b/i.test(msg)) {
+    // Server doesn't support SSL (e.g. internal Coolify/Compose Postgres) — retry without.
+    if (poolCfg.ssl && /does not support SSL/i.test(msg)) {
+      console.warn('[db] Postgres rejected SSL; retrying without TLS (internal network).')
+      await pgPool.end().catch(() => {})
+      delete poolCfg.ssl
+      pgPool = new pg.Pool(poolCfg)
+      await pgPool.query('SELECT 1')
+    // Server requires SSL (e.g. Render) — retry with TLS.
+    } else if (!poolCfg.ssl && /\b(ssl|certificate)\b/i.test(msg)) {
+      console.warn('[db] Postgres requires SSL; retrying with TLS.')
       await pgPool.end().catch(() => {})
       poolCfg.ssl = { rejectUnauthorized: false }
       pgPool = new pg.Pool(poolCfg)
