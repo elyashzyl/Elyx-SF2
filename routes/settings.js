@@ -8,7 +8,7 @@ const SCHOOL_KEYS = ['school_name', 'school_id', 'school_address', 'school_short
 
 router.get('/', async (req, res) => {
   try {
-    const all = await query('SELECT key, value FROM settings')
+    const all = await query('SELECT `key`, `value` FROM settings')
     const result = {}
     for (const row of all) {
       result[row.key] = row.value
@@ -65,11 +65,11 @@ router.put('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid settings object' })
     }
     for (const [key, value] of Object.entries(settings)) {
-      const existing = await query('SELECT key FROM settings WHERE key = ?', [key])
+      const existing = await query('SELECT `key` FROM settings WHERE `key` = ?', [key])
       if (existing.length > 0) {
-        await run('UPDATE settings SET value = ? WHERE key = ?', [String(value), key])
+        await run('UPDATE settings SET `value` = ? WHERE `key` = ?', [String(value), key])
       } else {
-        await run('INSERT INTO settings (key, value) VALUES (?, ?)', [key, String(value)])
+        await run('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', [key, String(value)])
       }
     }
     res.json({ success: true })

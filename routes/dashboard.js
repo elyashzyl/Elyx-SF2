@@ -254,7 +254,7 @@ router.get('/stats', async (req, res) => {
       FROM monthly_entries me
       JOIN monthly_records mr ON mr.id = me.record_id
       ${sid ? 'WHERE mr.school_id = ?' : ''}
-      GROUP BY me.student_id
+      GROUP BY me.student_id, me.student_name, mr.grade, mr.section
       HAVING totalAbsences >= 3
       ORDER BY totalAbsences DESC
       LIMIT 6
@@ -344,14 +344,14 @@ router.get('/stats', async (req, res) => {
             ), 0) as tardy,
             COALESCE((
               SELECT SUM(
-                LENGTH(me.days) - LENGTH(REPLACE(REPLACE(me.days, '◢', ''), 'H', ''))
+                CHAR_LENGTH(me.days) - CHAR_LENGTH(REPLACE(REPLACE(me.days, '◢', ''), 'H', ''))
               ) FROM monthly_entries me
               JOIN monthly_records mr ON mr.id = me.record_id
               WHERE me.student_id = s.id AND mr.school_id = s.school_id AND mr.grade = s.grade AND mr.section = s.section
             ), 0) as half_day
           FROM students s
           WHERE s.school_id = ? AND s.grade = ? AND s.section = ?
-          GROUP BY s.id
+          GROUP BY s.id, s.name, s.gender
           ORDER BY s.name ASC`, [tSchoolId, tGrade, tSection])
 
         const tAtRisk = await query(`
@@ -364,7 +364,7 @@ router.get('/stats', async (req, res) => {
           FROM monthly_entries me
           JOIN monthly_records mr ON mr.id = me.record_id
           WHERE mr.school_id = ? AND mr.grade = ? AND mr.section = ?
-          GROUP BY me.student_id
+          GROUP BY me.student_id, me.student_name
           HAVING totalAbsent > 0
           ORDER BY totalAbsent DESC
           LIMIT 6
