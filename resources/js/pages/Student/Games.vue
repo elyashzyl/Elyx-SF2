@@ -2045,7 +2045,10 @@ function closeGame() {
     currentGame.value = null;
 }
 
-function setGraded(correct: boolean) {
+async function setGraded(correct: boolean) {
+    const game = currentGame.value;
+    const isLastCard =
+        !!game && currentCard.value === game.cards.length - 1;
     const wasGraded =
         gradedState.value[currentCard.value] !== null &&
         gradedState.value[currentCard.value] !== undefined;
@@ -2055,16 +2058,50 @@ function setGraded(correct: boolean) {
 
         if (correct) {
             correctCount.value++;
-        }
 
-        if (correct) {
-            awardCorrect();
+            if (isLastCard) {
+                await awardCorrect();
+            } else {
+                awardCorrect();
+            }
         }
     }
 
     answered.value = true;
     answerResult.value = correct;
     correctOnLast.value = correct;
+
+    if (isLastCard) {
+        checkAutoFinish();
+    }
+}
+
+function checkAutoFinish() {
+    const game = currentGame.value;
+
+    if (!game || game.type === 'flashcard') {
+        return;
+    }
+
+    const allGraded =
+        gradedState.value.filter((v) => v !== null && v !== undefined)
+            .length === game.cards.length;
+
+    if (!allGraded) {
+        return;
+    }
+
+    const finish = () => {
+        if (currentGame.value === game) {
+            finishGame();
+        }
+    };
+
+    if (correctOnLast.value) {
+        setTimeout(finish, 900);
+    } else {
+        finish();
+    }
 }
 
 function scrambleFor(card: any) {
@@ -2187,7 +2224,7 @@ function initMemory() {
     memoryMatches.value = 0;
 }
 
-function memoryFlip(tile: any) {
+async function memoryFlip(tile: any) {
     if (memoryLocked.value || tile.matched || tile.flipped) {
         return;
     }
@@ -2211,10 +2248,11 @@ function memoryFlip(tile: any) {
         first.matched = true;
         tile.matched = true;
         memoryMatches.value++;
-        awardCard(tile.cardId);
+        await awardCard(tile.cardId);
 
         if (memoryMatches.value === currentGame.value.cards.length) {
             correctOnLast.value = true;
+            finishGame();
         }
     } else {
         memoryLocked.value = true;
@@ -2321,7 +2359,7 @@ function selectDropItem(item: any) {
         dropSelected.value?.cardId === item.cardId ? null : item;
 }
 
-function dropOnTarget(target: any, item: any = null) {
+async function dropOnTarget(target: any, item: any = null) {
     const term = item ?? dropSelected.value;
 
     if (!term || target.matched) {
@@ -2335,10 +2373,11 @@ function dropOnTarget(target: any, item: any = null) {
         );
         dropMatches.value++;
         dropSelected.value = null;
-        awardCard(term.cardId);
+        await awardCard(term.cardId);
 
         if (dropMatches.value === currentGame.value.cards.length) {
             correctOnLast.value = true;
+            finishGame();
         }
     } else {
         dropSelected.value = null;
@@ -2410,6 +2449,10 @@ async function checkOrder() {
         if (graded[i]) {
             await awardCard(cards[i].id);
         }
+    }
+
+    if (orderFinished.value && orderCorrect.value === cards.length) {
+        finishGame();
     }
 }
 

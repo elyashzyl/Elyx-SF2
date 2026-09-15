@@ -52,13 +52,23 @@ class GameController extends Controller
             'graded' => ['nullable', 'array'],
         ]);
 
+        $game->loadCount('cards');
+
+        $completed = !empty($data['completed']);
+        if (!$completed && !in_array($game->type, ['memorymatch', 'dragdrop', 'ordering'], true)) {
+            // 'flashcard' tracks the current card index (0-based), so reaching the
+            // last card means the whole deck was seen.
+            $threshold = $game->type === 'flashcard' ? ((int) $game->cards_count - 1) : (int) $game->cards_count;
+            $completed = (int) ($data['done_count'] ?? 0) >= $threshold;
+        }
+
         $progress = GameProgress::updateOrCreate(
             ['user_id' => $student->id, 'game_id' => $game->id],
             [
                 'current_card' => $data['current_card'] ?? 0,
                 'done_count' => $data['done_count'] ?? 0,
                 'score' => $data['score'] ?? 0,
-                'completed' => !empty($data['completed']),
+                'completed' => $completed,
                 'card_order' => $data['card_order'] ?? null,
                 'graded' => isset($data['graded']) ? json_encode($data['graded']) : null,
             ]
@@ -66,30 +76,35 @@ class GameController extends Controller
 
         $awarded = false;
         $xp = 0;
-        if (!empty($data['completed'])) {
+        if ($completed) {
             $existing = \App\Models\StudentPoint::where('student_id', $student->id)
                 ->where('activity_type', \App\Enums\ActivityType::Game->value)
                 ->where('activity_id', $game->id)
                 ->exists();
 
             if (!$existing) {
-                $game->loadCount('cards');
+                $correctCount = (int) \Illuminate\Support\Facades\DB::table('game_correct_answers')
+                    ->where('user_id', $student->id)
+                    ->where('game_id', $game->id)
+                    ->count();
+                $points = ($correctCount * (int) config('gamification.correct_answer_xp')) + (int) $game->xp_reward;
+
                 \App\Models\StudentPoint::create([
                     'student_id' => $student->id,
                     'activity_type' => \App\Enums\ActivityType::Game->value,
                     'activity_id' => $game->id,
-                    'points' => $game->xp_reward,
-                    'score' => $data['done_count'] ?? 0,
+                    'points' => $points,
+                    'score' => $correctCount,
                     'total' => $game->cards_count,
                     'reason' => 'Completed game: ' . $game->title,
                 ]);
-                $student->increment('total_points', $game->xp_reward);
+                $student->increment('total_points', $points);
                 $awarded = true;
-                $xp = $game->xp_reward;
+                $xp = $points;
             }
         }
 
-        if (!empty($data['completed'])) {
+        if ($completed) {
             $progress->update(['completed' => true]);
         }
 
@@ -124,7 +139,7 @@ class GameController extends Controller
             ->exists();
 
         $awarded = false;
-        $xp = 0;
+        $xp = (int) config('gamification.correct_answer_xp');
         if (!$already) {
             \Illuminate\Support\Facades\DB::table('game_correct_answers')->insert([
                 'user_id' => $student->id,
@@ -134,20 +149,7 @@ class GameController extends Controller
                 'updated_at' => now(),
             ]);
 
-            $game->loadCount('cards');
-            $correctAnswerXp = (int) config('gamification.correct_answer_xp');
-            \App\Models\StudentPoint::create([
-                'student_id' => $student->id,
-                'activity_type' => \App\Enums\ActivityType::Game->value,
-                'activity_id' => $card->id,
-                'points' => $correctAnswerXp,
-                'score' => $correctAnswerXp,
-                'total' => $game->cards_count,
-                'reason' => 'Correct answer in game: ' . $game->title,
-            ]);
-            $student->increment('total_points', $correctAnswerXp);
             $awarded = true;
-            $xp = $correctAnswerXp;
         }
 
         return response()->json(['ok' => true, 'awarded' => $awarded, 'xp' => $xp]);
