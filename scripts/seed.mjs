@@ -176,7 +176,180 @@ async function main() {
     }
   }
 
-  // 4. Sample Data Seeding
+  // 4. Seed Subscription Plans & Campus License
+  console.log('[seeder] Seeding subscription plans and operational licenses...')
+  const defaultPlans = [
+    {
+      id: 'adviser',
+      tier: 'adviser',
+      name: 'Adviser License',
+      tag: 'Dedicated',
+      description: 'Dedicated single-adviser operational license with a 14-day full feature trial before payment.',
+      price_monthly: 249,
+      price_annual_monthly: 199,
+      billing_annual_total: 1990,
+      currency: 'PHP',
+      trial_days: 14,
+      max_teachers: 1,
+      max_students: 65,
+      is_featured: 0,
+      badge: '14-Day Free Trial',
+      cta_text: 'Start 14-Day Trial',
+      cta_url: '/login',
+      features: JSON.stringify([
+        '14-Day Free Evaluation Trial',
+        '1 Advisory section license key (up to 65 students)',
+        '< 90-second rapid daily roll call',
+        'Section-level monthly DepEd SF2 generation',
+        'Consecutive absence & SARDO risk flags',
+        'Standard printable PDF attendance register',
+        'Online license key activation & renewal'
+      ]),
+      modules: JSON.stringify({
+        sf2_export: true,
+        sardo_radar: true,
+        analytics: true,
+        audit_logs: false,
+        multi_school: false
+      }),
+      sort_order: 1
+    },
+    {
+      id: 'campus',
+      tier: 'campus',
+      name: 'School Pro',
+      tag: 'Campus',
+      description: 'Institutional license for public & private high schools and elementary campuses.',
+      price_monthly: 1490,
+      price_annual_monthly: 1190,
+      billing_annual_total: 11900,
+      currency: 'PHP',
+      trial_days: 14,
+      max_teachers: 60,
+      max_students: 2500,
+      is_featured: 1,
+      badge: 'DepEd SF2 Certified',
+      cta_text: 'Inquire for School Deployment',
+      cta_url: 'mailto:deploy@elytrack.ph?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
+      features: JSON.stringify([
+        'Unlimited faculty, advisers & students',
+        'School-wide consolidated DepEd SF2 (.xlsx export)',
+        'Automated SARDO early-warning radar & logs',
+        'Grade levels & sections configuration management',
+        'Quarterly attendance analytics & trend forecasting',
+        'Role-based access (Principal, Admin, Faculty)',
+        'System audit logs & activity telemetry',
+        'Priority faculty onboarding & DepEd updates'
+      ]),
+      modules: JSON.stringify({
+        sf2_export: true,
+        sardo_radar: true,
+        analytics: true,
+        audit_logs: true,
+        multi_school: false
+      }),
+      sort_order: 2
+    },
+    {
+      id: 'division',
+      tier: 'division',
+      name: 'Division & Multi-Campus',
+      tag: 'Institutional',
+      description: 'For School Division Offices (SDO), academy networks, and diocesan school clusters.',
+      price_monthly: 4990,
+      price_annual_monthly: 3990,
+      billing_annual_total: 39900,
+      currency: 'PHP',
+      trial_days: 0,
+      max_teachers: 500,
+      max_students: 25000,
+      is_featured: 0,
+      badge: 'Network SDO',
+      cta_text: 'Inquire for Division',
+      cta_url: 'mailto:inquiries@elytrack.ph?subject=ElyTrack%20Division%20Inquiry',
+      features: JSON.stringify([
+        'Multi-school governance console',
+        'Division-wide attendance aggregation',
+        'Centralized license provisioning & seat management',
+        'Custom institutional security & SSO integration',
+        'Dedicated account engineer & SLA guarantee',
+        'Data Privacy Act (RA 10173) compliance verification'
+      ]),
+      modules: JSON.stringify({
+        sf2_export: true,
+        sardo_radar: true,
+        analytics: true,
+        audit_logs: true,
+        multi_school: true
+      }),
+      sort_order: 3
+    }
+  ]
+
+  for (const p of defaultPlans) {
+    const existingPlan = await query('SELECT id FROM subscription_plans WHERE id = ? OR tier = ?', [p.id, p.tier])
+    if (existingPlan.length > 0) {
+      await run(
+        `UPDATE subscription_plans SET
+          name = ?, tag = ?, description = ?, price_monthly = ?, price_annual_monthly = ?,
+          billing_annual_total = ?, currency = ?, trial_days = ?, max_teachers = ?,
+          max_students = ?, is_featured = ?, badge = ?, cta_text = ?, cta_url = ?,
+          features = ?, modules = ?, sort_order = ?
+         WHERE id = ?`,
+        [
+          p.name, p.tag, p.description, p.price_monthly, p.price_annual_monthly,
+          p.billing_annual_total, p.currency, p.trial_days, p.max_teachers,
+          p.max_students, p.is_featured, p.badge, p.cta_text, p.cta_url,
+          p.features, p.modules, p.sort_order, existingPlan[0].id
+        ]
+      )
+    } else {
+      await run(
+        `INSERT INTO subscription_plans (
+          id, tier, name, tag, description, price_monthly, price_annual_monthly,
+          billing_annual_total, currency, trial_days, max_teachers, max_students,
+          is_featured, badge, cta_text, cta_url, features, modules, sort_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          p.id, p.tier, p.name, p.tag, p.description, p.price_monthly, p.price_annual_monthly,
+          p.billing_annual_total, p.currency, p.trial_days, p.max_teachers, p.max_students,
+          p.is_featured, p.badge, p.cta_text, p.cta_url, p.features, p.modules, p.sort_order
+        ]
+      )
+    }
+  }
+
+  // Seed default active campus license for school
+  const existingLicense = await query('SELECT id FROM licenses WHERE school_id = ? LIMIT 1', [targetSchoolDbId])
+  if (existingLicense.length === 0) {
+    const licId = `lic-${targetSchoolDbId}-initial`
+    const now = new Date()
+    const exp = new Date(now)
+    exp.setMonth(exp.getMonth() + 10)
+    await run(
+      `INSERT INTO licenses (
+        id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers,
+        max_students, issued_at, expires_at, trial_ends_at, features, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        licId,
+        targetSchoolDbId,
+        `ELY-CAMPUS-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+        'campus',
+        'active',
+        'annual',
+        60,
+        2500,
+        now.toISOString().split('T')[0],
+        exp.toISOString().split('T')[0],
+        '',
+        JSON.stringify({ sf2_export: true, sardo_radar: true, analytics: true, audit_logs: true, multi_school: false }),
+        'Seeded Campus License'
+      ]
+    )
+  }
+
+  // 5. Sample Data Seeding
   let seededTeachersCount = 0
   let seededStudentsCount = 0
   let seededRecordsCount = 0

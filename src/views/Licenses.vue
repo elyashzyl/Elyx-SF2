@@ -111,7 +111,116 @@
       </div>
     </div>
 
-    <!-- Superadmin Overview Table of all School Licenses -->
+    <!-- Superadmin Database Subscription Plans Table -->
+    <div v-if="auth.isSuperadmin" class="card" style="margin-top: 24px;">
+      <div class="card-header-row">
+        <div>
+          <h3>Database Subscription Plans &amp; Pricing Tiers</h3>
+          <p class="desc">Real-time subscription quotas, pricing, and feature modules directly from the database.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Plan Tier</th>
+              <th>Name</th>
+              <th>Monthly Price</th>
+              <th>School Year Rate</th>
+              <th>Max Teachers</th>
+              <th>Max Students</th>
+              <th>Trial</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in availablePlans" :key="p.id">
+              <td><code>{{ p.tier }}</code></td>
+              <td>
+                <strong>{{ p.name }}</strong>
+                <small v-if="p.tag" style="display: block; color: var(--muted-foreground);">Tag: {{ p.tag }}</small>
+              </td>
+              <td>₱{{ Number(p.price_monthly || 0).toLocaleString() }} / mo</td>
+              <td>
+                <strong>₱{{ Number(p.price_annual_monthly || 0).toLocaleString() }} / mo</strong>
+                <small style="display: block; color: var(--muted-foreground);">₱{{ Number(p.billing_annual_total || 0).toLocaleString() }} / 10-mo yr</small>
+              </td>
+              <td>{{ p.max_teachers }}</td>
+              <td>{{ p.max_students }}</td>
+              <td>{{ p.trial_days }} days</td>
+              <td>
+                <div class="table-actions">
+                  <button class="btn-icon" @click="openEditPlanModal(p)" title="Edit Plan Details in Database">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MODAL: EDIT PLAN (Superadmin) -->
+    <div v-if="showEditPlanModal" class="modal-overlay" @click.self="showEditPlanModal = false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Edit Plan (Database): {{ editPlanForm.tier }}</h3>
+          <button class="modal-close" @click="showEditPlanModal = false">&times;</button>
+        </div>
+        <form @submit.prevent="handleSavePlan">
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Plan Name</label>
+              <input v-model="editPlanForm.name" type="text" required />
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <input v-model="editPlanForm.description" type="text" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Monthly Price (₱)</label>
+                <input v-model.number="editPlanForm.price_monthly" type="number" min="0" required />
+              </div>
+              <div class="form-group">
+                <label>School Year Rate / Month (₱)</label>
+                <input v-model.number="editPlanForm.price_annual_monthly" type="number" min="0" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Annual Total (₱)</label>
+                <input v-model.number="editPlanForm.billing_annual_total" type="number" min="0" required />
+              </div>
+              <div class="form-group">
+                <label>Trial Days</label>
+                <input v-model.number="editPlanForm.trial_days" type="number" min="0" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Max Teachers</label>
+                <input v-model.number="editPlanForm.max_teachers" type="number" min="1" required />
+              </div>
+              <div class="form-group">
+                <label>Max Students</label>
+                <input v-model.number="editPlanForm.max_students" type="number" min="1" required />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="showEditPlanModal = false">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="submitting">
+              {{ submitting ? 'Saving…' : 'Save Changes to Database' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
     <div v-if="auth.isSuperadmin" class="card" style="margin-top: 24px;">
       <div class="card-header-row">
         <div>
@@ -249,9 +358,9 @@
               <div class="form-group">
                 <label for="issue-tier">Plan Tier *</label>
                 <select id="issue-tier" v-model="issueForm.plan_tier" @change="onTierChange">
-                  <option value="adviser">Adviser Dedicated (₱199/mo)</option>
-                  <option value="campus">School Pro (₱1,190/mo)</option>
-                  <option value="division">Division Enterprise (₱3,990/mo)</option>
+                  <option v-for="p in availablePlans" :key="p.tier" :value="p.tier">
+                    {{ p.name }} (₱{{ Number(p.price_annual_monthly || 0).toLocaleString() }}/mo)
+                  </option>
                 </select>
               </div>
 
@@ -337,6 +446,7 @@ const usage = reactive({ teachers: 0, students: 0 })
 const currentSchool = ref(null)
 const allLicenses = ref([])
 const schoolsList = ref([])
+const availablePlans = ref([])
 
 const showActivateModal = ref(false)
 const activateKeyInput = ref('')
@@ -344,6 +454,20 @@ const showIssueModal = ref(false)
 const showRenewModal = ref(false)
 const renewMonths = ref(10)
 const submitting = ref(false)
+
+const showEditPlanModal = ref(false)
+const editPlanForm = reactive({
+  id: '',
+  tier: '',
+  name: '',
+  description: '',
+  price_monthly: 0,
+  price_annual_monthly: 0,
+  billing_annual_total: 0,
+  trial_days: 14,
+  max_teachers: 1,
+  max_students: 65
+})
 
 const issueForm = reactive({
   school_id: '',
@@ -355,6 +479,8 @@ const issueForm = reactive({
 })
 
 function planTierName(tier) {
+  const p = availablePlans.value.find(x => x.tier === tier)
+  if (p) return p.name
   if (tier === 'adviser') return 'Adviser Dedicated'
   if (tier === 'division') return 'Division Enterprise'
   return 'School Pro Campus'
@@ -380,15 +506,74 @@ async function copyKey(key) {
 }
 
 function onTierChange() {
-  if (issueForm.plan_tier === 'adviser') {
-    issueForm.max_teachers = 1
-    issueForm.max_students = 65
-  } else if (issueForm.plan_tier === 'division') {
-    issueForm.max_teachers = 500
-    issueForm.max_students = 25000
+  const p = availablePlans.value.find(x => x.tier === issueForm.plan_tier)
+  if (p) {
+    issueForm.max_teachers = p.max_teachers
+    issueForm.max_students = p.max_students
   } else {
-    issueForm.max_teachers = 60
-    issueForm.max_students = 2500
+    if (issueForm.plan_tier === 'adviser') {
+      issueForm.max_teachers = 1
+      issueForm.max_students = 65
+    } else if (issueForm.plan_tier === 'division') {
+      issueForm.max_teachers = 500
+      issueForm.max_students = 25000
+    } else {
+      issueForm.max_teachers = 60
+      issueForm.max_students = 2500
+    }
+  }
+}
+
+async function loadPlans() {
+  try {
+    const res = await fetch('/api/licenses/plans')
+    if (res.ok) {
+      availablePlans.value = await res.json()
+      if (availablePlans.value.length > 0 && !issueForm.school_id) {
+        onTierChange()
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load plans:', err)
+  }
+}
+
+function openEditPlanModal(plan) {
+  Object.assign(editPlanForm, {
+    id: plan.id,
+    tier: plan.tier,
+    name: plan.name,
+    description: plan.description,
+    price_monthly: plan.price_monthly,
+    price_annual_monthly: plan.price_annual_monthly,
+    billing_annual_total: plan.billing_annual_total,
+    trial_days: plan.trial_days,
+    max_teachers: plan.max_teachers,
+    max_students: plan.max_students
+  })
+  showEditPlanModal.value = true
+}
+
+async function handleSavePlan() {
+  submitting.value = true
+  try {
+    const res = await fetch(`/api/licenses/plans/${editPlanForm.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify(editPlanForm)
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to update plan')
+    showSuccess(`Plan "${editPlanForm.name}" updated in database!`)
+    showEditPlanModal.value = false
+    await loadPlans()
+  } catch (err) {
+    showError(err.message)
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -571,8 +756,11 @@ function editLicense(lic) {
 }
 
 onMounted(async () => {
-  await loadLicenseData()
-  await loadSchoolsList()
+  await Promise.all([
+    loadLicenseData(),
+    loadSchoolsList(),
+    loadPlans()
+  ])
 })
 </script>
 

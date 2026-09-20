@@ -21,6 +21,138 @@ function parseFeatures(featuresStr) {
   }
 }
 
+// GET /api/licenses/plans
+// Public: Returns all subscription plans stored in the database.
+router.get('/plans', async (req, res) => {
+  try {
+    const rows = await query('SELECT * FROM subscription_plans ORDER BY sort_order ASC, price_annual_monthly ASC')
+    res.json(rows.map(r => ({
+      ...r,
+      features: typeof r.features === 'string' ? JSON.parse(r.features || '[]') : (r.features || []),
+      modules: typeof r.modules === 'string' ? JSON.parse(r.modules || '{}') : (r.modules || {})
+    })))
+  } catch (err) {
+    console.error('Failed to get subscription plans:', err.message)
+    res.status(500).json({ error: 'Failed to retrieve plans' })
+  }
+})
+
+// GET /api/licenses/landing-data
+// Public: Dynamic landing data from database (plans, school context, telemetry stats, sample roster)
+router.get('/landing-data', async (req, res) => {
+  try {
+    const planRows = await query('SELECT * FROM subscription_plans ORDER BY sort_order ASC')
+    const plans = planRows.map(r => ({
+      ...r,
+      features: typeof r.features === 'string' ? JSON.parse(r.features || '[]') : (r.features || []),
+      modules: typeof r.modules === 'string' ? JSON.parse(r.modules || '{}') : (r.modules || {})
+    }))
+
+    const schoolRow = (await query('SELECT id, name, short, school_id, address FROM schools ORDER BY id ASC LIMIT 1'))[0] || null
+    const studentCount = (await query('SELECT COUNT(*) as cnt FROM students'))[0]?.cnt || 0
+    const teacherCount = (await query('SELECT COUNT(*) as cnt FROM users WHERE role = "teacher"'))[0]?.cnt || 0
+    const sectionCount = (await query('SELECT COUNT(DISTINCT grade || "_" || section) as cnt FROM students'))[0]?.cnt || 0
+    const monthlyRecordCount = (await query('SELECT COUNT(*) as cnt FROM monthly_records'))[0]?.cnt || 0
+
+    // Fetch up to 5 real students from database for interactive demo preview
+    let previewStudents = []
+    if (schoolRow) {
+      previewStudents = await query(
+        'SELECT id, name, gender, grade, section, lrn FROM students WHERE school_id = ? ORDER BY name ASC LIMIT 5',
+        [schoolRow.id]
+      )
+    }
+    if (!previewStudents.length) {
+      previewStudents = await query('SELECT id, name, gender, grade, section, lrn FROM students ORDER BY name ASC LIMIT 5')
+    }
+
+    res.json({
+      plans,
+      school: schoolRow,
+      stats: {
+        totalStudents: studentCount,
+        totalTeachers: teacherCount,
+        totalSections: Math.max(sectionCount, 1),
+        totalSF2Filed: monthlyRecordCount
+      },
+      previewStudents
+    })
+  } catch (err) {
+    console.error('Failed to get landing data:', err.message)
+    res.status(500).json({ error: 'Failed to retrieve landing data' })
+  }
+})
+
+// PUT /api/licenses/plans/:id
+// Superadmin: Update a subscription plan in the database
+router.put('/plans/:id', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+
+    const { id } = req.params
+    const {
+      name,
+      description,
+      tag,
+      price_monthly,
+      price_annual_monthly,
+      billing_annual_total,
+      trial_days,
+      max_teachers,
+      max_students,
+      badge,
+      cta_text,
+      cta_url,
+      features,
+      modules
+    } = req.body || {}
+
+    const existing = (await query('SELECT * FROM subscription_plans WHERE id = ?', [id]))[0]
+    if (!existing) {
+      return res.status(404).json({ error: 'Plan not found' })
+    }
+
+    await run(
+      `UPDATE subscription_plans SET
+        name = ?, description = ?, tag = ?, price_monthly = ?, price_annual_monthly = ?,
+        billing_annual_total = ?, trial_days = ?, max_teachers = ?, max_students = ?,
+        badge = ?, cta_text = ?, cta_url = ?, features = ?, modules = ?
+       WHERE id = ?`,
+      [
+        name ?? existing.name,
+        description ?? existing.description,
+        tag ?? existing.tag,
+        Number(price_monthly !== undefined ? price_monthly : existing.price_monthly),
+        Number(price_annual_monthly !== undefined ? price_annual_monthly : existing.price_annual_monthly),
+        Number(billing_annual_total !== undefined ? billing_annual_total : existing.billing_annual_total),
+        Number(trial_days !== undefined ? trial_days : existing.trial_days),
+        Number(max_teachers !== undefined ? max_teachers : existing.max_teachers),
+        Number(max_students !== undefined ? max_students : existing.max_students),
+        badge ?? existing.badge,
+        cta_text ?? existing.cta_text,
+        cta_url ?? existing.cta_url,
+        typeof features === 'object' ? JSON.stringify(features) : (features || existing.features),
+        typeof modules === 'object' ? JSON.stringify(modules) : (modules || existing.modules),
+        id
+      ]
+    )
+
+    saveDatabase()
+    await audit(me, 'plan.update', { type: 'plan', id, name: name || existing.name }, `Updated subscription plan "${id}"`)
+
+    const updated = (await query('SELECT * FROM subscription_plans WHERE id = ?', [id]))[0]
+    res.json({
+      ...updated,
+      features: typeof updated.features === 'string' ? JSON.parse(updated.features || '[]') : (updated.features || []),
+      modules: typeof updated.modules === 'string' ? JSON.parse(updated.modules || '{}') : (updated.modules || {})
+    })
+  } catch (err) {
+    console.error('Failed to update plan:', err.message)
+    res.status(500).json({ error: 'Failed to update plan: ' + err.message })
+  }
+})
+
 // GET /api/licenses
 // Returns active license and usage stats for current school, or all licenses for superadmin.
 router.get('/', async (req, res) => {
@@ -127,8 +259,19 @@ router.post('/', async (req, res) => {
     const nowStr = now.toISOString().split('T')[0]
     const expStr = expires.toISOString().split('T')[0]
 
-    const effTeachers = max_teachers !== undefined ? Number(max_teachers) : (plan_tier === 'adviser' ? 1 : (plan_tier === 'division' ? 500 : 60))
-    const effStudents = max_students !== undefined ? Number(max_students) : (plan_tier === 'adviser' ? 65 : (plan_tier === 'division' ? 25000 : 2500))
+    // Fetch plan limits and modules from database
+    const planRows = await query('SELECT * FROM subscription_plans WHERE tier = ? OR id = ?', [plan_tier, plan_tier])
+    const dbPlan = planRows[0] || null
+
+    const effTeachers = max_teachers !== undefined ? Number(max_teachers) : (dbPlan ? dbPlan.max_teachers : (plan_tier === 'adviser' ? 1 : 60))
+    const effStudents = max_students !== undefined ? Number(max_students) : (dbPlan ? dbPlan.max_students : (plan_tier === 'adviser' ? 65 : 2500))
+    const effFeatures = dbPlan && dbPlan.modules ? (typeof dbPlan.modules === 'string' ? dbPlan.modules : JSON.stringify(dbPlan.modules)) : JSON.stringify({
+      sf2_export: true,
+      sardo_radar: true,
+      analytics: true,
+      audit_logs: plan_tier !== 'adviser',
+      multi_school: plan_tier === 'division'
+    })
 
     await run(
       `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
@@ -145,13 +288,7 @@ router.post('/', async (req, res) => {
         nowStr,
         expStr,
         '',
-        JSON.stringify({
-          sf2_export: true,
-          sardo_radar: true,
-          analytics: true,
-          audit_logs: plan_tier !== 'adviser',
-          multi_school: plan_tier === 'division'
-        }),
+        effFeatures,
         notes || 'Provisioned License'
       ]
     )
@@ -228,25 +365,32 @@ router.post('/start-trial', async (req, res) => {
     }
 
     const now = new Date()
-    const trialEnds = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+    // Fetch plan details from database
+    const planRows = await query('SELECT * FROM subscription_plans WHERE tier = ? OR id = ?', [plan_tier, plan_tier])
+    const dbPlan = planRows[0] || null
+    const trialDays = Number(dbPlan?.trial_days || 14)
+    const trialEnds = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
     const nowStr = now.toISOString().split('T')[0]
     const trialStr = trialEnds.toISOString().split('T')[0]
+    const effTeachers = dbPlan?.max_teachers || (plan_tier === 'adviser' ? 1 : 25)
+    const effStudents = dbPlan?.max_students || (plan_tier === 'adviser' ? 65 : 1000)
+    const effFeatures = dbPlan && dbPlan.modules ? (typeof dbPlan.modules === 'string' ? dbPlan.modules : JSON.stringify(dbPlan.modules)) : JSON.stringify({ sf2_export: true, sardo_radar: true, analytics: true })
 
     const existing = (await query('SELECT * FROM licenses WHERE school_id = ?', [targetSchoolId]))[0]
 
     if (existing) {
       await run(
-        'UPDATE licenses SET status = ?, plan_tier = ?, trial_ends_at = ?, expires_at = ? WHERE id = ?',
-        ['trial', plan_tier, trialStr, trialStr, existing.id]
+        'UPDATE licenses SET status = ?, plan_tier = ?, trial_ends_at = ?, expires_at = ?, max_teachers = ?, max_students = ?, features = ? WHERE id = ?',
+        ['trial', plan_tier, trialStr, trialStr, effTeachers, effStudents, effFeatures, existing.id]
       )
     } else {
       const id = uuidv4()
       const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
-      const key = `ELY-TRIAL-14D-${rand}`
+      const key = `ELY-TRIAL-${trialDays}D-${rand}`
       await run(
         `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, targetSchoolId, key, plan_tier, 'trial', 'trial', 25, 1000, nowStr, trialStr, trialStr, JSON.stringify({ sf2_export: true, sardo_radar: true, analytics: true }), '14-Day Free Trial']
+        [id, targetSchoolId, key, plan_tier, 'trial', 'trial', effTeachers, effStudents, nowStr, trialStr, trialStr, effFeatures, `${trialDays}-Day Free Trial`]
       )
     }
 

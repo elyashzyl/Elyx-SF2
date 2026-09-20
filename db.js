@@ -236,6 +236,27 @@ const MYSQL_DDL = [
     trial_ends_at TEXT NOT NULL DEFAULT (''),
     features TEXT NOT NULL DEFAULT ('{}'),
     notes TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS subscription_plans (
+    id VARCHAR(64) PRIMARY KEY,
+    tier VARCHAR(32) NOT NULL UNIQUE,
+    name VARCHAR(128) NOT NULL,
+    tag VARCHAR(64) NOT NULL DEFAULT (''),
+    description TEXT NOT NULL DEFAULT (''),
+    price_monthly INT NOT NULL DEFAULT 0,
+    price_annual_monthly INT NOT NULL DEFAULT 0,
+    billing_annual_total INT NOT NULL DEFAULT 0,
+    currency VARCHAR(10) NOT NULL DEFAULT ('PHP'),
+    trial_days INT NOT NULL DEFAULT 14,
+    max_teachers INT NOT NULL DEFAULT 1,
+    max_students INT NOT NULL DEFAULT 65,
+    is_featured INT NOT NULL DEFAULT 0,
+    badge VARCHAR(64) NOT NULL DEFAULT (''),
+    cta_text VARCHAR(64) NOT NULL DEFAULT ('Inquire'),
+    cta_url VARCHAR(255) NOT NULL DEFAULT (''),
+    features TEXT NOT NULL DEFAULT ('[]'),
+    modules TEXT NOT NULL DEFAULT ('{}'),
+    sort_order INT NOT NULL DEFAULT 0
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -527,6 +548,27 @@ async function initSqlite() {
       trial_ends_at TEXT DEFAULT '',
       features TEXT DEFAULT '{}',
       notes TEXT DEFAULT ''
+    )`,
+    `CREATE TABLE IF NOT EXISTS subscription_plans (
+      id TEXT PRIMARY KEY,
+      tier TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      tag TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      price_monthly INTEGER DEFAULT 0,
+      price_annual_monthly INTEGER DEFAULT 0,
+      billing_annual_total INTEGER DEFAULT 0,
+      currency TEXT DEFAULT 'PHP',
+      trial_days INTEGER DEFAULT 14,
+      max_teachers INTEGER DEFAULT 1,
+      max_students INTEGER DEFAULT 65,
+      is_featured INTEGER DEFAULT 0,
+      badge TEXT DEFAULT '',
+      cta_text TEXT DEFAULT 'Inquire',
+      cta_url TEXT DEFAULT '',
+      features TEXT DEFAULT '[]',
+      modules TEXT DEFAULT '{}',
+      sort_order INTEGER DEFAULT 0
     )`
   ]) {
     sqlite.run(ddl)
@@ -680,6 +722,7 @@ export async function initDatabase() {
       console.warn('[db] SQLite backend ready (attendance.db) — LOCAL DEV ONLY. Set DATABASE_URL on a production host.')
     }
   }
+  await seedDefaultPlans()
   return getDb()
 }
 
@@ -813,6 +856,9 @@ export async function seedLicenseForSchool(schoolId, planTier = 'campus', billin
   const existing = await query('SELECT * FROM licenses WHERE school_id = ?', [schoolId])
   if (existing.length > 0) return existing[0]
   
+  const planRows = await query('SELECT * FROM subscription_plans WHERE tier = ? OR id = ?', [planTier, planTier])
+  const plan = planRows[0] || null
+
   const id = `lic-${schoolId}-${Date.now()}`
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
   const key = `ELY-${planTier.toUpperCase()}-2026-${rand}`
@@ -822,6 +868,16 @@ export async function seedLicenseForSchool(schoolId, planTier = 'campus', billin
   
   const nowStr = now.toISOString().split('T')[0]
   const expStr = expires.toISOString().split('T')[0]
+
+  const maxTeachers = plan ? plan.max_teachers : (planTier === 'adviser' ? 1 : (planTier === 'division' ? 500 : 60))
+  const maxStudents = plan ? plan.max_students : (planTier === 'adviser' ? 65 : (planTier === 'division' ? 25000 : 2500))
+  const featuresStr = plan && plan.modules ? (typeof plan.modules === 'string' ? plan.modules : JSON.stringify(plan.modules)) : JSON.stringify({
+    sf2_export: true,
+    sardo_radar: true,
+    analytics: true,
+    audit_logs: planTier !== 'adviser',
+    multi_school: planTier === 'division'
+  })
   
   await run(
     `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
@@ -833,24 +889,151 @@ export async function seedLicenseForSchool(schoolId, planTier = 'campus', billin
       planTier,
       'active',
       billingCycle,
-      planTier === 'adviser' ? 1 : (planTier === 'division' ? 500 : 60),
-      planTier === 'adviser' ? 65 : (planTier === 'division' ? 25000 : 2500),
+      maxTeachers,
+      maxStudents,
       nowStr,
       expStr,
       '',
-      JSON.stringify({
-        sf2_export: true,
-        sardo_radar: true,
-        analytics: true,
-        audit_logs: planTier !== 'adviser',
-        multi_school: planTier === 'division'
-      }),
+      featuresStr,
       'Provisioned School License'
     ]
   )
   saveDatabase()
   const created = await query('SELECT * FROM licenses WHERE id = ?', [id])
   return created[0] || null
+}
+
+export async function seedDefaultPlans() {
+  try {
+    const existing = await query('SELECT COUNT(*) as cnt FROM subscription_plans')
+    if (existing[0]?.cnt > 0) return
+
+    const defaultPlans = [
+      {
+        id: 'adviser',
+        tier: 'adviser',
+        name: 'Adviser License',
+        tag: 'Dedicated',
+        description: 'Dedicated single-adviser operational license with a 14-day full feature trial before payment.',
+        price_monthly: 249,
+        price_annual_monthly: 199,
+        billing_annual_total: 1990,
+        currency: 'PHP',
+        trial_days: 14,
+        max_teachers: 1,
+        max_students: 65,
+        is_featured: 0,
+        badge: '14-Day Free Trial',
+        cta_text: 'Start 14-Day Trial',
+        cta_url: '/login',
+        features: JSON.stringify([
+          '14-Day Free Evaluation Trial',
+          '1 Advisory section license key (up to 65 students)',
+          '< 90-second rapid daily roll call',
+          'Section-level monthly DepEd SF2 generation',
+          'Consecutive absence & SARDO risk flags',
+          'Standard printable PDF attendance register',
+          'Online license key activation & renewal'
+        ]),
+        modules: JSON.stringify({
+          sf2_export: true,
+          sardo_radar: true,
+          analytics: true,
+          audit_logs: false,
+          multi_school: false
+        }),
+        sort_order: 1
+      },
+      {
+        id: 'campus',
+        tier: 'campus',
+        name: 'School Pro',
+        tag: 'Campus',
+        description: 'Institutional license for public & private high schools and elementary campuses.',
+        price_monthly: 1490,
+        price_annual_monthly: 1190,
+        billing_annual_total: 11900,
+        currency: 'PHP',
+        trial_days: 14,
+        max_teachers: 60,
+        max_students: 2500,
+        is_featured: 1,
+        badge: 'DepEd SF2 Certified',
+        cta_text: 'Inquire for School Deployment',
+        cta_url: 'mailto:deploy@elytrack.ph?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
+        features: JSON.stringify([
+          'Unlimited faculty, advisers & students',
+          'School-wide consolidated DepEd SF2 (.xlsx export)',
+          'Automated SARDO early-warning radar & logs',
+          'Grade levels & sections configuration management',
+          'Quarterly attendance analytics & trend forecasting',
+          'Role-based access (Principal, Admin, Faculty)',
+          'System audit logs & activity telemetry',
+          'Priority faculty onboarding & DepEd updates'
+        ]),
+        modules: JSON.stringify({
+          sf2_export: true,
+          sardo_radar: true,
+          analytics: true,
+          audit_logs: true,
+          multi_school: false
+        }),
+        sort_order: 2
+      },
+      {
+        id: 'division',
+        tier: 'division',
+        name: 'Division & Multi-Campus',
+        tag: 'Institutional',
+        description: 'For School Division Offices (SDO), academy networks, and diocesan school clusters.',
+        price_monthly: 4990,
+        price_annual_monthly: 3990,
+        billing_annual_total: 39900,
+        currency: 'PHP',
+        trial_days: 0,
+        max_teachers: 500,
+        max_students: 25000,
+        is_featured: 0,
+        badge: 'Network SDO',
+        cta_text: 'Inquire for Division',
+        cta_url: 'mailto:inquiries@elytrack.ph?subject=ElyTrack%20Division%20Inquiry',
+        features: JSON.stringify([
+          'Multi-school governance console',
+          'Division-wide attendance aggregation',
+          'Centralized license provisioning & seat management',
+          'Custom institutional security & SSO integration',
+          'Dedicated account engineer & SLA guarantee',
+          'Data Privacy Act (RA 10173) compliance verification'
+        ]),
+        modules: JSON.stringify({
+          sf2_export: true,
+          sardo_radar: true,
+          analytics: true,
+          audit_logs: true,
+          multi_school: true
+        }),
+        sort_order: 3
+      }
+    ]
+
+    for (const p of defaultPlans) {
+      await run(
+        `INSERT INTO subscription_plans (
+          id, tier, name, tag, description, price_monthly, price_annual_monthly,
+          billing_annual_total, currency, trial_days, max_teachers, max_students,
+          is_featured, badge, cta_text, cta_url, features, modules, sort_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          p.id, p.tier, p.name, p.tag, p.description, p.price_monthly, p.price_annual_monthly,
+          p.billing_annual_total, p.currency, p.trial_days, p.max_teachers, p.max_students,
+          p.is_featured, p.badge, p.cta_text, p.cta_url, p.features, p.modules, p.sort_order
+        ]
+      )
+    }
+    saveDatabase()
+  } catch (err) {
+    console.error('[db] Error seeding default subscription plans:', err.message)
+  }
 }
 
 export function saveDatabase() {

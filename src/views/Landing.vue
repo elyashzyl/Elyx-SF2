@@ -675,189 +675,65 @@
 
           <!-- Pricing Cards Grid -->
           <div class="pricing-grid">
-            <!-- Card 1: Adviser Dedicated -->
-            <div class="pricing-card">
+            <div
+              v-for="plan in plans"
+              :key="plan.id"
+              class="pricing-card"
+              :class="{ 'pricing-card--featured': plan.is_featured }"
+            >
+              <div v-if="plan.is_featured && plan.badge" class="featured-ribbon">{{ plan.badge }}</div>
+
               <div class="pricing-card-header">
                 <div class="tier-tag-row">
-                  <span class="pricing-tier-tag">Dedicated</span>
-                  <span class="trial-tag">14-Day Free Trial</span>
+                  <span class="pricing-tier-tag" :class="{ 'pricing-tier-tag--featured': plan.is_featured }">{{ plan.tag }}</span>
+                  <span v-if="!plan.is_featured && plan.badge" class="trial-tag">{{ plan.badge }}</span>
                 </div>
-                <h3>Adviser License</h3>
-                <p class="pricing-desc">Dedicated single-adviser operational license with a 14-day full feature trial before payment.</p>
+                <h3>{{ plan.name }}</h3>
+                <p class="pricing-desc">{{ plan.description }}</p>
               </div>
 
               <div class="pricing-price-box">
                 <div class="pricing-amount-row">
                   <span class="pricing-currency">₱</span>
-                  <span class="pricing-number">{{ billingCycle === 'annual' ? '199' : '249' }}</span>
+                  <span class="pricing-number">
+                    {{ billingCycle === 'annual' ? Number(plan.price_annual_monthly || 0).toLocaleString() : Number(plan.price_monthly || 0).toLocaleString() }}
+                  </span>
                   <span class="pricing-per-month">/ month</span>
                 </div>
                 <span class="pricing-interval">
-                  {{ billingCycle === 'annual' ? 'Billed ₱1,990 per 10-month school year (14-day trial)' : 'Billed monthly per advisory section' }}
+                  {{
+                    billingCycle === 'annual'
+                      ? `Billed ₱${Number(plan.billing_annual_total || 0).toLocaleString()} per 10-month school year${plan.trial_days ? ` (${plan.trial_days}-day trial)` : ''}`
+                      : `Billed monthly${plan.tier === 'adviser' ? ' per advisory section' : ', cancel anytime'}`
+                  }}
                 </span>
               </div>
 
-              <router-link to="/login" class="pricing-cta-btn pricing-cta--secondary">
-                <span>Start 14-Day Trial</span>
+              <a
+                v-if="plan.cta_url && plan.cta_url.startsWith('mailto:')"
+                :href="plan.cta_url"
+                class="pricing-cta-btn"
+                :class="plan.is_featured ? 'pricing-cta--primary' : 'pricing-cta--secondary'"
+              >
+                <span>{{ plan.cta_text || 'Inquire for Deployment' }}</span>
+                <span>↗</span>
+              </a>
+              <router-link
+                v-else
+                :to="plan.cta_url || '/login'"
+                class="pricing-cta-btn"
+                :class="plan.is_featured ? 'pricing-cta--primary' : 'pricing-cta--secondary'"
+              >
+                <span>{{ plan.cta_text || 'Start 14-Day Trial' }}</span>
                 <span>→</span>
               </router-link>
 
               <div class="pricing-features">
-                <span class="features-label">Included in Adviser License:</span>
+                <span class="features-label">Included in {{ plan.name }}:</span>
                 <ul>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span><strong>14-Day Free Evaluation Trial</strong></span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>1 Advisory section license key (up to 65 students)</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>&lt; 90-second rapid daily roll call</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Section-level monthly DepEd SF2 generation</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Consecutive absence &amp; SARDO risk flags</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Standard printable PDF attendance register</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Online license key activation &amp; renewal</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <!-- Card 2: School Pro (Featured) -->
-            <div class="pricing-card pricing-card--featured">
-              <div class="featured-ribbon">Most Popular for Schools</div>
-
-              <div class="pricing-card-header">
-                <div class="tier-tag-row">
-                  <span class="pricing-tier-tag pricing-tier-tag--featured">Campus</span>
-                  <span class="deped-verified-badge">DepEd SF2 Certified</span>
-                </div>
-                <h3>School Pro</h3>
-                <p class="pricing-desc">Institutional license for public &amp; private high schools and elementary campuses.</p>
-              </div>
-
-              <div class="pricing-price-box">
-                <div class="pricing-amount-row">
-                  <span class="pricing-currency">₱</span>
-                  <span class="pricing-number">{{ billingCycle === 'annual' ? '1,190' : '1,490' }}</span>
-                  <span class="pricing-per-month">/ month</span>
-                </div>
-                <span class="pricing-interval">
-                  {{ billingCycle === 'annual' ? 'Billed ₱11,900 per 10-month school year (2 months free)' : 'Billed monthly, cancel anytime' }}
-                </span>
-              </div>
-
-              <a href="mailto:deploy@elytrack.ph?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry" class="pricing-cta-btn pricing-cta--primary">
-                <span>Inquire for School Deployment</span>
-                <span>→</span>
-              </a>
-
-              <div class="pricing-features">
-                <span class="features-label">Everything in Adviser, plus:</span>
-                <ul>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span><strong>Unlimited faculty, advisers &amp; students</strong></span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span><strong>School-wide consolidated DepEd SF2 (.xlsx export)</strong></span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span><strong>Automated SARDO early-warning radar &amp; logs</strong></span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span>Grade levels &amp; sections configuration management</span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span>Quarterly attendance analytics &amp; trend forecasting</span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span>Role-based access (Principal, Admin, Faculty)</span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span>System audit logs &amp; activity telemetry</span>
-                  </li>
-                  <li>
-                    <span class="check-icon check-icon--featured">✓</span>
-                    <span>Priority faculty onboarding &amp; DepEd updates</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <!-- Card 3: Division & Multi-Campus -->
-            <div class="pricing-card">
-              <div class="pricing-card-header">
-                <div class="tier-tag-row">
-                  <span class="pricing-tier-tag">Institutional</span>
-                  <span class="trial-tag">Network SDO</span>
-                </div>
-                <h3>Division &amp; Multi-Campus</h3>
-                <p class="pricing-desc">For School Division Offices (SDO), academy networks, and diocesan school clusters.</p>
-              </div>
-
-              <div class="pricing-price-box">
-                <div class="pricing-amount-row">
-                  <span class="pricing-currency">₱</span>
-                  <span class="pricing-number">{{ billingCycle === 'annual' ? '3,990' : '4,990' }}</span>
-                  <span class="pricing-per-month">/ month</span>
-                </div>
-                <span class="pricing-interval">
-                  {{ billingCycle === 'annual' ? 'Billed ₱39,900 per 10-month school year' : 'Billed monthly per cluster' }}
-                </span>
-              </div>
-
-              <a href="mailto:inquiries@elytrack.ph?subject=ElyTrack%20Division%20Inquiry" class="pricing-cta-btn pricing-cta--secondary">
-                <span>Inquire for Division</span>
-                <span>↗</span>
-              </a>
-
-              <div class="pricing-features">
-                <span class="features-label">Enterprise Division Infrastructure:</span>
-                <ul>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span><strong>Multi-school governance console</strong></span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Division-wide attendance aggregation</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Centralized license provisioning &amp; seat management</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Custom institutional security &amp; SSO integration</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Dedicated account engineer &amp; SLA guarantee</span>
-                  </li>
-                  <li>
-                    <span class="check-icon">✓</span>
-                    <span>Data Privacy Act (RA 10173) compliance verification</span>
+                  <li v-for="(feat, fIdx) in plan.features" :key="fIdx">
+                    <span class="check-icon" :class="{ 'check-icon--featured': plan.is_featured }">✓</span>
+                    <span>{{ feat }}</span>
                   </li>
                 </ul>
               </div>
@@ -980,13 +856,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const billingCycle = ref('annual')
 const activeDemoTab = ref('rollcall')
 const mobileNavOpen = ref(false)
 const sectionCount = ref(24)
 const activeFaq = ref(0)
+const plans = ref([])
+const activeSchool = ref(null)
 
 const demoStudents = ref([
   { id: 1, name: 'DELA CRUZ, JUAN M.', gender: 'Male', am1: 'E', am2: 'E', am3: 'E', am4: 'E', status: 'Present' },
@@ -994,6 +872,43 @@ const demoStudents = ref([
   { id: 3, name: 'REYES, PEDRO B.', gender: 'Male', am1: 'A', am2: 'A', am3: 'A', am4: 'A', status: 'Absent' },
   { id: 4, name: 'AQUINO, BEA C.', gender: 'Female', am1: 'E', am2: 'E', am3: 'E', am4: 'E', status: 'Present' }
 ])
+
+onMounted(async () => {
+  await loadLandingData()
+})
+
+async function loadLandingData() {
+  try {
+    const res = await fetch('/api/licenses/landing-data')
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data.plans) && data.plans.length > 0) {
+        plans.value = data.plans
+      }
+      if (data.school) {
+        activeSchool.value = data.school
+      }
+      if (data.stats?.totalSections) {
+        sectionCount.value = Math.max(data.stats.totalSections, 4)
+      }
+      if (Array.isArray(data.previewStudents) && data.previewStudents.length > 0) {
+        demoStudents.value = data.previewStudents.slice(0, 5).map((st, i) => ({
+          id: i + 1,
+          name: st.name,
+          gender: st.gender || (i % 2 === 0 ? 'Male' : 'Female'),
+          lrn: st.lrn || `10482910${i + 1}`,
+          am1: i === 2 ? 'A' : 'E',
+          am2: i === 1 ? 'T' : (i === 2 ? 'A' : 'E'),
+          am3: i === 2 ? 'A' : 'E',
+          am4: i === 2 ? 'A' : 'E',
+          status: i === 2 ? 'Absent' : 'Present'
+        }))
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load dynamic landing data:', err)
+  }
+}
 
 function toggleStudentStatus(index) {
   const st = demoStudents.value[index]
