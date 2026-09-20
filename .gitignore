@@ -25,6 +25,7 @@ dist-ssr
 
 # Database
 attendance.db
+attendance.db.backup-*
 
 # Generated export files
 sf2_*.html

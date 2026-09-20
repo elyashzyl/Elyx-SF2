@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
-import { requireRole, resolveScopeSchool, assertValidClass, audit } from './_context.js'
+import { requireRole, resolveScopeSchool, assertValidClass, audit, getSchoolLicense } from './_context.js'
 
 const router = Router()
 
@@ -89,6 +89,17 @@ router.post('/', async (req, res) => {
     if (!(await assertValidClass(res, scope.schoolId, grade, section))) return
     const dupes = await duplicateNames([trimmed], scope.schoolId)
     if (dupes.length) return res.status(409).json({ error: 'Student "' + trimmed + '" already exists in this school' })
+
+    const license = await getSchoolLicense(scope.schoolId)
+    if (license && license.max_students > 0) {
+      const currentStudents = (await query('SELECT COUNT(*) as cnt FROM students WHERE school_id = ?', [scope.schoolId]))[0]?.cnt || 0
+      if (currentStudents >= license.max_students) {
+        return res.status(400).json({
+          error: `Student population limit reached (${currentStudents}/${license.max_students} students). Upgrade your license capacity to enroll more students.`
+        })
+      }
+    }
+
     const id = uuidv4()
     await run('INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
       [id, trimmed, grade, section, gender || '', scope.schoolId])

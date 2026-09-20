@@ -156,7 +156,7 @@
                   :class="['day-cell', { weekend: isWeekend(d), excluded: isExcluded(d) }]">
                 <span v-if="!isDisabled(d)" class="day-total">{{ dayTotal(record.entries, d, 'all') }}</span>
               </td>
-              <td class="total-cell present">{{ Math.round((genderGroups.reduce((s, g) => s + g.sumPresent, 0)) * 10) / 10 }}</td>
+              <td class="total-cell present">{{ sumPresent('all') }}</td>
               <td class="total-cell absent">{{ sumAbsent('all') }}</td>
               <td></td>
             </tr>
@@ -178,20 +178,20 @@
           <tbody>
             <tr>
               <td class="summary-label">Enrolment as of 1st Friday of the SY</td>
-              <td><input type="number" v-model.number="summaryEdits.enr_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.enr_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.enr_m" @change="onSummaryChange('enr')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.enr_f" @change="onSummaryChange('enr')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.enr_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
               <td class="summary-label">Late enrolment during the month</td>
-              <td><input type="number" v-model.number="summaryEdits.late_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.late_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.late_m" @change="onSummaryChange('late')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.late_f" @change="onSummaryChange('late')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.late_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
               <td class="summary-label">Registered Learners as of end of month</td>
-              <td><input type="number" v-model.number="summaryEdits.reg_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.reg_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.reg_m" @change="onSummaryChange('reg')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.reg_f" @change="onSummaryChange('reg')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.reg_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
@@ -202,8 +202,8 @@
             </tr>
             <tr>
               <td class="summary-label">Average Daily Attendance</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_m" @change="onSummaryChange('ada')" class="summary-input" /></td>
+              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_f" @change="onSummaryChange('ada')" class="summary-input" /></td>
               <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
@@ -214,26 +214,26 @@
             </tr>
             <tr>
               <td class="summary-label">Number of students absent for 5 consecutive days</td>
-              <td><input type="number" v-model.number="summaryEdits.abs5_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.abs5_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.abs5_m" @change="onSummaryChange('abs5')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.abs5_f" @change="onSummaryChange('abs5')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.abs5_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
               <td class="summary-label">NLS</td>
-              <td><input type="number" v-model.number="summaryEdits.nls_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.nls_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.nls_m" @change="onSummaryChange('nls')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.nls_f" @change="onSummaryChange('nls')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.nls_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
               <td class="summary-label">Transferred out</td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_out_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_out_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.transfer_out_m" @change="onSummaryChange('transfer_out')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.transfer_out_f" @change="onSummaryChange('transfer_out')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.transfer_out_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
             <tr>
               <td class="summary-label">Transferred in</td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_in_m" @change="saveSummary" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_in_f" @change="saveSummary" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.transfer_in_m" @change="onSummaryChange('transfer_in')" class="summary-input" /></td>
+              <td><input type="number" v-model.number="summaryEdits.transfer_in_f" @change="onSummaryChange('transfer_in')" class="summary-input" /></td>
               <td><input type="number" v-model.number="summaryEdits.transfer_in_t" @change="saveSummary" class="summary-input" /></td>
             </tr>
           </tbody>
@@ -273,11 +273,13 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { loadPageState } from '../composables/usePageState'
 
+const route = useRoute()
 const store = useAttendanceStore()
 const auth = useAuthStore()
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
@@ -351,14 +353,22 @@ onMounted(async () => {
     }
   } catch {}
   try {
-    const saved = localStorage.getItem('monthlyAttendance')
-    if (saved) {
-      const p = JSON.parse(saved)
-      form.month = p.month
-      form.year = p.year
-      form.grade = p.grade
-      form.section = p.section
+    if (route.query.grade && route.query.section) {
+      form.grade = String(route.query.grade)
+      form.section = String(route.query.section)
+      if (route.query.month) form.month = Number(route.query.month)
+      if (route.query.year) form.year = Number(route.query.year)
       await openMonthly()
+    } else {
+      const saved = localStorage.getItem('monthlyAttendance')
+      if (saved) {
+        const p = JSON.parse(saved)
+        form.month = p.month
+        form.year = p.year
+        form.grade = p.grade
+        form.section = p.section
+        await openMonthly()
+      }
     }
   } catch {}
 })
@@ -463,23 +473,33 @@ const schoolDays = computed(() => {
 
 const totalCols = computed(() => daysInMonth.value + 5)
 
+function normalizeGender(g) {
+  if (!g) return ''
+  const str = String(g).trim().toLowerCase()
+  if (str === 'male' || str === 'm' || str === 'boy' || str === 'boys') return 'male'
+  if (str === 'female' || str === 'f' || str === 'girl' || str === 'girls') return 'female'
+  return ''
+}
+
 function entriesByGender(gender) {
   if (!record.value?.entries) return []
   if (gender === 'all') return record.value.entries
-  return record.value.entries.filter(e => (e.gender || '').toLowerCase() === gender)
+  return record.value.entries.filter(e => normalizeGender(e.gender) === gender)
 }
 
 function dayTotal(entries, day, gender) {
-  const filtered = gender === 'all' ? entries : entries.filter(e => (e.gender || '').toLowerCase() === gender)
+  if (!entries || !entries.length) return 0
+  const filtered = gender === 'all' ? entries : entries.filter(e => normalizeGender(e.gender) === gender)
+  if (!filtered.length) return 0
   let count = 0
   for (const e of filtered) {
     const enrollDay = enrollmentDay(e)
     if (enrollDay !== null && day < enrollDay) continue
-    const s = e.days[String(day)]
+    const s = e.days ? e.days[String(day)] : null
     if (!s || s === '◤' || s === 'T' || s === 'E') count++
     else if (s === '◢' || s === 'H') count += 0.5
   }
-  return count || ''
+  return count
 }
 
 function enrollmentDay(entry) {
@@ -524,27 +544,40 @@ function sumAbsent(gender) {
 
 const genderGroups = computed(() => {
   if (!record.value?.entries) return []
-  const boys = record.value.entries.filter(e => (e.gender || '').toLowerCase() === 'male')
-  const girls = record.value.entries.filter(e => (e.gender || '').toLowerCase() === 'female')
+  const boys = record.value.entries.filter(e => normalizeGender(e.gender) === 'male')
+  const girls = record.value.entries.filter(e => normalizeGender(e.gender) === 'female')
+  const unassigned = record.value.entries.filter(e => !normalizeGender(e.gender))
   const groups = []
-  if (boys.length) {
+
+  // Always include BOYS
+  groups.push({
+    label: 'BOYS',
+    entries: boys,
+    total: (d) => dayTotal(boys, d, 'all'),
+    sumPresent: boys.reduce((s, e) => s + entryPresent(e), 0),
+    sumAbsent: boys.reduce((s, e) => s + entryAbsent(e), 0)
+  })
+
+  // Always include GIRLS
+  groups.push({
+    label: 'GIRLS',
+    entries: girls,
+    total: (d) => dayTotal(girls, d, 'all'),
+    sumPresent: girls.reduce((s, e) => s + entryPresent(e), 0),
+    sumAbsent: girls.reduce((s, e) => s + entryAbsent(e), 0)
+  })
+
+  // If any unassigned gender learners exist, keep them visible so totals are never lost
+  if (unassigned.length) {
     groups.push({
-      label: 'BOYS',
-      entries: boys,
-      total: (d) => dayTotal(boys, d, 'all'),
-      sumPresent: boys.reduce((s, e) => s + entryPresent(e), 0),
-      sumAbsent: boys.reduce((s, e) => s + entryAbsent(e), 0)
+      label: 'UNASSIGNED GENDER',
+      entries: unassigned,
+      total: (d) => dayTotal(unassigned, d, 'all'),
+      sumPresent: unassigned.reduce((s, e) => s + entryPresent(e), 0),
+      sumAbsent: unassigned.reduce((s, e) => s + entryAbsent(e), 0)
     })
   }
-  if (girls.length) {
-    groups.push({
-      label: 'GIRLS',
-      entries: girls,
-      total: (d) => dayTotal(girls, d, 'all'),
-      sumPresent: girls.reduce((s, e) => s + entryPresent(e), 0),
-      sumAbsent: girls.reduce((s, e) => s + entryAbsent(e), 0)
-    })
-  }
+
   return groups
 })
 
@@ -555,8 +588,8 @@ const summaryData = computed(() => {
   const girls = groups.find(g => g.label === 'GIRLS')
   const mCount = boys ? boys.entries.length : 0
   const fCount = girls ? girls.entries.length : 0
-  const lateM = summaryEdits.late_m
-  const lateF = summaryEdits.late_f
+  const lateM = summaryEdits.late_m || 0
+  const lateF = summaryEdits.late_f || 0
   const mPresent = boys ? boys.sumPresent : 0
   const fPresent = girls ? girls.sumPresent : 0
   const sd = schoolDays.value || 1
@@ -569,8 +602,8 @@ const summaryData = computed(() => {
   return {
     enrollment: { m: mInit, f: fInit, total: tInit },
     lateEnrolment: {
-      m: record.value.entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'male').length,
-      f: record.value.entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'female').length,
+      m: record.value.entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'male').length,
+      f: record.value.entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'female').length,
       total: record.value.entries.filter(e => e.late_enrollee).length
     },
     registeredLearners: { m: mCount, f: fCount, total: mCount + fCount },
@@ -656,45 +689,105 @@ async function openMonthly() {
     }
   }
   record.value = data
+  try {
+    localStorage.setItem('monthlyAttendance', JSON.stringify({
+      month: form.month,
+      year: form.year,
+      grade: form.grade,
+      section: form.section
+    }))
+  } catch {}
   initSummaryEdits()
+}
+
+function onSummaryChange(field) {
+  if (field === 'enr') {
+    summaryEdits.enr_t = (Number(summaryEdits.enr_m) || 0) + (Number(summaryEdits.enr_f) || 0)
+  } else if (field === 'late') {
+    summaryEdits.late_t = (Number(summaryEdits.late_m) || 0) + (Number(summaryEdits.late_f) || 0)
+  } else if (field === 'reg') {
+    summaryEdits.reg_t = (Number(summaryEdits.reg_m) || 0) + (Number(summaryEdits.reg_f) || 0)
+  } else if (field === 'nls') {
+    summaryEdits.nls_t = (Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0)
+  } else if (field === 'transfer_out') {
+    summaryEdits.transfer_out_t = (Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0)
+  } else if (field === 'transfer_in') {
+    summaryEdits.transfer_in_t = (Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0)
+  } else if (field === 'abs5') {
+    summaryEdits.abs5_t = (Number(summaryEdits.abs5_m) || 0) + (Number(summaryEdits.abs5_f) || 0)
+  } else if (field === 'ada') {
+    summaryEdits.ada_t = Math.round(((Number(summaryEdits.ada_m) || 0) + (Number(summaryEdits.ada_f) || 0)) * 100) / 100
+  }
+  saveSummary()
 }
 
 function initSummaryEdits() {
   if (!record.value) return
   const sd = record.value.summary_data || {}
-  summaryEdits.ada_m = summaryData.value?.avgDailyAttendance?.m ?? 0
-  summaryEdits.ada_f = summaryData.value?.avgDailyAttendance?.f ?? 0
-  summaryEdits.ada_t = summaryData.value?.avgDailyAttendance?.total ?? 0
-  summaryEdits.pct_m = summaryData.value?.pctAttendance?.m ?? 0
-  summaryEdits.pct_f = summaryData.value?.pctAttendance?.f ?? 0
-  summaryEdits.pct_t = summaryData.value?.pctAttendance?.total ?? 0
-  summaryEdits.abs5_m = summaryData.value?.absent5?.m ?? 0
-  summaryEdits.abs5_f = summaryData.value?.absent5?.f ?? 0
-  summaryEdits.abs5_t = summaryData.value?.absent5?.total ?? 0
-  summaryEdits.enr_m = summaryData.value?.enrollment?.m ?? 0
-  summaryEdits.enr_f = summaryData.value?.enrollment?.f ?? 0
-  summaryEdits.enr_t = summaryData.value?.enrollment?.total ?? 0
-  summaryEdits.reg_m = summaryData.value?.registeredLearners?.m ?? 0
-  summaryEdits.reg_f = summaryData.value?.registeredLearners?.f ?? 0
-  summaryEdits.reg_t = summaryData.value?.registeredLearners?.total ?? 0
-  summaryEdits.pct_enr_m = summaryData.value?.pctEnrolment?.m ?? 0
-  summaryEdits.pct_enr_f = summaryData.value?.pctEnrolment?.f ?? 0
-  summaryEdits.pct_enr_t = summaryData.value?.pctEnrolment?.total ?? 0
+  const s = summaryData.value || {}
+
+  summaryEdits.enr_m = sd.enr_m ?? s.enrollment?.m ?? 0
+  summaryEdits.enr_f = sd.enr_f ?? s.enrollment?.f ?? 0
+  summaryEdits.enr_t = (sd.enr_t !== undefined && sd.enr_t !== null && sd.enr_t !== 0)
+    ? sd.enr_t
+    : ((Number(summaryEdits.enr_m) || 0) + (Number(summaryEdits.enr_f) || 0))
+
   const entries = record.value.entries || []
-  const lateM = entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'male').length
-  const lateF = entries.filter(e => e.late_enrollee && (e.gender || '').toLowerCase() === 'female').length
-  summaryEdits.late_m = lateM
-  summaryEdits.late_f = lateF
-  summaryEdits.late_t = lateM + lateF
+  const lateM = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'male').length
+  const lateF = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'female').length
+  summaryEdits.late_m = sd.late_m ?? lateM
+  summaryEdits.late_f = sd.late_f ?? lateF
+  summaryEdits.late_t = (sd.late_t !== undefined && sd.late_t !== null && sd.late_t !== 0)
+    ? sd.late_t
+    : ((Number(summaryEdits.late_m) || 0) + (Number(summaryEdits.late_f) || 0))
+
+  summaryEdits.reg_m = sd.reg_m ?? s.registeredLearners?.m ?? 0
+  summaryEdits.reg_f = sd.reg_f ?? s.registeredLearners?.f ?? 0
+  summaryEdits.reg_t = (sd.reg_t !== undefined && sd.reg_t !== null && sd.reg_t !== 0)
+    ? sd.reg_t
+    : ((Number(summaryEdits.reg_m) || 0) + (Number(summaryEdits.reg_f) || 0))
+
+  summaryEdits.pct_enr_m = sd.pct_enr_m ?? s.pctEnrolment?.m ?? 0
+  summaryEdits.pct_enr_f = sd.pct_enr_f ?? s.pctEnrolment?.f ?? 0
+  summaryEdits.pct_enr_t = (sd.pct_enr_t !== undefined && sd.pct_enr_t !== null && sd.pct_enr_t !== 0)
+    ? sd.pct_enr_t
+    : (s.pctEnrolment?.total ?? 0)
+
+  summaryEdits.ada_m = sd.ada_m ?? s.avgDailyAttendance?.m ?? 0
+  summaryEdits.ada_f = sd.ada_f ?? s.avgDailyAttendance?.f ?? 0
+  summaryEdits.ada_t = (sd.ada_t !== undefined && sd.ada_t !== null && sd.ada_t !== 0)
+    ? sd.ada_t
+    : (s.avgDailyAttendance?.total ?? Math.round(((Number(summaryEdits.ada_m) || 0) + (Number(summaryEdits.ada_f) || 0)) * 100) / 100)
+
+  summaryEdits.pct_m = sd.pct_m ?? s.pctAttendance?.m ?? 0
+  summaryEdits.pct_f = sd.pct_f ?? s.pctAttendance?.f ?? 0
+  summaryEdits.pct_t = (sd.pct_t !== undefined && sd.pct_t !== null && sd.pct_t !== 0)
+    ? sd.pct_t
+    : (s.pctAttendance?.total ?? 0)
+
+  summaryEdits.abs5_m = sd.abs5_m ?? s.absent5?.m ?? 0
+  summaryEdits.abs5_f = sd.abs5_f ?? s.absent5?.f ?? 0
+  summaryEdits.abs5_t = (sd.abs5_t !== undefined && sd.abs5_t !== null && sd.abs5_t !== 0)
+    ? sd.abs5_t
+    : ((Number(summaryEdits.abs5_m) || 0) + (Number(summaryEdits.abs5_f) || 0))
+
   summaryEdits.nls_m = sd.nls_m ?? 0
   summaryEdits.nls_f = sd.nls_f ?? 0
-  summaryEdits.nls_t = sd.nls_t ?? 0
+  summaryEdits.nls_t = (sd.nls_t !== undefined && sd.nls_t !== null && sd.nls_t !== 0)
+    ? sd.nls_t
+    : ((Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0))
+
   summaryEdits.transfer_out_m = sd.transfer_out_m ?? 0
   summaryEdits.transfer_out_f = sd.transfer_out_f ?? 0
-  summaryEdits.transfer_out_t = sd.transfer_out_t ?? 0
+  summaryEdits.transfer_out_t = (sd.transfer_out_t !== undefined && sd.transfer_out_t !== null && sd.transfer_out_t !== 0)
+    ? sd.transfer_out_t
+    : ((Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0))
+
   summaryEdits.transfer_in_m = sd.transfer_in_m ?? 0
   summaryEdits.transfer_in_f = sd.transfer_in_f ?? 0
-  summaryEdits.transfer_in_t = sd.transfer_in_t ?? 0
+  summaryEdits.transfer_in_t = (sd.transfer_in_t !== undefined && sd.transfer_in_t !== null && sd.transfer_in_t !== 0)
+    ? sd.transfer_in_t
+    : ((Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0))
 }
 
 async function saveSummary() {
@@ -811,6 +904,11 @@ async function toggleExcludeDate(d) {
   })
   const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined)
   if (res) {
+    if (res.entries) {
+      for (const e of res.entries) {
+        e.gender = studentsLookup.value[e.studentId] || e.gender || ''
+      }
+    }
     record.value = res
     initSummaryEdits()
     refreshSummaryFromLive()

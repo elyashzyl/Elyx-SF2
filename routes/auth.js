@@ -1,6 +1,7 @@
 import { Router } from 'express'
-import { query, getSchoolById, logAudit } from '../db.js'
-import { schoolToResponse, requireRole } from './_context.js'
+import { v4 as uuidv4 } from 'uuid'
+import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels, seedGradeLevelsForSchool } from '../db.js'
+import { schoolToResponse, requireRole, isLicenseActive } from './_context.js'
 
 const router = Router()
 
@@ -10,18 +11,64 @@ async function publicUser(row) {
   return { ...userData, school }
 }
 
+// Public endpoint to list schools for registration
+router.get('/schools', async (req, res) => {
+  try {
+    const schools = await query('SELECT id, name, school_id, address, short FROM schools ORDER BY name ASC')
+    res.json(schools.map(schoolToResponse))
+  } catch (err) {
+    console.error('Failed to fetch public schools:', err.message)
+    res.status(500).json({ error: 'Failed to fetch schools' })
+  }
+})
+
+// Public endpoint to get grade levels for a school during registration
+router.get('/schools/:id/grades', async (req, res) => {
+  try {
+    const grades = await getGradeLevels(req.params.id)
+    res.json(grades || [])
+  } catch (err) {
+    console.error('Failed to fetch school grades:', err.message)
+    res.json([])
+  }
+})
+
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body
-    const users = await query('SELECT * FROM users WHERE username = ? AND password = ?', [username, password])
+    const { username, password } = req.body || {}
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' })
+    }
+    const cleanUsername = String(username).trim()
+    const users = await query('SELECT * FROM users WHERE LOWER(username) = LOWER(?) AND password = ?', [cleanUsername, password])
     if (users.length === 0) {
       return res.status(401).json({ error: 'Invalid username or password' })
     }
-    res.json({ user: await publicUser(users[0]) })
+    const user = users[0]
+
+    // License enforcement: check school's license status
+    if (user.role !== 'superadmin' && user.school_id) {
+      const license = (await query('SELECT * FROM licenses WHERE school_id = ? ORDER BY issued_at DESC LIMIT 1', [user.school_id]))[0]
+      if (license && !isLicenseActive(license)) {
+        const reason = license.status === 'suspended' ? 'suspended' : 'expired'
+        if (user.role === 'teacher') {
+          return res.status(403).json({
+            error: `Your school's ElyTrack license is currently ${reason}. Teacher access is locked. Please contact your school administrator.`
+          })
+        }
+      }
+    }
+
+    res.json({ user: await publicUser(user) })
   } catch (err) {
     console.error('Login error:', err.message)
     res.status(500).json({ error: 'Login failed' })
   }
+})
+
+// Public registration is disabled; accounts are provisioned through subscription
+router.post('/register', (_req, res) => {
+  res.status(403).json({ error: 'Public registration is disabled. Accounts are provisioned upon school deployment.' })
 })
 
 // Superadmin starts impersonating another user (admin or teacher).

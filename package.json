@@ -1,5 +1,5 @@
 {
-  "name": "attendance-checker",
+  "name": "elytrack",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
-    "db:migrate": "node scripts/migrate-sqlite-to-mysql.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:fresh": "node scripts/migrate.mjs --fresh",
+    "db:migrate:status": "node scripts/migrate.mjs --status",
+    "db:seed": "node scripts/seed.mjs",
+    "db:setup": "node scripts/migrate.mjs && node scripts/seed.mjs",
+    "db:reset": "node scripts/reset-sqlite.mjs",
+    "db:export-mysql": "node scripts/migrate-sqlite-to-mysql.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

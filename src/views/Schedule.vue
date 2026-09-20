@@ -1,15 +1,27 @@
 <template>
   <div class="schedule-page">
     <div class="page-header">
-      <h1>{{ isAdmin ? (editingTeacher ? editingTeacher.name + '\'s Schedule' : 'Teacher Schedule') : 'My Schedule' }}</h1>
-      <p>Manage your teaching schedule, view school events, and track important dates.</p>
+      <div class="page-header-text">
+        <h1>{{ isAdmin ? (editingTeacher ? editingTeacher.name + '\'s Schedule' : 'Teacher Schedule') : 'My Schedule' }}</h1>
+        <p>Manage teaching schedules, view school events, and track important academic dates.</p>
+      </div>
       <div class="page-header-actions">
         <select v-if="isAdmin" v-model="editingTeacherId" @change="loadSchedule" class="teacher-select">
           <option value="">Select a teacher...</option>
           <option v-for="u in teachers" :key="u.id" :value="u.id">{{ u.name }}</option>
         </select>
-        <button @click="openAddForm" class="btn-primary">+ Add Entry</button>
-        <button @click="showTimeEditor = true" class="btn-secondary">Set Period Times</button>
+        <button @click="openAddForm()" class="btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Add Entry
+        </button>
+        <button @click="showTimeEditor = true" class="btn-secondary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          Set Period Times
+        </button>
       </div>
     </div>
 
@@ -281,20 +293,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'
+import { useGradeLevels } from '../composables/useGradeLevels'
 
 const auth = useAuthStore()
 const { notify } = useNotifications()
+const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
 const isAdmin = computed(() => auth.isAdmin)
 
 const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const periodKeys = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6', 'pm1', 'pm2', 'pm3', 'pm4']
-const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
-const sectionsByGrade = {
-  'Grade 7': ['Pine', 'Molave'],
-  'Grade 8': ['Cypress', 'Narra'],
-  'Grade 9': ['Kamagong', 'Mahogany'],
-  'Grade 10': ['Acacia', 'Yakal']
-}
 
 const periodColors = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#db2777', '#be123c', '#4f46e5']
 const subjectColors = {}
@@ -358,7 +365,7 @@ const availableSections = computed(() => {
   if (!selected.length) return []
   const set = new Set()
   for (const g of selected) {
-    for (const s of (sectionsByGrade[g] || [])) set.add(s)
+    for (const s of (sectionsByGrade.value?.[g] || [])) set.add(s)
   }
   return Array.from(set)
 })
@@ -570,10 +577,14 @@ async function deleteQuarterly(id) {
 }
 
 onMounted(async () => {
+  await loadGradeLevels()
   await loadTimeSettings()
   if (isAdmin.value) {
     const all = await auth.getUsers()
     teachers.value = all.filter(u => u.role === 'teacher')
+    if (teachers.value.length > 0 && !editingTeacherId.value) {
+      editingTeacherId.value = teachers.value[0].id
+    }
   }
   await loadSchedule()
   await loadEvents()
@@ -694,6 +705,10 @@ function onPeriodChange() {
 }
 
 function openAddForm(day, period) {
+  if (isAdmin.value && !editingTeacherId.value) {
+    notify('Please select a teacher first', 'warning')
+    return
+  }
   resetForm()
   if (day) form.value.day = day
   if (period) form.value.period = period

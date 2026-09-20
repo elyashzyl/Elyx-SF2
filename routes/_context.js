@@ -72,24 +72,64 @@ export async function assertSchoolAccess(req, res, targetSchoolId) {
   return me
 }
 
+export function isLicenseActive(license) {
+  if (!license) return false
+  if (license.status === 'suspended') return false
+  if (license.status === 'expired') return false
+  
+  const targetDate = license.status === 'trial' && license.trial_ends_at ? license.trial_ends_at : license.expires_at
+  if (!targetDate) return true
+  
+  const expiry = new Date(targetDate)
+  const now = new Date()
+  expiry.setHours(23, 59, 59, 999)
+  return now <= expiry
+}
+
+export async function getSchoolLicense(schoolId) {
+  if (!schoolId) return null
+  const rows = await query('SELECT * FROM licenses WHERE school_id = ? ORDER BY issued_at DESC LIMIT 1', [schoolId])
+  return rows[0] || null
+}
+
 // Resolve which school id scopes this request:
 // explicit param wins (checked against actor), else actor's own school.
-export async function resolveScopeSchool(req, res, explicit) {
+// Options: { checkLicense: true (default) }
+export async function resolveScopeSchool(req, res, explicit, options = { checkLicense: true }) {
   const me = await actingUser(req)
   if (!me) { res.status(401).json({ error: 'Not authenticated' }); return null }
   if (me.roleMismatch) { res.status(403).json({ error: 'Role mismatch — please sign in again' }); return null }
+  
+  let targetSchoolId = null
   if (explicit) {
     if (me.role !== 'superadmin' && me.school_id !== explicit) {
       res.status(403).json({ error: 'Forbidden: outside your school' })
       return null
     }
-    return { me, schoolId: explicit }
+    targetSchoolId = explicit
+  } else if (me.role === 'superadmin') {
+    targetSchoolId = null
+  } else {
+    if (!me.school_id) { res.status(403).json({ error: 'No school assigned to this account' }); return null }
+    targetSchoolId = me.school_id
   }
-  if (me.role === 'superadmin') {
-    return { me, schoolId: null }
+
+  // Enforce license check for non-superadmin users if checkLicense is true
+  if (options.checkLicense !== false && me.role !== 'superadmin' && targetSchoolId) {
+    const license = await getSchoolLicense(targetSchoolId)
+    if (license && !isLicenseActive(license)) {
+      const reason = license.status === 'suspended' ? 'suspended' : 'expired'
+      res.status(402).json({
+        error: `School workspace is locked. Your ElyTrack license is currently ${reason}. Please contact your administrator or deploy@elytrack.ph to restore access.`,
+        licenseStatus: license.status,
+        licenseLocked: true,
+        schoolId: targetSchoolId
+      })
+      return null
+    }
   }
-  if (!me.school_id) { res.status(403).json({ error: 'No school assigned to this account' }); return null }
-  return { me, schoolId: me.school_id }
+
+  return { me, schoolId: targetSchoolId }
 }
 
 export function rankOf(role) {

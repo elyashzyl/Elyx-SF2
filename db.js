@@ -221,6 +221,21 @@ const MYSQL_DDL = [
     third_grading TEXT NOT NULL DEFAULT (''),
     fourth_grading TEXT NOT NULL DEFAULT (''),
     school_id TEXT NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS licenses (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL DEFAULT (''),
+    license_key VARCHAR(64) UNIQUE NOT NULL,
+    plan_tier VARCHAR(32) NOT NULL DEFAULT ('campus'),
+    status VARCHAR(32) NOT NULL DEFAULT ('active'),
+    billing_cycle VARCHAR(32) NOT NULL DEFAULT ('annual'),
+    max_teachers INT NOT NULL DEFAULT 50,
+    max_students INT NOT NULL DEFAULT 1500,
+    issued_at TEXT NOT NULL DEFAULT (''),
+    expires_at TEXT NOT NULL DEFAULT (''),
+    trial_ends_at TEXT NOT NULL DEFAULT (''),
+    features TEXT NOT NULL DEFAULT ('{}'),
+    notes TEXT NOT NULL DEFAULT ('')
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -497,6 +512,21 @@ async function initSqlite() {
       third_grading TEXT DEFAULT '',
       fourth_grading TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
+    )`,
+    `CREATE TABLE IF NOT EXISTS licenses (
+      id TEXT PRIMARY KEY,
+      school_id TEXT DEFAULT '',
+      license_key TEXT UNIQUE NOT NULL,
+      plan_tier TEXT DEFAULT 'campus',
+      status TEXT DEFAULT 'active',
+      billing_cycle TEXT DEFAULT 'annual',
+      max_teachers INTEGER DEFAULT 50,
+      max_students INTEGER DEFAULT 1500,
+      issued_at TEXT DEFAULT '',
+      expires_at TEXT DEFAULT '',
+      trial_ends_at TEXT DEFAULT '',
+      features TEXT DEFAULT '{}',
+      notes TEXT DEFAULT ''
     )`
   ]) {
     sqlite.run(ddl)
@@ -776,6 +806,51 @@ export async function updateSchoolRow(schoolId, { school_name, school_id, school
   params.push(schoolId)
   await run(`UPDATE schools SET ${sets.join(', ')} WHERE id = ?`, params)
   return getSchoolById(schoolId)
+}
+
+export async function seedLicenseForSchool(schoolId, planTier = 'campus', billingCycle = 'annual') {
+  if (!schoolId) return null
+  const existing = await query('SELECT * FROM licenses WHERE school_id = ?', [schoolId])
+  if (existing.length > 0) return existing[0]
+  
+  const id = `lic-${schoolId}-${Date.now()}`
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
+  const key = `ELY-${planTier.toUpperCase()}-2026-${rand}`
+  const now = new Date()
+  const expires = new Date(now)
+  expires.setMonth(expires.getMonth() + (billingCycle === 'annual' ? 10 : 1))
+  
+  const nowStr = now.toISOString().split('T')[0]
+  const expStr = expires.toISOString().split('T')[0]
+  
+  await run(
+    `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      schoolId,
+      key,
+      planTier,
+      'active',
+      billingCycle,
+      planTier === 'adviser' ? 1 : (planTier === 'division' ? 500 : 60),
+      planTier === 'adviser' ? 65 : (planTier === 'division' ? 25000 : 2500),
+      nowStr,
+      expStr,
+      '',
+      JSON.stringify({
+        sf2_export: true,
+        sardo_radar: true,
+        analytics: true,
+        audit_logs: planTier !== 'adviser',
+        multi_school: planTier === 'division'
+      }),
+      'Provisioned School License'
+    ]
+  )
+  saveDatabase()
+  const created = await query('SELECT * FROM licenses WHERE id = ?', [id])
+  return created[0] || null
 }
 
 export function saveDatabase() {

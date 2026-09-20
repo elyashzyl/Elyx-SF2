@@ -485,9 +485,9 @@ router.post('/sf2', async (req, res) => {
         if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
         row++
       }
-      // ── Write GIRLS TOTAL ──
-      writeSummaryRow(femaleTotalRow, femaleEntriesAll, `FEMALE | ${femaleCount}`, femaleCount)
     }
+    // ── Write GIRLS TOTAL ──
+    writeSummaryRow(femaleTotalRow, femaleEntriesAll, `FEMALE | ${femaleCount}`, femaleCount)
 
     // ── Write COMBINED TOTAL ──
     addMerge(newWs, combinedTotalRow, 0, combinedTotalRow, 1)

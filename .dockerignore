@@ -9,6 +9,7 @@ dist
 .vscode
 .idea
 attendance.db
+attendance.db.backup-*
 exports/
 *.xlsx
 !templates/*.xlsx

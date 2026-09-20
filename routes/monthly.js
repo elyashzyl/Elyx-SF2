@@ -36,12 +36,19 @@ router.get('/', async (req, res) => {
     )
     if (records.length === 0) return res.json(null)
     const record = records[0]
-    const entries = await query('SELECT * FROM monthly_entries WHERE record_id = ? ORDER BY id', [record.id])
+    const entries = await query(`
+      SELECT me.*, COALESCE(s.gender, '') as student_gender 
+      FROM monthly_entries me 
+      LEFT JOIN students s ON s.id = me.student_id 
+      WHERE me.record_id = ? 
+      ORDER BY me.id
+    `, [record.id])
     record.entries = entries.map(e => ({
       id: e.id,
       studentId: e.student_id,
       name: e.student_name,
-      days: JSON.parse(e.days || '{}'),
+      gender: e.student_gender || '',
+      days: typeof e.days === 'string' ? JSON.parse(e.days || '{}') : (e.days || {}),
       present: e.present,
       absent: e.absent,
       remarks: e.remarks || '',

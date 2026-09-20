@@ -102,19 +102,36 @@
               <div class="settings-stat-label">School</div>
             </div>
           </div>
-          <div class="settings-stat-card">
+          <div
+            class="settings-stat-card settings-stat-card-clickable"
+            role="button"
+            tabindex="0"
+            @click="handleThemeCardClick"
+            @keydown.enter.prevent="handleThemeCardClick"
+            @keydown.space.prevent="handleThemeCardClick"
+            :title="`Current: ${theme === 'dark' ? 'Dark' : 'Light'} mode (click to toggle)`"
+          >
             <div class="settings-stat-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg v-if="theme === 'dark'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="4"/>
                 <path d="M12 2v2"/><path d="M12 20v2"/>
                 <path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>
                 <path d="M2 12h2"/><path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
               </svg>
             </div>
-            <div>
+            <div style="flex: 1; min-width: 0;">
               <div class="settings-stat-value">{{ theme === 'dark' ? 'Dark' : 'Light' }}</div>
-              <div class="settings-stat-label">Theme</div>
+              <div class="settings-stat-label">Theme <span class="theme-click-hint">· Toggle</span></div>
             </div>
+            <span class="settings-stat-action" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m7 15 5 5 5-5M7 9l5-5 5 5"/>
+              </svg>
+            </span>
           </div>
         </div>
 
@@ -261,8 +278,13 @@ import { useActiveSchool } from '../composables/useActiveSchool'
 
 const auth = useAuthStore()
 const { notify } = useNotifications()
-const { theme, setTheme } = useTheme()
+const { theme, setTheme, toggleTheme } = useTheme()
 const { setActiveSchool, clearActiveSchool, noneSelected } = useActiveSchool()
+
+function handleThemeCardClick() {
+  toggleTheme()
+  activeTab.value = 'appearance'
+}
 
 const activeTab = ref('profile')
 const saving = ref(false)

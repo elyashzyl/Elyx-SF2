@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run, getSchoolById, getGradeLevels, setGradeLevels } from '../db.js'
+import { query, run, getSchoolById, getGradeLevels, setGradeLevels, seedLicenseForSchool } from '../db.js'
 import { requireRole, schoolToResponse, audit } from './_context.js'
 
 const router = Router()
@@ -43,6 +43,12 @@ router.post('/', async (req, res) => {
       }
       await run('INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [uuidv4(), admin.username, admin.password, admin.name, 'admin', '', '', '', id])
+    }
+    // Auto-seed campus license for the new school
+    try {
+      await seedLicenseForSchool(id, 'campus', 'annual')
+    } catch (e) {
+      console.warn('Could not seed license for new school:', e.message)
     }
     await audit(me, 'school.create', { type: 'school', id, name: String(name).trim(), schoolId: id }, `Registered school "${String(name).trim()}"`)
     res.json({ id, success: true })
@@ -161,6 +167,7 @@ router.delete('/:id', async (req, res) => {
     await run('DELETE FROM calendar_events WHERE school_id = ?', [id])
     await run('DELETE FROM quarterly_events WHERE school_id = ?', [id])
     await run('DELETE FROM grade_levels WHERE school_id = ?', [id])
+    await run('DELETE FROM licenses WHERE school_id = ?', [id])
     await run('DELETE FROM schools WHERE id = ?', [id])
     await audit(me, 'school.delete', { type: 'school', id, name: doomed?.name || '', schoolId: id }, `Deleted school "${doomed?.name || id}"`)
     res.json({ success: true })

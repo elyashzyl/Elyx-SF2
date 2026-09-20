@@ -13,6 +13,8 @@ import monthlyRoutes from './routes/monthly.js'
 import exportRoutes from './routes/export.js'
 import schoolRoutes from './routes/schools.js'
 import logRoutes from './routes/logs.js'
+import scheduleRoutes from './routes/schedules.js'
+import licenseRoutes from './routes/licenses.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -52,6 +54,8 @@ app.use('/api/monthly', monthlyRoutes)
 app.use('/api/export', exportRoutes)
 app.use('/api/schools', schoolRoutes)
 app.use('/api/logs', logRoutes)
+app.use('/api/schedules', scheduleRoutes)
+app.use('/api/licenses', licenseRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: dbReady ? 'ok' : 'starting', db: dbReady ? DB_MODE : 'unknown' })

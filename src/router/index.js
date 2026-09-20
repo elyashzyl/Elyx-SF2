@@ -1,9 +1,12 @@
 import { createRouter, createWebHistory, START_LOCATION } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import Landing from '../views/Landing.vue'
+import Login from '../views/Login.vue'
 
 const routes = [
-  { path: '/', name: 'Landing', component: () => import('../views/Landing.vue') },
-  { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
+  { path: '/', name: 'Landing', component: Landing },
+  { path: '/login', name: 'Login', component: Login },
+  { path: '/signup', redirect: '/login' },
   {
     path: '/admin',
     name: 'AdminDashboard',
@@ -41,6 +44,12 @@ const routes = [
     meta: { role: ['admin', 'teacher'] }
   },
   {
+    path: '/schedule',
+    name: 'Schedule',
+    component: () => import('../views/Schedule.vue'),
+    meta: { role: ['admin', 'teacher'] }
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('../views/Settings.vue'),
@@ -62,6 +71,12 @@ const routes = [
     path: '/grade-levels',
     name: 'GradeLevels',
     component: () => import('../views/GradeLevels.vue'),
+    meta: { role: ['superadmin', 'admin'] }
+  },
+  {
+    path: '/licenses',
+    name: 'Licenses',
+    component: () => import('../views/Licenses.vue'),
     meta: { role: ['superadmin', 'admin'] }
   }
 ]
@@ -93,18 +108,13 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    // Back/forward: restore what the browser remembered.
     if (savedPosition) return savedPosition
-    // Initial page load (refresh / direct link): do nothing here — the app
-    // restores via restoreScrollAfterLoad() once content has rendered, so a
-    // refresh never flashes the previous viewport while it is still short.
     if (from === START_LOCATION) return false
-    // SPA navigation: restore the last position stored for this exact URL.
+    if (to.hash) {
+      return { el: to.hash, top: 76, behavior: 'smooth' }
+    }
     const top = typeof loadScrollMap()[to.fullPath] === 'number' ? loadScrollMap()[to.fullPath] : 0
-    // Wait briefly so async-loaded tables have rendered before jumping.
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ top, behavior: 'instant' }), 80)
-    })
+    return { top, behavior: 'instant' }
   }
 })
 

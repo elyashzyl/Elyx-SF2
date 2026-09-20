@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
-import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit } from './_context.js'
+import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit, getSchoolLicense, isLicenseActive } from './_context.js'
 
 const router = Router()
 
@@ -51,6 +51,23 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Teachers need an advisory grade and section' })
     }
     if (role === 'teacher' && !(await assertValidClass(res, targetSchoolId, grade, section))) return
+
+    // License quota enforcement: check if school has reached its faculty capacity
+    if (role === 'teacher' && targetSchoolId) {
+      const license = await getSchoolLicense(targetSchoolId)
+      if (license) {
+        if (!isLicenseActive(license)) {
+          return res.status(403).json({ error: 'Cannot add teacher: school license is expired or suspended.' })
+        }
+        const currentTeachers = (await query('SELECT COUNT(*) as cnt FROM users WHERE school_id = ? AND role = "teacher"', [targetSchoolId]))[0]?.cnt || 0
+        if (currentTeachers >= license.max_teachers) {
+          return res.status(400).json({
+            error: `License seat limit reached (${currentTeachers}/${license.max_teachers} advisers). Upgrade to School Pro or Division to add more faculty.`
+          })
+        }
+      }
+    }
+
     const id = uuidv4()
     await run('INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [id, username, password, name, role, grade || '', section || '', period || '', targetSchoolId || ''])
