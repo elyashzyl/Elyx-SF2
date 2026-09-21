@@ -7,6 +7,7 @@ COPY package*.json ./
 RUN npm ci --include=dev
 
 COPY . .
+RUN npx prisma generate
 RUN npm run build
 
 # ---- Stage 2: Web layer (nginx: frontend + /api proxy) ----
@@ -21,13 +22,13 @@ EXPOSE 80
 
 # ---- Stage 3: Production server (FINAL - what PaaS runs) ----
 # Single self-contained container: serves the built frontend from dist AND
-# the /api.* backend. Uses PostgreSQL via DATABASE_URL when provided.
+# the /api.* backend. Uses MySQL via DATABASE_URL or DB_* variables when provided.
 FROM node:22-alpine AS app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=5173
-# Use the persistent SQLite database in production when no Postgres is wired up
+# Use the persistent SQLite database in production when no MySQL is wired up
 # (single-container deployments). Data is stored on the mounted volume at /data.
 ENV ALLOW_PERSISTED_SQLITE=1
 # Points the SQLite file at a mountable volume so data persists across redeploys.
@@ -39,10 +40,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Backend source + template + built frontend
+# Copy generated Prisma client from build stage
+COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+
+# Backend source + template + built frontend + prisma + migrations + scripts
 COPY server.js db.js ./
 COPY routes ./routes
 COPY templates ./templates
+COPY prisma ./prisma
+COPY scripts ./scripts
+COPY migrations ./migrations
 COPY --from=build /app/dist ./dist
 
 # Allow template uploads (POST /export/template) to write templates/SF2.xlsx

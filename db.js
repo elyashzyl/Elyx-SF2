@@ -34,7 +34,10 @@ export let DB_PATH = getDbPath()
 // Does NOT require DATABASE_URL to be set, and respects user configuration without forcing defaults.
 export function resolveDatabaseUrl() {
   const explicitUrl = (process.env.DATABASE_URL || process.env.MYSQL_URL)?.trim()
-  if (explicitUrl) return explicitUrl
+  if (explicitUrl) {
+    process.env.DATABASE_URL = explicitUrl
+    return explicitUrl
+  }
 
   const connection = (process.env.DB_CONNECTION || '').trim().toLowerCase()
   if (connection && connection !== 'mysql' && connection !== 'mariadb') {
@@ -50,7 +53,9 @@ export function resolveDatabaseUrl() {
 
   const port = (process.env.DB_PORT || process.env.MYSQL_PORT)?.trim() || '3306'
   const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || ''
-  return `mysql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`
+  const resolved = `mysql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`
+  process.env.DATABASE_URL = resolved
+  return resolved
 }
 
 export let DATABASE_URL = resolveDatabaseUrl()

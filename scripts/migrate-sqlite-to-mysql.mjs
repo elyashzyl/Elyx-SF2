@@ -5,11 +5,11 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import initSqlJs from 'sql.js'
 import mysql from 'mysql2/promise'
-import { MYSQL_DDL } from '../db.js'
+import { MYSQL_DDL, resolveDatabaseUrl } from '../db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'attendance.db')
-const DATABASE_URL = process.env.DATABASE_URL
+const DATABASE_URL = process.env.DATABASE_URL || resolveDatabaseUrl()
 
 if (!DATABASE_URL) {
   console.error('ERROR: DATABASE_URL is required.')

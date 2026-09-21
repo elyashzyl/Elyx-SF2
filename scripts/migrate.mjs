@@ -16,7 +16,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import mysql from 'mysql2/promise'
-import { initDatabase, query, run, saveDatabase, DB_MODE } from '../db.js'
+import { initDatabase, query, run, saveDatabase, DB_MODE, DATABASE_URL, USE_MYSQL } from '../db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.join(__dirname, '..')
@@ -153,9 +153,9 @@ async function main() {
     process.exit(0)
   }
 
-  const isMysql = !!process.env.DATABASE_URL
+  const isMysql = USE_MYSQL || !!process.env.DATABASE_URL
   if (isMysql) {
-    await ensureMysqlDatabaseExists(process.env.DATABASE_URL)
+    await ensureMysqlDatabaseExists(DATABASE_URL || process.env.DATABASE_URL)
   } else {
     const dbPath = path.resolve(process.env.DB_PATH || path.join(projectRoot, 'attendance.db'))
     const dbDir = path.dirname(dbPath)
