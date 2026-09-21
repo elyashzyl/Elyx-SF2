@@ -863,7 +863,81 @@ const activeDemoTab = ref('rollcall')
 const mobileNavOpen = ref(false)
 const sectionCount = ref(24)
 const activeFaq = ref(0)
-const plans = ref([])
+const DEFAULT_PLANS = [
+  {
+    id: 'adviser',
+    tier: 'adviser',
+    name: 'Adviser License',
+    tag: 'Dedicated',
+    description: 'Dedicated single-adviser operational license with a 14-day full feature trial before payment.',
+    price_monthly: 249,
+    price_annual_monthly: 199,
+    billing_annual_total: 1990,
+    trial_days: 14,
+    is_featured: 0,
+    badge: '14-Day Free Trial',
+    cta_text: 'Start 14-Day Trial',
+    cta_url: '/login',
+    features: [
+      '14-Day Free Evaluation Trial',
+      '1 Advisory section license key (up to 65 students)',
+      '< 90-second rapid daily roll call',
+      'Section-level monthly DepEd SF2 generation',
+      'Consecutive absence & SARDO risk flags',
+      'Standard printable PDF attendance register',
+      'Online license key activation & renewal'
+    ]
+  },
+  {
+    id: 'campus',
+    tier: 'campus',
+    name: 'School Pro',
+    tag: 'Campus',
+    description: 'Institutional license for public & private high schools and elementary campuses.',
+    price_monthly: 1490,
+    price_annual_monthly: 1190,
+    billing_annual_total: 11900,
+    trial_days: 14,
+    is_featured: 1,
+    badge: 'DepEd SF2 Certified',
+    cta_text: 'Inquire for School Deployment',
+    cta_url: 'mailto:deploy@elytrack.ph?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
+    features: [
+      'Unlimited faculty, advisers & students',
+      'School-wide consolidated DepEd SF2 (.xlsx export)',
+      'Automated SARDO early-warning radar & logs',
+      'Grade levels & sections configuration management',
+      'Quarterly attendance analytics & trend forecasting',
+      'Role-based access (Principal, Admin, Faculty)',
+      'System audit logs & activity telemetry',
+      'Priority faculty onboarding & DepEd updates'
+    ]
+  },
+  {
+    id: 'division',
+    tier: 'division',
+    name: 'Division & Multi-Campus',
+    tag: 'Institutional',
+    description: 'For School Division Offices (SDO), academy networks, and diocesan school clusters.',
+    price_monthly: 4990,
+    price_annual_monthly: 3990,
+    billing_annual_total: 39900,
+    trial_days: 0,
+    is_featured: 0,
+    badge: 'Network SDO',
+    cta_text: 'Inquire for Division',
+    cta_url: 'mailto:inquiries@elytrack.ph?subject=ElyTrack%20Division%20Inquiry',
+    features: [
+      'Multi-school governance console',
+      'Division-wide attendance aggregation',
+      'Centralized license provisioning & seat management',
+      'Custom institutional security & SSO integration',
+      'Dedicated account engineer & SLA guarantee',
+      'Data Privacy Act (RA 10173) compliance verification'
+    ]
+  }
+]
+const plans = ref(DEFAULT_PLANS)
 const activeSchool = ref(null)
 
 const demoStudents = ref([
@@ -883,7 +957,12 @@ async function loadLandingData() {
     if (res.ok) {
       const data = await res.json()
       if (Array.isArray(data.plans) && data.plans.length > 0) {
-        plans.value = data.plans
+        plans.value = data.plans.map(p => ({
+          ...p,
+          features: Array.isArray(p.features)
+            ? p.features
+            : (typeof p.features === 'string' ? JSON.parse(p.features || '[]') : [])
+        }))
       }
       if (data.school) {
         activeSchool.value = data.school
@@ -896,7 +975,7 @@ async function loadLandingData() {
           id: i + 1,
           name: st.name,
           gender: st.gender || (i % 2 === 0 ? 'Male' : 'Female'),
-          lrn: st.lrn || `10482910${i + 1}`,
+          lrn: st.id ? `10482910${st.id}` : `10482910${i + 1}`,
           am1: i === 2 ? 'A' : 'E',
           am2: i === 1 ? 'T' : (i === 2 ? 'A' : 'E'),
           am3: i === 2 ? 'A' : 'E',

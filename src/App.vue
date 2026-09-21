@@ -216,7 +216,6 @@
           <router-link
             to="/settings"
             class="sidebar-profile-btn"
-            :class="{ 'router-link-active': $route.path === '/settings' }"
             @click="closeSidebar"
             title="User Profile & Settings"
           >
