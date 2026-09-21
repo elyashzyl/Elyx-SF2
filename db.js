@@ -10,7 +10,29 @@ const DB_PATH = (
     ? (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH) ? process.env.DB_PATH : '/data/attendance.db')
     : (process.env.DB_PATH || path.join(__dirname, 'attendance.db'))
 )
-let USE_MYSQL = !!process.env.DATABASE_URL
+
+// Accept both the app's DATABASE_URL and Laravel-style DB_* variables. Some
+// deployment platforms expose individual database variables but do not pass a
+// composed DATABASE_URL into the container.
+function resolveDatabaseUrl() {
+  const explicitUrl = process.env.DATABASE_URL?.trim()
+  if (explicitUrl) return explicitUrl
+
+  const connection = (process.env.DB_CONNECTION || 'mysql').toLowerCase()
+  if (connection !== 'mysql') return ''
+
+  const host = process.env.DB_HOST?.trim()
+  const database = process.env.DB_DATABASE?.trim()
+  const username = process.env.DB_USERNAME?.trim()
+  if (!host || !database || !username) return ''
+
+  const port = process.env.DB_PORT?.trim() || '3306'
+  const password = process.env.DB_PASSWORD ?? ''
+  return `mysql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`
+}
+
+let DATABASE_URL = resolveDatabaseUrl()
+let USE_MYSQL = Boolean(DATABASE_URL)
 
 // Reports which backend the process is running on (used by /api/health).
 export let DB_MODE = USE_MYSQL ? 'mysql' : 'sqlite'
@@ -285,7 +307,7 @@ function parseMysqlUrl(url) {
 
 async function initMysql() {
   const poolCfg = {
-    ...parseMysqlUrl(process.env.DATABASE_URL),
+    ...parseMysqlUrl(DATABASE_URL),
     connectionLimit: parseInt(process.env.MYSQL_POOL_MAX || '10', 10),
     connectTimeout: 10000,
     dateStrings: true,
@@ -293,7 +315,7 @@ async function initMysql() {
     waitForConnections: true
   }
   // Some managed MySQL providers (Aiven, DigitalOcean, etc.) require SSL.
-  if (/sslmode=(require|verify-ca|verify-full)|\bssl=(?:true|1|\d+)\b|ssl-mode=required/i.test(process.env.DATABASE_URL) || process.env.MYSQL_SSL === '1') {
+  if (/sslmode=(require|verify-ca|verify-full)|\bssl=(?:true|1|\d+)\b|ssl-mode=required/i.test(DATABASE_URL) || process.env.MYSQL_SSL === '1') {
     poolCfg.ssl = { rejectUnauthorized: process.env.MYSQL_SSL_VERIFY === '1' }
   }
   mysqlPool = mysql.createPool(poolCfg)
@@ -689,12 +711,12 @@ function seedGradeLevelsForSchoolSync(schoolDbId) {
 export async function initDatabase() {
   // Diagnostic dump so deployments can see exactly what the container has.
   console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_MYSQL=${process.env.REQUIRE_MYSQL ?? '(unset)'} ALLOW_PERSISTED_SQLITE=${process.env.ALLOW_PERSISTED_SQLITE ?? '(unset)'}`)
-  const urlState = !process.env.DATABASE_URL ? 'MISSING' : (process.env.DATABASE_URL === '' ? 'EMPTY-STRING (treated as missing!)' : 'PRESENT')
+  const urlState = DATABASE_URL ? 'PRESENT' : 'MISSING'
   console.log(`[db] env: DATABASE_URL=${urlState} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
   if (USE_MYSQL) {
     try {
       await initMysql()
-      console.log(`[db] MySQL backend ready (${redactUrl(process.env.DATABASE_URL)})`)
+      console.log(`[db] MySQL backend ready (${redactUrl(DATABASE_URL)})`)
     } catch (err) {
       const canFallback = process.env.ALLOW_PERSISTED_SQLITE === '1' && process.env.REQUIRE_MYSQL !== '1' && process.env.REQUIRE_POSTGRES !== '1'
       if (!canFallback) throw err

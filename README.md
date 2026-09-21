@@ -78,7 +78,13 @@ npm run db:seed -- --no-sample
 
 | Variable | Description | Default |
 |---|---|---|
-| `DATABASE_URL` | MySQL connection URL (if unset, SQLite is used) | `(unset)` |
+| `DATABASE_URL` | MySQL connection URL (optional when `DB_*` variables are provided) | `(unset)` |
+| `DB_CONNECTION` | Database driver; set to `mysql` for production | `(unset)` |
+| `DB_HOST` | MySQL hostname | `(unset)` |
+| `DB_PORT` | MySQL port | `3306` |
+| `DB_DATABASE` | MySQL database name | `(unset)` |
+| `DB_USERNAME` | MySQL username | `(unset)` |
+| `DB_PASSWORD` | MySQL password | `(unset)` |
 | `DB_PATH` | SQLite file path | `attendance.db` |
 | `ADMIN_USERNAME` | Superadmin username | `admin` |
 | `ADMIN_PASSWORD` | Superadmin password | `ElyTrack2026!` |
