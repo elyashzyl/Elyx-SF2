@@ -16,10 +16,11 @@ function storageKey(stateDef, user) {
   return `${STORAGE_KEY}:${uid}:${crypto()}`
 }
 
-export function loadPageState(user) {
+export function loadPageState(user, pageKey = '') {
   try {
     const rid = user?.id ? user.id : 'anonymous'
-    const raw = localStorage.getItem(`${STORAGE_KEY}:${rid}`)
+    const key = pageKey ? `${STORAGE_KEY}:${rid}:${pageKey}` : `${STORAGE_KEY}:${rid}`
+    const raw = localStorage.getItem(key) || (pageKey ? localStorage.getItem(`${STORAGE_KEY}:${rid}`) : null)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (parsed && typeof parsed === 'object' && parsed.v === 1) return parsed.state
@@ -29,11 +30,12 @@ export function loadPageState(user) {
   return null
 }
 
-export function savePageState(user, state) {
+export function savePageState(user, state, pageKey = '') {
   try {
     const rid = user?.id ? user.id : 'anonymous'
+    const key = pageKey ? `${STORAGE_KEY}:${rid}:${pageKey}` : `${STORAGE_KEY}:${rid}`
     localStorage.setItem(
-      `${STORAGE_KEY}:${rid}`,
+      key,
       JSON.stringify({ v: 1, state })
     )
   } catch (_) {

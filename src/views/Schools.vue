@@ -74,10 +74,10 @@
       </div>
       <div style="padding: 18px 20px;">
         <div v-if="pagedSchools.length" class="schools-grid">
-          <div v-for="s in pagedSchools" :key="s.id" class="school-card">
+          <div v-for="(s, idx) in pagedSchools" :key="s?.id || idx" class="school-card">
             <div class="school-card-top">
               <div class="school-card-avatar">
-                {{ (s.short || s.name || 'S').charAt(0).toUpperCase() }}
+                {{ (s?.short || s?.name || 'S').charAt(0).toUpperCase() }}
               </div>
               <div class="school-card-actions">
                 <button @click="editSchool(s)" class="table-action-btn" title="Edit">
@@ -86,7 +86,7 @@
                   </svg>
                   Edit
                 </button>
-                <button @click="removeSchool(s.id)" class="table-action-btn table-action-btn--danger" title="Delete">
+                <button @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
                   </svg>
@@ -94,21 +94,21 @@
               </div>
             </div>
             <div class="school-card-body">
-              <h3 class="school-card-name">{{ s.name }}</h3>
+              <h3 class="school-card-name">{{ s?.name || 'School' }}</h3>
               <div class="school-card-details">
-                <div v-if="s.school_id" class="school-card-detail">
+                <div v-if="s?.school_id" class="school-card-detail">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                   <span>{{ s.school_id }}</span>
                 </div>
-                <div v-if="s.short" class="school-card-detail">
+                <div v-if="s?.short" class="school-card-detail">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
                   </svg>
                   <span>{{ s.short }}</span>
                 </div>
-                <div v-if="s.address" class="school-card-detail">
+                <div v-if="s?.address" class="school-card-detail">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
                   </svg>
@@ -117,8 +117,8 @@
               </div>
             </div>
             <div class="school-card-footer">
-              <span class="badge badge-info" v-if="s.school_id">ID: {{ s.school_id }}</span>
-              <span class="badge badge-success" v-if="s.short">{{ s.short }}</span>
+              <span class="badge badge-info" v-if="s?.school_id">ID: {{ s.school_id }}</span>
+              <span class="badge badge-success" v-if="s?.short">{{ s.short }}</span>
             </div>
           </div>
         </div>
@@ -239,45 +239,66 @@ import { loadPageState, savePageState } from '../composables/usePageState'
 
 const auth = useAuthStore()
 const { notify } = useNotifications()
-const savedState = loadPageState(auth.user)
+const savedState = loadPageState(auth.user, 'schools')
 const schools = ref([])
 const searchQuery = ref(savedState?.search || '')
 const showForm = ref(false)
 const editingSchool = ref(null)
 const saving = ref(false)
 const formError = ref('')
-const pageSize = ref(savedState?.pageSize || 6)
+const pageSize = ref(Number.isFinite(Number(savedState?.pageSize)) && Number(savedState.pageSize) > 0 ? Number(savedState.pageSize) : 6)
 const form = ref({ name: '', school_id: '', short: '', address: '', adminName: '', adminUsername: '', adminPassword: '' })
 
 onMounted(loadSchools)
 
 const filteredSchools = computed(() => {
-  const q = searchQuery.value.toLowerCase().trim()
-  if (!q) return schools.value
-  return schools.value.filter(s =>
-    s.name?.toLowerCase().includes(q) ||
-    s.short?.toLowerCase().includes(q) ||
-    s.school_id?.toLowerCase().includes(q) ||
-    s.address?.toLowerCase().includes(q)
+  if (!Array.isArray(schools.value)) return []
+  const q = (searchQuery.value || '').toLowerCase().trim()
+  const valid = schools.value.filter(Boolean)
+  if (!q) return valid
+  return valid.filter(s =>
+    (s?.name || '').toLowerCase().includes(q) ||
+    (s?.short || '').toLowerCase().includes(q) ||
+    (s?.school_id || '').toLowerCase().includes(q) ||
+    (s?.address || '').toLowerCase().includes(q)
   )
 })
 
 // Client-side pagination for the school grid
-const currentPage = ref(savedState?.page || 1)
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredSchools.value.length / pageSize.value)))
-const pagedSchools = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredSchools.value.slice(start, start + pageSize.value)
+const currentPage = ref(Number.isFinite(Number(savedState?.page)) && Number(savedState.page) > 0 ? Number(savedState.page) : 1)
+const totalPages = computed(() => {
+  const size = Math.max(1, Number(pageSize.value) || 6)
+  const totalItems = Array.isArray(filteredSchools.value) ? filteredSchools.value.length : 0
+  return Math.max(1, Math.ceil(totalItems / size))
 })
-const showingFrom = computed(() => (filteredSchools.value.length ? (currentPage.value - 1) * pageSize.value + 1 : 0))
-const showingTo = computed(() => Math.min(filteredSchools.value.length, currentPage.value * pageSize.value))
+const pagedSchools = computed(() => {
+  if (!Array.isArray(filteredSchools.value)) return []
+  const size = Math.max(1, Number(pageSize.value) || 6)
+  const page = Math.max(1, Math.min(currentPage.value || 1, totalPages.value))
+  const start = (page - 1) * size
+  return filteredSchools.value.slice(start, start + size)
+})
+const showingFrom = computed(() => {
+  const len = Array.isArray(filteredSchools.value) ? filteredSchools.value.length : 0
+  if (!len) return 0
+  const size = Math.max(1, Number(pageSize.value) || 6)
+  const page = Math.max(1, Math.min(currentPage.value || 1, totalPages.value))
+  return (page - 1) * size + 1
+})
+const showingTo = computed(() => {
+  const len = Array.isArray(filteredSchools.value) ? filteredSchools.value.length : 0
+  if (!len) return 0
+  const size = Math.max(1, Number(pageSize.value) || 6)
+  const page = Math.max(1, Math.min(currentPage.value || 1, totalPages.value))
+  return Math.min(len, page * size)
+})
 const pageNumbers = computed(() => {
-  const total = totalPages.value
-  const cur = currentPage.value
+  const total = totalPages.value || 1
+  const cur = Math.max(1, Math.min(currentPage.value || 1, total))
   if (total <= 4) return Array.from({ length: total }, (_, i) => i + 1)
-  if (cur <= 2) return [1, 2, 3]
-  if (cur >= total - 1) return [total - 2, total - 1, total]
-  return [cur - 1, cur, cur + 1]
+  if (cur <= 2) return [1, 2, 3].filter(p => p <= total)
+  if (cur >= total - 1) return [total - 2, total - 1, total].filter(p => p >= 1)
+  return [cur - 1, cur, cur + 1].filter(p => p >= 1 && p <= total)
 })
 function goToPage(p) { currentPage.value = p }
 function prevPage() { if (currentPage.value > 1) currentPage.value-- }
@@ -287,16 +308,25 @@ watch(searchQuery, () => { currentPage.value = 1 })
 watch(pageSize, () => { currentPage.value = 1 })
 watch([searchQuery, pageSize, currentPage], () => {
   if (auth.user) {
-    savePageState(auth.user, { search: searchQuery.value, pageSize: pageSize.value, page: currentPage.value })
+    savePageState(auth.user, { search: searchQuery.value, pageSize: pageSize.value, page: currentPage.value }, 'schools')
   }
 })
-watch(filteredSchools, (list) => { if (currentPage.value > Math.max(1, Math.ceil(list.length / pageSize.value))) currentPage.value = 1 })
+watch(filteredSchools, (list) => {
+  const maxPage = Math.max(1, Math.ceil((list?.length || 0) / (pageSize.value || 6)))
+  if (currentPage.value > maxPage) currentPage.value = 1
+})
 
-const schoolsWithId = computed(() => schools.value.filter(s => s.school_id).length)
-const schoolsWithAddress = computed(() => schools.value.filter(s => s.address).length)
+const schoolsWithId = computed(() => (Array.isArray(schools.value) ? schools.value.filter(s => s && s.school_id).length : 0))
+const schoolsWithAddress = computed(() => (Array.isArray(schools.value) ? schools.value.filter(s => s && s.address).length : 0))
 
 async function loadSchools() {
-  schools.value = await auth.getSchools()
+  try {
+    const list = await auth.getSchools()
+    schools.value = Array.isArray(list) ? list.filter(Boolean) : []
+  } catch (err) {
+    console.error('Failed to load schools:', err)
+    schools.value = []
+  }
 }
 
 function openAddForm() {

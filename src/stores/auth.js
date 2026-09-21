@@ -19,6 +19,15 @@ async function fetchJson(url, options) {
         if (err.error) msg = err.error
       } catch {}
     }
+    if (res.status === 401 || (res.status === 403 && typeof msg === 'string' && (msg.includes('Role mismatch') || msg.includes('Not authenticated')))) {
+      try {
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('auth_impersonator')
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          window.location.href = '/login'
+        }
+      } catch {}
+    }
     throw new Error(msg)
   }
   if (!text) return null
@@ -107,7 +116,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function getUsers(schoolId) {
     try {
       const params = new URLSearchParams(actorParams(schoolId ? { schoolId } : {}))
-      return await fetchJson(`${API}/users?${params}`) || []
+      const data = await fetchJson(`${API}/users?${params}`)
+      return Array.isArray(data) ? data.filter(Boolean) : []
     } catch {
       return []
     }
@@ -149,7 +159,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function getSchools() {
     try {
       const params = new URLSearchParams(actorParams())
-      return await fetchJson(`${API}/schools?${params}`) || []
+      const data = await fetchJson(`${API}/schools?${params}`)
+      return Array.isArray(data) ? data.filter(Boolean) : []
     } catch {
       return []
     }

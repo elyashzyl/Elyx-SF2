@@ -301,7 +301,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, onBeforeUnmount, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useRouter } from 'vue-router'
 import { useToast } from './composables/useToast'
@@ -356,7 +356,7 @@ const routeTitles = {
   Schools: 'Schools',
   ActivityLogs: 'Activity logs'
 }
-const currentPageTitle = computed(() => routeTitles[router.currentRoute.value.name] || 'Workspace')
+const currentPageTitle = computed(() => (router.currentRoute?.value?.name ? routeTitles[router.currentRoute.value.name] : null) || 'Workspace')
 const roleLabel = computed(() => ({ superadmin: 'Superadmin', admin: 'Administrator', teacher: 'Teacher' }[auth.user?.role] || 'Member'))
 
 const noSchoolContext = computed(() => noneSelected.value && auth.isSuperadmin)
