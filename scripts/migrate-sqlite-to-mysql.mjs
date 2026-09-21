@@ -55,7 +55,7 @@ if (DATABASE_URL.includes('sslmode=require') || /ssl=(?:true|1|\d+)/i.test(DATAB
   poolCfg.ssl = { rejectUnauthorized: false }
 }
 const pool = mysql.createPool(poolCfg)
-pool.on('connection', conn => { conn.query("SET SESSION sql_mode=''").catch(() => {}) })
+pool.on('connection', conn => { conn.query("SET SESSION sql_mode=''", () => {}) })
 
 async function main() {
   try { await pool.query('SELECT 1') } catch (e) {

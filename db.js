@@ -394,7 +394,7 @@ async function initMysql() {
   mysqlPool = mysql.createPool(poolCfg)
   // Non-strict mode: an omitted column inserts its empty default (like SQLite/Postgres).
   mysqlPool.on('connection', conn => {
-    conn.query("SET SESSION sql_mode=''").catch(() => {})
+    conn.query("SET SESSION sql_mode=''", () => {})
   })
   try {
     await mysqlPool.query('SELECT 1')
@@ -406,7 +406,7 @@ async function initMysql() {
       poolCfg.ssl = { rejectUnauthorized: false }
       mysqlPool = mysql.createPool(poolCfg)
       mysqlPool.on('connection', conn => {
-        conn.query("SET SESSION sql_mode=''").catch(() => {})
+        conn.query("SET SESSION sql_mode=''", () => {})
       })
       await mysqlPool.query('SELECT 1')
     } else if (poolCfg.ssl && /does not support SSL|failed to connect|handshake/i.test(msg)) {
@@ -415,7 +415,7 @@ async function initMysql() {
       delete poolCfg.ssl
       mysqlPool = mysql.createPool(poolCfg)
       mysqlPool.on('connection', conn => {
-        conn.query("SET SESSION sql_mode=''").catch(() => {})
+        conn.query("SET SESSION sql_mode=''", () => {})
       })
       await mysqlPool.query('SELECT 1')
     } else {
