@@ -33,7 +33,15 @@ export let DB_PATH = getDbPath()
 // Resolve database URL from DATABASE_URL / MYSQL_URL or individual DB_* / MYSQL_* variables.
 // Does NOT require DATABASE_URL to be set, and respects user configuration without forcing defaults.
 export function resolveDatabaseUrl() {
-  const explicitUrl = (process.env.DATABASE_URL || process.env.MYSQL_URL)?.trim()
+  const explicitUrl = (
+    process.env.DATABASE_URL ||
+    process.env.MYSQL_URL ||
+    process.env.MYSQL_CONNECTION_URL ||
+    process.env.DB_URL ||
+    process.env.MYSQL_URI ||
+    process.env.DB_URI
+  )?.trim()
+
   if (explicitUrl) {
     process.env.DATABASE_URL = explicitUrl
     return explicitUrl
@@ -44,15 +52,36 @@ export function resolveDatabaseUrl() {
     return ''
   }
 
-  const host = (process.env.DB_HOST || process.env.MYSQL_HOST)?.trim()
-  const database = (process.env.DB_DATABASE || process.env.DB_NAME || process.env.MYSQL_DATABASE)?.trim()
-  const username = (process.env.DB_USERNAME || process.env.DB_USER || process.env.MYSQL_USER)?.trim()
+  const host = (
+    process.env.DB_HOST ||
+    process.env.MYSQL_HOST ||
+    process.env.DATABASE_HOST ||
+    process.env.DB_HOSTNAME ||
+    process.env.MYSQL_HOSTNAME
+  )?.trim()
+
+  const database = (
+    process.env.DB_DATABASE ||
+    process.env.DB_NAME ||
+    process.env.MYSQL_DATABASE ||
+    process.env.DATABASE_NAME
+  )?.trim()
+
+  const username = (
+    process.env.DB_USERNAME ||
+    process.env.DB_USER ||
+    process.env.MYSQL_USER ||
+    process.env.MYSQL_USERNAME ||
+    process.env.DATABASE_USER ||
+    process.env.DATABASE_USERNAME
+  )?.trim()
+
   if (!host || !database || !username) {
     return ''
   }
 
-  const port = (process.env.DB_PORT || process.env.MYSQL_PORT)?.trim() || '3306'
-  const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || ''
+  const port = (process.env.DB_PORT || process.env.MYSQL_PORT || process.env.DATABASE_PORT)?.trim() || '3306'
+  const password = process.env.DB_PASSWORD || process.env.DB_PASS || process.env.MYSQL_PASSWORD || process.env.MYSQL_ROOT_PASSWORD || process.env.DATABASE_PASSWORD || ''
   const resolved = `mysql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`
   process.env.DATABASE_URL = resolved
   return resolved
