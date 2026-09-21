@@ -58,12 +58,12 @@ router.get('/landing-data', async (req, res) => {
     let previewStudents = []
     if (schoolRow) {
       previewStudents = await query(
-        'SELECT id, name, gender, grade, section, lrn FROM students WHERE school_id = ? ORDER BY name ASC LIMIT 5',
+        'SELECT id, name, gender, grade, section FROM students WHERE school_id = ? ORDER BY name ASC LIMIT 5',
         [schoolRow.id]
       )
     }
     if (!previewStudents.length) {
-      previewStudents = await query('SELECT id, name, gender, grade, section, lrn FROM students ORDER BY name ASC LIMIT 5')
+      previewStudents = await query('SELECT id, name, gender, grade, section FROM students ORDER BY name ASC LIMIT 5')
     }
 
     res.json({
