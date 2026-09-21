@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String @id @default(uuid()) @db.VarChar(96)
+  username String @unique @db.VarChar(255)
+  password String @db.Text
+  name     String @db.Text
+  role     String @db.Text
+  grade    String @default("") @db.Text
+  section  String @default("") @db.Text
+  period   String @default("") @db.Text
+  schoolId String @default("") @map("school_id") @db.Text
+
+  @@map("users")
+}
+
+model School {
+  id       String @id @default(uuid()) @db.VarChar(96)
+  name     String @db.Text
+  schoolId String @default("") @map("school_id") @db.Text
+  address  String @default("") @db.Text
+  short    String @default("") @db.Text
+
+  @@map("schools")
+}
+
+model GradeLevel {
+  id       String @id @default(uuid()) @db.VarChar(96)
+  schoolId String @map("school_id") @db.VarChar(96)
+  grade    String @db.Text
+  sections String @default("[]") @db.Text
+  sort     Int    @default(0)
+
+  @@map("grade_levels")
+}
+
+model AuditLog {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now()) @map("created_at")
+  actorId        String   @default("") @map("actor_id") @db.Text
+  actorName      String   @default("") @map("actor_name") @db.Text
+  actorRole      String   @default("") @map("actor_role") @db.Text
+  actorSchoolId  String   @default("") @map("actor_school_id") @db.Text
+  action         String   @db.Text
+  targetType     String   @default("") @map("target_type") @db.Text
+  targetId       String   @default("") @map("target_id") @db.Text
+  targetName     String   @default("") @map("target_name") @db.Text
+  targetSchoolId String   @default("") @map("target_school_id") @db.Text
+  detail         String   @default("") @db.Text
+
+  @@map("audit_logs")
+}
+
+model Student {
+  id       String @id @default(uuid()) @db.VarChar(96)
+  name     String @db.Text
+  grade    String @db.Text
+  section  String @db.Text
+  gender   String @default("") @db.Text
+  schoolId String @default("") @map("school_id") @db.Text
+
+  @@map("students")
+}
+
+model AttendanceRecord {
+  id            String @id @default(uuid()) @db.VarChar(96)
+  date          String @db.Text
+  grade         String @db.Text
+  section       String @db.Text
+  adviser       String @default("") @db.Text
+  createdBy     String @default("") @map("created_by") @db.Text
+  createdByName String @default("") @map("created_by_name") @db.Text
+  summaryData   String @default("{}") @map("summary_data") @db.Text
+  schoolId      String @default("") @map("school_id") @db.Text
+
+  @@map("attendance_records")
+}
+
+model MonthlyRecord {
+  id            String   @id @default(uuid()) @db.VarChar(96)
+  month         Int
+  year          Int
+  grade         String   @db.Text
+  section       String   @db.Text
+  adviser       String   @default("") @db.Text
+  schoolHead    String   @default("") @map("school_head") @db.Text
+  createdBy     String   @default("") @map("created_by") @db.Text
+  createdByName String   @default("") @map("created_by_name") @db.Text
+  schoolId      String   @default("") @map("school_id") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  summaryData   String   @default("{}") @map("summary_data") @db.Text
+  excludedDates String   @default("[]") @map("excluded_dates") @db.Text
+
+  @@map("monthly_records")
+}
+
+model MonthlyEntry {
+  id           Int    @id @default(autoincrement())
+  recordId     String @map("record_id") @db.Text
+  studentId    String @map("student_id") @db.Text
+  studentName  String @map("student_name") @db.Text
+  days         String @default("{}") @db.Text
+  present      Int    @default(0)
+  absent       Int    @default(0)
+  tardy        Int    @default(0)
+  remarks      String @default("") @db.Text
+  lateEnrollee Int    @default(0) @map("late_enrollee")
+
+  @@map("monthly_entries")
+}
+
+model Setting {
+  key   String @id @db.VarChar(255)
+  value String @default("") @db.Text
+
+  @@map("settings")
+}
+
+model AttendanceEntry {
+  id        Int    @id @default(autoincrement())
+  recordId  String @map("record_id") @db.Text
+  studentId String @map("student_id") @db.Text
+  name      String @default("") @db.Text
+  am1       String @default("") @db.Text
+  am2       String @default("") @db.Text
+  am3       String @default("") @db.Text
+  am4       String @default("") @db.Text
+  am5       String @default("") @db.Text
+  am6       String @default("") @db.Text
+  pm1       String @default("") @db.Text
+  pm2       String @default("") @db.Text
+  pm3       String @default("") @db.Text
+  pm4       String @default("") @db.Text
+  reason    String @default("") @db.Text
+  excused   Int    @default(0)
+  unexcused Int    @default(0)
+  nls       Int    @default(0)
+
+  @@map("attendance_entries")
+}
+
+model TeacherSchedule {
+  id        Int    @id @default(autoincrement())
+  teacherId String @map("teacher_id") @db.Text
+  dayOfWeek Int    @default(0) @map("day_of_week")
+  period    String @default("") @db.Text
+  startTime String @default("") @map("start_time") @db.Text
+  endTime   String @default("") @map("end_time") @db.Text
+  subject   String @default("") @db.Text
+  grade     String @default("") @db.Text
+  section   String @default("") @db.Text
+  schoolId  String @default("") @map("school_id") @db.Text
+
+  @@map("teacher_schedules")
+}
+
+model CalendarEvent {
+  id        Int    @id @default(autoincrement())
+  title     String @default("") @db.Text
+  type      String @default("") @db.Text
+  eventDate String @default("") @map("event_date") @db.Text
+  color     String @default("") @db.Text
+  createdBy String @default("") @map("created_by") @db.Text
+  schoolId  String @default("") @map("school_id") @db.Text
+
+  @@map("calendar_events")
+}
+
+model QuarterlyEvent {
+  id            Int    @id @default(autoincrement())
+  eventName     String @default("") @map("event_name") @db.Text
+  firstGrading  String @default("") @map("first_grading") @db.Text
+  secondGrading String @default("") @map("second_grading") @db.Text
+  thirdGrading  String @default("") @map("third_grading") @db.Text
+  fourthGrading String @default("") @map("fourth_grading") @db.Text
+  schoolId      String @default("") @map("school_id") @db.Text
+
+  @@map("quarterly_events")
+}
+
+model License {
+  id           String @id @default(uuid()) @db.VarChar(96)
+  schoolId     String @default("") @map("school_id") @db.VarChar(96)
+  licenseKey   String @unique @map("license_key") @db.VarChar(64)
+  planTier     String @default("campus") @map("plan_tier") @db.VarChar(32)
+  status       String @default("active") @db.VarChar(32)
+  billingCycle String @default("annual") @map("billing_cycle") @db.VarChar(32)
+  maxTeachers  Int    @default(50) @map("max_teachers")
+  maxStudents  Int    @default(1500) @map("max_students")
+  issuedAt     String @default("") @map("issued_at") @db.Text
+  expiresAt    String @default("") @map("expires_at") @db.Text
+  trialEndsAt  String @default("") @map("trial_ends_at") @db.Text
+  features     String @default("{}") @db.Text
+  notes        String @default("") @db.Text
+
+  @@map("licenses")
+}
+
+model SubscriptionPlan {
+  id                 String  @id @db.VarChar(64)
+  tier               String  @unique @db.VarChar(32)
+  name               String  @db.VarChar(128)
+  tag                String  @default("") @db.VarChar(64)
+  description        String  @default("") @db.Text
+  priceMonthly       Int     @default(0) @map("price_monthly")
+  priceAnnualMonthly Int     @default(0) @map("price_annual_monthly")
+  billingAnnualTotal Int     @default(0) @map("billing_annual_total")
+  currency           String  @default("PHP") @db.VarChar(10)
+  trialDays          Int     @default(14) @map("trial_days")
+  maxTeachers        Int     @default(1) @map("max_teachers")
+  maxStudents        Int     @default(65) @map("max_students")
+  isFeatured         Int     @default(0) @map("is_featured")
+  badge              String  @default("") @db.VarChar(64)
+  ctaText            String  @default("Inquire") @map("cta_text") @db.VarChar(64)
+  ctaUrl             String  @default("") @map("cta_url") @db.VarChar(255)
+  features           String  @default("[]") @db.Text
+  modules            String  @default("{}") @db.Text
+  sortOrder          Int     @default(0) @map("sort_order")
+
+  @@map("subscription_plans")
+}

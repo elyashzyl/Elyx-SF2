@@ -16,9 +16,18 @@
     "db:seed": "node scripts/seed.mjs",
     "db:setup": "node scripts/migrate.mjs && node scripts/seed.mjs",
     "db:reset": "node scripts/reset-sqlite.mjs",
-    "db:export-mysql": "node scripts/migrate-sqlite-to-mysql.mjs"
+    "db:export-mysql": "node scripts/migrate-sqlite-to-mysql.mjs",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "node scripts/seed.mjs"
+  },
+  "prisma": {
+    "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
+    "@prisma/client": "6.4.1",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.21.0",
@@ -35,6 +44,7 @@
     "@vitejs/plugin-vue": "^6.0.6",
     "concurrently": "^10.0.3",
     "nodemon": "^3.0.3",
+    "prisma": "6.4.1",
     "vite": "^8.0.12"
   }
 }

@@ -1087,6 +1087,8 @@ export async function seedDefaultPlans() {
   }
 }
 
+export { prisma } from './prisma/client.js'
+
 export function saveDatabase() {
   if (sqlite && !USE_MYSQL) {
     const data = sqlite.export()
