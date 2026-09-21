@@ -288,6 +288,11 @@
                       <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                     </svg>
                   </button>
+                  <button class="btn-icon" style="color: var(--destructive);" @click="deleteLicense(lic)" title="Delete License Permanently">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -434,7 +439,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 
@@ -735,6 +740,25 @@ async function resumeLicense(id) {
   }
 }
 
+async function deleteLicense(lic) {
+  if (!confirm(`Are you sure you want to PERMANENTLY delete license "${lic.license_key}"? This action cannot be undone.`)) return
+  try {
+    const res = await fetch(`/api/licenses/${lic.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to delete license')
+    showSuccess(`License "${lic.license_key}" deleted successfully.`)
+    await loadLicenseData()
+  } catch (err) {
+    showError(err.message)
+  }
+}
+
 async function quickRenew(lic) {
   try {
     const res = await fetch('/api/licenses/renew', {
@@ -755,12 +779,22 @@ function editLicense(lic) {
   openRenewModal()
 }
 
+let licensePollInterval = null
+
 onMounted(async () => {
   await Promise.all([
     loadLicenseData(),
     loadSchoolsList(),
     loadPlans()
   ])
+  // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
+  licensePollInterval = setInterval(() => {
+    loadLicenseData()
+  }, 6000)
+})
+
+onUnmounted(() => {
+  if (licensePollInterval) clearInterval(licensePollInterval)
 })
 </script>
 

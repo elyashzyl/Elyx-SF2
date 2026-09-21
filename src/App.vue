@@ -402,10 +402,20 @@ async function loadSchool() {
   } catch {}
 }
 
+let appLicenseInterval = null
+
 onMounted(() => {
   loadSchool()
   checkLicenseStatus()
   restoreScrollAfterLoad()
+  // Realtime license validation check every 10 seconds for instant locking on suspension
+  appLicenseInterval = setInterval(() => {
+    if (auth.user) checkLicenseStatus()
+  }, 10000)
+})
+
+onUnmounted(() => {
+  if (appLicenseInterval) clearInterval(appLicenseInterval)
 })
 
 watch(() => auth.user?.school_id, () => {

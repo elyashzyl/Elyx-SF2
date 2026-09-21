@@ -273,6 +273,18 @@ router.post('/', async (req, res) => {
       multi_school: plan_tier === 'division'
     })
 
+    // Check for existing active or trial license for target school to prevent duplication
+    const existingActive = await query(
+      'SELECT id, license_key, status FROM licenses WHERE school_id = ? AND status IN ("active", "trial")',
+      [targetSchoolId]
+    )
+    if (existingActive.length > 0) {
+      // Archive/supersede prior active licenses to prevent duplicate active records
+      for (const prev of existingActive) {
+        await run('UPDATE licenses SET status = "superseded" WHERE id = ?', [prev.id])
+      }
+    }
+
     await run(
       `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -549,6 +561,36 @@ router.post('/:id/resume', async (req, res) => {
   } catch (err) {
     console.error('Failed to resume license:', err.message)
     res.status(500).json({ error: 'Failed to resume license' })
+  }
+})
+
+// DELETE /api/licenses/:id
+// Delete a license record (Superadmin only)
+router.delete('/:id', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+
+    const { id } = req.params
+    const license = (await query('SELECT * FROM licenses WHERE id = ?', [id]))[0]
+    if (!license) {
+      return res.status(404).json({ error: 'License record not found' })
+    }
+
+    await run('DELETE FROM licenses WHERE id = ?', [id])
+    saveDatabase()
+
+    await audit(
+      me,
+      'license.delete',
+      { type: 'license', id, schoolId: license.school_id },
+      `Deleted license "${license.license_key}"`
+    )
+
+    res.json({ success: true, message: `License ${license.license_key} deleted successfully` })
+  } catch (err) {
+    console.error('Failed to delete license:', err.message)
+    res.status(500).json({ error: 'Failed to delete license: ' + err.message })
   }
 })
 
