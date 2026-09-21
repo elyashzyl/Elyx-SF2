@@ -1,41 +1,80 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
 import mysql from 'mysql2/promise'
 import initSqlJs from 'sql.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = (
-  process.env.NODE_ENV === 'production'
-    ? (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH) ? process.env.DB_PATH : '/data/attendance.db')
-    : (process.env.DB_PATH || path.join(__dirname, 'attendance.db'))
-)
 
-// Accept both the app's DATABASE_URL and Laravel-style DB_* variables. Some
-// deployment platforms expose individual database variables but do not pass a
-// composed DATABASE_URL into the container.
-function resolveDatabaseUrl() {
-  const explicitUrl = process.env.DATABASE_URL?.trim()
+// Load .env candidates without overriding environment variables already provided
+// by Docker, Coolify, or system runtime.
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '..', '.env')
+]
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath })
+  }
+}
+
+export function getDbPath() {
+  const customPath = process.env.DB_PATH?.trim()
+  if (customPath) {
+    return path.isAbsolute(customPath) ? customPath : path.resolve(process.cwd(), customPath)
+  }
+  return path.join(__dirname, 'attendance.db')
+}
+
+export let DB_PATH = getDbPath()
+
+// Resolve database URL from DATABASE_URL / MYSQL_URL or individual DB_* / MYSQL_* variables.
+// Does NOT require DATABASE_URL to be set, and respects user configuration without forcing defaults.
+export function resolveDatabaseUrl() {
+  const explicitUrl = (process.env.DATABASE_URL || process.env.MYSQL_URL)?.trim()
   if (explicitUrl) return explicitUrl
 
-  const connection = (process.env.DB_CONNECTION || 'mysql').toLowerCase()
-  if (connection !== 'mysql') return ''
+  const connection = (process.env.DB_CONNECTION || '').trim().toLowerCase()
+  if (connection && connection !== 'mysql' && connection !== 'mariadb') {
+    return ''
+  }
 
-  const host = process.env.DB_HOST?.trim()
-  const database = process.env.DB_DATABASE?.trim()
-  const username = process.env.DB_USERNAME?.trim()
-  if (!host || !database || !username) return ''
+  const host = (process.env.DB_HOST || process.env.MYSQL_HOST)?.trim()
+  const database = (process.env.DB_DATABASE || process.env.DB_NAME || process.env.MYSQL_DATABASE)?.trim()
+  const username = (process.env.DB_USERNAME || process.env.DB_USER || process.env.MYSQL_USER)?.trim()
+  if (!host || !database || !username) {
+    return ''
+  }
 
-  const port = process.env.DB_PORT?.trim() || '3306'
-  const password = process.env.DB_PASSWORD ?? ''
+  const port = (process.env.DB_PORT || process.env.MYSQL_PORT)?.trim() || '3306'
+  const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || ''
   return `mysql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`
 }
 
-let DATABASE_URL = resolveDatabaseUrl()
-let USE_MYSQL = Boolean(DATABASE_URL)
+export let DATABASE_URL = resolveDatabaseUrl()
+export let USE_MYSQL = Boolean(DATABASE_URL)
 
 // Reports which backend the process is running on (used by /api/health).
 export let DB_MODE = USE_MYSQL ? 'mysql' : 'sqlite'
+
+export function getDefaultSchoolFallback() {
+  return {
+    school_name: process.env.SCHOOL_NAME || 'Default School',
+    school_id: process.env.SCHOOL_ID || '',
+    school_address: process.env.SCHOOL_ADDRESS || '',
+    school_short: process.env.SCHOOL_SHORT || ''
+  }
+}
+
+export function getDefaultAdminConfig() {
+  return {
+    username: process.env.ADMIN_USERNAME || 'admin',
+    password: process.env.ADMIN_PASSWORD || 'ElyTrack2026!',
+    name: process.env.ADMIN_NAME || 'System Administrator'
+  }
+}
 
 let mysqlPool = null
 let sqlite = null
@@ -352,12 +391,14 @@ async function initMysql() {
   for (const raw of MYSQL_DDL) await mysqlPool.query(stripTextDefaults(raw))
   const [[cntRows]] = await mysqlPool.query('SELECT COUNT(*) AS cnt FROM users')
   if ((cntRows?.cnt ?? 0) === 0) {
+    const admin = getDefaultAdminConfig()
+    const school = getDefaultSchoolFallback()
     await mysqlPool.query(
       `INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)`,
-      ['1', 'admin', 'admin123', 'System Admin', 'superadmin', ''])
+      ['1', admin.username, admin.password, admin.name, 'superadmin', ''])
     await mysqlPool.query(
       `INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)`,
-      ['school-1', 'BAGUIO PATRIOTIC HIGH SCHOOL', '406219', 'Baguio City', 'BPHS'])
+      ['school-1', school.school_name, school.school_id, school.school_address, school.school_short])
   }
   await migrateToMultiSchoolMysql()
   await seedGradeLevelsMysql()
@@ -633,10 +674,12 @@ async function initSqlite() {
   }
   const count = querySync('SELECT COUNT(*) as cnt FROM users')[0]?.cnt || 0
   if (count === 0) {
+    const admin = getDefaultAdminConfig()
+    const school = getDefaultSchoolFallback()
     sqlite.run("INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)",
-      ['1', 'admin', 'admin123', 'System Admin', 'superadmin', ''])
+      ['1', admin.username, admin.password, admin.name, 'superadmin', ''])
     sqlite.run("INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)",
-      ['school-1', 'BAGUIO PATRIOTIC HIGH SCHOOL', '406219', 'Baguio City', 'BPHS'])
+      ['school-1', school.school_name, school.school_id, school.school_address, school.school_short])
   }
   migrateToMultiSchoolSqlite()
   seedGradeLevelsSqlite()
@@ -652,12 +695,7 @@ function querySync(sql, params = []) {
   return results
 }
 
-const DEFAULT_SCHOOL_FALLBACK = {
-  school_name: 'BAGUIO PATRIOTIC HIGH SCHOOL',
-  school_id: '406219',
-  school_address: 'Baguio City',
-  school_short: 'BPHS'
-}
+const DEFAULT_SCHOOL_FALLBACK = getDefaultSchoolFallback()
 
 function migrateToMultiSchoolSqlite() {
   try {
@@ -709,40 +747,36 @@ function seedGradeLevelsForSchoolSync(schoolDbId) {
 }
 
 export async function initDatabase() {
-  // Diagnostic dump so deployments can see exactly what the container has.
-  console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_MYSQL=${process.env.REQUIRE_MYSQL ?? '(unset)'} ALLOW_PERSISTED_SQLITE=${process.env.ALLOW_PERSISTED_SQLITE ?? '(unset)'}`)
-  const urlState = DATABASE_URL ? 'PRESENT' : 'MISSING'
-  console.log(`[db] env: DATABASE_URL=${urlState} DB_PATH=${process.env.DB_PATH ?? '(default /app/attendance.db)'}`)
+  DB_PATH = getDbPath()
+  DATABASE_URL = resolveDatabaseUrl()
+  USE_MYSQL = Boolean(DATABASE_URL)
+  DB_MODE = USE_MYSQL ? 'mysql' : 'sqlite'
+
+  console.log(`[db] env: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} REQUIRE_MYSQL=${process.env.REQUIRE_MYSQL ?? '(unset)'} DB_CONNECTION=${process.env.DB_CONNECTION ?? '(unset)'}`)
+  console.log(`[db] backend: ${DB_MODE} DATABASE_URL=${DATABASE_URL ? redactUrl(DATABASE_URL) : '(not configured)'} DB_PATH=${DB_PATH}`)
+
   if (USE_MYSQL) {
     try {
       await initMysql()
       console.log(`[db] MySQL backend ready (${redactUrl(DATABASE_URL)})`)
     } catch (err) {
-      const canFallback = process.env.ALLOW_PERSISTED_SQLITE === '1' && process.env.REQUIRE_MYSQL !== '1' && process.env.REQUIRE_POSTGRES !== '1'
-      if (!canFallback) throw err
-      console.error(`[db] WARNING: MySQL connection failed (${err.message}). Falling back to SQLite because ALLOW_PERSISTED_SQLITE=1.`)
+      if (process.env.REQUIRE_MYSQL === '1') {
+        throw err
+      }
+      console.error(`[db] WARNING: MySQL connection failed (${err.message}). Falling back to SQLite.`)
       await mysqlPool?.end().catch(() => {})
       mysqlPool = null
       USE_MYSQL = false
       DB_MODE = 'sqlite'
       await initSqlite()
-      console.warn(`[db] SQLite backend ready (fallback). DB_PATH=${DB_PATH} - mount a persistent volume here or you WILL lose data on redeploy.`)
+      console.warn(`[db] SQLite backend ready (fallback: ${DB_PATH}).`)
     }
-  } else if (process.env.REQUIRE_MYSQL === '1' || process.env.REQUIRE_POSTGRES === '1' || (process.env.NODE_ENV === 'production' && process.env.ALLOW_PERSISTED_SQLITE !== '1')) {
-    // Silently using SQLite on an ephemeral container disk is what caused all
-    // data to vanish on every redeploy. Refuse to start instead.
-    console.error('[db] FATAL: DATABASE_URL is not set.')
-    console.error('[db] Production/forced mode refuses to run on the ephemeral SQLite fallback, because the database file lives inside the container and is deleted on every redeploy.')
-    console.error('[db] Fix (recommended): add the MySQL connection string (mysql://user:pass@host:3306/dbname) as the DATABASE_URL environment variable, then redeploy.')
-    console.error("[db] Emergency fallback ONLY: set ALLOW_PERSISTED_SQLITE=1 AND mount a persistent Docker volume to /data (DB_PATH=/data/attendance.db) to accept responsibility for a SQLite file on that volume.")
-    throw new Error('DATABASE_URL is required (MySQL must be enabled). The SQLite fallback is disabled when NODE_ENV=production or REQUIRE_MYSQL=1.')
+  } else if (process.env.REQUIRE_MYSQL === '1') {
+    console.error('[db] FATAL: REQUIRE_MYSQL=1 is set, but no MySQL configuration was provided.')
+    throw new Error('DATABASE_URL or MySQL connection parameters are required when REQUIRE_MYSQL=1.')
   } else {
     await initSqlite()
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[db] WARNING: running SQLite in PRODUCTION via ALLOW_PERSISTED_SQLITE=1. DB_PATH=' + (process.env.DB_PATH || 'default') + '. You must have a persistent volume mounted there or you WILL lose data on redeploy.')
-    } else {
-      console.warn('[db] SQLite backend ready (attendance.db) — LOCAL DEV ONLY. Set DATABASE_URL on a production host.')
-    }
+    console.warn(`[db] SQLite backend ready (${DB_PATH}).`)
   }
   await seedDefaultPlans()
   return getDb()
@@ -811,12 +845,7 @@ export async function getSchoolById(schoolId) {
   return rows[0] || null
 }
 
-const DEFAULT_SETTINGS = {
-  school_name: 'BAGUIO PATRIOTIC HIGH SCHOOL',
-  school_id: '406219',
-  school_address: 'Baguio City',
-  school_short: 'BPHS'
-}
+const DEFAULT_SETTINGS = getDefaultSchoolFallback()
 
 export function getDb() {
   return { mysql: mysqlPool, sqlite }
@@ -1062,6 +1091,10 @@ export function saveDatabase() {
   if (sqlite && !USE_MYSQL) {
     const data = sqlite.export()
     const buffer = Buffer.from(data)
+    const dir = path.dirname(DB_PATH)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
     fs.writeFileSync(DB_PATH, buffer)
   }
 }
