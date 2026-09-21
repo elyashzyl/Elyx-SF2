@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
-import { requireRole, resolveScopeSchool, actingUser, assertValidClass } from './_context.js'
+import { requireRole, resolveScopeSchool, actingUser, assertValidClass, audit } from './_context.js'
 
 const router = Router()
 
@@ -96,6 +96,12 @@ router.post('/', async (req, res) => {
         [recordId, entry.studentId, entry.name, JSON.stringify(entry.days || {}), entry.present || 0, entry.absent || 0, entry.remarks || '', entry.late_enrollee ? 1 : 0])
     }
     const updated = await query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
+    await audit(
+      me,
+      existing.length > 0 ? 'monthly.update' : 'monthly.create',
+      { type: 'monthly', id: recordId, name: `${cls.grade} - ${cls.section}`, schoolId: scope.schoolId },
+      `Saved monthly SF2 sheet for ${cls.grade} - ${cls.section} (${month}/${year})`
+    )
     res.json({ id: recordId, success: true, record: updated[0] || null })
   } catch (err) {
     console.error('Failed to save monthly record:', err.message)
@@ -174,6 +180,13 @@ router.put('/:recordId/entry', async (req, res) => {
 
     await run('UPDATE monthly_entries SET days=?, present=?, absent=? WHERE record_id=? AND student_id=?',
       [JSON.stringify(days), present, absent, recordId, studentId])
+
+    await audit(
+      g.me,
+      'monthly.entry_edit',
+      { type: 'monthly', id: recordId, name: `${g.record.grade} - ${g.record.section}`, schoolId: g.record.school_id },
+      `Updated day ${day} for student ID ${studentId} (${status || 'cleared'})`
+    )
 
     res.json({ success: true, present, absent })
   } catch (err) {

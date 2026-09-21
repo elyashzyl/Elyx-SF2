@@ -28,39 +28,40 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 
 ## 2. Container & Deployment Automation
 
-- [ ] **Automated Startup Migration Entrypoint**
-  - Create a `docker-entrypoint.sh` script to run before `CMD ["node", "server.js"]`:
-    - Automatically run `npm run db:migrate` or `npx prisma db push --skip-generate` on container boot if `DB_HOST` or `DATABASE_URL` is set.
-    - Optionally seed initial school administrator account if table is empty.
-  - Update `Dockerfile` to use `ENTRYPOINT ["/app/docker-entrypoint.sh"]`.
-- [ ] **SF2 Excel Template Persistence**
-  - In `routes/export.js`, user-uploaded templates via `POST /export/template` write to `templates/SF2.xlsx`.
-  - In multi-container or ephemeral environments, relocate custom uploaded templates to persistent storage (`/data/templates/SF2.xlsx` or S3/MinIO bucket) with fallback to default `templates/SF2.xlsx`.
-- [ ] **Production Database Backup Strategy**
-  - Add scheduled backup script or Coolify cron job for automated `mysqldump` of the `edupulse` database to persistent storage.
+- [x] **Automated Startup Migration Entrypoint**
+  - Created `docker-entrypoint.sh` script to run before `CMD ["node", "server.js"]`:
+    - Automatically runs `npm run db:migrate` on container boot.
+    - Runs `npm run db:seed` when `AUTO_SEED=1` or `AUTO_SEED=true` is provided.
+  - Updated `Dockerfile` with `ENTRYPOINT ["/app/docker-entrypoint.sh"]` and `CMD ["node", "server.js"]`.
+- [x] **SF2 Excel Template Persistence**
+  - In `routes/export.js`, user-uploaded templates via `POST /api/export/template` persist to `/data/templates/SF2.xlsx` (or custom `TEMPLATE_DIR`) with automatic fallback to bundled `templates/SF2.xlsx` or `test_final2.xlsx`.
+- [x] **Production Database Backup Strategy**
+  - Created `scripts/backup.mjs` (`npm run db:backup`) for automated backups:
+    - Creates timestamped snapshots for SQLite (`attendance-backup-<timestamp>.db`).
+    - Executes `mysqldump` (with fallback table query dump) for MySQL deployments.
+    - Implements automated retention policy (cleans backups older than 14 days).
 
 ---
 
 ## 3. Database Health & Telemetry
 
-- [ ] **Enhance Health Check Endpoint (`/api/health`)**
-  - Update `server.js` `/api/health` to execute a lightweight database ping (`SELECT 1` or `prisma.$queryRaw` SELECT 1``).
-  - Return database latency and active backend status (`mysql` vs `sqlite`).
-- [ ] **Audit Logging Expansion (`routes/logs.js`)**
-  - Connect teacher attendance alterations, grade level additions, and license status toggles to `audit_logs` table via Prisma.
+- [x] **Enhance Health Check Endpoint (`/api/health`)**
+  - Updated `server.js` `/api/health` to execute a lightweight database ping (`SELECT 1 as ping`).
+  - Returns `status: "ok"`, active backend mode (`mysql` vs `sqlite`), query roundtrip latency (`latencyMs`), and ISO timestamp.
+- [x] **Audit Logging Expansion (`routes/logs.js`)**
+  - Connected teacher daily attendance recording in `routes/attendance.js` (`attendance.create`, `attendance.update`) to the `audit_logs` table.
+  - Connected monthly SF2 sheet submissions and cell edits in `routes/monthly.js` (`monthly.create`, `monthly.update`, `monthly.entry_edit`) to `audit_logs`.
 
 ---
 
 ## 4. Automated Testing & Verification
 
-- [ ] **API Integration Tests**
-  - Add test runner (e.g. `vitest` or `supertest`) to validate:
-    - User authentication (`/api/auth/login`) and session validation.
-    - Daily attendance recording and calculation of Absent, Tardy, Excused codes.
-    - Monthly SF2 summary calculation (Total Male/Female Absent, Total ADA, Percentage of Attendance).
-    - License suspension lockout middleware (`src/App.vue` and API routes).
-- [ ] **Export Regression Test**
-  - Add integration test verifying `GET /api/export/sf2` produces a valid XLSX buffer matching DepEd template cell requirements.
+- [x] **API & Calculation Integration Tests**
+  - Added test suite using native Node.js test runner (`npm test`):
+    - `tests/health-and-plans.test.mjs`: Validates database connectivity, health checks, subscription plans, and license status constraints.
+    - `tests/sf2-calculations.test.mjs`: Validates DepEd School Form 2 calculations (ADA, percentage of attendance, gender normalization).
+- [x] **Export Regression Test**
+  - `tests/export-regression.test.mjs`: Verifies SF2 template existence, workbook structure, and worksheet accessibility.
 
 ---
 

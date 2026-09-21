@@ -44,8 +44,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 
-# Backend source + template + built frontend + prisma + migrations + scripts
-COPY server.js db.js ./
+# Backend source + template + built frontend + prisma + migrations + scripts + entrypoint
+COPY server.js db.js docker-entrypoint.sh ./
 COPY routes ./routes
 COPY templates ./templates
 COPY prisma ./prisma
@@ -53,9 +53,10 @@ COPY scripts ./scripts
 COPY migrations ./migrations
 COPY --from=build /app/dist ./dist
 
-# Allow template uploads (POST /export/template) to write templates/SF2.xlsx
-# and give the app user ownership of the SQLite-fallback data mount.
-RUN chown -R node:node /app \
+# Allow template uploads (POST /export/template) to write templates/SF2.xlsx,
+# ensure executable entrypoint, and give node user ownership of persistent data.
+RUN chmod +x /app/docker-entrypoint.sh \
+  && chown -R node:node /app \
   && mkdir -p /data && chown node:node /data
 
 # Run as non-root
@@ -68,4 +69,5 @@ EXPOSE 5173
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT:-5173}/api/health || exit 1
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

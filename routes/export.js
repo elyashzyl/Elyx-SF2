@@ -9,13 +9,15 @@ import { requireRole, resolveScopeSchool } from './_context.js'
 const router = express.Router()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const TEMPLATE_DIR = path.join(__dirname, '..', 'templates')
-const LOCAL_TEMPLATE = path.join(TEMPLATE_DIR, 'SF2.xlsx')
+const PERSISTENT_TEMPLATE_DIR = process.env.TEMPLATE_DIR || (fs.existsSync('/data') ? '/data/templates' : path.join(__dirname, '..', 'templates'))
+const PERSISTENT_TEMPLATE = path.join(PERSISTENT_TEMPLATE_DIR, 'SF2.xlsx')
+const BUNDLED_TEMPLATE = path.join(__dirname, '..', 'templates', 'SF2.xlsx')
 const DEFAULT_TEMPLATE = path.join(__dirname, '..', 'test_final2.xlsx')
 
 function resolveTemplate(templatePath) {
   if (templatePath && fs.existsSync(templatePath)) return templatePath
-  if (fs.existsSync(LOCAL_TEMPLATE)) return LOCAL_TEMPLATE
+  if (fs.existsSync(PERSISTENT_TEMPLATE)) return PERSISTENT_TEMPLATE
+  if (fs.existsSync(BUNDLED_TEMPLATE)) return BUNDLED_TEMPLATE
   if (fs.existsSync(DEFAULT_TEMPLATE)) return DEFAULT_TEMPLATE
   return null
 }
@@ -36,10 +38,10 @@ router.get('/template', (req, res) => {
 router.post('/template', express.raw({ type: () => true, limit: '30mb' }), (req, res) => {
   try {
     if (!req.body || !req.body.length) return res.status(400).json({ error: 'No file received' })
-    if (!fs.existsSync(TEMPLATE_DIR)) fs.mkdirSync(TEMPLATE_DIR, { recursive: true })
-    fs.writeFileSync(LOCAL_TEMPLATE, req.body)
-    const wb = XLSX.readFile(LOCAL_TEMPLATE)
-    res.json({ success: true, name: path.basename(LOCAL_TEMPLATE), sheets: wb.SheetNames })
+    if (!fs.existsSync(PERSISTENT_TEMPLATE_DIR)) fs.mkdirSync(PERSISTENT_TEMPLATE_DIR, { recursive: true })
+    fs.writeFileSync(PERSISTENT_TEMPLATE, req.body)
+    const wb = XLSX.readFile(PERSISTENT_TEMPLATE)
+    res.json({ success: true, name: path.basename(PERSISTENT_TEMPLATE), sheets: wb.SheetNames })
   } catch (err) {
     console.error('Error saving template:', err)
     res.status(500).json({ error: err.message })

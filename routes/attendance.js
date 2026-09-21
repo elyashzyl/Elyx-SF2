@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, getSettings } from '../db.js'
-import { requireRole, resolveScopeSchool } from './_context.js'
+import { requireRole, resolveScopeSchool, audit } from './_context.js'
 
 const router = Router()
 
@@ -129,6 +129,12 @@ router.post('/', async (req, res) => {
     }
 
     const updated = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    await audit(
+      me,
+      existing.length > 0 ? 'attendance.update' : 'attendance.create',
+      { type: 'attendance', id: recordId, name: `${grade} - ${section}`, schoolId: scope.schoolId },
+      `Recorded roll call for ${grade} - ${section} on ${date} (${entries.length} learners)`
+    )
     res.json({ id: recordId, success: true, record: updated[0] || null })
   } catch (err) {
     console.error('Failed to save attendance record:', err.message)

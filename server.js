@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import { initDatabase, DB_MODE } from './db.js'
+import { initDatabase, query, DB_MODE } from './db.js'
 import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
 import studentRoutes from './routes/students.js'
@@ -57,8 +57,28 @@ app.use('/api/logs', logRoutes)
 app.use('/api/schedules', scheduleRoutes)
 app.use('/api/licenses', licenseRoutes)
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: dbReady ? 'ok' : 'starting', db: dbReady ? DB_MODE : 'unknown' })
+app.get('/api/health', async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ status: 'starting', db: 'unknown' })
+  }
+  const start = Date.now()
+  try {
+    await query('SELECT 1 as ping')
+    const latencyMs = Date.now() - start
+    res.json({
+      status: 'ok',
+      db: DB_MODE,
+      latencyMs,
+      timestamp: new Date().toISOString()
+    })
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      db: DB_MODE,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
 import { fileURLToPath } from 'url'
