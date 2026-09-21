@@ -113,6 +113,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function actorHeaders(extra = {}) {
+    return {
+      'x-user-id': user.value?.id || '',
+      'x-user-role': user.value?.role || '',
+      ...extra
+    }
+  }
+
   async function getUsers(schoolId) {
     try {
       const params = new URLSearchParams(actorParams(schoolId ? { schoolId } : {}))
@@ -228,5 +236,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, login, logout, impersonate, stopImpersonating, actorParams, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  async function deleteLicense(id) {
+    const params = new URLSearchParams(actorParams())
+    const data = await fetchJson(`${API}/licenses/${id}?${params}`, {
+      method: 'DELETE',
+      headers: actorHeaders()
+    })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, login, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

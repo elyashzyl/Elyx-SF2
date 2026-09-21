@@ -32,8 +32,8 @@ const RANK = { superadmin: 3, admin: 2, teacher: 1 }
 // Resolve the acting user from body/query auth fields.
 // All school-scoped endpoints accept { userId, userRole } in body or query.
 export async function actingUser(req) {
-  const userId = req.body?.userId ?? req.query?.userId ?? req.body?.created_by ?? null
-  const userRole = req.body?.userRole ?? req.query?.userRole ?? null
+  const userId = req.body?.userId ?? req.query?.userId ?? req.headers?.['x-user-id'] ?? req.body?.created_by ?? null
+  const userRole = req.body?.userRole ?? req.query?.userRole ?? req.headers?.['x-user-role'] ?? null
   if (!userId) return null
   const rows = await query('SELECT id, username, name, role, grade, section, period, school_id FROM users WHERE id = ?', [userId])
   if (!rows.length) return null

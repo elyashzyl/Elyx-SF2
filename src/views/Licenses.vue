@@ -156,6 +156,11 @@
                       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
                   </button>
+                  <button v-if="auth.isSuperadmin" class="btn-icon" style="color: var(--destructive);" @click="deletePlan(p)" title="Delete Subscription Plan">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -562,13 +567,14 @@ function openEditPlanModal(plan) {
 async function handleSavePlan() {
   submitting.value = true
   try {
-    const res = await fetch(`/api/licenses/plans/${editPlanForm.id}`, {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/licenses/plans/${editPlanForm.id}?${qs}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         ...auth.actorHeaders()
       },
-      body: JSON.stringify(editPlanForm)
+      body: JSON.stringify(auth.actorParams(editPlanForm))
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to update plan')
@@ -579,6 +585,26 @@ async function handleSavePlan() {
     showError(err.message)
   } finally {
     submitting.value = false
+  }
+}
+
+async function deletePlan(plan) {
+  if (!confirm(`Are you sure you want to delete the "${plan.name}" (${plan.tier}) plan? This action cannot be undone.`)) return
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/licenses/plans/${plan.id}?${qs}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to delete plan')
+    showSuccess(`Plan "${plan.name}" deleted successfully!`)
+    await loadPlans()
+  } catch (err) {
+    showError(err.message)
   }
 }
 
@@ -743,7 +769,8 @@ async function resumeLicense(id) {
 async function deleteLicense(lic) {
   if (!confirm(`Are you sure you want to PERMANENTLY delete license "${lic.license_key}"? This action cannot be undone.`)) return
   try {
-    const res = await fetch(`/api/licenses/${lic.id}`, {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/licenses/${lic.id}?${qs}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

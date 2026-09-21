@@ -153,6 +153,35 @@ router.put('/plans/:id', async (req, res) => {
   }
 })
 
+// DELETE /api/licenses/plans/:id
+// Superadmin: Delete a subscription plan from the database
+router.delete('/plans/:id', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+
+    const { id } = req.params
+    const plan = (await query('SELECT * FROM subscription_plans WHERE id = ?', [id]))[0]
+    if (!plan) {
+      return res.status(404).json({ error: 'Subscription plan not found' })
+    }
+
+    const assignedLicenses = await query('SELECT id, license_key FROM licenses WHERE plan_tier = ? OR plan_tier = ?', [plan.tier, plan.id])
+    if (assignedLicenses.length > 0) {
+      return res.status(400).json({ error: `Cannot delete plan "${plan.name}" because it is currently assigned to ${assignedLicenses.length} active license(s).` })
+    }
+
+    await run('DELETE FROM subscription_plans WHERE id = ?', [id])
+    saveDatabase()
+
+    await audit(me, 'plan.delete', { type: 'plan', id, name: plan.name }, `Deleted subscription plan "${plan.name}" (${plan.tier})`)
+    res.json({ success: true, message: `Plan "${plan.name}" deleted successfully` })
+  } catch (err) {
+    console.error('Failed to delete subscription plan:', err.message)
+    res.status(500).json({ error: 'Failed to delete plan: ' + err.message })
+  }
+})
+
 // GET /api/licenses
 // Returns active license and usage stats for current school, or all licenses for superadmin.
 router.get('/', async (req, res) => {
