@@ -444,9 +444,11 @@ async function migrateToMultiSchoolMysql() {
     if ((cntRows?.cnt ?? 0) > 0) return
     const legacy = { ...DEFAULT_SCHOOL_FALLBACK }
     try {
-      const [[sRows]] = await mysqlPool.query('SELECT `key`, value FROM settings')
-      for (const r of sRows) {
-        if (r.key in legacy) legacy[r.key] = r.value
+      const [sRows] = await mysqlPool.query('SELECT `key`, value FROM settings')
+      if (Array.isArray(sRows)) {
+        for (const r of sRows) {
+          if (r.key in legacy) legacy[r.key] = r.value
+        }
       }
     } catch {}
     const schoolId = 'school-' + Date.now().toString(36)
@@ -483,9 +485,12 @@ export async function seedGradeLevelsForSchool(schoolDbId) {
 
 async function seedGradeLevelsMysql() {
   try {
-    const [[schools]] = await mysqlPool.query('SELECT id FROM schools')
+    const [schools] = await mysqlPool.query('SELECT id FROM schools')
+    if (!Array.isArray(schools)) return
     for (const s of schools) {
-      try { await seedGradeLevelsForSchool(s.id) } catch {}
+      if (s?.id) {
+        try { await seedGradeLevelsForSchool(s.id) } catch {}
+      }
     }
   } catch (err) {
     console.error('Grade levels seed error:', err.message)
