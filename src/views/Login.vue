@@ -125,43 +125,6 @@
             </div>
           </div>
 
-          <!-- Quick Demo Credentials Helper -->
-          <div class="demo-credentials-box">
-            <div class="demo-header">
-              <span class="demo-icon">⚡</span>
-              <span class="demo-title">Quick Demo Logins:</span>
-            </div>
-            <div class="demo-chips">
-              <button
-                type="button"
-                class="demo-chip"
-                @click="fillDemo('admin', 'ElyTrack2026!')"
-                title="Superadmin credentials"
-              >
-                <span class="demo-role-badge badge-super">Superadmin</span>
-                <code>admin</code>
-              </button>
-              <button
-                type="button"
-                class="demo-chip"
-                @click="fillDemo('msantos', 'teacher123')"
-                title="Teacher Ms. Santos (Grade 7 - Pine)"
-              >
-                <span class="demo-role-badge badge-teacher">Teacher</span>
-                <code>msantos</code>
-              </button>
-              <button
-                type="button"
-                class="demo-chip"
-                @click="fillDemo('jdelacruz', 'teacher123')"
-                title="Teacher Mr. Dela Cruz (Grade 8 - Narra)"
-              >
-                <span class="demo-role-badge badge-teacher">Teacher</span>
-                <code>jdelacruz</code>
-              </button>
-            </div>
-          </div>
-
           <!-- Sign In Form -->
           <form @submit.prevent="handleLogin" class="auth-form" novalidate>
             <div class="form-group">
@@ -274,12 +237,6 @@ function toggleTheme() {
   theme.value = theme.value === 'light' ? 'dark' : 'light'
   localStorage.setItem('theme', theme.value)
   document.documentElement.setAttribute('data-theme', theme.value)
-}
-
-function fillDemo(username, password) {
-  loginUsername.value = username
-  loginPassword.value = password
-  loginError.value = ''
 }
 
 function redirectAfterAuth(role) {
@@ -698,76 +655,6 @@ onMounted(async () => {
   color: var(--muted-foreground);
   line-height: 1.35;
   margin: 0;
-}
-
-/* Demo Credentials Box */
-.demo-credentials-box {
-  background: var(--muted);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.demo-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-}
-
-.demo-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.demo-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  color: var(--foreground);
-}
-
-.demo-chip:hover {
-  background: var(--secondary);
-  border-color: var(--primary);
-  transform: translateY(-1px);
-}
-
-.demo-role-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.badge-super {
-  background: rgba(198, 106, 77, 0.15);
-  color: var(--accent);
-}
-
-.badge-teacher {
-  background: rgba(48, 75, 57, 0.15);
-  color: var(--primary);
-}
-
-.demo-chip code {
-  font-family: monospace;
-  font-weight: 600;
 }
 
 /* Forms */
