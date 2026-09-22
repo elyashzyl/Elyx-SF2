@@ -19,7 +19,11 @@ function recordSchoolOk(me, record) {
 
 function canEdit(record, actor) {
   if (!actor) return false
-  if (actor.role === 'superadmin' || actor.role === 'admin') return true
+  if (actor.role === 'superadmin') return true
+  if (actor.role === 'admin') {
+    // Admin may only edit attendance records belonging to their own school
+    return !!record.school_id && actor.school_id === record.school_id
+  }
   if (actor.role === 'teacher') {
     // Teachers may edit records of their advisory class in their school
     if (record.school_id && actor.school_id !== record.school_id) return false

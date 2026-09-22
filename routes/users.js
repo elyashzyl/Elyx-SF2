@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
     const users = scope.schoolId
-      ? await query('SELECT id, username, name, role, grade, section, period, school_id FROM users WHERE school_id = ? OR (school_id IS NULL OR school_id = ?) AND role = ? ORDER BY name', [scope.schoolId, '', 'superadmin'])
+      ? await query('SELECT id, username, name, role, grade, section, period, school_id FROM users WHERE school_id = ? ORDER BY name', [scope.schoolId])
       : await query('SELECT id, username, name, role, grade, section, period, school_id FROM users ORDER BY name')
     res.json(users)
   } catch (err) {
@@ -163,9 +163,12 @@ router.put('/:id', async (req, res) => {
 
     let newSchoolId = req.body.schoolId !== undefined ? req.body.schoolId : (req.body.school_id !== undefined ? req.body.school_id : target.school_id)
     if (me.role !== 'superadmin') {
-      // Admins: target must be a teacher in their school; edits stay within their school
-      if (!canManageUser(me, target.role, target.school_id) || !canManageUser(me, newRole, me.school_id)) {
-        return res.status(403).json({ error: 'Forbidden' })
+      // Admin: target must be a non-superadmin in their own school; role change must stay non-superadmin
+      if (!target.school_id || target.school_id !== me.school_id) {
+        return res.status(403).json({ error: 'Forbidden: outside your school' })
+      }
+      if (target.role === 'superadmin' || newRole === 'superadmin') {
+        return res.status(403).json({ error: 'Forbidden: cannot manage superadmin' })
       }
       newSchoolId = me.school_id
     }
@@ -237,8 +240,8 @@ router.delete('/:id', async (req, res) => {
     if (!canManageUser(me, target.role, target.school_id)) {
       return res.status(403).json({ error: 'Forbidden' })
     }
-    if (target.role !== 'teacher' && me.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Only superadmin can delete admins' })
+    if (target.role === 'superadmin') {
+      return res.status(403).json({ error: 'Forbidden: cannot delete superadmin' })
     }
     await run('DELETE FROM users WHERE id=?', [id])
     await audit(me, 'user.delete', { type: 'user', id, name: `${target.name} (${target.username})`, schoolId: target.school_id || '' }, `Deleted ${target.role} "${target.username}"`)

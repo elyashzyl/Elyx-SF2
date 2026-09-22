@@ -137,12 +137,12 @@ export function rankOf(role) {
 }
 
 // Can actor manage (create/edit/delete) a user of targetRole in targetSchool?
-// superadmin: anyone. admin: teachers within own school only.
+// superadmin: anyone. admin: any non-superadmin within their own school only.
 export function canManageUser(me, targetRole, targetSchoolId) {
   if (!me) return false
   if (me.role === 'superadmin') return true
   if (me.role === 'admin') {
-    if (targetRole !== 'teacher') return false
+    if (targetRole === 'superadmin') return false   // never touch superadmins
     return !!me.school_id && me.school_id === targetSchoolId
   }
   return false
