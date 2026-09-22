@@ -162,9 +162,15 @@
                 <input :value="roleLabel" disabled />
               </div>
             </div>
-            <div class="form-group" v-if="auth.user?.grade || auth.user?.section">
-              <label>Advisory Class</label>
-              <input :value="`${auth.user?.grade || '—'} - ${auth.user?.section || '—'}`" disabled />
+            <div class="form-row">
+              <div class="form-group">
+                <label>Assigned School <span class="label-hint">Managed by administrator</span></label>
+                <input :value="assignedSchoolName" disabled />
+              </div>
+              <div class="form-group" v-if="auth.user?.role === 'teacher' || auth.user?.grade || auth.user?.section">
+                <label>Advisory Class <span class="label-hint">Managed by administrator</span></label>
+                <input :value="assignedClassLabel" disabled />
+              </div>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn-primary" :disabled="savingProfile">
@@ -307,6 +313,17 @@ const roleLabel = computed(() => {
   return r === 'superadmin' ? 'Superadmin' : r === 'admin' ? 'Administrator' : 'Teacher'
 })
 
+const assignedSchoolName = computed(() => {
+  return form.school_name || auth.user?.school?.name || auth.user?.school?.school_name || (auth.isSuperadmin ? 'All Schools (Superadmin)' : '—')
+})
+
+const assignedClassLabel = computed(() => {
+  if (auth.user?.grade || auth.user?.section) {
+    return `${auth.user?.grade || '—'} - ${auth.user?.section || '—'}`
+  }
+  return 'None assigned'
+})
+
 onMounted(async () => {
   profile.name = auth.user?.name || ''
   profile.username = auth.user?.username || ''
@@ -366,11 +383,11 @@ async function saveProfile() {
   savingProfile.value = true
   profileError.value = ''
   try {
-    const payload = { name: profile.name, username: profile.username }
-    if (profile.password) payload.password = profile.password
+    const payload = { name: profile.name.trim(), username: profile.username.trim() }
+    if (profile.password && profile.password.trim()) payload.password = profile.password.trim()
     await auth.updateUser(auth.user.id, payload)
     profile.password = ''
-    notify('Profile updated', 'success')
+    notify('Profile updated successfully', 'success')
   } catch (e) {
     profileError.value = e.message
     notify(e.message, 'error')

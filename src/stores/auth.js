@@ -149,11 +149,11 @@ export const useAuthStore = defineStore('auth', () => {
     })
     if (data?.error) throw new Error(data.error)
     if (user.value?.id === id) {
+      if (userData.username) user.value.username = userData.username
       if (userData.name) user.value.name = userData.name
-      if (userData.role) user.value.role = userData.role
-      if ('grade' in userData) user.value.grade = userData.grade || ''
-      if ('section' in userData) user.value.section = userData.section || ''
-      if ('period' in userData) user.value.period = userData.period || ''
+      if (data?.user) {
+        user.value = { ...user.value, ...data.user }
+      }
       localStorage.setItem('auth_user', JSON.stringify(user.value))
     }
     return data

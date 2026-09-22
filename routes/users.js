@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
-import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit, getSchoolLicense, isLicenseActive } from './_context.js'
+import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit, getSchoolLicense, isLicenseActive, actingUser } from './_context.js'
 
 const router = Router()
 
@@ -81,15 +81,86 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
-    if (error) return
+    const me = await actingUser(req)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+    if (me.roleMismatch) return res.status(403).json({ error: 'Role mismatch — please sign in again' })
     const { id } = req.params
     const target = (await query('SELECT * FROM users WHERE id = ?', [id]))[0]
     if (!target) return res.status(404).json({ error: 'User not found' })
-    // Actor must be able to manage the target's current role/school and the new role/school
-    const { username, password, name, role, grade, section, period } = req.body
+
+    const isSelf = me.id === target.id
+
+    // Self-update: any authenticated user (teacher, admin, superadmin) may change
+    // their own username, password, and display name.
+    // They are explicitly prevented from modifying their assigned grade, section, school, or role.
+    if (isSelf) {
+      const { username, password, name, role, grade, section, schoolId, school_id } = req.body || {}
+
+      if (role !== undefined && role !== target.role) {
+        return res.status(403).json({ error: 'You cannot change your own role' })
+      }
+      const requestedSchool = schoolId !== undefined ? schoolId : school_id
+      if (requestedSchool !== undefined && requestedSchool !== target.school_id) {
+        return res.status(403).json({ error: 'You cannot change your assigned school' })
+      }
+      if ((grade !== undefined && grade !== target.grade) || (section !== undefined && section !== target.section)) {
+        return res.status(403).json({ error: 'You cannot change your assigned advisory grade or section' })
+      }
+
+      const newUsername = (username !== undefined ? username : target.username)?.trim()
+      if (!newUsername) {
+        return res.status(400).json({ error: 'Username is required' })
+      }
+
+      const dup = await query('SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?', [newUsername, id])
+      if (dup.length > 0) {
+        return res.status(400).json({ error: 'Username already exists' })
+      }
+
+      const newName = (name !== undefined ? name : target.name)?.trim() || target.name
+
+      const sets = ['username=?', 'name=?']
+      const params = [newUsername, newName]
+
+      if (password && String(password).trim()) {
+        sets.push('password=?')
+        params.push(String(password).trim())
+      }
+
+      params.push(id)
+      await run(`UPDATE users SET ${sets.join(', ')} WHERE id=?`, params)
+
+      await audit(me, 'user.self_update', {
+        type: 'user',
+        id,
+        name: `${newName} (${newUsername})`,
+        schoolId: target.school_id || ''
+      }, `User updated their credentials (username/password)`)
+
+      return res.json({
+        success: true,
+        user: {
+          id: target.id,
+          username: newUsername,
+          name: newName,
+          role: target.role,
+          grade: target.grade,
+          section: target.section,
+          period: target.period,
+          school_id: target.school_id
+        }
+      })
+    }
+
+    // Administrative update of other user accounts (me.id !== target.id)
+    if (me.role !== 'superadmin' && me.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+
+    const { username, password, name, role, grade, section, period } = req.body || {}
     const newRole = role || target.role
     if (!VALID_ROLES.includes(newRole)) return res.status(400).json({ error: 'Invalid role' })
+
     let newSchoolId = req.body.schoolId !== undefined ? req.body.schoolId : (req.body.school_id !== undefined ? req.body.school_id : target.school_id)
     if (me.role !== 'superadmin') {
       // Admins: target must be a teacher in their school; edits stay within their school
@@ -101,10 +172,15 @@ router.put('/:id', async (req, res) => {
     if (newRole !== 'superadmin' && !newSchoolId && me.role === 'superadmin') {
       return res.status(400).json({ error: 'schoolId is required for non-superadmin users' })
     }
-    const dup = await query('SELECT id FROM users WHERE username = ? AND id != ?', [username || target.username, id])
+
+    const newUsername = (username !== undefined ? username : target.username)?.trim()
+    if (!newUsername) return res.status(400).json({ error: 'Username is required' })
+
+    const dup = await query('SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?', [newUsername, id])
     if (dup.length > 0) {
       return res.status(400).json({ error: 'Username already exists' })
     }
+
     if (newRole === 'teacher' && (!(grade !== undefined ? grade : target.grade) || !(section !== undefined ? section : target.section))) {
       return res.status(400).json({ error: 'Teachers need an advisory grade and section' })
     }
@@ -114,20 +190,36 @@ router.put('/:id', async (req, res) => {
       const effSchool = newRole === 'superadmin' ? '' : (newSchoolId || target.school_id || '')
       if (effSchool && !(await assertValidClass(res, effSchool, effGrade, effSection))) return
     }
+
     const vals = {
-      username: username !== undefined ? username : target.username,
-      name: name !== undefined ? name : target.name,
+      username: newUsername,
+      name: (name !== undefined ? name : target.name)?.trim() || target.name,
       grade: grade !== undefined ? (grade || '') : (target.grade || ''),
       section: section !== undefined ? (section || '') : (target.section || ''),
       period: period !== undefined ? (period || '') : (target.period || '')
     }
     const sets = ['username=?', 'name=?', 'role=?', 'grade=?', 'section=?', 'period=?', 'school_id=?']
     const params = [vals.username, vals.name, newRole, vals.grade, vals.section, vals.period, newRole === 'superadmin' ? '' : (newSchoolId || '')]
-    if (password) { sets.push('password=?'); params.push(password) }
+    if (password && String(password).trim()) {
+      sets.push('password=?')
+      params.push(String(password).trim())
+    }
     params.push(id)
     await run(`UPDATE users SET ${sets.join(', ')} WHERE id=?`, params)
     await audit(me, 'user.update', { type: 'user', id, name: `${vals.username}`, schoolId: newRole === 'superadmin' ? '' : (newSchoolId || '') }, `Updated user "${target.username}"`)
-    res.json({ success: true })
+    res.json({
+      success: true,
+      user: {
+        id: target.id,
+        username: vals.username,
+        name: vals.name,
+        role: newRole,
+        grade: vals.grade,
+        section: vals.section,
+        period: vals.period,
+        school_id: newRole === 'superadmin' ? '' : (newSchoolId || '')
+      }
+    })
   } catch (err) {
     console.error('Error updating user:', err.message)
     res.status(500).json({ error: 'Failed to update user' })
