@@ -32,6 +32,19 @@
 
       <div class="top-nav-actions">
         <button
+          @click="showTutorial = true"
+          class="top-nav-btn tutorial-btn"
+          title="Onboarding walkthrough &amp; guide"
+          aria-label="Onboarding walkthrough &amp; guide"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </button>
+
+        <button
           @click="toggleTheme()"
           class="top-nav-btn"
           :title="theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
@@ -297,6 +310,9 @@
         <button @click="removeToast(t.id)" class="toast-close">&times;</button>
       </div>
     </div>
+
+    <!-- Walk-In User Onboarding Tutorial -->
+    <WalkInTutorial v-model:show="showTutorial" />
   </div>
 </template>
 
@@ -309,6 +325,7 @@ import { useNotifications } from './composables/useNotifications'
 import { useTheme } from './composables/useTheme'
 import { useActiveSchool } from './composables/useActiveSchool'
 import { restoreScrollAfterLoad } from './router'
+import WalkInTutorial from './components/WalkInTutorial.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -323,6 +340,8 @@ const notifPanelRef = ref(null)
 const notifBellRef = ref(null)
 const stoppingImpersonation = ref(false)
 const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
+
+const showTutorial = ref(false)
 
 const licenseLocked = ref(false)
 const licenseStatus = ref('active')
@@ -407,6 +426,12 @@ onMounted(() => {
   loadSchool()
   checkLicenseStatus()
   restoreScrollAfterLoad()
+
+  // Auto-launch walkthrough for first-time authenticated users
+  if (auth.user && !localStorage.getItem('elytrack_tutorial_seen')) {
+    showTutorial.value = true
+  }
+
   // Realtime license validation check every 10 seconds for instant locking on suspension
   appLicenseInterval = setInterval(() => {
     if (auth.user) checkLicenseStatus()
@@ -419,6 +444,12 @@ onUnmounted(() => {
 
 watch(() => auth.user?.school_id, () => {
   checkLicenseStatus()
+})
+
+watch(() => auth.user, (newUser) => {
+  if (newUser && !localStorage.getItem('elytrack_tutorial_seen')) {
+    showTutorial.value = true
+  }
 })
 
 function closeSidebar() {

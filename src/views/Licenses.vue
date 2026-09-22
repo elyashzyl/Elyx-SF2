@@ -6,13 +6,19 @@
         <p class="subtitle">Control institutional seat capacity, DepEd SF2 modules, renewal cycles, and subscription keys.</p>
       </div>
       <div class="header-actions">
+        <div v-if="!auth.isSuperadmin" class="read-only-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Read-Only License View</span>
+        </div>
         <button v-if="auth.isSuperadmin" class="btn btn-secondary" @click="openIssueModal">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
           <span>Issue License</span>
         </button>
-        <button class="btn btn-primary" @click="openActivateModal">
+        <button v-if="auth.isSuperadmin" class="btn btn-primary" @click="openActivateModal">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
@@ -94,7 +100,7 @@
           <span v-if="currentSchool?.school_id">· DepEd ID: {{ currentSchool.school_id }}</span>
         </div>
 
-        <div class="hero-btns">
+        <div v-if="auth.isSuperadmin" class="hero-btns">
           <button v-if="activeLicense.is_trial" class="btn btn-sm btn-secondary" @click="extendTrial">
             <span>Extend 14 Days</span>
           </button>
@@ -108,11 +114,17 @@
             <span>Renew Subscription (10 Months)</span>
           </button>
         </div>
+        <div v-else class="hero-readonly-note">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <span>License terms, renewals, and key activations are managed centrally by the platform superadmin.</span>
+        </div>
       </div>
     </div>
 
-    <!-- Superadmin Database Subscription Plans Table -->
-    <div v-if="auth.isSuperadmin" class="card" style="margin-top: 24px;">
+    <!-- Database Subscription Plans Table -->
+    <div v-if="auth.isAdmin" class="card" style="margin-top: 24px;">
       <div class="card-header-row">
         <div>
           <h3>Database Subscription Plans &amp; Pricing Tiers</h3>
@@ -131,7 +143,7 @@
               <th>Max Teachers</th>
               <th>Max Students</th>
               <th>Trial</th>
-              <th>Actions</th>
+              <th v-if="auth.isSuperadmin">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -149,14 +161,14 @@
               <td>{{ p.max_teachers }}</td>
               <td>{{ p.max_students }}</td>
               <td>{{ p.trial_days }} days</td>
-              <td>
+              <td v-if="auth.isSuperadmin">
                 <div class="table-actions">
                   <button class="btn-icon" @click="openEditPlanModal(p)" title="Edit Plan Details in Database">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
                   </button>
-                  <button v-if="auth.isSuperadmin" class="btn-icon" style="color: var(--destructive);" @click="deletePlan(p)" title="Delete Subscription Plan">
+                  <button class="btn-icon" style="color: var(--destructive);" @click="deletePlan(p)" title="Delete Subscription Plan">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
                     </svg>
@@ -170,7 +182,7 @@
     </div>
 
     <!-- MODAL: EDIT PLAN (Superadmin) -->
-    <div v-if="showEditPlanModal" class="modal-overlay" @click.self="showEditPlanModal = false">
+    <div v-if="auth.isSuperadmin && showEditPlanModal" class="modal-overlay" @click.self="showEditPlanModal = false">
       <div class="modal-card">
         <div class="modal-header">
           <h3>Edit Plan (Database): {{ editPlanForm.tier }}</h3>
@@ -312,7 +324,7 @@
     </div>
 
     <!-- MODAL: ACTIVATE LICENSE KEY -->
-    <div v-if="showActivateModal" class="modal-overlay" @click.self="showActivateModal = false">
+    <div v-if="auth.isSuperadmin && showActivateModal" class="modal-overlay" @click.self="showActivateModal = false">
       <div class="modal-card">
         <div class="modal-header">
           <h3>Activate License Key</h3>
@@ -346,7 +358,7 @@
     </div>
 
     <!-- MODAL: ISSUE NEW LICENSE (Superadmin) -->
-    <div v-if="showIssueModal" class="modal-overlay" @click.self="showIssueModal = false">
+    <div v-if="auth.isSuperadmin && showIssueModal" class="modal-overlay" @click.self="showIssueModal = false">
       <div class="modal-card">
         <div class="modal-header">
           <h3>Issue New School License</h3>
@@ -410,7 +422,7 @@
     </div>
 
     <!-- MODAL: RENEW / EXTEND -->
-    <div v-if="showRenewModal" class="modal-overlay" @click.self="showRenewModal = false">
+    <div v-if="auth.isSuperadmin && showRenewModal" class="modal-overlay" @click.self="showRenewModal = false">
       <div class="modal-card">
         <div class="modal-header">
           <h3>Extend Subscription Term</h3>
@@ -549,6 +561,7 @@ async function loadPlans() {
 }
 
 function openEditPlanModal(plan) {
+  if (!auth.isSuperadmin) return
   Object.assign(editPlanForm, {
     id: plan.id,
     tier: plan.tier,
@@ -565,6 +578,7 @@ function openEditPlanModal(plan) {
 }
 
 async function handleSavePlan() {
+  if (!auth.isSuperadmin) return
   submitting.value = true
   try {
     const qs = new URLSearchParams(auth.actorParams()).toString()
@@ -589,6 +603,7 @@ async function handleSavePlan() {
 }
 
 async function deletePlan(plan) {
+  if (!auth.isSuperadmin) return
   if (!confirm(`Are you sure you want to delete the "${plan.name}" (${plan.tier}) plan? This action cannot be undone.`)) return
   try {
     const qs = new URLSearchParams(auth.actorParams()).toString()
@@ -637,20 +652,24 @@ async function loadSchoolsList() {
 }
 
 function openActivateModal() {
+  if (!auth.isSuperadmin) return
   activateKeyInput.value = ''
   showActivateModal.value = true
 }
 
 function openIssueModal() {
+  if (!auth.isSuperadmin) return
   issueForm.school_id = schoolsList.value[0]?.id || ''
   showIssueModal.value = true
 }
 
 function openRenewModal() {
+  if (!auth.isSuperadmin) return
   showRenewModal.value = true
 }
 
 async function handleActivateKey() {
+  if (!auth.isSuperadmin) return
   if (!activateKeyInput.value.trim()) return
   submitting.value = true
   try {
@@ -675,6 +694,7 @@ async function handleActivateKey() {
 }
 
 async function handleIssueLicense() {
+  if (!auth.isSuperadmin) return
   submitting.value = true
   try {
     const res = await fetch('/api/licenses', {
@@ -695,6 +715,7 @@ async function handleIssueLicense() {
 }
 
 async function handleRenew() {
+  if (!auth.isSuperadmin) return
   submitting.value = true
   try {
     const res = await fetch('/api/licenses/renew', {
@@ -718,6 +739,7 @@ async function handleRenew() {
 }
 
 async function extendTrial() {
+  if (!auth.isSuperadmin) return
   try {
     const res = await fetch('/api/licenses/start-trial', {
       method: 'POST',
@@ -734,6 +756,7 @@ async function extendTrial() {
 }
 
 async function suspendLicense(id) {
+  if (!auth.isSuperadmin) return
   if (!confirm('Are you sure you want to stop/suspend this license? When suspended, all accounts in this school will be locked out immediately.')) return
   try {
     const res = await fetch(`/api/licenses/${id}/suspend`, {
@@ -751,6 +774,7 @@ async function suspendLicense(id) {
 }
 
 async function resumeLicense(id) {
+  if (!auth.isSuperadmin) return
   try {
     const res = await fetch(`/api/licenses/${id}/resume`, {
       method: 'POST',
@@ -767,6 +791,7 @@ async function resumeLicense(id) {
 }
 
 async function deleteLicense(lic) {
+  if (!auth.isSuperadmin) return
   if (!confirm(`Are you sure you want to PERMANENTLY delete license "${lic.license_key}"? This action cannot be undone.`)) return
   try {
     const qs = new URLSearchParams(auth.actorParams()).toString()
@@ -787,6 +812,7 @@ async function deleteLicense(lic) {
 }
 
 async function quickRenew(lic) {
+  if (!auth.isSuperadmin) return
   try {
     const res = await fetch('/api/licenses/renew', {
       method: 'POST',
@@ -803,6 +829,7 @@ async function quickRenew(lic) {
 }
 
 function editLicense(lic) {
+  if (!auth.isSuperadmin) return
   openRenewModal()
 }
 
@@ -1047,6 +1074,31 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 0.88rem;
+}
+
+.read-only-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.hero-readonly-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
 }
 
 .hero-btns {

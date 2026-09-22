@@ -19,6 +19,19 @@
       </div>
 
       <div class="overview-header-actions">
+        <router-link 
+          v-if="teacherClass?.hasAdvisory" 
+          :to="todayAttendanceUrl" 
+          class="take-attendance-btn" 
+          title="Open Daily Attendance Sheet for Today"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 11 12 14 22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          </svg>
+          <span>Take Today's Attendance</span>
+        </router-link>
+
         <div v-if="teacherClass?.hasAdvisory" class="advisory-badge-chip">
           <span class="advisory-dot"></span>
           <span>{{ teacherClass.grade }} — {{ teacherClass.section }}</span>
@@ -123,6 +136,12 @@
             <span><strong>{{ teacherClass.attendance.absent }}</strong> Absences</span>
             <span class="subtext-divider">•</span>
             <span><strong>{{ teacherClass.attendance.tardy }}</strong> Tardies</span>
+          </div>
+          <div class="kpi-card-action">
+            <router-link :to="todayAttendanceUrl" class="kpi-action-link">
+              <span>Take Today's Attendance</span>
+              <span>→</span>
+            </router-link>
           </div>
         </div>
 
@@ -380,6 +399,14 @@ const loading = ref(false)
 const teacherClass = ref(null)
 const rosterSearch = ref('')
 
+const todayIso = computed(() => new Date().toISOString().split('T')[0])
+const todayAttendanceUrl = computed(() => {
+  if (teacherClass.value?.grade && teacherClass.value?.section) {
+    return `/attendance?grade=${encodeURIComponent(teacherClass.value.grade)}&section=${encodeURIComponent(teacherClass.value.section)}&date=${todayIso.value}&autoOpen=1`
+  }
+  return `/attendance?date=${todayIso.value}&autoOpen=1`
+})
+
 const currentDateStr = computed(() => {
   const now = new Date()
   return now.toLocaleDateString('en-US', {
@@ -500,6 +527,55 @@ onMounted(loadStats)
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.take-attendance-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: #0c5357;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(12, 83, 87, 0.25);
+  transition: all 0.15s ease;
+}
+
+.take-attendance-btn:hover {
+  background: #083c3f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(12, 83, 87, 0.35);
+  color: #ffffff;
+}
+
+.take-attendance-btn svg {
+  flex-shrink: 0;
+}
+
+.kpi-card-action {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(12, 83, 87, 0.08);
+}
+
+.kpi-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #0c5357;
+  text-decoration: none;
+  transition: all 0.12s ease;
+}
+
+.kpi-action-link:hover {
+  color: #083c3f;
+  gap: 8px;
 }
 
 .advisory-badge-chip {

@@ -107,9 +107,15 @@ router.post('/', async (req, res) => {
     if (existing.length > 0) {
       recordId = existing[0].id
       if (!recordSchoolOk(me, existing[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+      if (!canEdit(existing[0], me)) return res.status(403).json({ error: 'Forbidden: you cannot edit this advisory class' })
       await run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
       await run('UPDATE attendance_records SET adviser=? WHERE id=?', [adviser, recordId])
     } else {
+      if (me.role === 'teacher' && me.grade && me.section) {
+        if (grade !== me.grade || section !== me.section) {
+          return res.status(403).json({ error: 'Forbidden: you may only record attendance for your assigned advisory class' })
+        }
+      }
       recordId = uuidv4()
       await run('INSERT INTO attendance_records (id, date, grade, section, adviser, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [recordId, date, grade, section, adviser, created_by || '', created_by_name || '', scope.schoolId])

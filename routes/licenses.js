@@ -255,10 +255,10 @@ router.get('/', async (req, res) => {
 })
 
 // POST /api/licenses
-// Issue / create a new license (superadmin or admin for school)
+// Issue / create a new license (Superadmin only)
 router.post('/', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const {
@@ -347,10 +347,10 @@ router.post('/', async (req, res) => {
 })
 
 // POST /api/licenses/activate
-// Activate an existing license key for the school
+// Activate an existing license key for the school (Superadmin only)
 router.post('/activate', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const { licenseKey, schoolId } = req.body || {}
@@ -393,10 +393,10 @@ router.post('/activate', async (req, res) => {
 })
 
 // POST /api/licenses/start-trial
-// Start a 14-day free trial for the school
+// Start a 14-day free trial for the school (Superadmin only)
 router.post('/start-trial', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const { schoolId, plan_tier = 'campus' } = req.body || {}
@@ -448,10 +448,10 @@ router.post('/start-trial', async (req, res) => {
 })
 
 // POST /api/licenses/renew
-// Renew / extend active license by 1 month or 1 school year (10 months)
+// Renew / extend active license by 1 month or 1 school year (Superadmin only)
 router.post('/renew', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const { schoolId, months = 10 } = req.body || {}
@@ -486,10 +486,10 @@ router.post('/renew', async (req, res) => {
 })
 
 // PUT /api/licenses/:id
-// Update license parameters (status, tier, max_teachers, max_students, notes)
+// Update license parameters (Superadmin only)
 router.put('/:id', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const { id } = req.params
@@ -538,10 +538,10 @@ router.put('/:id', async (req, res) => {
 })
 
 // POST /api/licenses/:id/suspend
-// Suspend / stop a license (Superadmin or Admin)
+// Suspend / stop a license (Superadmin only)
 router.post('/:id/suspend', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const { id } = req.params
@@ -566,10 +566,10 @@ router.post('/:id/suspend', async (req, res) => {
 })
 
 // POST /api/licenses/:id/resume
-// Resume / reactivate a suspended license
+// Resume / reactivate a suspended license (Superadmin only)
 router.post('/:id/resume', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
 
     const { id } = req.params

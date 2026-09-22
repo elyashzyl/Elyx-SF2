@@ -24,21 +24,21 @@
           </div>
           <div class="form-group">
             <label>Grade</label>
-            <select v-model="form.grade" @change="form.section = ''" required>
+            <select v-model="form.grade" @change="onGradeChange" required :disabled="auth.isTeacher && !!auth.user?.grade">
               <option value="" disabled v-if="!grades.length">No grade levels defined</option>
               <option v-for="g in grades" :key="g">{{ g }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>Section</label>
-            <select v-model="form.section" required>
+            <select v-model="form.section" required :disabled="auth.isTeacher && !!auth.user?.section">
               <option value="" disabled>Select section</option>
               <option v-for="s in availableSections" :key="s">{{ s }}</option>
             </select>
           </div>
           <div class="form-group">
             <label>Adviser</label>
-            <input v-model="form.adviser" placeholder="Teacher name" />
+            <input v-model="form.adviser" placeholder="Teacher name" :readonly="auth.isTeacher && !!auth.user?.name" />
           </div>
         </div>
         <button @click="openRecord" class="btn-primary" :disabled="loading">
@@ -146,12 +146,43 @@
         </div>
       </div>
 
-      <div v-if="auth.isTeacher && !isOwner" class="readonly-banner">
-        This record belongs to another class. Only its advisory teacher or an admin can edit it.
+      <div v-if="auth.isTeacher && !canEdit" class="readonly-banner">
+        This record belongs to another advisory class ({{ record.grade }} — {{ record.section }}). Only its official adviser or a school administrator can record or edit daily entries.
       </div>
       <div v-if="auth.isAdmin && !isOwner" class="readonly-banner">
         Recorded by {{ record.created_by_name || 'Unknown' }}
         <button @click="handleUnlock" class="btn-sm">Take Ownership</button>
+      </div>
+
+      <!-- Quick Actions & Live Telemetry Strip -->
+      <div class="daily-telemetry-bar">
+        <div class="telemetry-stats">
+          <div class="telemetry-chip">
+            <span class="telemetry-label">Enrolled:</span>
+            <strong>{{ totalLearnersCount }}</strong>
+          </div>
+          <div class="telemetry-chip telemetry-chip--success">
+            <span class="telemetry-label">Present:</span>
+            <strong>{{ livePresentCount }}</strong>
+          </div>
+          <div class="telemetry-chip telemetry-chip--warning">
+            <span class="telemetry-label">Tardy:</span>
+            <strong>{{ liveTardyCount }}</strong>
+          </div>
+          <div class="telemetry-chip telemetry-chip--danger">
+            <span class="telemetry-label">Absent:</span>
+            <strong>{{ liveAbsentCount }}</strong>
+          </div>
+        </div>
+
+        <div v-if="canEdit" class="telemetry-actions">
+          <button @click="quickMarkAllPresent" class="btn-sm btn-outline-teal" :disabled="bulkUpdating" title="Mark all enrolled learners as Present (E) for all AM and PM periods">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>{{ bulkUpdating ? 'Updating…' : 'Mark All Present (E)' }}</span>
+          </button>
+        </div>
       </div>
 
       <div class="sheet-date">{{ record.date }}</div>
@@ -296,6 +327,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'
@@ -303,6 +335,7 @@ import { actorQs, actorBody } from '../composables/useActor'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { loadPageState, savePageState } from '../composables/usePageState'
 
+const route = useRoute()
 const store = useAttendanceStore()
 const auth = useAuthStore()
 const { notify } = useNotifications()
@@ -333,11 +366,32 @@ function gradeNum(g) {
 
 const now = new Date().toISOString().split('T')[0]
 const form = reactive({
-  date: savedState?.date ?? now,
-  grade: savedState?.grade ?? '',
-  section: savedState?.section ?? '',
-  adviser: savedState?.adviser ?? ''
+  date: route.query.date || savedState?.date || now,
+  grade: route.query.grade || savedState?.grade || (auth.isTeacher && auth.user?.grade ? auth.user.grade : ''),
+  section: route.query.section || savedState?.section || (auth.isTeacher && auth.user?.section ? auth.user.section : ''),
+  adviser: savedState?.adviser || (auth.isTeacher && auth.user?.name ? auth.user.name : '')
 })
+
+function onGradeChange() {
+  form.section = ''
+}
+
+function applyGradeDefaults() {
+  if (route.query.grade) {
+    form.grade = route.query.grade
+    if (route.query.section) form.section = route.query.section
+    if (route.query.date) form.date = route.query.date
+    if (auth.user?.name && !form.adviser) form.adviser = auth.user.name
+    return
+  }
+  if (auth.isTeacher && auth.user?.grade) {
+    form.grade = auth.user.grade
+    if (auth.user?.section) form.section = auth.user.section
+    if (auth.user?.name) form.adviser = auth.user.name
+  } else if (!form.grade && grades.value.length) {
+    form.grade = grades.value[0]
+  }
+}
 
 watch(
   () => [form.date, form.grade, form.section, form.adviser],
@@ -354,10 +408,18 @@ const savedRecords = ref([])
 const recordsSearch = ref('')
 const recordsPage = ref(1)
 const recordsPageSize = ref(5)
+
+const displayRecords = computed(() => {
+  if (auth.isTeacher && auth.user?.grade && auth.user?.section) {
+    return savedRecords.value.filter(r => r.grade === auth.user.grade && r.section === auth.user.section)
+  }
+  return savedRecords.value
+})
+
 const filteredRecords = computed(() => {
   const q = recordsSearch.value.trim().toLowerCase()
-  if (!q) return savedRecords.value
-  return savedRecords.value.filter(r => [r.date, r.grade, r.section, r.adviser, r.created_by_name].filter(Boolean).join(' ').toLowerCase().includes(q))
+  if (!q) return displayRecords.value
+  return displayRecords.value.filter(r => [r.date, r.grade, r.section, r.adviser, r.created_by_name].filter(Boolean).join(' ').toLowerCase().includes(q))
 })
 const recordsTotalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / recordsPageSize.value)))
 const pagedRecords = computed(() => {
@@ -372,6 +434,55 @@ const studentGenderMap = ref({})
 const showEditRecord = ref(false)
 const savingRecord = ref(false)
 const editRecordForm = reactive({ id: '', date: '', grade: '', section: '', adviser: '' })
+
+const totalLearnersCount = computed(() => record.value?.entries?.length || 0)
+
+const livePresentCount = computed(() => {
+  if (!record.value?.entries) return 0
+  return record.value.entries.filter(e => {
+    const vals = Object.values(e.periods || {}).filter(Boolean)
+    return vals.some(v => v === 'E' || v === 'E/T' || v === 'T') && !vals.includes('A') && !vals.includes('A/S') && !e.excused && !e.unexcused
+  }).length
+})
+
+const liveTardyCount = computed(() => {
+  if (!record.value?.entries) return 0
+  return record.value.entries.filter(e => {
+    const vals = Object.values(e.periods || {}).filter(Boolean)
+    return vals.includes('T') || vals.includes('E/T')
+  }).length
+})
+
+const liveAbsentCount = computed(() => {
+  if (!record.value?.entries) return 0
+  return record.value.entries.filter(e => {
+    const vals = Object.values(e.periods || {}).filter(Boolean)
+    return vals.includes('A') || vals.includes('A/S') || e.excused || e.unexcused
+  }).length
+})
+
+const bulkUpdating = ref(false)
+async function quickMarkAllPresent() {
+  if (!record.value?.entries?.length || !canEdit.value) return
+  if (!confirm('Mark all learners as Present (E) for all morning and afternoon periods? You can then adjust specific tardy or absent learners.')) return
+  bulkUpdating.value = true
+  try {
+    const allPeriods = [...visibleAmPeriods.value, ...visiblePmPeriods.value]
+    for (const entry of record.value.entries) {
+      for (const pk of allPeriods) {
+        if (!entry.periods[pk]) {
+          entry.periods[pk] = 'E'
+          await store.updateEntry(record.value.id, entry.studentId, `periods.${pk}`, 'E', auth.user?.id, auth.user?.role)
+        }
+      }
+    }
+    notify('All learners marked Present (E)', 'success')
+  } catch (err) {
+    notify('Failed to update entries: ' + err.message, 'error')
+  } finally {
+    bulkUpdating.value = false
+  }
+}
 
 
 
@@ -456,7 +567,7 @@ async function loadStudentGenderMap() {
 
 onMounted(async () => {
   await loadGradeLevels()
-  if (!form.grade && grades.value.length) form.grade = grades.value[0]
+  applyGradeDefaults()
   try {
     const data = await auth.getSchoolInfo()
     if (data) Object.assign(school, data)
@@ -468,7 +579,13 @@ onMounted(async () => {
     }
   } catch {}
   const all = await store.getAllRecords()
-  savedRecords.value = all.slice(-10).reverse()
+  savedRecords.value = all.slice(-20).reverse()
+
+  if (route.query.autoOpen === '1' || (route.query.grade && route.query.section)) {
+    if (form.grade && form.section && form.date) {
+      await openRecord()
+    }
+  }
 })
 
 async function openRecord() {
@@ -556,3 +673,106 @@ function printSheet() {
   window.print()
 }
 </script>
+
+<style scoped>
+.daily-telemetry-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  padding: 12px 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.telemetry-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.telemetry-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--foreground);
+}
+
+.telemetry-label {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.telemetry-chip strong {
+  font-weight: 800;
+  font-family: 'Manrope', sans-serif;
+}
+
+.telemetry-chip--success {
+  background: var(--success-bg, #ecfdf5);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: var(--success, #059669);
+}
+.telemetry-chip--success .telemetry-label {
+  color: var(--success, #059669);
+}
+
+.telemetry-chip--warning {
+  background: #fffbeb;
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #b45309;
+}
+.telemetry-chip--warning .telemetry-label {
+  color: #b45309;
+}
+
+.telemetry-chip--danger {
+  background: var(--red-bg, #fef2f2);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: var(--destructive, #dc2626);
+}
+.telemetry-chip--danger .telemetry-label {
+  color: var(--destructive, #dc2626);
+}
+
+.telemetry-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-outline-teal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--primary, #0c5357);
+  border: 1.5px solid var(--primary, #0c5357);
+  border-radius: var(--radius-md, 7px);
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-outline-teal:hover:not(:disabled) {
+  background: var(--primary, #0c5357);
+  color: #ffffff;
+}
+
+.btn-outline-teal:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+</style>
