@@ -196,7 +196,7 @@
 
           <div class="auth-card-footnote">
             <span>Need school access or forgot credentials?</span>
-            <a href="mailto:deploy@elytrack.ph?subject=ElyTrack%20Access%20Assistance" class="auth-support-link">
+            <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Access%20Assistance" class="auth-support-link">
               Contact school deployment support
             </a>
           </div>

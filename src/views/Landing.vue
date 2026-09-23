@@ -816,7 +816,7 @@
               <span>Sign In to ElyTrack</span>
               <span>→</span>
             </router-link>
-            <a href="mailto:deploy@elytrack.ph" class="landing-secondary-btn cta-contact-btn">
+            <a href="mailto:ely.ashzyl@gmail.com" class="landing-secondary-btn cta-contact-btn">
               <span>Contact Deployment</span>
               <span>↗</span>
             </a>
@@ -901,7 +901,7 @@ const DEFAULT_PLANS = [
     is_featured: 1,
     badge: 'DepEd SF2 Certified',
     cta_text: 'Inquire for School Deployment',
-    cta_url: 'mailto:deploy@elytrack.ph?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
+    cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
     features: [
       'Unlimited faculty, advisers & students',
       'School-wide consolidated DepEd SF2 (.xlsx export)',
@@ -926,7 +926,7 @@ const DEFAULT_PLANS = [
     is_featured: 0,
     badge: 'Network SDO',
     cta_text: 'Inquire for Division',
-    cta_url: 'mailto:inquiries@elytrack.ph?subject=ElyTrack%20Division%20Inquiry',
+    cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Division%20Inquiry',
     features: [
       'Multi-school governance console',
       'Division-wide attendance aggregation',

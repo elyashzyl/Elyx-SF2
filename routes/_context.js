@@ -120,7 +120,7 @@ export async function resolveScopeSchool(req, res, explicit, options = { checkLi
     if (license && !isLicenseActive(license)) {
       const reason = license.status === 'suspended' ? 'suspended' : 'expired'
       res.status(402).json({
-        error: `School workspace is locked. Your ElyTrack license is currently ${reason}. Please contact your administrator or deploy@elytrack.ph to restore access.`,
+        error: `School workspace is locked. Your ElyTrack license is currently ${reason}. Please contact your administrator or ely.ashzyl@gmail.com to restore access.`,
         licenseStatus: license.status,
         licenseLocked: true,
         schoolId: targetSchoolId

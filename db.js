@@ -1050,7 +1050,7 @@ export async function seedDefaultPlans() {
         is_featured: 1,
         badge: 'DepEd SF2 Certified',
         cta_text: 'Inquire for School Deployment',
-        cta_url: 'mailto:deploy@elytrack.ph?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
+        cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
         features: JSON.stringify([
           'Unlimited faculty, advisers & students',
           'School-wide consolidated DepEd SF2 (.xlsx export)',
@@ -1086,7 +1086,7 @@ export async function seedDefaultPlans() {
         is_featured: 0,
         badge: 'Network SDO',
         cta_text: 'Inquire for Division',
-        cta_url: 'mailto:inquiries@elytrack.ph?subject=ElyTrack%20Division%20Inquiry',
+        cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Division%20Inquiry',
         features: JSON.stringify([
           'Multi-school governance console',
           'Division-wide attendance aggregation',
