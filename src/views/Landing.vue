@@ -1157,7 +1157,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const billingCycle = ref('annual')
 const activeDemoTab = ref('rollcall')
@@ -1238,31 +1238,8 @@ const DEFAULT_PLANS = [
     ]
   }
 ]
-const DEFAULT_PAYMENT_METHODS = [
-  {
-    id: 'gcash-official',
-    type: 'gcash_qr',
-    bank_name: 'GCash (Official e-Wallet)',
-    account_name: 'ElyTrack Platform Operations',
-    account_number: '0917-000-0000',
-    qr_image_url: '',
-    instructions: 'Scan via GCash or send to mobile number. Include your school name in the message.',
-    is_active: 1,
-    sort_order: 1
-  },
-  {
-    id: 'bdo-official',
-    type: 'bank_transfer',
-    bank_name: 'BDO Unibank (Direct Transfer / QR Ph)',
-    account_name: 'ElyTrack Educational Operations',
-    account_number: '0012-3456-7890',
-    qr_image_url: '',
-    instructions: 'Direct bank transfer or QR Ph deposit. Send transaction slip to ely.ashzyl@gmail.com.',
-    is_active: 1,
-    sort_order: 2
-  }
-]
-const paymentMethods = ref(DEFAULT_PAYMENT_METHODS)
+// Payment channels are database-backed. An empty database result must remain empty.
+const paymentMethods = ref([])
 const copiedPaymentId = ref(null)
 const showQrModal = ref(false)
 const selectedQrMethod = ref(null)
@@ -1277,9 +1254,33 @@ const demoStudents = ref([
   { id: 4, name: 'AQUINO, BEA C.', gender: 'Female', am1: 'E', am2: 'E', am3: 'E', am4: 'E', status: 'Present' }
 ])
 
+let landingPaymentPollInterval = null
+
 onMounted(async () => {
   await loadLandingData()
+  landingPaymentPollInterval = setInterval(() => {
+    void loadPublicPaymentMethods()
+  }, 6000)
 })
+
+onUnmounted(() => {
+  if (landingPaymentPollInterval) clearInterval(landingPaymentPollInterval)
+})
+
+async function loadPublicPaymentMethods() {
+  try {
+    const res = await fetch(`/api/payment-methods?_ts=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    })
+    if (!res.ok) throw new Error(`Payment methods request failed (${res.status})`)
+    const data = await res.json()
+    if (!Array.isArray(data)) throw new Error('Invalid payment methods response')
+    paymentMethods.value = data
+  } catch (err) {
+    console.error('Failed to refresh public payment methods:', err)
+  }
+}
 
 async function loadLandingData() {
   try {
@@ -1313,18 +1314,11 @@ async function loadLandingData() {
           status: i === 2 ? 'Absent' : 'Present'
         }))
       }
-      if (Array.isArray(data.paymentMethods) && data.paymentMethods.length > 0) {
+      if (Array.isArray(data.paymentMethods)) {
+        // Assign [] as well: deleted/inactive payment methods must disappear.
         paymentMethods.value = data.paymentMethods
       } else {
-        try {
-          const pmRes = await fetch('/api/payment-methods')
-          if (pmRes.ok) {
-            const pms = await pmRes.json()
-            if (Array.isArray(pms) && pms.length > 0) {
-              paymentMethods.value = pms
-            }
-          }
-        } catch (_) {}
+        await loadPublicPaymentMethods()
       }
     }
   } catch (err) {
