@@ -226,3 +226,35 @@ model SubscriptionPlan {
 
   @@map("subscription_plans")
 }
+
+model Inquiry {
+  id           String   @id @default(uuid()) @db.VarChar(96)
+  schoolId     String   @default("") @map("school_id") @db.VarChar(96)
+  schoolName   String   @default("") @map("school_name") @db.Text
+  userId       String   @default("") @map("user_id") @db.VarChar(96)
+  userName     String   @default("") @map("user_name") @db.Text
+  userEmail    String   @default("") @map("user_email") @db.VarChar(255)
+  userRole     String   @default("") @map("user_role") @db.VarChar(32)
+  category     String   @default("general") @db.VarChar(64)
+  subject      String   @default("") @db.Text
+  status       String   @default("open") @db.VarChar(32)
+  userNotified Int      @default(0) @map("user_notified")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+  resolvedAt   String   @default("") @map("resolved_at") @db.Text
+  resolvedBy   String   @default("") @map("resolved_by") @db.VarChar(96)
+
+  @@map("inquiries")
+}
+
+model InquiryMessage {
+  id         String   @id @default(uuid()) @db.VarChar(96)
+  inquiryId  String   @map("inquiry_id") @db.VarChar(96)
+  senderId   String   @default("") @map("sender_id") @db.VarChar(96)
+  senderName String   @default("") @map("sender_name") @db.Text
+  senderRole String   @default("") @map("sender_role") @db.VarChar(32)
+  message    String   @default("") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("inquiry_messages")
+}

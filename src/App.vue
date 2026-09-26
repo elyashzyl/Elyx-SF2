@@ -313,6 +313,9 @@
 
     <!-- Walk-In User Onboarding Tutorial -->
     <WalkInTutorial v-model:show="showTutorial" />
+
+    <!-- Floating Help & Support Chat Directed to Superadmin -->
+    <SupportChatModal />
   </div>
 </template>
 
@@ -326,6 +329,7 @@ import { useTheme } from './composables/useTheme'
 import { useActiveSchool } from './composables/useActiveSchool'
 import { restoreScrollAfterLoad } from './router'
 import WalkInTutorial from './components/WalkInTutorial.vue'
+import SupportChatModal from './components/SupportChatModal.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
