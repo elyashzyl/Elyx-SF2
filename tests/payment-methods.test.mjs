@@ -122,3 +122,28 @@ test('SupportChatModal.vue integrates payment channels and reference pre-fill', 
   assert.ok(chat.includes('showChatQrModal'), 'Must support enlarged QR code preview in chat')
   assert.ok(chat.includes('chat-qr-overlay'), 'Must include chat QR overlay')
 })
+
+// ---------------------------------------------------------------------------
+// 5. Frontend: Landing.vue Payment Channels & QR Integration
+// ---------------------------------------------------------------------------
+
+test('Landing.vue integrates official payment channels and QR codes', () => {
+  const landing = read('src/views/Landing.vue')
+
+  // Navigation & Link anchors
+  assert.ok(landing.includes('id="payments"'), 'Landing.vue must include #payments section')
+  assert.ok(landing.includes("scrollToSection('payments')"), 'Landing.vue must include navigation triggers to #payments')
+  assert.ok(landing.includes('Payments &amp; QR') || landing.includes('Payments & QR'), 'Landing nav must include Payments & QR link')
+
+  // Payment method rendering & functionality
+  assert.ok(landing.includes('paymentMethods'), 'Landing.vue must define paymentMethods reactive state')
+  assert.ok(landing.includes('copyLandingAccount'), 'Landing.vue must define copyLandingAccount function')
+  assert.ok(landing.includes('openQrModal'), 'Landing.vue must define openQrModal function')
+  assert.ok(landing.includes('showQrModal'), 'Landing.vue must define showQrModal reactive state')
+  assert.ok(landing.includes('landing-qr-overlay'), 'Landing.vue must render enlarged QR modal')
+  assert.ok(landing.includes('ely.ashzyl@gmail.com'), 'Landing.vue must link payment submissions to ely.ashzyl@gmail.com')
+
+  // No emoji characters
+  const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u
+  assert.strictEqual(emojiRegex.test(landing), false, 'Landing.vue must not contain emoji characters')
+})

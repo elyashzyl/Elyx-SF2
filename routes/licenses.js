@@ -66,6 +66,13 @@ router.get('/landing-data', async (req, res) => {
       previewStudents = await query('SELECT id, name, gender, grade, section FROM students ORDER BY name ASC LIMIT 5')
     }
 
+    let paymentMethods = []
+    try {
+      paymentMethods = await query(
+        'SELECT id, type, bank_name, account_name, account_number, qr_image_url, instructions, sort_order FROM payment_methods WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC'
+      )
+    } catch (_) {}
+
     res.json({
       plans,
       school: schoolRow,
@@ -75,7 +82,8 @@ router.get('/landing-data', async (req, res) => {
         totalSections: Math.max(sectionCount, 1),
         totalSF2Filed: monthlyRecordCount
       },
-      previewStudents
+      previewStudents,
+      paymentMethods
     })
   } catch (err) {
     console.error('Failed to get landing data:', err.message)
