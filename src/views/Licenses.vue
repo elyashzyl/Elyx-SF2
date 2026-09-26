@@ -300,18 +300,31 @@
 
           <!-- Superadmin Management Actions -->
           <div v-if="auth.isSuperadmin" class="pm-card-actions">
-            <button class="btn btn-sm btn-secondary" @click="openEditPaymentModal(pm)" type="button">
-              Edit
+            <button
+              class="btn btn-sm btn-secondary"
+              @click="openEditPaymentModal(pm)"
+              :disabled="paymentActionId === pm.id || submitting"
+              type="button"
+            >
+              {{ paymentActionId === pm.id ? 'Saving…' : 'Edit' }}
             </button>
             <button
               class="btn btn-sm"
               :class="pm.is_active ? 'btn-danger' : 'btn-success'"
               @click="togglePaymentActive(pm)"
+              :disabled="paymentActionId === pm.id"
               type="button"
             >
-              {{ pm.is_active ? 'Disable' : 'Enable' }}
+              {{ paymentActionId === pm.id ? 'Updating…' : (pm.is_active ? 'Disable' : 'Enable') }}
             </button>
-            <button class="btn btn-sm btn-icon" style="color: var(--destructive);" @click="deletePaymentMethod(pm)" title="Delete" type="button">
+            <button
+              class="btn btn-sm btn-icon"
+              style="color: var(--destructive);"
+              @click="deletePaymentMethod(pm)"
+              :disabled="paymentActionId === pm.id"
+              title="Delete"
+              type="button"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
               </svg>
@@ -735,6 +748,8 @@ const schoolsList = ref([])
 const availablePlans = ref([])
 
 const paymentMethods = ref([])
+let paymentMethodsRequestId = 0
+const paymentActionId = ref(null)
 const showPaymentModal = ref(false)
 const showQrPreviewModal = ref(false)
 const selectedQrMethod = ref(null)
@@ -793,14 +808,25 @@ function formatPaymentType(type) {
 }
 
 async function loadPaymentMethods() {
+  const requestId = ++paymentMethodsRequestId
   try {
-    const qs = new URLSearchParams(auth.actorParams()).toString()
-    const res = await fetch(`/api/payment-methods?${qs}`)
-    if (res.ok) {
-      paymentMethods.value = await res.json()
-    }
+    const qs = new URLSearchParams(auth.actorParams({ _ts: Date.now() })).toString()
+    const res = await fetch(`/api/payment-methods?${qs}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        ...auth.actorHeaders()
+      }
+    })
+    if (!res.ok) throw new Error(`Payment methods request failed (${res.status})`)
+    const data = await res.json()
+    if (!Array.isArray(data)) throw new Error(data.error || 'Invalid payment methods response')
+    // A slower request must not overwrite a newer save/toggle/delete response.
+    if (requestId === paymentMethodsRequestId) paymentMethods.value = data
+    return data
   } catch (err) {
-    console.error('Failed to load payment methods:', err)
+    if (requestId === paymentMethodsRequestId) console.error('Failed to load payment methods:', err)
+    return null
   }
 }
 
@@ -900,7 +926,11 @@ async function handleSavePaymentMethod() {
   submitting.value = true
   try {
     const isEdit = Boolean(paymentForm.id)
-    const url = isEdit ? `/api/payment-methods/${paymentForm.id}` : '/api/payment-methods'
+    const paymentId = paymentForm.id
+    const query = new URLSearchParams(auth.actorParams({ _ts: Date.now() })).toString()
+    const url = isEdit
+      ? `/api/payment-methods/${paymentId}?${query}`
+      : `/api/payment-methods?${query}`
     const method = isEdit ? 'PUT' : 'POST'
 
     const res = await fetch(url, {
@@ -927,9 +957,21 @@ async function handleSavePaymentMethod() {
     } catch {}
     if (!res.ok) throw new Error(data.error || (res.status === 413 ? 'Image or payload is too large to save' : 'Failed to save payment option'))
 
-    showSuccess(`Payment option "${paymentForm.bank_name}" saved successfully!`)
+    const savedMethod = data.paymentMethod
+    if (!savedMethod?.id) throw new Error('The server did not return the saved payment option')
+
+    if (isEdit) {
+      const index = paymentMethods.value.findIndex(pm => pm.id === savedMethod.id)
+      if (index !== -1) paymentMethods.value[index] = savedMethod
+      else paymentMethods.value = [savedMethod, ...paymentMethods.value]
+    } else {
+      paymentMethods.value = [...paymentMethods.value, savedMethod]
+    }
+
     showPaymentModal.value = false
-    await loadPaymentMethods()
+    showSuccess(`Payment option "${savedMethod.bank_name}" saved successfully!`)
+    // Reconcile with the database without keeping the modal open or blocking the UI.
+    void loadPaymentMethods()
   } catch (err) {
     showError(err.message)
   } finally {
@@ -938,9 +980,10 @@ async function handleSavePaymentMethod() {
 }
 
 async function togglePaymentActive(pm) {
-  if (!auth.isSuperadmin) return
+  if (!auth.isSuperadmin || paymentActionId.value === pm.id) return
+  paymentActionId.value = pm.id
   try {
-    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const qs = new URLSearchParams(auth.actorParams({ _ts: Date.now() })).toString()
     const res = await fetch(`/api/payment-methods/${pm.id}/toggle?${qs}`, {
       method: 'PATCH',
       headers: {
@@ -954,18 +997,28 @@ async function togglePaymentActive(pm) {
       data = await res.json()
     } catch {}
     if (!res.ok) throw new Error(data.error || 'Failed to toggle status')
+    const index = paymentMethods.value.findIndex(item => item.id === pm.id)
+    if (index !== -1) {
+      paymentMethods.value[index] = {
+        ...paymentMethods.value[index],
+        is_active: Number(data.is_active) ? 1 : 0
+      }
+    }
     showSuccess(`Payment option ${data.is_active ? 'enabled' : 'disabled'}.`)
-    await loadPaymentMethods()
+    void loadPaymentMethods()
   } catch (err) {
     showError(err.message)
+  } finally {
+    paymentActionId.value = null
   }
 }
 
 async function deletePaymentMethod(pm) {
-  if (!auth.isSuperadmin) return
+  if (!auth.isSuperadmin || paymentActionId.value === pm.id) return
   if (!confirm(`Are you sure you want to delete payment option "${pm.bank_name}"?`)) return
+  paymentActionId.value = pm.id
   try {
-    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const qs = new URLSearchParams(auth.actorParams({ _ts: Date.now() })).toString()
     const res = await fetch(`/api/payment-methods/${pm.id}?${qs}`, {
       method: 'DELETE',
       headers: {
@@ -979,10 +1032,17 @@ async function deletePaymentMethod(pm) {
       data = await res.json()
     } catch {}
     if (!res.ok) throw new Error(data.error || 'Failed to delete payment option')
+    paymentMethods.value = paymentMethods.value.filter(item => item.id !== pm.id)
+    if (selectedQrMethod.value?.id === pm.id) {
+      selectedQrMethod.value = null
+      showQrPreviewModal.value = false
+    }
     showSuccess(`Deleted payment option "${pm.bank_name}".`)
-    await loadPaymentMethods()
+    void loadPaymentMethods()
   } catch (err) {
     showError(err.message)
+  } finally {
+    paymentActionId.value = null
   }
 }
 
@@ -1330,7 +1390,8 @@ onMounted(async () => {
   ])
   // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
   licensePollInterval = setInterval(() => {
-    loadLicenseData()
+    void loadLicenseData()
+    void loadPaymentMethods()
   }, 6000)
 })
 

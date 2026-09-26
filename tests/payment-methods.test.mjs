@@ -93,6 +93,12 @@ test('Licenses.vue displays official payment options and QR codes with superadmi
   assert.ok(licenses.includes('copyAccountNumber'), 'Must provide copy account number action')
   assert.ok(licenses.includes('openQrPreview'), 'Must support QR preview modal')
   assert.ok(licenses.includes('handleQrUpload'), 'Must support QR code image upload')
+  assert.ok(licenses.includes('paymentActionId'), 'Payment actions must expose a per-row pending state')
+  assert.ok(licenses.includes("cache: 'no-store'"), 'Payment method refresh must bypass stale browser caches')
+  assert.ok(licenses.includes('showPaymentModal.value = false'), 'Successful payment saves must close the modal')
+  assert.ok(licenses.includes('paymentMethods.value = paymentMethods.value.filter'), 'Successful deletes must update the list immediately')
+  assert.ok(licenses.includes('void loadPaymentMethods()'), 'Payment actions must reconcile with the database after updating local state')
+  assert.ok(licenses.includes('loadPaymentMethods()\n  }, 6000)'), 'Payment methods must be polled for cross-tab updates')
 })
 
 // ---------------------------------------------------------------------------
