@@ -217,10 +217,19 @@
                 <div class="callout-text">
                   <strong>Direct Help &amp; Payment Desk</strong>
                   <p>
-                    Have questions about school plans, upgrading seats, or payment options? You can coordinate directly here with the superadmin or via email at
+                    Have questions about school plans, upgrading seats, or payment options? You can
+                    <button type="button" class="inline-link-btn" @click="openPaymentMethodsView">view official Bank Accounts &amp; QR Codes</button>,
+                    coordinate directly with the superadmin below, or email
                     <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Inquiry">ely.ashzyl@gmail.com</a>.
                   </p>
                 </div>
+              </div>
+
+              <div class="form-help-strip">
+                <span>Paying for a license or renewal?</span>
+                <button type="button" class="btn-sm-link" @click="openPaymentMethodsView">
+                  💳 View Official Bank / QR Details
+                </button>
               </div>
 
               <form @submit.prevent="submitNewInquiry" class="new-inquiry-form">
@@ -278,9 +287,19 @@
                 <button class="thread-back-btn" @click="userView = 'list'; activeInquiry = null" type="button">
                   ← Back to My Inquiries
                 </button>
-                <span class="badge" :class="'badge-' + activeInquiry.status">
-                  {{ activeInquiry.status === 'finished' ? 'Finished ✓' : 'Open' }}
-                </span>
+                <div class="thread-header-right">
+                  <button
+                    class="btn-thread-pay"
+                    @click="openPaymentMethodsView"
+                    type="button"
+                    title="View official bank accounts and scannable QR codes"
+                  >
+                    💳 Bank / QR Codes
+                  </button>
+                  <span class="badge" :class="'badge-' + activeInquiry.status">
+                    {{ activeInquiry.status === 'finished' ? 'Finished ✓' : 'Open' }}
+                  </span>
+                </div>
               </div>
 
               <!-- Status Banner -->
@@ -338,21 +357,93 @@
               </div>
             </div>
 
-            <!-- View 3: Inquiries List for User -->
+            <!-- View 3: Official Bank Accounts & QR Codes View -->
+            <div v-else-if="userView === 'payments'" class="user-payments-view">
+              <div class="view-header-row">
+                <button class="thread-back-btn" @click="goBackFromPayments" type="button">
+                  ← Back
+                </button>
+                <span class="view-badge">Official Payment Options &amp; QR</span>
+              </div>
+
+              <div class="payment-callout">
+                <div class="callout-icon">💳</div>
+                <div class="callout-text">
+                  <strong>Official School Payment Channels</strong>
+                  <p>
+                    Pay for plan renewals and upgrades via bank transfer or scan official QR codes.
+                    Click <strong>"Use in Reference"</strong> to copy the account and pre-fill your message with a payment verification template.
+                  </p>
+                </div>
+              </div>
+
+              <div v-if="loadingPaymentMethods" class="loading-state">Loading payment channels...</div>
+              <div v-else-if="paymentMethods.length === 0" class="empty-state-card">
+                <div class="empty-icon">💳</div>
+                <h4>No payment channels configured yet</h4>
+                <p>Please contact superadmin at ely.ashzyl@gmail.com for payment instructions.</p>
+              </div>
+              <div v-else class="payment-cards-scroll">
+                <div v-for="pm in paymentMethods" :key="pm.id" class="chat-payment-card">
+                  <div class="cpc-top">
+                    <span class="cpc-badge" :class="'type--' + pm.type">{{ formatPaymentType(pm.type) }}</span>
+                    <span class="cpc-bank-name">{{ pm.bank_name }}</span>
+                  </div>
+
+                  <div class="cpc-details">
+                    <div class="cpc-row">
+                      <span class="cpc-lbl">Account Name:</span>
+                      <strong class="cpc-val">{{ pm.account_name }}</strong>
+                    </div>
+                    <div class="cpc-row">
+                      <span class="cpc-lbl">Account / Mobile No:</span>
+                      <div class="cpc-acc-row">
+                        <code class="cpc-code">{{ pm.account_number }}</code>
+                        <button class="btn-copy-cpc" @click="copyPaymentAccount(pm)" type="button" :title="'Copy ' + pm.account_number">
+                          {{ copiedPaymentId === pm.id ? 'Copied! ✓' : 'Copy' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div v-if="pm.instructions" class="cpc-instructions">
+                      <strong>Instructions:</strong> {{ pm.instructions }}
+                    </div>
+                  </div>
+
+                  <!-- QR Thumbnail if available -->
+                  <div v-if="pm.qr_image_url" class="cpc-qr-thumb-box" @click="openChatQr(pm)">
+                    <img :src="pm.qr_image_url" :alt="pm.bank_name + ' QR'" class="cpc-qr-img" />
+                    <small class="cpc-qr-scan-hint">🔍 Click to enlarge &amp; scan QR</small>
+                  </div>
+
+                  <div class="cpc-actions">
+                    <button class="btn-paste-ref" @click="useInReference(pm)" type="button">
+                      📝 Use in Reference / Paste into Message
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- View 4: Inquiries List for User -->
             <div v-else class="user-inquiries-list">
               <div class="list-action-header">
                 <div>
                   <h4 class="list-heading">Support &amp; Payment Inquiries</h4>
                   <small class="list-sub">Direct channel to platform superadmin</small>
                 </div>
-                <button class="btn-new-inquiry" @click="userView = 'new'" type="button">
-                  + New Inquiry
-                </button>
+                <div class="list-header-actions">
+                  <button class="btn-view-payments" @click="openPaymentMethodsView" type="button" title="View official bank accounts and QR codes">
+                    💳 Payment / QR
+                  </button>
+                  <button class="btn-new-inquiry" @click="userView = 'new'" type="button">
+                    + New Inquiry
+                  </button>
+                </div>
               </div>
 
               <div class="payment-hint-strip">
-                <span>💳 Need to discuss license payments or upgrades?</span>
-                <button class="link-btn" @click="startPaymentInquiry" type="button">Ask Superadmin</button>
+                <span>💳 Need official bank accounts or GCash/Maya QR codes?</span>
+                <button class="link-btn" @click="openPaymentMethodsView" type="button">View Payment Options</button>
               </div>
 
               <div class="inquiry-items-scroll">
@@ -396,6 +487,33 @@
           </template>
         </div>
       </div>
+
+      <!-- QR PREVIEW OVERLAY IN CHAT -->
+      <div v-if="showChatQrModal && selectedChatQr" class="chat-qr-overlay" @click.self="showChatQrModal = false">
+        <div class="chat-qr-modal">
+          <div class="chat-qr-header">
+            <h4>Scan to Pay: {{ selectedChatQr.bank_name }}</h4>
+            <button class="chat-close-btn" @click="showChatQrModal = false" type="button">&times;</button>
+          </div>
+          <div class="chat-qr-body">
+            <img :src="selectedChatQr.qr_image_url" :alt="selectedChatQr.bank_name + ' QR'" class="chat-qr-full" />
+            <div class="chat-qr-meta">
+              <strong>{{ selectedChatQr.account_name }}</strong>
+              <code class="chat-qr-acc-num">{{ selectedChatQr.account_number }}</code>
+              <small v-if="selectedChatQr.instructions">{{ selectedChatQr.instructions }}</small>
+            </div>
+          </div>
+          <div class="chat-qr-footer">
+            <button class="btn-cancel" @click="showChatQrModal = false" type="button">Close</button>
+            <button class="btn-primary" @click="copyPaymentAccount(selectedChatQr)" type="button">
+              {{ copiedPaymentId === selectedChatQr.id ? 'Copied! ✓' : 'Copy Account' }}
+            </button>
+            <button class="btn-paste-ref-sm" @click="useInReference(selectedChatQr); showChatQrModal = false" type="button">
+              Use in Reference
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -425,6 +543,13 @@ const searchQuery = ref('')
 const messagesBox = ref(null)
 const unreadBadgeCount = ref(0)
 
+const paymentMethods = ref([])
+const loadingPaymentMethods = ref(false)
+const previousUserView = ref('list')
+const showChatQrModal = ref(false)
+const selectedChatQr = ref(null)
+const copiedPaymentId = ref(null)
+
 const newForm = reactive({
   category: 'payment',
   subject: '',
@@ -445,6 +570,16 @@ function formatCategory(cat) {
   return map[cat] || cat || 'General'
 }
 
+function formatPaymentType(type) {
+  const map = {
+    bank_transfer: 'Bank Transfer',
+    gcash_qr: 'GCash QR',
+    maya_qr: 'Maya QR',
+    qr_ph: 'QR Ph'
+  }
+  return map[type] || type || 'Payment Option'
+}
+
 function formatDate(val) {
   if (!val) return ''
   try {
@@ -459,7 +594,79 @@ function toggleModal() {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     fetchInquiries()
+    fetchPaymentMethods()
     unreadBadgeCount.value = 0
+  }
+}
+
+function openPaymentMethodsView() {
+  previousUserView.value = userView.value
+  userView.value = 'payments'
+  fetchPaymentMethods()
+}
+
+function goBackFromPayments() {
+  userView.value = previousUserView.value || 'list'
+}
+
+async function fetchPaymentMethods() {
+  loadingPaymentMethods.value = true
+  try {
+    const params = new URLSearchParams(auth.actorParams())
+    const res = await fetch(`/api/payment-methods?${params}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        paymentMethods.value = data
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load payment methods in chat modal:', err)
+  } finally {
+    loadingPaymentMethods.value = false
+  }
+}
+
+async function copyPaymentAccount(pm) {
+  try {
+    await navigator.clipboard.writeText(pm.account_number)
+    copiedPaymentId.value = pm.id
+    addToast(`Copied ${pm.bank_name} account number to clipboard!`, 'success')
+    setTimeout(() => {
+      if (copiedPaymentId.value === pm.id) copiedPaymentId.value = null
+    }, 2500)
+  } catch {
+    addToast(`Account: ${pm.account_number}`, 'info')
+  }
+}
+
+function openChatQr(pm) {
+  selectedChatQr.value = pm
+  showChatQrModal.value = true
+}
+
+async function useInReference(pm) {
+  try {
+    await navigator.clipboard.writeText(pm.account_number)
+    copiedPaymentId.value = pm.id
+    setTimeout(() => {
+      if (copiedPaymentId.value === pm.id) copiedPaymentId.value = null
+    }, 2500)
+  } catch {}
+
+  const schoolOrPlan = auth.currentSchool?.name || '[School/Plan]'
+  const snippet = `Payment sent for ${schoolOrPlan}. Amount: ₱____. Reference Number: ____\nBank/Channel: ${pm.bank_name} (${pm.account_number})\nAccount Name: ${pm.account_name}`
+
+  if (previousUserView.value === 'thread' && activeInquiry.value) {
+    replyText.value = replyText.value ? `${replyText.value}\n${snippet}` : snippet
+    userView.value = 'thread'
+    addToast(`Inserted ${pm.bank_name} reference template into reply!`, 'success')
+  } else {
+    newForm.category = 'payment'
+    newForm.subject = `Payment Verification: ${pm.bank_name} (${schoolOrPlan})`
+    newForm.message = newForm.message ? `${newForm.message}\n${snippet}` : snippet
+    userView.value = 'new'
+    addToast(`Inserted ${pm.bank_name} reference template into inquiry!`, 'success')
   }
 }
 
@@ -623,6 +830,7 @@ async function checkUnreadNotifications() {
 
 onMounted(() => {
   checkUnreadNotifications()
+  fetchPaymentMethods()
   pollInterval = setInterval(checkUnreadNotifications, 25000)
 })
 
@@ -1387,6 +1595,409 @@ onUnmounted(() => {
   font-size: 0.78rem;
   color: var(--muted-foreground, #64748b);
   max-width: 320px;
+}
+
+/* Payment Methods in Support Chat */
+.inline-link-btn {
+  background: none;
+  border: none;
+  color: #0ea5e9;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.form-help-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px dashed rgba(14, 165, 233, 0.3);
+  border-radius: 8px;
+  font-size: 0.76rem;
+  color: #0369a1;
+  margin-bottom: 4px;
+}
+
+.btn-sm-link {
+  background: none;
+  border: none;
+  color: #0284c7;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.76rem;
+  text-decoration: underline;
+}
+
+.thread-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-thread-pay {
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: #0284c7;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-thread-pay:hover {
+  background: rgba(14, 165, 233, 0.2);
+  color: #0369a1;
+}
+
+.list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-view-payments {
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: #0284c7;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-view-payments:hover {
+  background: #0ea5e9;
+  color: #ffffff;
+  border-color: #0ea5e9;
+}
+
+.user-payments-view {
+  padding: 16px;
+  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.payment-cards-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chat-payment-card {
+  background: var(--card, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.chat-payment-card:hover {
+  border-color: #0ea5e9;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.08);
+}
+
+.cpc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cpc-bank-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--foreground, #0f172a);
+}
+
+.cpc-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.type--bank_transfer {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.type--gcash_qr {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.type--maya_qr {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.type--qr_ph {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.cpc-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--muted, #f8fafc);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.cpc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cpc-lbl {
+  color: var(--muted-foreground, #64748b);
+  font-size: 0.74rem;
+}
+
+.cpc-val {
+  color: var(--foreground, #0f172a);
+}
+
+.cpc-acc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cpc-code {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: rgba(14, 165, 233, 0.1);
+  color: #0284c7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-copy-cpc {
+  background: var(--card, #ffffff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--foreground, #334155);
+  transition: all 0.15s ease;
+}
+
+.btn-copy-cpc:hover {
+  background: #0ea5e9;
+  color: #ffffff;
+  border-color: #0ea5e9;
+}
+
+.cpc-instructions {
+  font-size: 0.74rem;
+  color: var(--muted-foreground, #64748b);
+  line-height: 1.4;
+  border-top: 1px dashed var(--border, #e2e8f0);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.cpc-qr-thumb-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.cpc-qr-thumb-box:hover {
+  border-color: #0ea5e9;
+  transform: scale(1.02);
+}
+
+.cpc-qr-img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.cpc-qr-scan-hint {
+  font-size: 0.72rem;
+  color: #0ea5e9;
+  font-weight: 700;
+}
+
+.cpc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-paste-ref {
+  width: 100%;
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-paste-ref:hover {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  transform: translateY(-1px);
+}
+
+/* Chat QR Overlay */
+.chat-qr-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1060;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chat-qr-modal {
+  width: 360px;
+  max-width: 100%;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-qr-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chat-qr-header h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--foreground, #0f172a);
+}
+
+.chat-qr-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.chat-qr-full {
+  max-width: 220px;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.chat-qr-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-qr-meta strong {
+  font-size: 0.9rem;
+  color: var(--foreground, #0f172a);
+}
+
+.chat-qr-acc-num {
+  font-family: monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0284c7;
+}
+
+.chat-qr-meta small {
+  font-size: 0.74rem;
+  color: var(--muted-foreground, #64748b);
+  max-width: 280px;
+}
+
+.chat-qr-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  background: var(--muted, #f8fafc);
+  flex-wrap: wrap;
+}
+
+.btn-paste-ref-sm {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-paste-ref-sm:hover {
+  background: #059669;
 }
 
 @media (max-width: 600px) {

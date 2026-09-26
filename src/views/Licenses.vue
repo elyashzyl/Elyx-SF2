@@ -181,6 +181,114 @@
       </div>
     </div>
 
+    <!-- Official School Payment Options & QR Codes -->
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-header-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3 style="display: flex; align-items: center; gap: 8px;">
+            <span>💳 Official School Payment Options &amp; QR Codes</span>
+            <span class="badge badge-payment-count">{{ paymentMethods.length }} Available</span>
+          </h3>
+          <p class="desc">
+            Directly pay for plan renewals and upgrades via bank transfer or scan official QR codes. No need to wait on email threads.
+          </p>
+        </div>
+        <div v-if="auth.isSuperadmin" class="card-header-actions">
+          <button class="btn btn-sm btn-primary" @click="openAddPaymentModal" type="button">
+            <span>+ Add Payment Option / QR</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="paymentMethods.length === 0" class="empty-payments-box">
+        <p>No payment options configured yet.</p>
+        <button v-if="auth.isSuperadmin" class="btn btn-sm btn-primary" @click="openAddPaymentModal" style="margin-top: 8px;">
+          Add First Payment Option
+        </button>
+      </div>
+
+      <div v-else class="payment-methods-grid">
+        <div
+          v-for="pm in paymentMethods"
+          :key="pm.id"
+          class="payment-method-card"
+          :class="{ 'payment-inactive': !pm.is_active }"
+        >
+          <div class="pm-top-row">
+            <div class="pm-type-badge" :class="'type--' + pm.type">
+              {{ formatPaymentType(pm.type) }}
+            </div>
+            <div v-if="auth.isSuperadmin" class="pm-admin-status">
+              <span class="status-indicator" :class="pm.is_active ? 'status--active' : 'status--expired'">
+                <span class="dot"></span>
+                <span>{{ pm.is_active ? 'Active' : 'Disabled' }}</span>
+              </span>
+            </div>
+          </div>
+
+          <h4 class="pm-bank-name">{{ pm.bank_name }}</h4>
+
+          <div class="pm-details-box">
+            <div class="pm-detail-item">
+              <span class="pm-detail-label">Account Name</span>
+              <strong class="pm-detail-value">{{ pm.account_name }}</strong>
+            </div>
+
+            <div class="pm-detail-item">
+              <span class="pm-detail-label">Account / Mobile Number</span>
+              <div class="pm-account-number-row">
+                <code class="pm-account-num">{{ pm.account_number }}</code>
+                <button
+                  class="btn-copy-account"
+                  @click="copyAccountNumber(pm)"
+                  :title="'Copy ' + pm.account_number"
+                  type="button"
+                >
+                  <span>{{ copiedMethodId === pm.id ? 'Copied! ✓' : 'Copy' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="pm.instructions" class="pm-instructions">
+              <strong>Instructions:</strong> {{ pm.instructions }}
+            </div>
+          </div>
+
+          <!-- QR Code Preview if present -->
+          <div v-if="pm.qr_image_url" class="pm-qr-preview-box">
+            <img
+              :src="pm.qr_image_url"
+              :alt="pm.bank_name + ' QR Code'"
+              class="pm-qr-thumbnail"
+              @click="openQrPreview(pm)"
+              title="Click to enlarge QR Code"
+            />
+            <small class="pm-qr-hint" @click="openQrPreview(pm)">🔍 Click to scan / enlarge</small>
+          </div>
+
+          <!-- Superadmin Management Actions -->
+          <div v-if="auth.isSuperadmin" class="pm-card-actions">
+            <button class="btn btn-sm btn-secondary" @click="openEditPaymentModal(pm)" type="button">
+              Edit
+            </button>
+            <button
+              class="btn btn-sm"
+              :class="pm.is_active ? 'btn-danger' : 'btn-success'"
+              @click="togglePaymentActive(pm)"
+              type="button"
+            >
+              {{ pm.is_active ? 'Disable' : 'Enable' }}
+            </button>
+            <button class="btn btn-sm btn-icon" style="color: var(--destructive);" @click="deletePaymentMethod(pm)" title="Delete" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL: EDIT PLAN (Superadmin) -->
     <div v-if="auth.isSuperadmin && showEditPlanModal" class="modal-overlay" @click.self="showEditPlanModal = false">
       <div class="modal-card">
@@ -452,6 +560,125 @@
         </form>
       </div>
     </div>
+
+    <!-- MODAL: ADD / EDIT PAYMENT METHOD (Superadmin) -->
+    <div v-if="auth.isSuperadmin && showPaymentModal" class="modal-overlay" @click.self="showPaymentModal = false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>{{ paymentForm.id ? 'Edit Payment Option' : 'Add Official Payment Option / QR' }}</h3>
+          <button class="modal-close" @click="showPaymentModal = false">&times;</button>
+        </div>
+        <form @submit.prevent="handleSavePaymentMethod">
+          <div class="modal-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Payment Method Type *</label>
+                <select v-model="paymentForm.type" required>
+                  <option value="bank_transfer">Bank Transfer (BDO, BPI, Landbank, etc.)</option>
+                  <option value="gcash_qr">GCash QR / Mobile</option>
+                  <option value="maya_qr">Maya QR / Mobile</option>
+                  <option value="qr_ph">QR Ph (National Standard QR)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Bank or Provider Name *</label>
+                <input v-model="paymentForm.bank_name" type="text" placeholder="e.g. BDO Unibank, GCash, BPI" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Account Holder Name *</label>
+                <input v-model="paymentForm.account_name" type="text" placeholder="e.g. ElyTrack Operations" required />
+              </div>
+              <div class="form-group">
+                <label>Account / Mobile Number *</label>
+                <input v-model="paymentForm.account_number" type="text" placeholder="e.g. 0012-3456-7890 or 0917-000-0000" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>QR Code Image</label>
+              <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <input
+                  type="file"
+                  accept="image/*"
+                  @change="handleQrUpload"
+                  id="qr-file-upload"
+                  style="display: none;"
+                />
+                <button type="button" class="btn btn-sm btn-secondary" @click="triggerQrFileInput">
+                  📁 Upload QR Code Image
+                </button>
+                <small style="color: var(--muted-foreground);">Upload a QR file (.png, .jpg) or paste URL below</small>
+              </div>
+              <input
+                v-model="paymentForm.qr_image_url"
+                type="text"
+                placeholder="Or paste QR image URL (https://... or data:image/...)"
+              />
+              <div v-if="paymentForm.qr_image_url" style="margin-top: 8px; text-align: center;">
+                <img :src="paymentForm.qr_image_url" alt="QR Preview" style="max-height: 120px; border-radius: 8px; border: 1px solid var(--border);" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Instructions &amp; Payment Notes for School Admins</label>
+              <textarea
+                v-model="paymentForm.instructions"
+                rows="2"
+                placeholder="e.g. Include School Name or DepEd ID in the reference note, then message proof in chat."
+              ></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Display Sort Order</label>
+                <input v-model.number="paymentForm.sort_order" type="number" min="0" />
+              </div>
+              <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 26px;">
+                <input type="checkbox" id="pm-active" v-model="paymentForm.is_active" style="width: 18px; height: 18px;" />
+                <label for="pm-active" style="margin-bottom: 0; cursor: pointer;">Available for Schools to View</label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="showPaymentModal = false">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="submitting">
+              {{ submitting ? 'Saving…' : 'Save Payment Option' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: ENLARGE QR CODE PREVIEW -->
+    <div v-if="showQrPreviewModal && selectedQrMethod" class="modal-overlay" @click.self="showQrPreviewModal = false">
+      <div class="modal-card" style="max-width: 420px; text-align: center;">
+        <div class="modal-header">
+          <h3>Scan to Pay: {{ selectedQrMethod.bank_name }}</h3>
+          <button class="modal-close" @click="showQrPreviewModal = false">&times;</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px;">
+          <img
+            :src="selectedQrMethod.qr_image_url"
+            :alt="selectedQrMethod.bank_name + ' QR'"
+            style="max-width: 260px; max-height: 260px; border-radius: 12px; border: 2px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,0.1);"
+          />
+          <div>
+            <strong>{{ selectedQrMethod.account_name }}</strong>
+            <p style="margin: 4px 0; font-family: monospace; font-size: 1.05rem; font-weight: 700;">{{ selectedQrMethod.account_number }}</p>
+            <small style="color: var(--muted-foreground);">{{ selectedQrMethod.instructions }}</small>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: center;">
+          <button class="btn btn-secondary" @click="showQrPreviewModal = false">Close</button>
+          <button class="btn btn-primary" @click="copyAccountNumber(selectedQrMethod)">
+            {{ copiedMethodId === selectedQrMethod.id ? 'Copied! ✓' : 'Copy Account Number' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -469,6 +696,24 @@ const currentSchool = ref(null)
 const allLicenses = ref([])
 const schoolsList = ref([])
 const availablePlans = ref([])
+
+const paymentMethods = ref([])
+const showPaymentModal = ref(false)
+const showQrPreviewModal = ref(false)
+const selectedQrMethod = ref(null)
+const copiedMethodId = ref(null)
+
+const paymentForm = reactive({
+  id: '',
+  type: 'bank_transfer',
+  bank_name: '',
+  account_name: '',
+  account_number: '',
+  qr_image_url: '',
+  instructions: '',
+  is_active: true,
+  sort_order: 0
+})
 
 const showActivateModal = ref(false)
 const activateKeyInput = ref('')
@@ -499,6 +744,171 @@ const issueForm = reactive({
   max_students: 2500,
   notes: ''
 })
+
+function formatPaymentType(type) {
+  const map = {
+    bank_transfer: 'Bank Transfer',
+    gcash_qr: 'GCash QR',
+    maya_qr: 'Maya QR',
+    qr_ph: 'QR Ph'
+  }
+  return map[type] || type || 'Payment Option'
+}
+
+async function loadPaymentMethods() {
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/payment-methods?${qs}`)
+    if (res.ok) {
+      paymentMethods.value = await res.json()
+    }
+  } catch (err) {
+    console.error('Failed to load payment methods:', err)
+  }
+}
+
+async function copyAccountNumber(pm) {
+  try {
+    await navigator.clipboard.writeText(pm.account_number)
+    copiedMethodId.value = pm.id
+    showSuccess(`Copied ${pm.bank_name} account number to clipboard!`)
+    setTimeout(() => {
+      if (copiedMethodId.value === pm.id) copiedMethodId.value = null
+    }, 2500)
+  } catch {
+    showSuccess(`Account: ${pm.account_number}`)
+  }
+}
+
+function openQrPreview(pm) {
+  selectedQrMethod.value = pm
+  showQrPreviewModal.value = true
+}
+
+function openAddPaymentModal() {
+  Object.assign(paymentForm, {
+    id: '',
+    type: 'bank_transfer',
+    bank_name: '',
+    account_name: '',
+    account_number: '',
+    qr_image_url: '',
+    instructions: '',
+    is_active: true,
+    sort_order: paymentMethods.value.length + 1
+  })
+  showPaymentModal.value = true
+}
+
+function openEditPaymentModal(pm) {
+  Object.assign(paymentForm, {
+    id: pm.id,
+    type: pm.type,
+    bank_name: pm.bank_name,
+    account_name: pm.account_name,
+    account_number: pm.account_number,
+    qr_image_url: pm.qr_image_url || '',
+    instructions: pm.instructions || '',
+    is_active: Boolean(pm.is_active),
+    sort_order: pm.sort_order || 0
+  })
+  showPaymentModal.value = true
+}
+
+function triggerQrFileInput() {
+  const input = document.getElementById('qr-file-upload')
+  if (input) input.click()
+}
+
+function handleQrUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = ev => {
+    paymentForm.qr_image_url = ev.target?.result || ''
+  }
+  reader.readAsDataURL(file)
+}
+
+async function handleSavePaymentMethod() {
+  if (!auth.isSuperadmin) return
+  submitting.value = true
+  try {
+    const isEdit = Boolean(paymentForm.id)
+    const url = isEdit ? `/api/payment-methods/${paymentForm.id}` : '/api/payment-methods'
+    const method = isEdit ? 'PUT' : 'POST'
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify(auth.actorParams({
+        type: paymentForm.type,
+        bank_name: paymentForm.bank_name,
+        account_name: paymentForm.account_name,
+        account_number: paymentForm.account_number,
+        qr_image_url: paymentForm.qr_image_url,
+        instructions: paymentForm.instructions,
+        is_active: paymentForm.is_active ? 1 : 0,
+        sort_order: paymentForm.sort_order
+      }))
+    })
+
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to save payment option')
+
+    showSuccess(`Payment option "${paymentForm.bank_name}" saved successfully!`)
+    showPaymentModal.value = false
+    await loadPaymentMethods()
+  } catch (err) {
+    showError(err.message)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function togglePaymentActive(pm) {
+  if (!auth.isSuperadmin) return
+  try {
+    const res = await fetch(`/api/payment-methods/${pm.id}/toggle`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify(auth.actorParams())
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to toggle status')
+    showSuccess(`Payment option ${data.is_active ? 'enabled' : 'disabled'}.`)
+    await loadPaymentMethods()
+  } catch (err) {
+    showError(err.message)
+  }
+}
+
+async function deletePaymentMethod(pm) {
+  if (!auth.isSuperadmin) return
+  if (!confirm(`Are you sure you want to delete payment option "${pm.bank_name}"?`)) return
+  try {
+    const res = await fetch(`/api/payment-methods/${pm.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify(auth.actorParams())
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to delete payment option')
+    showSuccess(`Deleted payment option "${pm.bank_name}".`)
+    await loadPaymentMethods()
+  } catch (err) {
+    showError(err.message)
+  }
+}
 
 function planTierName(tier) {
   const p = availablePlans.value.find(x => x.tier === tier)
@@ -839,7 +1249,8 @@ onMounted(async () => {
   await Promise.all([
     loadLicenseData(),
     loadSchoolsList(),
-    loadPlans()
+    loadPlans(),
+    loadPaymentMethods()
   ])
   // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
   licensePollInterval = setInterval(() => {
@@ -1201,5 +1612,203 @@ onUnmounted(() => {
   .form-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* Payment Methods & QR Grid */
+.badge-payment-count {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0284c7;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.empty-payments-box {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--muted-foreground);
+  font-size: 0.88rem;
+}
+
+.payment-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.payment-method-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.payment-method-card:hover {
+  border-color: #0ea5e9;
+  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.08);
+}
+
+.payment-method-card.payment-inactive {
+  opacity: 0.65;
+  background: var(--muted);
+}
+
+.pm-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pm-type-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.type--gcash_qr {
+  background: #007dfe1f;
+  color: #007dfe;
+}
+
+.type--maya_qr {
+  background: #00d6651f;
+  color: #00a84e;
+}
+
+.type--bank_transfer {
+  background: #f59e0b1f;
+  color: #d97706;
+}
+
+.type--qr_ph {
+  background: #8b5cf61f;
+  color: #7c3aed;
+}
+
+.pm-bank-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.pm-details-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--secondary);
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.pm-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pm-detail-label {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pm-detail-value {
+  font-size: 0.88rem;
+  color: var(--foreground);
+}
+
+.pm-account-number-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.pm-account-num {
+  font-family: monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0284c7;
+  background: var(--card);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.btn-copy-account {
+  background: #0ea5e9;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-copy-account:hover {
+  background: #0284c7;
+}
+
+.pm-instructions {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+
+.pm-qr-preview-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.pm-qr-thumbnail {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.pm-qr-thumbnail:hover {
+  transform: scale(1.04);
+}
+
+.pm-qr-hint {
+  font-size: 0.72rem;
+  color: #0ea5e9;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.pm-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 </style>

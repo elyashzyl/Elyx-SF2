@@ -378,6 +378,19 @@ const MYSQL_DDL = [
     sender_role VARCHAR(32) NOT NULL DEFAULT (''),
     message TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS payment_methods (
+    id VARCHAR(96) PRIMARY KEY,
+    type VARCHAR(32) NOT NULL DEFAULT ('bank_transfer'),
+    bank_name VARCHAR(128) NOT NULL DEFAULT (''),
+    account_name VARCHAR(255) NOT NULL DEFAULT (''),
+    account_number VARCHAR(128) NOT NULL DEFAULT (''),
+    qr_image_url LONGTEXT,
+    instructions TEXT NOT NULL DEFAULT (''),
+    is_active INT NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -723,6 +736,19 @@ async function initSqlite() {
       sender_role TEXT DEFAULT '',
       message TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS payment_methods (
+      id TEXT PRIMARY KEY,
+      type TEXT DEFAULT 'bank_transfer',
+      bank_name TEXT DEFAULT '',
+      account_name TEXT DEFAULT '',
+      account_number TEXT DEFAULT '',
+      qr_image_url TEXT DEFAULT '',
+      instructions TEXT DEFAULT '',
+      is_active INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
@@ -870,6 +896,7 @@ export async function initDatabase() {
     console.warn(`[db] SQLite backend ready (${DB_PATH}).`)
   }
   await seedDefaultPlans()
+  await seedDefaultPaymentMethods()
   return getDb()
 }
 
@@ -1175,6 +1202,50 @@ export async function seedDefaultPlans() {
     saveDatabase()
   } catch (err) {
     console.error('[db] Error seeding default subscription plans:', err.message)
+  }
+}
+
+export async function seedDefaultPaymentMethods() {
+  try {
+    const existing = await query('SELECT COUNT(*) as cnt FROM payment_methods')
+    if (existing[0]?.cnt > 0) return
+
+    const defaultMethods = [
+      {
+        id: 'gcash-official',
+        type: 'gcash_qr',
+        bank_name: 'GCash (Official e-Wallet)',
+        account_name: 'ElyTrack Platform Operations',
+        account_number: '0917-000-0000',
+        qr_image_url: '',
+        instructions: 'Scan via GCash or send to mobile number. Put your School ID or Name in the notes, then send reference number in the chat.',
+        is_active: 1,
+        sort_order: 1
+      },
+      {
+        id: 'bdo-official',
+        type: 'bank_transfer',
+        bank_name: 'BDO Unibank (Direct Transfer / QR Ph)',
+        account_name: 'ElyTrack Educational Operations',
+        account_number: '0012-3456-7890',
+        qr_image_url: '',
+        instructions: 'Bank Transfer / Over-The-Counter deposit. Attach or message your deposit slip / transaction reference in the support desk.',
+        is_active: 1,
+        sort_order: 2
+      }
+    ]
+
+    for (const m of defaultMethods) {
+      await run(
+        `INSERT INTO payment_methods (
+          id, type, bank_name, account_name, account_number, qr_image_url, instructions, is_active, sort_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [m.id, m.type, m.bank_name, m.account_name, m.account_number, m.qr_image_url, m.instructions, m.is_active, m.sort_order]
+      )
+    }
+    saveDatabase()
+  } catch (err) {
+    console.error('[db] Error seeding default payment methods:', err.message)
   }
 }
 

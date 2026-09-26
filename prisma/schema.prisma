@@ -258,3 +258,19 @@ model InquiryMessage {
 
   @@map("inquiry_messages")
 }
+
+model PaymentMethod {
+  id            String   @id @default(uuid()) @db.VarChar(96)
+  type          String   @default("bank_transfer") @db.VarChar(32)
+  bankName      String   @default("") @map("bank_name") @db.VarChar(128)
+  accountName   String   @default("") @map("account_name") @db.VarChar(255)
+  accountNumber String   @default("") @map("account_number") @db.VarChar(128)
+  qrImageUrl    String?  @map("qr_image_url") @db.LongText
+  instructions  String   @default("") @db.Text
+  isActive      Int      @default(1) @map("is_active")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  @@map("payment_methods")
+}
