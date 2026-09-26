@@ -64,8 +64,10 @@
                     @click="updateStatus(activeInquiry.id, 'finished')"
                     :disabled="statusLoading"
                     type="button"
+                    style="display: inline-flex; align-items: center; gap: 5px;"
                   >
-                    ✓ Mark as Finished
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>Mark as Finished</span>
                   </button>
                   <button
                     v-else
@@ -84,7 +86,7 @@
                 <div class="meta-row">
                   <span class="meta-subject">{{ activeInquiry.subject }}</span>
                   <span class="badge" :class="'badge-' + activeInquiry.status">
-                    {{ activeInquiry.status === 'finished' ? 'Finished ✓' : 'Open' }}
+                    {{ activeInquiry.status === 'finished' ? 'Finished' : 'Open' }}
                   </span>
                 </div>
                 <div class="meta-details">
@@ -186,7 +188,7 @@
                     <div class="inquiry-card-tags">
                       <span class="badge" :class="'badge-' + item.category">{{ formatCategory(item.category) }}</span>
                       <span class="badge" :class="'badge-' + item.status">
-                        {{ item.status === 'finished' ? 'Finished ✓' : 'Open' }}
+                        {{ item.status === 'finished' ? 'Finished' : 'Open' }}
                       </span>
                     </div>
                     <span class="inquiry-time">{{ formatDate(item.created_at) }}</span>
@@ -213,7 +215,13 @@
               </div>
 
               <div class="payment-callout">
-                <div class="callout-icon">💡</div>
+                <div class="callout-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 18h6"></path>
+                    <path d="M10 22h4"></path>
+                    <path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"></path>
+                  </svg>
+                </div>
                 <div class="callout-text">
                   <strong>Direct Help &amp; Payment Desk</strong>
                   <p>
@@ -227,8 +235,12 @@
 
               <div class="form-help-strip">
                 <span>Paying for a license or renewal?</span>
-                <button type="button" class="btn-sm-link" @click="openPaymentMethodsView">
-                  💳 View Official Bank / QR Details
+                <button type="button" class="btn-sm-link" @click="openPaymentMethodsView" style="display: inline-flex; align-items: center; gap: 6px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
+                  </svg>
+                  <span>View Official Bank / QR Details</span>
                 </button>
               </div>
 
@@ -293,18 +305,27 @@
                     @click="openPaymentMethodsView"
                     type="button"
                     title="View official bank accounts and scannable QR codes"
+                    style="display: inline-flex; align-items: center; gap: 5px;"
                   >
-                    💳 Bank / QR Codes
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                      <line x1="1" y1="10" x2="23" y2="10"></line>
+                    </svg>
+                    <span>Bank / QR Codes</span>
                   </button>
                   <span class="badge" :class="'badge-' + activeInquiry.status">
-                    {{ activeInquiry.status === 'finished' ? 'Finished ✓' : 'Open' }}
+                    {{ activeInquiry.status === 'finished' ? 'Finished' : 'Open' }}
                   </span>
                 </div>
               </div>
 
               <!-- Status Banner -->
               <div v-if="activeInquiry.status === 'finished'" class="resolved-banner">
-                <div class="banner-icon">✓</div>
+                <div class="banner-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
                 <div class="banner-text">
                   <strong>Inquiry Marked as Finished</strong>
                   <p>The superadmin has marked this inquiry as resolved on {{ formatDate(activeInquiry.resolved_at) }}. If you still need help, feel free to send a follow-up message below!</p>
@@ -367,7 +388,12 @@
               </div>
 
               <div class="payment-callout">
-                <div class="callout-icon">💳</div>
+                <div class="callout-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
+                  </svg>
+                </div>
                 <div class="callout-text">
                   <strong>Official School Payment Channels</strong>
                   <p>
@@ -379,7 +405,12 @@
 
               <div v-if="loadingPaymentMethods" class="loading-state">Loading payment channels...</div>
               <div v-else-if="paymentMethods.length === 0" class="empty-state-card">
-                <div class="empty-icon">💳</div>
+                <div class="empty-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
+                  </svg>
+                </div>
                 <h4>No payment channels configured yet</h4>
                 <p>Please contact superadmin at ely.ashzyl@gmail.com for payment instructions.</p>
               </div>
@@ -400,7 +431,7 @@
                       <div class="cpc-acc-row">
                         <code class="cpc-code">{{ pm.account_number }}</code>
                         <button class="btn-copy-cpc" @click="copyPaymentAccount(pm)" type="button" :title="'Copy ' + pm.account_number">
-                          {{ copiedPaymentId === pm.id ? 'Copied! ✓' : 'Copy' }}
+                          {{ copiedPaymentId === pm.id ? 'Copied!' : 'Copy' }}
                         </button>
                       </div>
                     </div>
@@ -412,12 +443,22 @@
                   <!-- QR Thumbnail if available -->
                   <div v-if="pm.qr_image_url" class="cpc-qr-thumb-box" @click="openChatQr(pm)">
                     <img :src="pm.qr_image_url" :alt="pm.bank_name + ' QR'" class="cpc-qr-img" />
-                    <small class="cpc-qr-scan-hint">🔍 Click to enlarge &amp; scan QR</small>
+                    <small class="cpc-qr-scan-hint" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                      </svg>
+                      <span>Click to enlarge &amp; scan QR</span>
+                    </small>
                   </div>
 
                   <div class="cpc-actions">
-                    <button class="btn-paste-ref" @click="useInReference(pm)" type="button">
-                      📝 Use in Reference / Paste into Message
+                    <button class="btn-paste-ref" @click="useInReference(pm)" type="button" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                      </svg>
+                      <span>Use in Reference / Paste into Message</span>
                     </button>
                   </div>
                 </div>
@@ -432,8 +473,12 @@
                   <small class="list-sub">Direct channel to platform superadmin</small>
                 </div>
                 <div class="list-header-actions">
-                  <button class="btn-view-payments" @click="openPaymentMethodsView" type="button" title="View official bank accounts and QR codes">
-                    💳 Payment / QR
+                  <button class="btn-view-payments" @click="openPaymentMethodsView" type="button" title="View official bank accounts and QR codes" style="display: inline-flex; align-items: center; gap: 5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                      <line x1="1" y1="10" x2="23" y2="10"></line>
+                    </svg>
+                    <span>Payment / QR</span>
                   </button>
                   <button class="btn-new-inquiry" @click="userView = 'new'" type="button">
                     + New Inquiry
@@ -442,14 +487,24 @@
               </div>
 
               <div class="payment-hint-strip">
-                <span>💳 Need official bank accounts or GCash/Maya QR codes?</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
+                  </svg>
+                  <span>Need official bank accounts or GCash/Maya QR codes?</span>
+                </span>
                 <button class="link-btn" @click="openPaymentMethodsView" type="button">View Payment Options</button>
               </div>
 
               <div class="inquiry-items-scroll">
                 <div v-if="loadingList" class="loading-state">Loading your inquiries...</div>
                 <div v-else-if="inquiries.length === 0" class="empty-state-card">
-                  <div class="empty-icon">💬</div>
+                  <div class="empty-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                  </div>
                   <h4>No inquiries submitted yet</h4>
                   <p>Have questions about license renewal, payment options, or need technical help? Start an inquiry with the superadmin.</p>
                   <button class="btn-primary" @click="userView = 'new'" type="button">
@@ -466,15 +521,18 @@
                     <div class="inquiry-card-tags">
                       <span class="badge" :class="'badge-' + item.category">{{ formatCategory(item.category) }}</span>
                       <span class="badge" :class="'badge-' + item.status">
-                        {{ item.status === 'finished' ? 'Finished ✓' : 'Pending Review' }}
+                        {{ item.status === 'finished' ? 'Finished' : 'Pending Review' }}
                       </span>
                     </div>
                     <span class="inquiry-time">{{ formatDate(item.created_at) }}</span>
                   </div>
                   <h4 class="inquiry-card-subject">{{ item.subject }}</h4>
                   <div class="inquiry-card-footer">
-                    <span v-if="item.status === 'finished'" class="footer-finished-note">
-                      ✓ Resolved by Superadmin
+                    <span v-if="item.status === 'finished'" class="footer-finished-note" style="display: inline-flex; align-items: center; gap: 4px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <span>Resolved by Superadmin</span>
                     </span>
                     <span v-else class="footer-open-note">
                       Active with Superadmin
@@ -506,7 +564,7 @@
           <div class="chat-qr-footer">
             <button class="btn-cancel" @click="showChatQrModal = false" type="button">Close</button>
             <button class="btn-primary" @click="copyPaymentAccount(selectedChatQr)" type="button">
-              {{ copiedPaymentId === selectedChatQr.id ? 'Copied! ✓' : 'Copy Account' }}
+              {{ copiedPaymentId === selectedChatQr.id ? 'Copied!' : 'Copy Account' }}
             </button>
             <button class="btn-paste-ref-sm" @click="useInReference(selectedChatQr); showChatQrModal = false" type="button">
               Use in Reference
@@ -816,7 +874,7 @@ async function checkUnreadNotifications() {
     if (data?.unread && data.unread.length > 0) {
       unreadBadgeCount.value = data.unread.length
       for (const item of data.unread) {
-        notify(`🎉 Superadmin marked your inquiry "${item.subject}" as Finished!`, 'success')
+        notify(`Superadmin marked your inquiry "${item.subject}" as Finished!`, 'success')
         // Dismiss from backend so it won't repeatedly notify
         await fetch(`/api/inquiries/${item.id}/dismiss-notification`, {
           method: 'POST',

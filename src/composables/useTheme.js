@@ -6,11 +6,24 @@ const theme = ref(typeof window !== 'undefined' ? (localStorage.getItem(STORAGE_
 
 function apply(value) {
   if (typeof document === 'undefined') return
-  const root = document.getElementById('app') || document.documentElement
-  root.setAttribute('data-theme', value)
+  if (document.documentElement) {
+    document.documentElement.setAttribute('data-theme', value)
+    document.documentElement.style.colorScheme = value
+  }
+  if (document.body) {
+    document.body.setAttribute('data-theme', value)
+  }
+  const root = document.getElementById('app')
+  if (root) {
+    root.setAttribute('data-theme', value)
+  }
 }
 
 apply(theme.value)
+
+if (typeof document !== 'undefined' && document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => apply(theme.value), { once: true })
+}
 
 watch(theme, (value) => {
   if (!VALID.includes(value)) return

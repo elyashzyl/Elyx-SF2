@@ -254,7 +254,7 @@
 
           <div class="demographic-balance-pill">
             <span>Population Balance Index:</span>
-            <strong>{{ Math.abs(malePct - femalePct) <= 5 ? '✓ Balanced Distribution (≈ 1:1)' : 'Noticeable Demographic Skew' }}</strong>
+            <strong>{{ Math.abs(malePct - femalePct) <= 5 ? 'Balanced Distribution (≈ 1:1)' : 'Noticeable Demographic Skew' }}</strong>
           </div>
         </div>
       </section>

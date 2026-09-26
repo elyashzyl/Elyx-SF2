@@ -41,84 +41,114 @@ export const useAttendanceStore = defineStore('attendance', () => {
 
   function actor(extra = {}) {
     const auth = getAuth()
-    return {
+    let sid = extra.schoolId || auth?.user?.school_id || ''
+    if (!sid && auth?.user?.role === 'superadmin') {
+      try {
+        const raw = localStorage.getItem('app_active_school')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed && !parsed.__none && (parsed.id || parsed.school_id)) {
+            sid = parsed.id || parsed.school_id
+          }
+        }
+      } catch (_) {}
+    }
+    const res = {
       userId: auth?.user?.id || '',
       userRole: auth?.user?.role || '',
-      ...(auth?.user?.school_id ? { schoolId: auth.user.school_id } : {}),
+      ...(sid ? { schoolId: sid } : {}),
       ...extra
     }
+    if (sid && !res.schoolId) res.schoolId = sid
+    return res
   }
 
-  async function getStudents(params = {}) {
+  async function getStudents(params = {}, schoolId) {
     try {
-      const query = new URLSearchParams(actor(params)).toString()
+      const extra = { ...params }
+      if (schoolId) extra.schoolId = schoolId
+      const query = new URLSearchParams(actor(extra)).toString()
       return await fetchJson(`${API}/students?${query}`) || []
     } catch {
       return []
     }
   }
 
-  async function addStudent(data) {
+  async function addStudent(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
     return await fetchJson(`${API}/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor(data))
+      body: JSON.stringify(actor(extra))
     })
   }
 
-  async function updateStudent(id, data) {
+  async function updateStudent(id, data, schoolId) {
     const auth = getAuth()
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
     await fetchJson(`${API}/students/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...actor(data), ...(auth?.user ? { userId: auth.user.id, userRole: auth.user.role } : {}) })
+      body: JSON.stringify({ ...actor(extra), ...(auth?.user ? { userId: auth.user.id, userRole: auth.user.role } : {}) })
     })
   }
 
-  async function addStudents(data) {
+  async function addStudents(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
     return await fetchJson(`${API}/students/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor(data))
+      body: JSON.stringify(actor(extra))
     })
   }
 
-  async function deleteStudent(id) {
+  async function deleteStudent(id, schoolId) {
     const auth = getAuth()
-    const params = new URLSearchParams({ userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }).toString()
+    const extra = { userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }
+    if (schoolId) extra.schoolId = schoolId
+    const params = new URLSearchParams(extra).toString()
     await fetchJson(`${API}/students/${id}?${params}`, { method: 'DELETE' })
   }
 
-  async function deleteStudents(ids) {
+  async function deleteStudents(ids, schoolId) {
+    const extra = { ids }
+    if (schoolId) extra.schoolId = schoolId
     return await fetchJson(`${API}/students/bulk-delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor({ ids }))
+      body: JSON.stringify(actor(extra))
     })
   }
 
-  async function getRecord(date, grade, section) {
-    const params = new URLSearchParams(actor({ date, grade, section })).toString()
+  async function getRecord(date, grade, section, schoolId) {
+    const extra = { date, grade, section }
+    if (schoolId) extra.schoolId = schoolId
+    const params = new URLSearchParams(actor(extra)).toString()
     return await fetchJson(`${API}/attendance?${params}`)
   }
 
-  async function saveRecord(record, user) {
+  async function saveRecord(record, user, schoolId) {
+    const extra = {
+      ...record,
+      created_by: user?.id || '',
+      created_by_name: user?.name || ''
+    }
+    if (schoolId) extra.schoolId = schoolId
     return await fetchJson(`${API}/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor({
-        ...record,
-        created_by: user?.id || '',
-        created_by_name: user?.name || ''
-      }))
+      body: JSON.stringify(actor(extra))
     })
   }
 
-  async function getOrCreateRecord(date, grade, section, adviser, user) {
+  async function getOrCreateRecord(date, grade, section, adviser, user, schoolId) {
     try {
-      let record = await getRecord(date, grade, section)
+      let record = await getRecord(date, grade, section, schoolId)
       if (!record) {
-        const students = await getStudents({ grade, section })
+        const students = await getStudents({ grade, section }, schoolId)
         record = {
           date,
           grade,
@@ -138,7 +168,8 @@ export const useAttendanceStore = defineStore('attendance', () => {
             unexcused: false
           }))
         }
-        const result = await saveRecord(record, user)
+        if (schoolId) record.schoolId = schoolId
+        const result = await saveRecord(record, user, schoolId)
         if (result && result.record) {
           record.id = result.record.id
           record.created_by = result.record.created_by
@@ -147,7 +178,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
           record.id = result.id
         }
       } else {
-        const students = await getStudents({ grade, section })
+        const students = await getStudents({ grade, section }, schoolId)
         const existingIds = new Set(record.entries.map(e => e.studentId))
         const missing = students.filter(s => !existingIds.has(s.id))
         if (missing.length > 0) {
@@ -164,7 +195,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
               unexcused: false
             })
           }
-          await saveRecord(record, user)
+          await saveRecord(record, user, schoolId)
         }
       }
       return record
@@ -174,33 +205,41 @@ export const useAttendanceStore = defineStore('attendance', () => {
     }
   }
 
-  async function updateEntry(recordId, studentId, field, value, userId, userRole) {
+  async function updateEntry(recordId, studentId, field, value, userId, userRole, schoolId) {
+    const extra = { studentId, field, value, userId, userRole }
+    if (schoolId) extra.schoolId = schoolId
     await fetchJson(`${API}/attendance/${recordId}/entry`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor({ studentId, field, value, userId, userRole }))
+      body: JSON.stringify(actor(extra))
     })
   }
 
-  async function unlockRecord(recordId, userId, userRole) {
+  async function unlockRecord(recordId, userId, userRole, schoolId) {
+    const extra = { userId, userRole }
+    if (schoolId) extra.schoolId = schoolId
     return await fetchJson(`${API}/attendance/${recordId}/unlock`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor({ userId, userRole }))
+      body: JSON.stringify(actor(extra))
     })
   }
 
-  async function getAllRecords() {
+  async function getAllRecords(schoolId) {
     try {
-      const params = new URLSearchParams(actor()).toString()
+      const extra = {}
+      if (schoolId) extra.schoolId = schoolId
+      const params = new URLSearchParams(actor(extra)).toString()
       return await fetchJson(`${API}/attendance/all?${params}`) || []
     } catch {
       return []
     }
   }
 
-  async function deleteRecord(recordId, userId, userRole) {
-    const params = new URLSearchParams(actor({ userId, userRole })).toString()
+  async function deleteRecord(recordId, userId, userRole, schoolId) {
+    const extra = { userId, userRole }
+    if (schoolId) extra.schoolId = schoolId
+    const params = new URLSearchParams(actor(extra)).toString()
     return await fetchJson(`${API}/attendance/${recordId}?${params}`, {
       method: 'DELETE'
     })

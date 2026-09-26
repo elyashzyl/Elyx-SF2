@@ -155,7 +155,11 @@
             </div>
 
             <div class="highlight-callout">
-              <div class="callout-icon">⚡</div>
+              <div class="callout-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+              </div>
               <div class="callout-body">
                 <strong>1-Click Batch Quick Fill</strong>
                 <p>Teaching a full class today? Use the <em>"Mark All Present (E)"</em> quick action to populate all enrolled learners across all periods in one click, then adjust any absences individually.</p>
@@ -244,7 +248,12 @@
             </div>
 
             <div class="highlight-callout highlight-callout--subtle">
-              <div class="callout-icon">🔍</div>
+              <div class="callout-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </div>
               <div class="callout-body">
                 <strong>Advisory Class Attendance Matrix</strong>
                 <p>Both the Teacher and Admin dashboards provide full-roster standing breakdown (Regular, Warning, At Risk) with instant search filtering.</p>

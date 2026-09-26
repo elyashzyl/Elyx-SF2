@@ -218,7 +218,11 @@
                 </div>
 
                 <div class="demo-interactive-hint">
-                  <span class="hint-icon">⚡</span>
+                  <span class="hint-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                  </span>
                   <span><strong>Interactive Simulator:</strong> Click any student badge to toggle status and watch section attendance recalculate immediately.</span>
                 </div>
               </div>
@@ -330,7 +334,11 @@
             </div>
 
             <div class="hero-float-card hero-float-card--bottom">
-              <span class="hero-float-icon hero-float-icon--shield">🛡️</span>
+              <span class="hero-float-icon hero-float-icon--shield">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+              </span>
               <div>
                 <strong>Institutional Privacy</strong>
                 <small>RA 10173 DPA Compliant</small>
@@ -743,28 +751,48 @@
           <!-- Trust & Compliance Guarantee -->
           <div class="pricing-trust-row">
             <div class="pricing-trust-item">
-              <span class="trust-icon">📋</span>
+              <span class="trust-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                </svg>
+              </span>
               <div>
                 <strong>DepEd Order No. 8, s. 2015</strong>
                 <p>Fully certified calculation engine matching official SF2 definitions and formats.</p>
               </div>
             </div>
             <div class="pricing-trust-item">
-              <span class="trust-icon">🔒</span>
+              <span class="trust-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
               <div>
                 <strong>Data Privacy Act (RA 10173)</strong>
                 <p>Strict confidentiality safeguards ensuring student attendance records remain private.</p>
               </div>
             </div>
             <div class="pricing-trust-item">
-              <span class="trust-icon">🔑</span>
+              <span class="trust-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5 3.5-3.5 2-2z"></path>
+                  <path d="M15.5 7.5l-3 3"></path>
+                  <circle cx="7.5" cy="16.5" r="5.5"></circle>
+                </svg>
+              </span>
               <div>
                 <strong>Database-Backed Licenses</strong>
                 <p>Every school is tied to a secure license record. Access locks automatically if suspended.</p>
               </div>
             </div>
             <div class="pricing-trust-item">
-              <span class="trust-icon">⚡</span>
+              <span class="trust-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+              </span>
               <div>
                 <strong>Rapid Roll Call</strong>
                 <p>Designed for real classroom rhythms: finish section roll call in under 90 seconds.</p>

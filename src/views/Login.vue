@@ -118,7 +118,11 @@
 
           <!-- Provisioning Notice Banner -->
           <div class="provisioning-notice">
-            <span class="notice-icon">🛡️</span>
+            <span class="notice-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </span>
             <div>
               <strong>Institutional Deployment</strong>
               <p>Accounts are provisioned upon school subscription. If you need access, please contact your school administrator.</p>
@@ -216,13 +220,14 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useTheme } from '../composables/useTheme'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { theme, toggleTheme } = useTheme()
 
 // State
 const loading = ref(false)
-const theme = ref(localStorage.getItem('theme') || 'light')
 
 // Login fields
 const loginUsername = ref('')
@@ -232,12 +237,6 @@ const loginError = ref('')
 
 // Active School Info
 const activeSchool = reactive({ name: '', school_id: '', address: '', school_name: '', school_address: '' })
-
-function toggleTheme() {
-  theme.value = theme.value === 'light' ? 'dark' : 'light'
-  localStorage.setItem('theme', theme.value)
-  document.documentElement.setAttribute('data-theme', theme.value)
-}
 
 function redirectAfterAuth(role) {
   if (role === 'superadmin') router.push('/schools')
@@ -267,7 +266,6 @@ async function handleLogin() {
 }
 
 onMounted(async () => {
-  document.documentElement.setAttribute('data-theme', theme.value)
   try {
     const res = await fetch('/api/settings/school')
     const data = await res.json()

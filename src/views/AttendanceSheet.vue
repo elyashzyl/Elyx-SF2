@@ -17,6 +17,17 @@
       </div>
 
       <div class="form-card">
+        <div v-if="auth.isSuperadmin" class="form-row" style="margin-bottom: 14px;">
+          <div class="form-group" style="flex: 1;">
+            <label>School *</label>
+            <select v-model="selectedSchoolId" @change="onSchoolChange" required>
+              <option value="" disabled>Select a school...</option>
+              <option v-for="s in schools" :key="s.id" :value="s.id">
+                {{ s.name }}{{ s.school_id ? ' (' + s.school_id + ')' : '' }}
+              </option>
+            </select>
+          </div>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>Date</label>
@@ -25,7 +36,7 @@
           <div class="form-group">
             <label>Grade</label>
             <select v-model="form.grade" @change="onGradeChange" required :disabled="auth.isTeacher && !!auth.user?.grade">
-              <option value="" disabled v-if="!grades.length">No grade levels defined</option>
+              <option value="" disabled v-if="!grades.length">{{ auth.isSuperadmin && !selectedSchoolId ? 'Select a school first' : 'No grade levels defined' }}</option>
               <option v-for="g in grades" :key="g">{{ g }}</option>
             </select>
           </div>
@@ -333,16 +344,21 @@ import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'
 import { actorQs, actorBody } from '../composables/useActor'
 import { useGradeLevels } from '../composables/useGradeLevels'
+import { useActiveSchool } from '../composables/useActiveSchool'
 import { loadPageState, savePageState } from '../composables/usePageState'
 
 const route = useRoute()
 const store = useAttendanceStore()
 const auth = useAuthStore()
 const { notify } = useNotifications()
+const { activeSchool, setActiveSchool } = useActiveSchool()
 const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
+const schools = ref([])
 const loading = ref(false)
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
 const savedState = loadPageState(auth.user)
+const selectedSchoolId = ref(activeSchool.value?.id || savedState?.school || '')
+const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
 const availableSections = computed(() => sectionsByGrade.value[form.grade] || [])
 const amPeriods = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6']
 const pmPeriods = ['pm1', 'pm2', 'pm3', 'pm4']
@@ -376,6 +392,26 @@ function onGradeChange() {
   form.section = ''
 }
 
+async function onSchoolChange() {
+  loadError.value = ''
+  record.value = null
+  selectedStudent.value = null
+  form.grade = ''
+  form.section = ''
+  const chosen = schools.value.find(s => s.id === selectedSchoolId.value)
+  if (chosen) {
+    school.school_name = chosen.name || chosen.school_name || ''
+    school.school_id = chosen.school_id || ''
+    school.school_address = chosen.address || chosen.school_address || ''
+    school.school_short = chosen.short || chosen.school_short || ''
+    setActiveSchool(chosen)
+  }
+  await loadGradeLevels(selectedSchoolId.value || undefined)
+  applyGradeDefaults()
+  const all = await store.getAllRecords(selectedSchoolId.value || undefined)
+  savedRecords.value = all.slice(-20).reverse()
+}
+
 function applyGradeDefaults() {
   if (route.query.grade) {
     form.grade = route.query.grade
@@ -394,10 +430,16 @@ function applyGradeDefaults() {
 }
 
 watch(
-  () => [form.date, form.grade, form.section, form.adviser],
+  () => [selectedSchoolId.value, form.date, form.grade, form.section, form.adviser],
   () => {
     if (auth.user) {
-      savePageState(auth.user, { date: form.date, grade: form.grade, section: form.section, adviser: form.adviser })
+      savePageState(auth.user, {
+        school: selectedSchoolId.value,
+        date: form.date,
+        grade: form.grade,
+        section: form.section,
+        adviser: form.adviser
+      })
     }
   }
 )
@@ -472,7 +514,7 @@ async function quickMarkAllPresent() {
       for (const pk of allPeriods) {
         if (!entry.periods[pk]) {
           entry.periods[pk] = 'E'
-          await store.updateEntry(record.value.id, entry.studentId, `periods.${pk}`, 'E', auth.user?.id, auth.user?.role)
+          await store.updateEntry(record.value.id, entry.studentId, `periods.${pk}`, 'E', auth.user?.id, auth.user?.role, effectiveSchoolId.value)
         }
       }
     }
@@ -509,14 +551,15 @@ async function handleSaveRecord() {
         date: editRecordForm.date,
         grade: editRecordForm.grade,
         section: editRecordForm.section,
-        adviser: editRecordForm.adviser
+        adviser: editRecordForm.adviser,
+        schoolId: effectiveSchoolId.value
       })
     })
     const data = await res.json()
     if (!data.success) throw new Error(data.error || 'Failed to save')
     notify('Record updated', 'success')
     closeEditRecord()
-    const all = await store.getAllRecords()
+    const all = await store.getAllRecords(effectiveSchoolId.value || undefined)
     savedRecords.value = all.slice(-10).reverse()
   } catch {
     notify('Failed to update record', 'error')
@@ -556,7 +599,7 @@ const sortedEntries = computed(() => {
 async function loadStudentGenderMap() {
   if (!record.value) return
   try {
-    const students = await store.getStudents({ grade: record.value.grade, section: record.value.section })
+    const students = await store.getStudents({ grade: record.value.grade, section: record.value.section }, effectiveSchoolId.value)
     const map = {}
     for (const s of students) map[s.id] = s.gender || ''
     studentGenderMap.value = map
@@ -566,19 +609,44 @@ async function loadStudentGenderMap() {
 
 
 onMounted(async () => {
-  await loadGradeLevels()
-  applyGradeDefaults()
-  try {
-    const data = await auth.getSchoolInfo()
-    if (data) Object.assign(school, data)
-    else if (auth.user?.school) {
-      school.school_name = auth.user.school.name || auth.user.school.school_name || ''
-      school.school_id = auth.user.school.school_id || ''
-      school.school_short = auth.user.school.short || auth.user.school.school_short || ''
-      school.school_address = auth.user.school.address || auth.user.school.school_address || ''
+  if (auth.isSuperadmin) {
+    try {
+      schools.value = await auth.getSchools()
+    } catch {}
+    if (route.query.schoolId) {
+      selectedSchoolId.value = String(route.query.schoolId)
+    } else if (!selectedSchoolId.value && activeSchool.value?.id) {
+      selectedSchoolId.value = activeSchool.value.id
+    } else if (!selectedSchoolId.value && savedState?.school) {
+      selectedSchoolId.value = savedState.school
     }
-  } catch {}
-  const all = await store.getAllRecords()
+  }
+
+  if (auth.isSuperadmin && selectedSchoolId.value) {
+    const chosen = schools.value.find(s => s.id === selectedSchoolId.value)
+    if (chosen) {
+      school.school_name = chosen.name || chosen.school_name || ''
+      school.school_id = chosen.school_id || ''
+      school.school_address = chosen.address || chosen.school_address || ''
+      school.school_short = chosen.short || chosen.school_short || ''
+    }
+  } else if (!auth.isSuperadmin) {
+    try {
+      const data = await auth.getSchoolInfo()
+      if (data) Object.assign(school, data)
+      else if (auth.user?.school) {
+        school.school_name = auth.user.school.name || auth.user.school.school_name || ''
+        school.school_id = auth.user.school.school_id || ''
+        school.school_short = auth.user.school.short || auth.user.school.school_short || ''
+        school.school_address = auth.user.school.address || auth.user.school.school_address || ''
+      }
+    } catch {}
+  }
+
+  await loadGradeLevels(effectiveSchoolId.value || undefined)
+  applyGradeDefaults()
+
+  const all = await store.getAllRecords(effectiveSchoolId.value || undefined)
   savedRecords.value = all.slice(-20).reverse()
 
   if (route.query.autoOpen === '1' || (route.query.grade && route.query.section)) {
@@ -589,6 +657,10 @@ onMounted(async () => {
 })
 
 async function openRecord() {
+  if (auth.isSuperadmin && !selectedSchoolId.value) {
+    loadError.value = 'Please select a school first'
+    return
+  }
   if (!form.date || !form.grade || !form.section) {
     loadError.value = 'Please fill in all fields'
     return
@@ -600,20 +672,44 @@ async function openRecord() {
     form.grade,
     form.section,
     form.adviser || 'TBA',
-    auth.user
+    auth.user,
+    effectiveSchoolId.value
   )
   loading.value = false
+  if (!record.value) {
+    loadError.value = 'Failed to load or create attendance record'
+    return
+  }
   updateCanEdit()
   await loadStudentGenderMap()
 }
 
 async function loadRecord(r) {
+  if (auth.isSuperadmin && r.school_id && selectedSchoolId.value !== r.school_id) {
+    selectedSchoolId.value = r.school_id
+    const chosen = schools.value.find(s => s.id === r.school_id)
+    if (chosen) {
+      school.school_name = chosen.name || chosen.school_name || ''
+      school.school_id = chosen.school_id || ''
+      school.school_address = chosen.address || chosen.school_address || ''
+      school.school_short = chosen.short || chosen.school_short || ''
+      setActiveSchool(chosen)
+    }
+    await loadGradeLevels(r.school_id)
+  }
   form.date = r.date
   form.grade = r.grade
   form.section = r.section
   form.adviser = r.adviser
   loading.value = true
-  record.value = await store.getOrCreateRecord(r.date, r.grade, r.section, r.adviser, auth.user)
+  record.value = await store.getOrCreateRecord(
+    r.date,
+    r.grade,
+    r.section,
+    r.adviser,
+    auth.user,
+    r.school_id || effectiveSchoolId.value
+  )
   loading.value = false
   updateCanEdit()
   await loadStudentGenderMap()
@@ -649,7 +745,7 @@ function selectStudent(entry) {
 
 async function deleteSavedRecord(r) {
   try {
-    await store.deleteRecord(r.id, auth.user?.id, auth.user?.role)
+    await store.deleteRecord(r.id, auth.user?.id, auth.user?.role, r.school_id || effectiveSchoolId.value)
     savedRecords.value = savedRecords.value.filter(x => x.id !== r.id)
     notify('Record deleted', 'success')
   } catch (e) {
@@ -659,13 +755,13 @@ async function deleteSavedRecord(r) {
 
 async function updatePeriodCell(entry, periodKey, value) {
   entry.periods[periodKey] = value
-  await store.updateEntry(record.value.id, entry.studentId, `periods.${periodKey}`, value, auth.user?.id, auth.user?.role)
+  await store.updateEntry(record.value.id, entry.studentId, `periods.${periodKey}`, value, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
 }
 
 async function saveEntry(entry) {
-  await store.updateEntry(record.value.id, entry.studentId, 'reason', entry.reason, auth.user?.id, auth.user?.role)
-  await store.updateEntry(record.value.id, entry.studentId, 'excused', entry.excused, auth.user?.id, auth.user?.role)
-  await store.updateEntry(record.value.id, entry.studentId, 'unexcused', entry.unexcused, auth.user?.id, auth.user?.role)
+  await store.updateEntry(record.value.id, entry.studentId, 'reason', entry.reason, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+  await store.updateEntry(record.value.id, entry.studentId, 'excused', entry.excused, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+  await store.updateEntry(record.value.id, entry.studentId, 'unexcused', entry.unexcused, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
 }
 
 

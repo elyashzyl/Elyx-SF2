@@ -85,17 +85,39 @@
         <div class="metric-block">
           <span class="metric-title">DepEd Module Access</span>
           <div class="modules-chip-list">
-            <span class="module-chip" :class="{ enabled: activeLicense.features?.sf2_export }">✓ SF2 Automated</span>
-            <span class="module-chip" :class="{ enabled: activeLicense.features?.sardo_radar }">✓ SARDO Radar</span>
-            <span class="module-chip" :class="{ enabled: activeLicense.features?.analytics }">✓ Trend Forecaster</span>
-            <span class="module-chip" :class="{ enabled: activeLicense.features?.audit_logs }">✓ Audit Telemetry</span>
+            <span class="module-chip" :class="{ enabled: activeLicense.features?.sf2_export }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>SF2 Automated</span>
+            </span>
+            <span class="module-chip" :class="{ enabled: activeLicense.features?.sardo_radar }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>SARDO Radar</span>
+            </span>
+            <span class="module-chip" :class="{ enabled: activeLicense.features?.analytics }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Trend Forecaster</span>
+            </span>
+            <span class="module-chip" :class="{ enabled: activeLicense.features?.audit_logs }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Audit Telemetry</span>
+            </span>
           </div>
         </div>
       </div>
 
       <div class="hero-actions-bar">
         <div class="hero-school-name">
-          <span class="school-icon">🏫</span>
+          <span class="school-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 21h18"></path>
+              <path d="M5 21V7l7-4 7 4v14"></path>
+              <path d="M9 10h1"></path>
+              <path d="M14 10h1"></path>
+              <path d="M9 14h1"></path>
+              <path d="M14 14h1"></path>
+              <path d="M10 21v-4a2 2 0 0 1 4 0v4"></path>
+            </svg>
+          </span>
           <strong>{{ currentSchool?.name || 'School Node' }}</strong>
           <span v-if="currentSchool?.school_id">· DepEd ID: {{ currentSchool.school_id }}</span>
         </div>
@@ -186,7 +208,11 @@
       <div class="card-header-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
         <div>
           <h3 style="display: flex; align-items: center; gap: 8px;">
-            <span>💳 Official School Payment Options &amp; QR Codes</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+              <line x1="1" y1="10" x2="23" y2="10"></line>
+            </svg>
+            <span>Official School Payment Options &amp; QR Codes</span>
             <span class="badge badge-payment-count">{{ paymentMethods.length }} Available</span>
           </h3>
           <p class="desc">
@@ -244,7 +270,7 @@
                   :title="'Copy ' + pm.account_number"
                   type="button"
                 >
-                  <span>{{ copiedMethodId === pm.id ? 'Copied! ✓' : 'Copy' }}</span>
+                  <span>{{ copiedMethodId === pm.id ? 'Copied!' : 'Copy' }}</span>
                 </button>
               </div>
             </div>
@@ -263,7 +289,13 @@
               @click="openQrPreview(pm)"
               title="Click to enlarge QR Code"
             />
-            <small class="pm-qr-hint" @click="openQrPreview(pm)">🔍 Click to scan / enlarge</small>
+            <small class="pm-qr-hint" @click="openQrPreview(pm)" style="display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <span>Click to scan / enlarge</span>
+            </small>
           </div>
 
           <!-- Superadmin Management Actions -->
@@ -607,8 +639,13 @@
                   id="qr-file-upload"
                   style="display: none;"
                 />
-                <button type="button" class="btn btn-sm btn-secondary" @click="triggerQrFileInput">
-                  📁 Upload QR Code Image
+                <button type="button" class="btn btn-sm btn-secondary" @click="triggerQrFileInput" style="display: inline-flex; align-items: center; gap: 6px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Upload QR Code Image</span>
                 </button>
                 <small style="color: var(--muted-foreground);">Upload a QR file (.png, .jpg) or paste URL below</small>
               </div>
@@ -674,7 +711,7 @@
         <div class="modal-footer" style="justify-content: center;">
           <button class="btn btn-secondary" @click="showQrPreviewModal = false">Close</button>
           <button class="btn btn-primary" @click="copyAccountNumber(selectedQrMethod)">
-            {{ copiedMethodId === selectedQrMethod.id ? 'Copied! ✓' : 'Copy Account Number' }}
+            {{ copiedMethodId === selectedQrMethod.id ? 'Copied!' : 'Copy Account Number' }}
           </button>
         </div>
       </div>
@@ -825,7 +862,35 @@ function handleQrUpload(e) {
   if (!file) return
   const reader = new FileReader()
   reader.onload = ev => {
-    paymentForm.qr_image_url = ev.target?.result || ''
+    const rawDataUrl = ev.target?.result || ''
+    // Compress/resize if very large image
+    const img = new Image()
+    img.onload = () => {
+      const maxDim = 1000
+      let w = img.width
+      let h = img.height
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w)
+          w = maxDim
+        } else {
+          w = Math.round((w * maxDim) / h)
+          h = maxDim
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        paymentForm.qr_image_url = canvas.toDataURL('image/png')
+      } else {
+        paymentForm.qr_image_url = rawDataUrl
+      }
+    }
+    img.onerror = () => {
+      paymentForm.qr_image_url = rawDataUrl
+    }
+    img.src = rawDataUrl
   }
   reader.readAsDataURL(file)
 }
@@ -856,8 +921,11 @@ async function handleSavePaymentMethod() {
       }))
     })
 
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to save payment option')
+    let data = {}
+    try {
+      data = await res.json()
+    } catch {}
+    if (!res.ok) throw new Error(data.error || (res.status === 413 ? 'Image or payload is too large to save' : 'Failed to save payment option'))
 
     showSuccess(`Payment option "${paymentForm.bank_name}" saved successfully!`)
     showPaymentModal.value = false
@@ -872,7 +940,8 @@ async function handleSavePaymentMethod() {
 async function togglePaymentActive(pm) {
   if (!auth.isSuperadmin) return
   try {
-    const res = await fetch(`/api/payment-methods/${pm.id}/toggle`, {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/payment-methods/${pm.id}/toggle?${qs}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -880,7 +949,10 @@ async function togglePaymentActive(pm) {
       },
       body: JSON.stringify(auth.actorParams())
     })
-    const data = await res.json()
+    let data = {}
+    try {
+      data = await res.json()
+    } catch {}
     if (!res.ok) throw new Error(data.error || 'Failed to toggle status')
     showSuccess(`Payment option ${data.is_active ? 'enabled' : 'disabled'}.`)
     await loadPaymentMethods()
@@ -893,7 +965,8 @@ async function deletePaymentMethod(pm) {
   if (!auth.isSuperadmin) return
   if (!confirm(`Are you sure you want to delete payment option "${pm.bank_name}"?`)) return
   try {
-    const res = await fetch(`/api/payment-methods/${pm.id}`, {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/payment-methods/${pm.id}?${qs}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -901,7 +974,10 @@ async function deletePaymentMethod(pm) {
       },
       body: JSON.stringify(auth.actorParams())
     })
-    const data = await res.json()
+    let data = {}
+    try {
+      data = await res.json()
+    } catch {}
     if (!res.ok) throw new Error(data.error || 'Failed to delete payment option')
     showSuccess(`Deleted payment option "${pm.bank_name}".`)
     await loadPaymentMethods()
