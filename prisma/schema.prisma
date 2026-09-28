@@ -22,11 +22,12 @@ model User {
 }
 
 model School {
-  id       String @id @default(uuid()) @db.VarChar(96)
-  name     String @db.Text
-  schoolId String @default("") @map("school_id") @db.Text
-  address  String @default("") @db.Text
-  short    String @default("") @db.Text
+  id                   String @id @default(uuid()) @db.VarChar(96)
+  name                 String @db.Text
+  schoolId             String @default("") @map("school_id") @db.Text
+  address              String @default("") @db.Text
+  short                String @default("") @db.Text
+  attendanceLockCutoff String @default("") @map("attendance_lock_cutoff") @db.VarChar(10)
 
   @@map("schools")
 }
@@ -79,8 +80,31 @@ model AttendanceRecord {
   createdByName String @default("") @map("created_by_name") @db.Text
   summaryData   String @default("{}") @map("summary_data") @db.Text
   schoolId      String @default("") @map("school_id") @db.Text
+  locked        Int    @default(0)
+  lockedAt      DateTime? @map("locked_at")
+  lockedBy      String @default("") @map("locked_by") @db.Text
+  reopenedAt    DateTime? @map("reopened_at")
+  reopenedBy    String @default("") @map("reopened_by") @db.Text
+  reopenReason  String @default("") @map("reopen_reason") @db.Text
 
   @@map("attendance_records")
+}
+
+model AttendanceCorrection {
+  id        BigInt   @id @default(autoincrement())
+  recordId  String   @map("record_id") @db.VarChar(96)
+  studentId String   @default("") @map("student_id") @db.Text
+  field     String   @db.Text
+  oldValue  String   @default("") @map("old_value") @db.Text
+  newValue  String   @default("") @map("new_value") @db.Text
+  reason    String   @default("") @db.Text
+  actorId   String   @default("") @map("actor_id") @db.Text
+  actorName String   @default("") @map("actor_name") @db.Text
+  actorRole String   @default("") @map("actor_role") @db.Text
+  schoolId  String   @default("") @map("school_id") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("attendance_corrections")
 }
 
 model MonthlyRecord {

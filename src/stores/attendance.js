@@ -171,6 +171,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
         if (schoolId) record.schoolId = schoolId
         const result = await saveRecord(record, user, schoolId)
         if (result && result.record) {
+          Object.assign(record, result.record)
           record.id = result.record.id
           record.created_by = result.record.created_by
           record.created_by_name = result.record.created_by_name
@@ -195,7 +196,9 @@ export const useAttendanceStore = defineStore('attendance', () => {
               unexcused: false
             })
           }
-          await saveRecord(record, user, schoolId)
+          if (!(record.locked && !record.reopened_at)) {
+            await saveRecord(record, user, schoolId)
+          }
         }
       }
       return record
@@ -215,14 +218,18 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
-  async function unlockRecord(recordId, userId, userRole, schoolId) {
-    const extra = { userId, userRole }
+  async function reopenRecord(recordId, reason, schoolId) {
+    const extra = { reason }
     if (schoolId) extra.schoolId = schoolId
-    return await fetchJson(`${API}/attendance/${recordId}/unlock`, {
+    return await fetchJson(`${API}/attendance/${recordId}/reopen`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(actor(extra))
     })
+  }
+
+  async function getCorrections(recordId) {
+    return await fetchJson(`${API}/attendance/${recordId}/corrections?${new URLSearchParams(actor()).toString()}`) || []
   }
 
   async function getAllRecords(schoolId) {
@@ -282,7 +289,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
   return {
     getStudents, addStudent, addStudents, updateStudent, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
-    updateEntry, unlockRecord, getAllRecords, deleteRecord,
+    updateEntry, reopenRecord, getCorrections, getAllRecords, deleteRecord,
     fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlyRemarks
   }
 })

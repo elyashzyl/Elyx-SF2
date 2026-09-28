@@ -21,11 +21,9 @@ function canEdit(record, actor) {
   if (!actor) return false
   if (actor.role === 'superadmin') return true
   if (actor.role === 'admin') {
-    // Admin may only edit attendance records belonging to their own school
     return !!record.school_id && actor.school_id === record.school_id
   }
   if (actor.role === 'teacher') {
-    // Teachers may edit records of their advisory class in their school
     if (record.school_id && actor.school_id !== record.school_id) return false
     if (actor.grade && actor.section) {
       return record.grade === actor.grade && record.section === actor.section
@@ -33,6 +31,58 @@ function canEdit(record, actor) {
     return true
   }
   return false
+}
+
+function isRecordLocked(record) {
+  return Number(record?.locked) === 1 && !record?.reopened_at
+}
+
+async function ensureRecordLock(record) {
+  if (!record || record.reopened_at || Number(record.locked) === 1 || !record.school_id || !record.date) return record
+  const schools = await query('SELECT attendance_lock_cutoff FROM schools WHERE id = ?', [record.school_id])
+  const cutoff = String(schools[0]?.attendance_lock_cutoff || '').trim()
+  if (!cutoff || record.date > cutoff) return record
+
+  const lockedAt = databaseTimestamp()
+  await run('UPDATE attendance_records SET locked = 1, locked_at = ?, locked_by = ? WHERE id = ?', [lockedAt, 'system', record.id])
+  return { ...record, locked: 1, locked_at: lockedAt, locked_by: 'system' }
+}
+
+function lockError(res) {
+  return res.status(423).json({ error: 'This attendance record is locked. An administrator must reopen it before changes can be made.', locked: true })
+}
+
+function databaseTimestamp() {
+  return new Date().toISOString().slice(0, 19).replace('T', ' ')
+}
+
+async function addCorrection({ record, studentId = '', field, oldValue, newValue, reason = '', actor }) {
+  if (!record?.reopened_at || String(oldValue ?? '') === String(newValue ?? '')) return
+  await run(`INSERT INTO attendance_corrections
+    (record_id, student_id, field, old_value, new_value, reason, actor_id, actor_name, actor_role, school_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+      record.id, studentId, field, String(oldValue ?? ''), String(newValue ?? ''),
+      String(reason || 'Post-reopen correction'), actor.id, actor.name || '', actor.role, record.school_id || actor.school_id || ''
+    ])
+}
+
+async function addRecordCorrections(record, next, actor, reason = '') {
+  for (const field of ['date', 'grade', 'section', 'adviser']) {
+    await addCorrection({ record, field, oldValue: record[field], newValue: next[field], reason, actor })
+  }
+}
+
+async function lockRecordIfNeeded(record, actor, res) {
+  const current = await ensureRecordLock(record)
+  if (isRecordLocked(current)) {
+    lockError(res)
+    return null
+  }
+  if (!canEdit(current, actor)) {
+    res.status(403).json({ error: 'Only the advisory teacher or an administrator can edit this record' })
+    return null
+  }
+  return current
 }
 
 router.get('/all', async (req, res) => {
@@ -44,7 +94,7 @@ router.get('/all', async (req, res) => {
     const records = scope.schoolId
       ? await query('SELECT * FROM attendance_records WHERE school_id = ? ORDER BY date DESC, grade, section', [scope.schoolId])
       : await query('SELECT * FROM attendance_records ORDER BY date DESC, grade, section')
-    res.json(records)
+    res.json(await Promise.all(records.map(ensureRecordLock)))
   } catch (err) {
     console.error('Failed to fetch attendance records:', err.message)
     res.status(500).json({ error: 'Failed to fetch attendance records' })
@@ -67,7 +117,7 @@ router.get('/', async (req, res) => {
       return res.json(null)
     }
 
-    const record = records[0]
+    const record = await ensureRecordLock(records[0])
     const entries = await query(
       'SELECT * FROM attendance_entries WHERE record_id = ? ORDER BY id',
       [record.id]
@@ -101,9 +151,9 @@ router.post('/', async (req, res) => {
     const scope = await resolveScopeSchool(req, res, req.body.schoolId)
     if (!scope) return
     if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
-    const { date, grade, section, adviser, entries, created_by, created_by_name } = req.body
+    const { date, grade, section, adviser, entries = [] } = req.body
     const existing = await query(
-      'SELECT id, created_by, created_by_name, school_id FROM attendance_records WHERE date = ? AND grade = ? AND section = ? AND school_id = ?',
+      'SELECT * FROM attendance_records WHERE date = ? AND grade = ? AND section = ? AND school_id = ?',
       [date, grade, section, scope.schoolId]
     )
 
@@ -111,7 +161,26 @@ router.post('/', async (req, res) => {
     if (existing.length > 0) {
       recordId = existing[0].id
       if (!recordSchoolOk(me, existing[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-      if (!canEdit(existing[0], me)) return res.status(403).json({ error: 'Forbidden: you cannot edit this advisory class' })
+      const current = await lockRecordIfNeeded(existing[0], me, res)
+      if (!current) return
+      const correctionReason = String(req.body.correctionReason || '').trim()
+      await addRecordCorrections(current, { date, grade, section, adviser }, me, correctionReason)
+      const oldEntries = await query('SELECT * FROM attendance_entries WHERE record_id = ?', [recordId])
+      const oldByStudent = new Map(oldEntries.map(entry => [String(entry.student_id), entry]))
+      for (const entry of entries) {
+        const old = oldByStudent.get(String(entry.studentId))
+        if (!old) continue
+        const values = {
+          ...Object.fromEntries(['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4'].map(key => [key, entry.periods?.[key] || ''])),
+          reason: entry.reason || '',
+          excused: entry.excused ? 1 : 0,
+          unexcused: entry.unexcused ? 1 : 0,
+          nls: entry.nls ? 1 : 0
+        }
+        for (const [field, newValue] of Object.entries(values)) {
+          await addCorrection({ record: current, studentId: entry.studentId, field, oldValue: old[field], newValue, reason: correctionReason, actor: me })
+        }
+      }
       await run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
       await run('UPDATE attendance_records SET adviser=? WHERE id=?', [adviser, recordId])
     } else {
@@ -122,7 +191,7 @@ router.post('/', async (req, res) => {
       }
       recordId = uuidv4()
       await run('INSERT INTO attendance_records (id, date, grade, section, adviser, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [recordId, date, grade, section, adviser, created_by || '', created_by_name || '', scope.schoolId])
+        [recordId, date, grade, section, adviser, me.id, me.name || '', scope.schoolId])
     }
 
     for (const entry of entries) {
@@ -138,14 +207,15 @@ router.post('/', async (req, res) => {
         ])
     }
 
-    const updated = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    const updatedRows = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    const updated = updatedRows.length ? await ensureRecordLock(updatedRows[0]) : null
     await audit(
       me,
       existing.length > 0 ? 'attendance.update' : 'attendance.create',
       { type: 'attendance', id: recordId, name: `${grade} - ${section}`, schoolId: scope.schoolId },
       `Recorded roll call for ${grade} - ${section} on ${date} (${entries.length} learners)`
     )
-    res.json({ id: recordId, success: true, record: updated[0] || null })
+    res.json({ id: recordId, success: true, record: updated || null })
   } catch (err) {
     console.error('Failed to save attendance record:', err.message)
     res.status(500).json({ error: 'Failed to save attendance record' })
@@ -458,6 +528,21 @@ router.get('/monthly/excel', async (req, res) => {
   }
 })
 
+router.get('/:recordId/corrections', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [req.params.recordId])
+    if (!records.length) return res.status(404).json({ error: 'Record not found' })
+    if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    const rows = await query('SELECT * FROM attendance_corrections WHERE record_id = ? ORDER BY created_at DESC, id DESC', [req.params.recordId])
+    res.json(rows)
+  } catch (err) {
+    console.error('Failed to fetch attendance corrections:', err.message)
+    res.status(500).json({ error: 'Failed to fetch attendance corrections' })
+  }
+})
+
 router.get('/:id', async (req, res) => {
   try {
     const me = await guardAttendanceRecord(req, res)
@@ -470,7 +555,7 @@ router.get('/:id', async (req, res) => {
     }
     if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
 
-    const record = records[0]
+    const record = await ensureRecordLock(records[0])
     const entries = await query(
       'SELECT * FROM attendance_entries WHERE record_id = ? ORDER BY id',
       [id]
@@ -500,26 +585,32 @@ router.get('/:id', async (req, res) => {
 router.put('/:recordId/entry', async (req, res) => {
   try {
     const { recordId } = req.params
-    const { studentId, field, value, userId, userRole } = req.body
+    const { studentId, field, value, correctionReason } = req.body
+    if (typeof field !== 'string' || !field.trim()) return res.status(400).json({ error: 'Attendance field is required' })
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
 
     const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-    if (records.length === 0) {
-      return res.status(404).json({ error: 'Record not found' })
-    }
-    const actor = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
-    if (!actor) return res.status(401).json({ error: 'Not authenticated' })
-    if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    if (records.length === 0) return res.status(404).json({ error: 'Record not found' })
+    if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    const record = await lockRecordIfNeeded(records[0], me, res)
+    if (!record) return
 
-    if (!canEdit(records[0], actor)) {
-      return res.status(403).json({ error: 'Only the advisory teacher or an admin can edit this record' })
+    const entryRows = await query('SELECT * FROM attendance_entries WHERE record_id = ? AND student_id = ?', [recordId, studentId])
+    if (!entryRows.length) return res.status(404).json({ error: 'Attendance entry not found' })
+    const oldEntry = entryRows[0]
+    const validPeriods = ['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4']
+    const validFields = ['reason', 'excused', 'unexcused', 'nls']
+    const correctionField = field.startsWith('periods.') ? field.split('.')[1] : field
+    if ((field.startsWith('periods.') && !validPeriods.includes(correctionField)) || (!field.startsWith('periods.') && !validFields.includes(field))) {
+      return res.status(400).json({ error: 'Invalid attendance field' })
     }
+    const oldValue = oldEntry[correctionField]
+    const newValue = ['excused', 'unexcused', 'nls'].includes(correctionField) ? (value ? 1 : 0) : value
+    await addCorrection({ record, studentId, field, oldValue, newValue, reason: correctionReason, actor: me })
 
     if (field.startsWith('periods.')) {
       const periodKey = field.split('.')[1]
-      const validPeriods = ['am1','am2','am3','am4','am5','am6','pm1','pm2','pm3','pm4']
-      if (!validPeriods.includes(periodKey)) {
-        return res.status(400).json({ error: 'Invalid period' })
-      }
       await run(`UPDATE attendance_entries SET ${periodKey}=? WHERE record_id=? AND student_id=?`,
         [value, recordId, studentId])
     } else if (field === 'reason') {
@@ -543,30 +634,46 @@ router.put('/:recordId/entry', async (req, res) => {
   }
 })
 
+router.put('/:recordId/reopen', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    if (error) return
+    const { recordId } = req.params
+    const reason = String(req.body?.reason || '').trim()
+    if (!reason) return res.status(400).json({ error: 'A reason is required to reopen an attendance record' })
+    const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
+    if (!records.length) return res.status(404).json({ error: 'Record not found' })
+    const record = records[0]
+    if (!recordSchoolOk(me, record)) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    const current = await ensureRecordLock(record)
+    if (Number(current.locked) !== 1) return res.status(409).json({ error: 'Attendance record is not locked' })
+
+    const now = databaseTimestamp()
+    await run('UPDATE attendance_records SET reopened_at = ?, reopened_by = ?, reopen_reason = ? WHERE id = ?', [now, me.id, reason, recordId])
+    await audit(me, 'attendance.reopen', { type: 'attendance', id: recordId, name: `${record.grade} - ${record.section}`, schoolId: record.school_id }, reason)
+    res.json({ success: true, record: { ...current, reopened_at: now, reopened_by: me.id, reopen_reason: reason } })
+  } catch (err) {
+    console.error('Failed to reopen attendance record:', err.message)
+    res.status(500).json({ error: 'Failed to reopen attendance record' })
+  }
+})
+
+// Retain ownership transfer as a separate action; it does not reopen locked records.
 router.put('/:recordId/unlock', async (req, res) => {
   try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    if (error) return
     const { recordId } = req.params
-    const { userId, userRole } = req.body
-
-    if (userRole !== 'admin' && userRole !== 'superadmin') {
-      return res.status(403).json({ error: 'Only admins can unlock records' })
-    }
-
     const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-    if (records.length === 0) {
-      return res.status(404).json({ error: 'Record not found' })
-    }
-    const actor = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
-    if (!actor) return res.status(401).json({ error: 'Not authenticated' })
-    if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-
-    await run('UPDATE attendance_records SET created_by=?, created_by_name=? WHERE id=?',
-      [userId, '', recordId])
-
+    if (!records.length) return res.status(404).json({ error: 'Record not found' })
+    if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    const current = await ensureRecordLock(records[0])
+    if (isRecordLocked(current)) return lockError(res)
+    await run('UPDATE attendance_records SET created_by=?, created_by_name=? WHERE id=?', [me.id, me.name || '', recordId])
     res.json({ success: true })
   } catch (err) {
-    console.error('Failed to unlock attendance record:', err.message)
-    res.status(500).json({ error: 'Failed to unlock attendance record' })
+    console.error('Failed to transfer attendance ownership:', err.message)
+    res.status(500).json({ error: 'Failed to transfer attendance ownership' })
   }
 })
 
@@ -579,6 +686,9 @@ router.put('/:recordId', async (req, res) => {
     const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
     if (records.length === 0) return res.status(404).json({ error: 'Record not found' })
     if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    const current = await lockRecordIfNeeded(records[0], me, res)
+    if (!current) return
+    await addRecordCorrections(current, { date, grade, section, adviser }, me, String(req.body.correctionReason || '').trim())
     await run('UPDATE attendance_records SET date=?, grade=?, section=?, adviser=? WHERE id=?',
       [date, grade, section, adviser, recordId])
     res.json({ success: true })
@@ -590,25 +700,20 @@ router.put('/:recordId', async (req, res) => {
 
 router.delete('/:recordId', async (req, res) => {
   try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
     const { recordId } = req.params
-    const userId = req.query.userId
-    const userRole = req.query.userRole
-
     const records = await query('SELECT * FROM attendance_records WHERE id = ?', [recordId])
-    if (records.length === 0) {
-      return res.status(404).json({ error: 'Record not found' })
-    }
-    const actor = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
-    if (!actor) return res.status(401).json({ error: 'Not authenticated' })
-    if (!recordSchoolOk(actor, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
-
-    if (userRole !== 'admin' && userRole !== 'superadmin' && records[0].created_by !== userId) {
+    if (!records.length) return res.status(404).json({ error: 'Record not found' })
+    if (!recordSchoolOk(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
+    const current = await ensureRecordLock(records[0])
+    if (isRecordLocked(current)) return lockError(res)
+    if (me.role !== 'admin' && me.role !== 'superadmin' && current.created_by !== me.id) {
       return res.status(403).json({ error: 'Only the owner or an admin can delete this record' })
     }
-
     await run('DELETE FROM attendance_entries WHERE record_id = ?', [recordId])
+    await run('DELETE FROM attendance_corrections WHERE record_id = ?', [recordId])
     await run('DELETE FROM attendance_records WHERE id = ?', [recordId])
-
     res.json({ success: true })
   } catch (err) {
     console.error('Failed to delete attendance record:', err.message)

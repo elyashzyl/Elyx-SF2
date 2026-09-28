@@ -150,7 +150,14 @@ export function canManageUser(me, targetRole, targetSchoolId) {
 
 export function schoolToResponse(row) {
   if (!row) return null
-  return { id: row.id, name: row.name, school_id: row.school_id, address: row.address, short: row.short }
+  return {
+    id: row.id,
+    name: row.name,
+    school_id: row.school_id,
+    address: row.address,
+    short: row.short,
+    attendance_lock_cutoff: row.attendance_lock_cutoff || ''
+  }
 }
 
 export async function getActorSchoolRow(me) {

@@ -52,7 +52,8 @@ function toLegacy(s) {
     school_name: s?.name || '',
     school_id: s?.school_id || '',
     school_address: s?.address || '',
-    school_short: s?.short || ''
+    school_short: s?.short || '',
+    attendance_lock_cutoff: s?.attendance_lock_cutoff || ''
   }
 }
 
@@ -94,7 +95,8 @@ router.put('/school', async (req, res) => {
       school_name: req.body?.school_name,
       school_id: req.body?.school_id,
       school_address: req.body?.school_address,
-      school_short: req.body?.school_short
+      school_short: req.body?.school_short,
+      attendance_lock_cutoff: req.body?.attendance_lock_cutoff
     })
     await audit(me, 'school.settings', { type: 'school', id: targetId, name: updated?.name || '', schoolId: targetId }, `Updated school info`)
     res.json({ success: true, school: { ...toLegacy(schoolToResponse(updated)), id: updated.id } })

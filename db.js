@@ -188,7 +188,8 @@ const MYSQL_DDL = [
     name TEXT NOT NULL,
     school_id TEXT NOT NULL DEFAULT (''),
     address TEXT NOT NULL DEFAULT (''),
-    short TEXT NOT NULL DEFAULT ('')
+    short TEXT NOT NULL DEFAULT ('') ,
+    attendance_lock_cutoff VARCHAR(10) NOT NULL DEFAULT ('')
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS grade_levels (
     id VARCHAR(96) PRIMARY KEY,
@@ -228,7 +229,13 @@ const MYSQL_DDL = [
     created_by TEXT NOT NULL DEFAULT (''),
     created_by_name TEXT NOT NULL DEFAULT (''),
     summary_data TEXT NOT NULL DEFAULT ('{}'),
-    school_id TEXT NOT NULL DEFAULT ('')
+    school_id TEXT NOT NULL DEFAULT (''),
+    locked INT NOT NULL DEFAULT 0,
+    locked_at DATETIME NULL,
+    locked_by TEXT NOT NULL DEFAULT (''),
+    reopened_at DATETIME NULL,
+    reopened_by TEXT NOT NULL DEFAULT (''),
+    reopen_reason TEXT NOT NULL DEFAULT ('')
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS monthly_records (
     id VARCHAR(96) PRIMARY KEY,
@@ -273,6 +280,20 @@ const MYSQL_DDL = [
     excused INT NOT NULL DEFAULT 0,
     unexcused INT NOT NULL DEFAULT 0,
     nls INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS attendance_corrections (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    record_id VARCHAR(96) NOT NULL,
+    student_id TEXT NOT NULL DEFAULT (''),
+    field TEXT NOT NULL,
+    old_value TEXT NOT NULL DEFAULT (''),
+    new_value TEXT NOT NULL DEFAULT (''),
+    reason TEXT NOT NULL DEFAULT (''),
+    actor_id TEXT NOT NULL DEFAULT (''),
+    actor_name TEXT NOT NULL DEFAULT (''),
+    actor_role TEXT NOT NULL DEFAULT (''),
+    school_id TEXT NOT NULL DEFAULT (''),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS teacher_schedules (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -530,7 +551,8 @@ async function initSqlite() {
       name TEXT NOT NULL,
       school_id TEXT DEFAULT '',
       address TEXT DEFAULT '',
-      short TEXT DEFAULT ''
+      short TEXT DEFAULT '',
+      attendance_lock_cutoff TEXT DEFAULT ''
     )`,
     `CREATE TABLE IF NOT EXISTS grade_levels (
       id TEXT PRIMARY KEY,
@@ -568,7 +590,13 @@ async function initSqlite() {
       adviser TEXT NOT NULL,
       created_by TEXT DEFAULT '',
       created_by_name TEXT DEFAULT '',
-      summary_data TEXT DEFAULT '{}'
+      summary_data TEXT DEFAULT '{}',
+      locked INTEGER NOT NULL DEFAULT 0,
+      locked_at TEXT,
+      locked_by TEXT DEFAULT '',
+      reopened_at TEXT,
+      reopened_by TEXT DEFAULT '',
+      reopen_reason TEXT DEFAULT ''
     )`,
     `CREATE TABLE IF NOT EXISTS monthly_records (
       id TEXT PRIMARY KEY,
@@ -613,6 +641,20 @@ async function initSqlite() {
       excused INTEGER DEFAULT 0,
       unexcused INTEGER DEFAULT 0,
       nls INTEGER DEFAULT 0
+    )`,
+    `CREATE TABLE IF NOT EXISTS attendance_corrections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      student_id TEXT DEFAULT '',
+      field TEXT NOT NULL,
+      old_value TEXT DEFAULT '',
+      new_value TEXT DEFAULT '',
+      reason TEXT DEFAULT '',
+      actor_id TEXT DEFAULT '',
+      actor_name TEXT DEFAULT '',
+      actor_role TEXT DEFAULT '',
+      school_id TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS teacher_schedules (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -755,6 +797,13 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN school_head TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN attendance_lock_cutoff TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN locked INTEGER NOT NULL DEFAULT 0") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN locked_at TEXT") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN locked_by TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopened_at TEXT") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopened_by TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopen_reason TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE monthly_entries ADD COLUMN late_enrollee INTEGER DEFAULT 0") } catch {}
   }
   // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
@@ -912,7 +961,8 @@ function schoolRowToSettings(row) {
     school_name: row?.name || '',
     school_id: row?.school_id || '',
     school_address: row?.address || '',
-    school_short: row?.short || ''
+    school_short: row?.short || '',
+    attendance_lock_cutoff: row?.attendance_lock_cutoff || ''
   }
 }
 
@@ -970,13 +1020,18 @@ export async function logAudit({ actor_id = '', actor_name = '', actor_role = ''
   }
 }
 
-export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short }) {
+export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff }) {
   const sets = []
   const params = []
   if (school_name !== undefined) { sets.push('name = ?'); params.push(String(school_name)) }
   if (school_id !== undefined) { sets.push('school_id = ?'); params.push(String(school_id)) }
   if (school_address !== undefined) { sets.push('address = ?'); params.push(String(school_address)) }
   if (school_short !== undefined) { sets.push('short = ?'); params.push(String(school_short)) }
+  if (attendance_lock_cutoff !== undefined) {
+    const cutoff = String(attendance_lock_cutoff || '').trim()
+    if (cutoff && !/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) throw new Error('Attendance lock cutoff must be a valid date')
+    sets.push('attendance_lock_cutoff = ?'); params.push(cutoff)
+  }
   if (!sets.length) return getSchoolById(schoolId)
   params.push(schoolId)
   await run(`UPDATE schools SET ${sets.join(', ')} WHERE id = ?`, params)

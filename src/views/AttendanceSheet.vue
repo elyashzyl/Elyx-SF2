@@ -102,7 +102,7 @@
                   </span>
                   <div style="min-width: 0;">
                     <div class="cell-main">{{ r.section }}</div>
-                    <div class="cell-sub">{{ r.created_by_name || '—' }}</div>
+                    <div class="cell-sub">{{ r.created_by_name || '—' }}<span v-if="r.locked && !r.reopened_at"> · Locked</span><span v-else-if="r.reopened_at"> · Reopened</span></div>
                   </div>
                 </div>
               </td>
@@ -114,10 +114,10 @@
                   <button @click="loadRecord(r)" class="icon-btn" title="Open">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
-                  <button @click="openEditRecord(r)" class="icon-btn" title="Edit">
+                  <button @click="openEditRecord(r)" class="icon-btn" title="Edit" :disabled="r.locked && !r.reopened_at">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                   </button>
-                  <button @click="deleteSavedRecord(r)" class="icon-btn icon-btn--danger" title="Delete">
+                  <button @click="deleteSavedRecord(r)" class="icon-btn icon-btn--danger" title="Delete" :disabled="r.locked && !r.reopened_at">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                   </button>
                 </div>
@@ -160,7 +160,14 @@
       <div v-if="auth.isTeacher && !canEdit" class="readonly-banner">
         This record belongs to another advisory class ({{ record.grade }} — {{ record.section }}). Only its official adviser or a school administrator can record or edit daily entries.
       </div>
-      <div v-if="auth.isAdmin && !isOwner" class="readonly-banner">
+      <div v-if="record.locked && !record.reopened_at" class="readonly-banner">
+        This attendance record is locked{{ record.locked_at ? ` since ${record.locked_at}` : '' }}.
+        <button v-if="auth.isAdmin" @click="openReopenModal" class="btn-sm">Reopen Record</button>
+      </div>
+      <div v-else-if="record.reopened_at" class="readonly-banner">
+        Reopened for correction: {{ record.reopen_reason }}
+      </div>
+      <div v-if="auth.isAdmin && !isOwner && !record.locked" class="readonly-banner">
         Recorded by {{ record.created_by_name || 'Unknown' }}
         <button @click="handleUnlock" class="btn-sm">Take Ownership</button>
       </div>
@@ -262,9 +269,9 @@
                       <option value="NIPHC">NIPHC</option>
                     </select>
                   </td>
-                  <td><input v-model="item.reason" @change="saveEntry(item)" class="reason-input" /></td>
-                  <td class="check-cell"><input type="checkbox" v-model="item.excused" @change="saveEntry(item)" /></td>
-                  <td class="check-cell"><input type="checkbox" v-model="item.unexcused" @change="saveEntry(item)" /></td>
+                  <td><input v-model="item.reason" @change="saveEntry(item)" class="reason-input" :disabled="!canEdit" /></td>
+                  <td class="check-cell"><input type="checkbox" v-model="item.excused" @change="saveEntry(item)" :disabled="!canEdit" /></td>
+                  <td class="check-cell"><input type="checkbox" v-model="item.unexcused" @change="saveEntry(item)" :disabled="!canEdit" /></td>
                 </tr>
               </template>
             </template>
@@ -289,6 +296,12 @@
           <p>White w/ print | Polo w/o logo | No logo | Make up (girls)</p>
         </div>
       </div>
+      <div v-if="correctionHistory.length" class="correction-history">
+        <h3>Correction History</h3>
+        <p v-for="item in correctionHistory" :key="item.id">
+          {{ item.created_at }} · {{ item.actor_name || item.actor_id }} changed {{ item.field }} from “{{ item.old_value }}” to “{{ item.new_value }}”
+        </p>
+      </div>
       <div v-if="record.created_by_name" class="created-by">Created by: {{ record.created_by_name }}</div>
 
       <div class="sheet-actions">
@@ -296,6 +309,23 @@
         <button @click="goBack" class="btn-secondary">Back</button>
       </div>
     </div>
+    </div>
+
+    <div v-if="showReopenModal" class="modal-overlay" @click.self="closeReopenModal">
+      <div class="form-card schedule-form">
+        <h3>Reopen Attendance Record</h3>
+        <p class="modal-help">Provide a reason before making a correction. This action is recorded in the audit history.</p>
+        <form @submit.prevent="handleReopen">
+          <div class="form-group">
+            <label for="reopen-reason">Reason</label>
+            <textarea id="reopen-reason" v-model="reopenReason" rows="4" required maxlength="1000" placeholder="Explain why this record needs correction"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" :disabled="reopening || !reopenReason.trim()">{{ reopening ? 'Reopening...' : 'Reopen Record' }}</button>
+            <button type="button" @click="closeReopenModal" class="btn-secondary" :disabled="reopening">Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <div v-if="showEditRecord" class="modal-overlay" @click.self="closeEditRecord">
@@ -368,7 +398,7 @@ const visiblePmPeriods = computed(() => pmPeriods)
 
 // Teachers edit records of their advisory class; admins edit anything.
 const canEdit = computed(() => {
-  if (!record.value) return false
+  if (!record.value || (record.value.locked && !record.value.reopened_at)) return false
   if (auth.isAdmin) return true
   if (!auth.isTeacher) return false
   if (!auth.user?.grade || !auth.user?.section) return true
@@ -472,6 +502,10 @@ const recordsShowingFrom = computed(() => (filteredRecords.value.length ? (recor
 const recordsShowingTo = computed(() => Math.min(filteredRecords.value.length, recordsPage.value * recordsPageSize.value))
 const isOwner = ref(true)
 const selectedStudent = ref(null)
+const correctionHistory = ref([])
+const showReopenModal = ref(false)
+const reopenReason = ref('')
+const reopening = ref(false)
 const studentGenderMap = ref({})
 const showEditRecord = ref(false)
 const savingRecord = ref(false)
@@ -561,8 +595,8 @@ async function handleSaveRecord() {
     closeEditRecord()
     const all = await store.getAllRecords(effectiveSchoolId.value || undefined)
     savedRecords.value = all.slice(-10).reverse()
-  } catch {
-    notify('Failed to update record', 'error')
+  } catch (error) {
+    notify(error.message || 'Failed to update record', 'error')
   } finally {
     savingRecord.value = false
   }
@@ -682,6 +716,7 @@ async function openRecord() {
   }
   updateCanEdit()
   await loadStudentGenderMap()
+  await loadCorrectionHistory()
 }
 
 async function loadRecord(r) {
@@ -713,6 +748,16 @@ async function loadRecord(r) {
   loading.value = false
   updateCanEdit()
   await loadStudentGenderMap()
+  await loadCorrectionHistory()
+}
+
+async function loadCorrectionHistory() {
+  if (!record.value?.id) return
+  try {
+    correctionHistory.value = await store.getCorrections(record.value.id)
+  } catch {
+    correctionHistory.value = []
+  }
 }
 
 function updateCanEdit() {
@@ -724,13 +769,48 @@ function updateCanEdit() {
 async function handleUnlock() {
   if (!record.value?.id) return
   try {
-    await store.unlockRecord(record.value.id, auth.user?.id, auth.user?.role)
+    const response = await fetch(`/api/attendance/${record.value.id}/unlock`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: actorBody({ schoolId: effectiveSchoolId.value })
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Failed to transfer ownership')
     record.value.created_by = auth.user?.id
     record.value.created_by_name = auth.user?.name
     isOwner.value = true
     notify('Ownership transferred to you', 'success')
   } catch (e) {
     notify(e.message, 'error')
+  }
+}
+
+function openReopenModal() {
+  reopenReason.value = ''
+  showReopenModal.value = true
+}
+
+function closeReopenModal() {
+  if (reopening.value) return
+  showReopenModal.value = false
+  reopenReason.value = ''
+}
+
+async function handleReopen() {
+  if (!record.value?.id || !reopenReason.value.trim()) return
+  reopening.value = true
+  try {
+    const reason = reopenReason.value.trim()
+    const result = await store.reopenRecord(record.value.id, reason, effectiveSchoolId.value)
+    Object.assign(record.value, result.record || {}, { reopened_at: result.record?.reopened_at, reopen_reason: reason })
+    showReopenModal.value = false
+    reopenReason.value = ''
+    await loadCorrectionHistory()
+    notify('Attendance record reopened', 'success')
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    reopening.value = false
   }
 }
 
@@ -754,14 +834,25 @@ async function deleteSavedRecord(r) {
 }
 
 async function updatePeriodCell(entry, periodKey, value) {
+  const previous = entry.periods[periodKey] || ''
   entry.periods[periodKey] = value
-  await store.updateEntry(record.value.id, entry.studentId, `periods.${periodKey}`, value, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+  try {
+    await store.updateEntry(record.value.id, entry.studentId, `periods.${periodKey}`, value, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+  } catch (error) {
+    entry.periods[periodKey] = previous
+    notify(error.message, 'error')
+  }
 }
 
 async function saveEntry(entry) {
-  await store.updateEntry(record.value.id, entry.studentId, 'reason', entry.reason, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
-  await store.updateEntry(record.value.id, entry.studentId, 'excused', entry.excused, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
-  await store.updateEntry(record.value.id, entry.studentId, 'unexcused', entry.unexcused, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+  try {
+    await store.updateEntry(record.value.id, entry.studentId, 'reason', entry.reason, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+    await store.updateEntry(record.value.id, entry.studentId, 'excused', entry.excused, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+    await store.updateEntry(record.value.id, entry.studentId, 'unexcused', entry.unexcused, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+    if (record.value.reopened_at) await loadCorrectionHistory()
+  } catch (error) {
+    notify(error.message, 'error')
+  }
 }
 
 

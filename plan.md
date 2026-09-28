@@ -108,9 +108,14 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: High**
 
-- [ ] Add attendance locking after a configured cutoff date.
-- [ ] Allow authorized administrators to reopen locked attendance with a reason.
-- [ ] Add an attendance correction history showing before and after values.
+- [x] Add attendance locking after a configured school-specific cutoff date.
+  - Administrators configure the cutoff in School Information; blank disables automatic locking.
+  - Locked records are enforced by the API and surfaced in the attendance UI.
+- [x] Allow authorized administrators to reopen locked attendance with a required reason.
+  - Same-school administrators and superadmins only; cross-school requests are rejected.
+  - Reopen actions are written to audit logs.
+- [x] Add an attendance correction history showing before and after values.
+  - Post-reopen entry and record changes store actor, role, school, reason, and old/new values.
 - [ ] Add teacher notes for exceptional attendance cases.
 - [ ] Add bulk import of student rosters with validation and a preview step.
 - [ ] Add bulk attendance import only if it follows DepEd rules and has a clear audit trail.
@@ -279,7 +284,7 @@ These modules should be added only after attendance and subscription workflows a
 
 - Password hashing and secret rotation.
 - Authorization and input validation review.
-- Attendance locking and correction audit.
+- Attendance locking and correction audit. **Completed in code; provider-side secret rotation remains pending.**
 - Backup restore verification.
 - Role and cross-school integration tests.
 
@@ -311,7 +316,7 @@ These modules should be added only after attendance and subscription workflows a
 1. Fix password storage and rotate exposed credentials. **Password hashing and rotation preparation completed; provider-side secret replacement remains pending.**
 2. Add API-level authorization tests for every school-owned route. **Completed for the current users, students, schools, and license authorization boundaries; extend coverage when new school-owned routes are added.**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
-3. Implement attendance lock and correction history.
+3. Implement attendance lock and correction history. **Completed:** migration 010, API enforcement, school cutoff settings, reopen authorization, audit logging, correction history, UI status controls, and regression tests.
 4. Add enrollment history before adding more LMS features.
 5. Add payment proof, receipts, and expiration reminders.
 6. Add database backup restore testing. **Completed:** restore tooling, safety checks, and documented commands are now available; production restore drills remain a recurring operational task.

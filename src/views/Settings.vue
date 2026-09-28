@@ -246,6 +246,12 @@
                 <input v-model="form.school_address" :disabled="!canEditSchool" placeholder="Enter school address" />
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Attendance Lock Cutoff <span class="label-hint">Optional; records on or before this date are locked</span></label>
+                <input v-model="form.attendance_lock_cutoff" :disabled="!canEditSchool" type="date" />
+              </div>
+            </div>
             <div class="form-actions" v-if="canEditSchool">
               <button type="submit" class="btn-primary" :disabled="saving">
                 {{ saving ? 'Saving...' : 'Save School Info' }}
@@ -301,7 +307,8 @@ const form = reactive({
   school_name: '',
   school_id: '',
   school_short: '',
-  school_address: ''
+  school_address: '',
+  attendance_lock_cutoff: ''
 })
 const profile = reactive({ name: '', username: '', password: '' })
 const savingProfile = ref(false)
@@ -342,6 +349,7 @@ async function onSchoolChange() {
     form.school_id = ''
     form.school_short = ''
     form.school_address = ''
+    form.attendance_lock_cutoff = ''
     clearActiveSchool()
     notify('No school selected', 'info')
     return
@@ -367,6 +375,7 @@ async function loadSchool() {
     form.school_id = ''
     form.school_short = ''
     form.school_address = ''
+    form.attendance_lock_cutoff = ''
     return
   }
   const data = await auth.getSchoolInfo(auth.isSuperadmin ? selectedSchoolId.value : undefined)
@@ -376,6 +385,7 @@ async function loadSchool() {
     form.school_id = data?.school_id || fallback?.school_id || ''
     form.school_short = data?.school_short || fallback?.short || fallback?.school_short || ''
     form.school_address = data?.school_address || fallback?.address || fallback?.school_address || ''
+    form.attendance_lock_cutoff = data?.attendance_lock_cutoff || fallback?.attendance_lock_cutoff || ''
   }
 }
 

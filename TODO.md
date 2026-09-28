@@ -64,7 +64,32 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 
 ---
 
-## 3. Database Health & Telemetry
+## 3. Attendance Locking and Correction History
+
+- [x] **Lock daily attendance after a configured cutoff**
+  - Added migration `010_attendance_locking_and_corrections.mjs`.
+  - Added the school-specific `attendance_lock_cutoff` field.
+  - Blank cutoff values leave automatic locking disabled.
+  - API mutation endpoints reject locked records with HTTP 423.
+- [x] **Reopen locked attendance with authorization**
+  - Reopening requires a non-empty reason.
+  - Only same-school administrators and superadmins can reopen records.
+  - Reopen actions are written to `audit_logs`.
+- [x] **Record post-reopen corrections**
+  - Added `attendance_corrections` with old/new values, actor metadata, school, reason, and timestamp.
+  - Added a scoped correction-history endpoint and attendance UI display.
+- [x] **Add regression coverage**
+  - `tests/attendance-locking.test.mjs` verifies cutoff locking, mutation rejection, reopen authorization, reason validation, audit logging, and correction persistence.
+
+Remaining attendance follow-ups:
+
+- [x] Add a dedicated administrator reopen modal instead of the current browser prompt.
+- [ ] Add correction reason fields to every bulk-edit workflow.
+- [ ] Add automatic relocking policy after a defined correction window if required by school policy.
+
+---
+
+## 4. Database Health & Telemetry
 
 - [x] **Enhance Health Check Endpoint (`/api/health`)**
   - Updated `server.js` `/api/health` to execute a lightweight database ping (`SELECT 1 as ping`).
@@ -75,7 +100,7 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 
 ---
 
-## 4. Automated Testing & Verification
+## 5. Automated Testing & Verification
 
 - [x] **API & Calculation Integration Tests**
   - Added test suite using native Node.js test runner (`npm test`):
