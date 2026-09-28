@@ -33,6 +33,14 @@ export let DB_PATH = getDbPath()
 // Resolve database URL from DATABASE_URL / MYSQL_URL or individual DB_* / MYSQL_* variables.
 // Does NOT require DATABASE_URL to be set, and respects user configuration without forcing defaults.
 export function resolveDatabaseUrl() {
+  // An explicit non-MySQL driver must win over stale DATABASE_URL values
+  // inherited from a deployment environment. This also makes local SQLite
+  // migration/testing deterministic without mutating the caller's variables.
+  const connection = (process.env.DB_CONNECTION || '').trim().toLowerCase()
+  if (connection && connection !== 'mysql' && connection !== 'mariadb') {
+    return ''
+  }
+
   const explicitUrl = (
     process.env.DATABASE_URL ||
     process.env.MYSQL_URL ||
@@ -45,11 +53,6 @@ export function resolveDatabaseUrl() {
   if (explicitUrl) {
     process.env.DATABASE_URL = explicitUrl
     return explicitUrl
-  }
-
-  const connection = (process.env.DB_CONNECTION || '').trim().toLowerCase()
-  if (connection && connection !== 'mysql' && connection !== 'mariadb') {
-    return ''
   }
 
   const host = (
@@ -93,22 +96,6 @@ export let USE_MYSQL = Boolean(DATABASE_URL)
 // Reports which backend the process is running on (used by /api/health).
 export let DB_MODE = USE_MYSQL ? 'mysql' : 'sqlite'
 
-export function getDefaultSchoolFallback() {
-  return {
-    school_name: process.env.SCHOOL_NAME || 'Default School',
-    school_id: process.env.SCHOOL_ID || '',
-    school_address: process.env.SCHOOL_ADDRESS || '',
-    school_short: process.env.SCHOOL_SHORT || ''
-  }
-}
-
-export function getDefaultAdminConfig() {
-  return {
-    username: process.env.ADMIN_USERNAME || 'admin',
-    password: process.env.ADMIN_PASSWORD || 'ElyTrack2026!',
-    name: process.env.ADMIN_NAME || 'System Administrator'
-  }
-}
 
 let mysqlPool = null
 let sqlite = null
@@ -341,6 +328,7 @@ const MYSQL_DDL = [
     price_monthly INT NOT NULL DEFAULT 0,
     price_annual_monthly INT NOT NULL DEFAULT 0,
     billing_annual_total INT NOT NULL DEFAULT 0,
+    billing_months INT NULL,
     currency VARCHAR(10) NOT NULL DEFAULT ('PHP'),
     trial_days INT NOT NULL DEFAULT 14,
     max_teachers INT NOT NULL DEFAULT 1,
@@ -389,6 +377,24 @@ const MYSQL_DDL = [
     instructions TEXT NOT NULL DEFAULT (''),
     is_active INT NOT NULL DEFAULT 1,
     sort_order INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS subscription_requests (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL DEFAULT (''),
+    license_id VARCHAR(96) NOT NULL DEFAULT (''),
+    plan_tier VARCHAR(32) NOT NULL DEFAULT ('campus'),
+    billing_cycle VARCHAR(32) NOT NULL DEFAULT ('annual'),
+    amount INT NOT NULL DEFAULT 0,
+    payment_method_id VARCHAR(96) NOT NULL DEFAULT (''),
+    payment_reference VARCHAR(255) NOT NULL DEFAULT (''),
+    proof_url LONGTEXT,
+    status VARCHAR(32) NOT NULL DEFAULT ('pending'),
+    requested_by VARCHAR(96) NOT NULL DEFAULT (''),
+    reviewed_by VARCHAR(96) NOT NULL DEFAULT (''),
+    reviewed_at TEXT NOT NULL DEFAULT (''),
+    notes TEXT NOT NULL DEFAULT (''),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
@@ -462,37 +468,27 @@ async function initMysql() {
     }
   }
   for (const raw of MYSQL_DDL) await mysqlPool.query(stripTextDefaults(raw))
-  const [[cntRows]] = await mysqlPool.query('SELECT COUNT(*) AS cnt FROM users')
-  if ((cntRows?.cnt ?? 0) === 0) {
-    const admin = getDefaultAdminConfig()
-    const school = getDefaultSchoolFallback()
-    await mysqlPool.query(
-      `INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)`,
-      ['1', admin.username, admin.password, admin.name, 'superadmin', ''])
-    await mysqlPool.query(
-      `INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)`,
-      ['school-1', school.school_name, school.school_id, school.school_address, school.school_short])
-  }
+  // Database initialization is schema-only. Versioned migrations handle
+  // changes to existing installations. Accounts, schools, grades, plans,
+  // licenses, and payment data are created by explicit commands or API actions.
   await migrateToMultiSchoolMysql()
-  await seedGradeLevelsMysql()
 }
 
 async function migrateToMultiSchoolMysql() {
   try {
     const [[cntRows]] = await mysqlPool.query('SELECT COUNT(*) AS cnt FROM schools')
     if ((cntRows?.cnt ?? 0) > 0) return
-    const legacy = { ...DEFAULT_SCHOOL_FALLBACK }
+    const settings = {}
     try {
-      const [sRows] = await mysqlPool.query('SELECT `key`, value FROM settings')
-      if (Array.isArray(sRows)) {
-        for (const r of sRows) {
-          if (r.key in legacy) legacy[r.key] = r.value
-        }
+      const [rows] = await mysqlPool.query('SELECT `key`, value FROM settings')
+      if (Array.isArray(rows)) {
+        for (const row of rows) settings[row.key] = row.value
       }
     } catch {}
+    if (!settings.school_name?.trim()) return
     const schoolId = 'school-' + Date.now().toString(36)
     await mysqlPool.query('INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
-      [schoolId, legacy.school_name, legacy.school_id, legacy.school_address, legacy.school_short])
+      [schoolId, settings.school_name, settings.school_id || '', settings.school_address || '', settings.school_short || ''])
     const tables = ['users', 'students', 'monthly_records', 'attendance_records', 'calendar_events', 'quarterly_events']
     for (const t of tables) {
       try { await mysqlPool.query(`UPDATE ${t} SET school_id = ? WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
@@ -505,36 +501,8 @@ async function migrateToMultiSchoolMysql() {
   }
 }
 
-const DEFAULT_GRADE_SKELETON = [
-  { grade: 'Grade 7', sections: ['Pine', 'Molave'] },
-  { grade: 'Grade 8', sections: ['Cypress', 'Narra'] },
-  { grade: 'Grade 9', sections: ['Kamagong', 'Mahogany'] },
-  { grade: 'Grade 10', sections: ['Acacia', 'Yakal'] }
-]
-
-export async function seedGradeLevelsForSchool(schoolDbId) {
-  const existing = await query('SELECT COUNT(*) AS cnt FROM grade_levels WHERE school_id = ?', [schoolDbId])
-  if ((existing[0]?.cnt ?? 0) > 0) return
-  for (let i = 0; i < DEFAULT_GRADE_SKELETON.length; i++) {
-    const g = DEFAULT_GRADE_SKELETON[i]
-    await run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
-      [`gl-${schoolDbId}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections), i])
-  }
-}
-
-async function seedGradeLevelsMysql() {
-  try {
-    const [schools] = await mysqlPool.query('SELECT id FROM schools')
-    if (!Array.isArray(schools)) return
-    for (const s of schools) {
-      if (s?.id) {
-        try { await seedGradeLevelsForSchool(s.id) } catch {}
-      }
-    }
-  } catch (err) {
-    console.error('Grade levels seed error:', err.message)
-  }
-}
+// Grade levels and sections are school-owned data. New schools remain empty
+// until an administrator configures them or an explicit seed supplies them.
 
 async function initSqlite() {
   const SQL = await initSqlJs()
@@ -699,6 +667,7 @@ async function initSqlite() {
       price_monthly INTEGER DEFAULT 0,
       price_annual_monthly INTEGER DEFAULT 0,
       billing_annual_total INTEGER DEFAULT 0,
+      billing_months INTEGER,
       currency TEXT DEFAULT 'PHP',
       trial_days INTEGER DEFAULT 14,
       max_teachers INTEGER DEFAULT 1,
@@ -749,6 +718,24 @@ async function initSqlite() {
       sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS subscription_requests (
+      id TEXT PRIMARY KEY,
+      school_id TEXT DEFAULT '',
+      license_id TEXT DEFAULT '',
+      plan_tier TEXT DEFAULT 'campus',
+      billing_cycle TEXT DEFAULT 'annual',
+      amount INTEGER DEFAULT 0,
+      payment_method_id TEXT DEFAULT '',
+      payment_reference TEXT DEFAULT '',
+      proof_url TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      requested_by TEXT DEFAULT '',
+      reviewed_by TEXT DEFAULT '',
+      reviewed_at TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
@@ -789,17 +776,9 @@ async function initSqlite() {
     sqlite.run(`DROP TABLE users`)
     sqlite.run(`ALTER TABLE users_new RENAME TO users`)
   }
-  const count = querySync('SELECT COUNT(*) as cnt FROM users')[0]?.cnt || 0
-  if (count === 0) {
-    const admin = getDefaultAdminConfig()
-    const school = getDefaultSchoolFallback()
-    sqlite.run("INSERT INTO users (id, username, password, name, role, school_id) VALUES (?, ?, ?, ?, ?, ?)",
-      ['1', admin.username, admin.password, admin.name, 'superadmin', ''])
-    sqlite.run("INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)",
-      ['school-1', school.school_name, school.school_id, school.school_address, school.school_short])
-  }
+  // Database initialization is schema-only. Accounts, schools, grades,
+  // plans, licenses, and payment data are created explicitly.
   migrateToMultiSchoolSqlite()
-  seedGradeLevelsSqlite()
   saveDatabase()
 }
 
@@ -812,55 +791,32 @@ function querySync(sql, params = []) {
   return results
 }
 
-const DEFAULT_SCHOOL_FALLBACK = getDefaultSchoolFallback()
-
 function migrateToMultiSchoolSqlite() {
   try {
     const schoolCount = querySync('SELECT COUNT(*) as cnt FROM schools')[0]?.cnt || 0
     if (schoolCount > 0) return
-    const legacy = { ...DEFAULT_SCHOOL_FALLBACK }
+
+    // Migrate legacy records only when an existing settings row explicitly
+    // contains a school name. Never manufacture a school from a placeholder.
+    const settings = {}
     try {
       const rows = querySync('SELECT key, value FROM settings')
-      for (const r of rows) {
-        if (r.key in legacy) legacy[r.key] = r.value
-      }
+      for (const row of rows) settings[row.key] = row.value
     } catch {}
+    if (!settings.school_name?.trim()) return
+
     const schoolId = 'school-' + Date.now().toString(36)
     sqlite.run('INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
-      [schoolId, legacy.school_name, legacy.school_id, legacy.school_address, legacy.school_short])
+      [schoolId, settings.school_name, settings.school_id || '', settings.school_address || '', settings.school_short || ''])
     const tables = ['users', 'students', 'monthly_records', 'attendance_records', 'calendar_events', 'quarterly_events']
-    for (const t of tables) {
-      try { sqlite.run(`UPDATE "${t}" SET school_id = ? WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
+    for (const table of tables) {
+      try { sqlite.run(`UPDATE "${table}" SET school_id = ? WHERE school_id IS NULL OR school_id = ''`, [schoolId]) } catch {}
     }
     try { sqlite.run("UPDATE users SET role = 'superadmin' WHERE role = 'admin' AND (school_id = ? OR school_id = '')", [schoolId]) } catch {}
     saveDatabase()
   } catch (err) {
     console.error('Multi-school migration error:', err.message)
   }
-}
-
-function seedGradeLevelsSqlite() {
-  try {
-    const done = querySync("SELECT value FROM settings WHERE key = 'grade_levels_seeded'")[0]?.value
-    if (done) return
-    const schools = querySync('SELECT id FROM schools')
-    for (const s of schools) {
-      try { seedGradeLevelsForSchoolSync(s.id) } catch {}
-    }
-    try { sqlite.run("INSERT INTO settings (key, value) VALUES ('grade_levels_seeded', '1')") } catch {}
-    saveDatabase()
-  } catch (err) {
-    console.error('Grade levels seed error:', err.message)
-  }
-}
-
-function seedGradeLevelsForSchoolSync(schoolDbId) {
-  const existing = querySync('SELECT COUNT(*) as cnt FROM grade_levels WHERE school_id = ?', [schoolDbId])[0]?.cnt || 0
-  if (existing > 0) return
-  DEFAULT_GRADE_SKELETON.forEach((g, i) => {
-    sqlite.run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
-      [`gl-${schoolDbId}-${i}`, schoolDbId, g.grade, JSON.stringify(g.sections), i])
-  })
 }
 
 export async function initDatabase() {
@@ -895,9 +851,8 @@ export async function initDatabase() {
     await initSqlite()
     console.warn(`[db] SQLite backend ready (${DB_PATH}).`)
   }
-  await seedDefaultPlans()
-  // Payment methods are managed by superadmins and must never be inserted during app startup.
-  // The payment_methods table is created by migration 006_payment_methods only.
+  // Payment methods, plans, accounts, schools, and licenses are never seeded
+  // during application startup. Use an explicit seed command or API workflow.
   return getDb()
 }
 
@@ -911,7 +866,7 @@ function redactUrl(url) {
   }
 }
 
-export { MYSQL_DDL, DEFAULT_GRADE_SKELETON }
+export { MYSQL_DDL }
 
 export async function getGradeLevels(schoolDbId) {
   const rows = await query('SELECT grade, sections, sort FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [schoolDbId])
@@ -964,7 +919,12 @@ export async function getSchoolById(schoolId) {
   return rows[0] || null
 }
 
-const DEFAULT_SETTINGS = getDefaultSchoolFallback()
+const DEFAULT_SETTINGS = {
+  school_name: '',
+  school_id: '',
+  school_address: '',
+  school_short: ''
+}
 
 export function getDb() {
   return { mysql: mysqlPool, sqlite }
@@ -1019,191 +979,6 @@ export async function updateSchoolRow(schoolId, { school_name, school_id, school
   params.push(schoolId)
   await run(`UPDATE schools SET ${sets.join(', ')} WHERE id = ?`, params)
   return getSchoolById(schoolId)
-}
-
-export async function seedLicenseForSchool(schoolId, planTier = 'campus', billingCycle = 'annual') {
-  if (!schoolId) return null
-  const existing = await query('SELECT * FROM licenses WHERE school_id = ?', [schoolId])
-  if (existing.length > 0) return existing[0]
-  
-  const planRows = await query('SELECT * FROM subscription_plans WHERE tier = ? OR id = ?', [planTier, planTier])
-  const plan = planRows[0] || null
-
-  const id = `lic-${schoolId}-${Date.now()}`
-  const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
-  const key = `ELY-${planTier.toUpperCase()}-2026-${rand}`
-  const now = new Date()
-  const expires = new Date(now)
-  expires.setMonth(expires.getMonth() + (billingCycle === 'annual' ? 10 : 1))
-  
-  const nowStr = now.toISOString().split('T')[0]
-  const expStr = expires.toISOString().split('T')[0]
-
-  const maxTeachers = plan ? plan.max_teachers : (planTier === 'adviser' ? 1 : (planTier === 'division' ? 500 : 60))
-  const maxStudents = plan ? plan.max_students : (planTier === 'adviser' ? 65 : (planTier === 'division' ? 25000 : 2500))
-  const featuresStr = plan && plan.modules ? (typeof plan.modules === 'string' ? plan.modules : JSON.stringify(plan.modules)) : JSON.stringify({
-    sf2_export: true,
-    sardo_radar: true,
-    analytics: true,
-    audit_logs: planTier !== 'adviser',
-    multi_school: planTier === 'division'
-  })
-  
-  await run(
-    `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      schoolId,
-      key,
-      planTier,
-      'active',
-      billingCycle,
-      maxTeachers,
-      maxStudents,
-      nowStr,
-      expStr,
-      '',
-      featuresStr,
-      'Provisioned School License'
-    ]
-  )
-  saveDatabase()
-  const created = await query('SELECT * FROM licenses WHERE id = ?', [id])
-  return created[0] || null
-}
-
-export async function seedDefaultPlans() {
-  try {
-    const existing = await query('SELECT COUNT(*) as cnt FROM subscription_plans')
-    if (existing[0]?.cnt > 0) return
-
-    const defaultPlans = [
-      {
-        id: 'adviser',
-        tier: 'adviser',
-        name: 'Adviser License',
-        tag: 'Dedicated',
-        description: 'Dedicated single-adviser operational license with a 14-day full feature trial before payment.',
-        price_monthly: 249,
-        price_annual_monthly: 199,
-        billing_annual_total: 1990,
-        currency: 'PHP',
-        trial_days: 14,
-        max_teachers: 1,
-        max_students: 65,
-        is_featured: 0,
-        badge: '14-Day Free Trial',
-        cta_text: 'Start 14-Day Trial',
-        cta_url: '/login',
-        features: JSON.stringify([
-          '14-Day Free Evaluation Trial',
-          '1 Advisory section license key (up to 65 students)',
-          '< 90-second rapid daily roll call',
-          'Section-level monthly DepEd SF2 generation',
-          'Consecutive absence & SARDO risk flags',
-          'Standard printable PDF attendance register',
-          'Online license key activation & renewal'
-        ]),
-        modules: JSON.stringify({
-          sf2_export: true,
-          sardo_radar: true,
-          analytics: true,
-          audit_logs: false,
-          multi_school: false
-        }),
-        sort_order: 1
-      },
-      {
-        id: 'campus',
-        tier: 'campus',
-        name: 'School Pro',
-        tag: 'Campus',
-        description: 'Institutional license for public & private high schools and elementary campuses.',
-        price_monthly: 1490,
-        price_annual_monthly: 1190,
-        billing_annual_total: 11900,
-        currency: 'PHP',
-        trial_days: 14,
-        max_teachers: 60,
-        max_students: 2500,
-        is_featured: 1,
-        badge: 'DepEd SF2 Certified',
-        cta_text: 'Inquire for School Deployment',
-        cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
-        features: JSON.stringify([
-          'Unlimited faculty, advisers & students',
-          'School-wide consolidated DepEd SF2 (.xlsx export)',
-          'Automated SARDO early-warning radar & logs',
-          'Grade levels & sections configuration management',
-          'Quarterly attendance analytics & trend forecasting',
-          'Role-based access (Principal, Admin, Faculty)',
-          'System audit logs & activity telemetry',
-          'Priority faculty onboarding & DepEd updates'
-        ]),
-        modules: JSON.stringify({
-          sf2_export: true,
-          sardo_radar: true,
-          analytics: true,
-          audit_logs: true,
-          multi_school: false
-        }),
-        sort_order: 2
-      },
-      {
-        id: 'division',
-        tier: 'division',
-        name: 'Division & Multi-Campus',
-        tag: 'Institutional',
-        description: 'For School Division Offices (SDO), academy networks, and diocesan school clusters.',
-        price_monthly: 4990,
-        price_annual_monthly: 3990,
-        billing_annual_total: 39900,
-        currency: 'PHP',
-        trial_days: 0,
-        max_teachers: 500,
-        max_students: 25000,
-        is_featured: 0,
-        badge: 'Network SDO',
-        cta_text: 'Inquire for Division',
-        cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Division%20Inquiry',
-        features: JSON.stringify([
-          'Multi-school governance console',
-          'Division-wide attendance aggregation',
-          'Centralized license provisioning & seat management',
-          'Custom institutional security & SSO integration',
-          'Dedicated account engineer & SLA guarantee',
-          'Data Privacy Act (RA 10173) compliance verification'
-        ]),
-        modules: JSON.stringify({
-          sf2_export: true,
-          sardo_radar: true,
-          analytics: true,
-          audit_logs: true,
-          multi_school: true
-        }),
-        sort_order: 3
-      }
-    ]
-
-    for (const p of defaultPlans) {
-      await run(
-        `INSERT INTO subscription_plans (
-          id, tier, name, tag, description, price_monthly, price_annual_monthly,
-          billing_annual_total, currency, trial_days, max_teachers, max_students,
-          is_featured, badge, cta_text, cta_url, features, modules, sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          p.id, p.tier, p.name, p.tag, p.description, p.price_monthly, p.price_annual_monthly,
-          p.billing_annual_total, p.currency, p.trial_days, p.max_teachers, p.max_students,
-          p.is_featured, p.badge, p.cta_text, p.cta_url, p.features, p.modules, p.sort_order
-        ]
-      )
-    }
-    saveDatabase()
-  } catch (err) {
-    console.error('[db] Error seeding default subscription plans:', err.message)
-  }
 }
 
 

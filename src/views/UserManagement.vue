@@ -17,7 +17,7 @@
           </div>
           <div class="form-group">
             <label>Username</label>
-            <input v-model="form.username" required placeholder="e.g. msantos" />
+            <input v-model="form.username" required placeholder="Enter username" />
           </div>
           <div class="form-group">
             <label>Password</label>

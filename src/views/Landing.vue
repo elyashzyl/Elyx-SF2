@@ -132,7 +132,7 @@
                   <span class="win-dot win-dot--min"></span>
                   <span class="win-dot win-dot--max"></span>
                 </div>
-                <div class="window-title">elytrack.app/advisory/grade-8-narra</div>
+                <div class="window-title">{{ activeSchool?.name || 'ElyTrack' }}</div>
                 <div class="window-badge">Live System Preview</div>
               </div>
 
@@ -179,7 +179,7 @@
               <div v-if="activeDemoTab === 'rollcall'" class="console-body">
                 <div class="console-topline">
                   <div>
-                    <span class="console-mini-label">GRADE 8 · SECTION NARRA · ADVISORY</span>
+                    <span class="console-mini-label">{{ previewContextLabel }}</span>
                     <strong class="console-heading">Daily Roll Call — Active Session</strong>
                   </div>
                   <div class="console-rate-badge">
@@ -188,7 +188,7 @@
                   </div>
                 </div>
 
-                <div class="demo-student-list">
+                <div v-if="demoStudents.length" class="demo-student-list">
                   <div
                     v-for="(st, idx) in demoStudents"
                     :key="st.id"
@@ -198,7 +198,7 @@
                     <span class="demo-st-num">#0{{ st.id }}</span>
                     <div class="demo-st-info">
                       <strong>{{ st.name }}</strong>
-                      <small>{{ st.gender }} · LRN: 10482910{{ st.id }}</small>
+                      <small>{{ st.gender || 'Learner' }}<span v-if="st.lrn"> · LRN: {{ st.lrn }}</span></small>
                     </div>
 
                     <div class="demo-period-badges" title="Morning &amp; Afternoon Periods">
@@ -219,6 +219,7 @@
                     </button>
                   </div>
                 </div>
+                <div v-else class="demo-empty-state">No learner records are available in the database.</div>
 
                 <div class="demo-interactive-hint">
                   <span class="hint-icon">
@@ -243,23 +244,23 @@
                 <div class="sf2-metric-preview-grid">
                   <div class="sf2-preview-card">
                     <span class="sf2-label">Registered Learners</span>
-                    <span class="sf2-val">42</span>
-                    <small>22 Male · 20 Female</small>
+                    <span class="sf2-val">{{ landingStats.totalStudents }}</span>
+                    <small>{{ landingStats.maleStudents }} Male · {{ landingStats.femaleStudents }} Female</small>
                   </div>
                   <div class="sf2-preview-card sf2-preview-card--highlight">
                     <span class="sf2-label">Average Daily Attendance</span>
-                    <span class="sf2-val">40.8</span>
-                    <small>97.1% Overall Attendance</small>
+                    <span class="sf2-val">{{ landingStats.averageDailyAttendance }}</span>
+                    <small>{{ landingStats.attendanceRate }}% Overall Attendance</small>
                   </div>
                   <div class="sf2-preview-card">
                     <span class="sf2-label">School Days in Month</span>
-                    <span class="sf2-val">22</span>
-                    <small>Academic Calendar 2026</small>
+                    <span class="sf2-val">{{ landingStats.schoolDays }}</span>
+                    <small>{{ landingStats.monthLabel }}</small>
                   </div>
                   <div class="sf2-preview-card">
                     <span class="sf2-label">SARDO Dropout Risk</span>
-                    <span class="sf2-val sf2-val--clean">0</span>
-                    <small>100% Student Retention</small>
+                    <span class="sf2-val sf2-val--clean">{{ landingStats.atRiskStudents }}</span>
+                    <small>{{ landingStats.retentionLabel }}</small>
                   </div>
                 </div>
 
@@ -282,28 +283,20 @@
                     <span class="console-mini-label">EARLY WARNING RETENTION RADAR</span>
                     <strong class="console-heading">Students At-Risk of Dropping Out</strong>
                   </div>
-                  <span class="sardo-count-badge">2 Learners Monitored</span>
+                  <span class="sardo-count-badge">{{ riskStudents.length }} Learners Monitored</span>
                 </div>
 
-                <div class="sardo-preview-list">
-                  <div class="sardo-preview-item">
-                    <div class="sardo-dot sardo-dot--high"></div>
+                <div v-if="riskStudents.length" class="sardo-preview-list">
+                  <div v-for="student in riskStudents" :key="student.id" class="sardo-preview-item">
+                    <div class="sardo-dot" :class="student.risk === 'high' ? 'sardo-dot--high' : 'sardo-dot--mid'"></div>
                     <div class="sardo-info">
-                      <strong>REYES, PEDRO B.</strong>
-                      <span>Grade 8 - Narra · 3 consecutive unexcused absences (Health reason cited)</span>
+                      <strong>{{ student.name }}</strong>
+                      <span>{{ student.grade }} - {{ student.section }} · {{ student.detail }}</span>
                     </div>
-                    <span class="sardo-action-tag">Home Visit Dispatched</span>
-                  </div>
-
-                  <div class="sardo-preview-item">
-                    <div class="sardo-dot sardo-dot--mid"></div>
-                    <div class="sardo-info">
-                      <strong>CRUZ, ARNEL S.</strong>
-                      <span>Grade 9 - Molave · 2 days chronic tardiness</span>
-                    </div>
-                    <span class="sardo-action-tag sardo-action-tag--mild">Adviser Counseling</span>
+                    <span class="sardo-action-tag" :class="{ 'sardo-action-tag--mild': student.risk !== 'high' }">{{ student.action }}</span>
                   </div>
                 </div>
+                <div v-else class="demo-empty-state">No retention alerts are available in the database.</div>
 
                 <div class="sardo-footer-note">
                   <span class="info-circle">i</span>
@@ -316,8 +309,9 @@
                 <div class="footer-profile">
                   <img src="/elytrack-logo.png" alt="ElyTrack Logo" class="footer-avatar-img" />
                   <div>
-                    <strong>Baguio Patriotic High School</strong>
-                    <small>DepEd School ID: 406219 · Active Campus Node</small>
+                    <strong>{{ activeSchool?.name || 'School not configured' }}</strong>
+                    <small v-if="activeSchool?.school_id">DepEd School ID: {{ activeSchool.school_id }} · Active Campus Node</small>
+                    <small v-else>School details are configured by the administrator</small>
                   </div>
                 </div>
                 <div class="footer-tags">
@@ -717,8 +711,8 @@
                   :class="{ 'is-active': billingCycle === 'annual' }"
                   @click="billingCycle = 'annual'"
                 >
-                  <span>School Year (10 mos)</span>
-                  <span class="pricing-save-pill">Save 20%</span>
+                  <span>Annual Billing</span>
+                  <span class="pricing-save-pill">Database plan term</span>
                 </button>
               </div>
             </div>
@@ -754,14 +748,14 @@
                 <span class="pricing-interval">
                   {{
                     billingCycle === 'annual'
-                      ? `Billed ₱${Number(plan.billing_annual_total || 0).toLocaleString()} per 10-month school year${plan.trial_days ? ` (${plan.trial_days}-day trial)` : ''}`
-                      : `Billed monthly${plan.tier === 'adviser' ? ' per advisory section' : ', cancel anytime'}`
+                      ? `Billed ₱${Number(plan.billing_annual_total || 0).toLocaleString()} per ${plan.billing_months || 'configured'}-month term${plan.trial_days ? ` (${plan.trial_days}-day trial)` : ''}`
+                      : 'Billed monthly'
                   }}
                 </span>
               </div>
 
               <a
-                v-if="plan.cta_url && plan.cta_url.startsWith('mailto:')"
+                v-if="Number(plan.trial_days || 0) <= 0 && plan.cta_url && plan.cta_url.startsWith('mailto:')"
                 :href="plan.cta_url"
                 class="pricing-cta-btn"
                 :class="plan.is_featured ? 'pricing-cta--primary' : 'pricing-cta--secondary'"
@@ -771,11 +765,11 @@
               </a>
               <router-link
                 v-else
-                :to="plan.cta_url || '/login'"
+                :to="planCta(plan)"
                 class="pricing-cta-btn"
                 :class="plan.is_featured ? 'pricing-cta--primary' : 'pricing-cta--secondary'"
               >
-                <span>{{ plan.cta_text || 'Start 14-Day Trial' }}</span>
+                <span>{{ plan.cta_text || (Number(plan.trial_days || 0) > 0 ? 'Start Trial' : 'View Plan') }}</span>
                 <span>→</span>
               </router-link>
 
@@ -926,7 +920,7 @@
                 <div class="lpc-fields">
                   <div class="lpc-field">
                     <span class="lpc-field-label">Account Name</span>
-                    <strong class="lpc-field-value">{{ pm.account_name || 'ElyTrack Platform Operations' }}</strong>
+                    <strong class="lpc-field-value">{{ pm.account_name || 'Not configured' }}</strong>
                   </div>
 
                   <div class="lpc-field">
@@ -1068,7 +1062,7 @@
       </div>
 
       <div class="footer-bottom">
-        <span>&copy; 2026 ElyTrack. Built for Philippine Schools. DepEd SF2 Verified.</span>
+        <span>&copy; {{ currentYear }} ElyTrack. Built for Philippine Schools. DepEd SF2 Verified.</span>
         <span>Confidential &amp; Verified Institutional Operations</span>
       </div>
     </footer>
@@ -1112,7 +1106,7 @@
         <div class="lqm-details">
           <div class="lqm-detail-row">
             <span class="lqm-detail-label">Account Name:</span>
-            <span class="lqm-detail-val">{{ selectedQrMethod.account_name || 'ElyTrack Operations' }}</span>
+            <span class="lqm-detail-val">{{ selectedQrMethod.account_name || 'Not configured' }}</span>
           </div>
           <div class="lqm-detail-row">
             <span class="lqm-detail-label">Account Number:</span>
@@ -1159,100 +1153,40 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
+const currentYear = new Date().getFullYear()
 const billingCycle = ref('annual')
 const activeDemoTab = ref('rollcall')
 const mobileNavOpen = ref(false)
-const sectionCount = ref(24)
+const sectionCount = ref(0)
 const activeFaq = ref(0)
-const DEFAULT_PLANS = [
-  {
-    id: 'adviser',
-    tier: 'adviser',
-    name: 'Adviser License',
-    tag: 'Dedicated',
-    description: 'Dedicated single-adviser operational license with a 14-day full feature trial before payment.',
-    price_monthly: 249,
-    price_annual_monthly: 199,
-    billing_annual_total: 1990,
-    trial_days: 14,
-    is_featured: 0,
-    badge: '14-Day Free Trial',
-    cta_text: 'Start 14-Day Trial',
-    cta_url: '/login',
-    features: [
-      '14-Day Free Evaluation Trial',
-      '1 Advisory section license key (up to 65 students)',
-      '< 90-second rapid daily roll call',
-      'Section-level monthly DepEd SF2 generation',
-      'Consecutive absence & SARDO risk flags',
-      'Standard printable PDF attendance register',
-      'Online license key activation & renewal'
-    ]
-  },
-  {
-    id: 'campus',
-    tier: 'campus',
-    name: 'School Pro',
-    tag: 'Campus',
-    description: 'Institutional license for public & private high schools and elementary campuses.',
-    price_monthly: 1490,
-    price_annual_monthly: 1190,
-    billing_annual_total: 11900,
-    trial_days: 14,
-    is_featured: 1,
-    badge: 'DepEd SF2 Certified',
-    cta_text: 'Inquire for School Deployment',
-    cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20School%20Pro%20Deployment%20Inquiry',
-    features: [
-      'Unlimited faculty, advisers & students',
-      'School-wide consolidated DepEd SF2 (.xlsx export)',
-      'Automated SARDO early-warning radar & logs',
-      'Grade levels & sections configuration management',
-      'Quarterly attendance analytics & trend forecasting',
-      'Role-based access (Principal, Admin, Faculty)',
-      'System audit logs & activity telemetry',
-      'Priority faculty onboarding & DepEd updates'
-    ]
-  },
-  {
-    id: 'division',
-    tier: 'division',
-    name: 'Division & Multi-Campus',
-    tag: 'Institutional',
-    description: 'For School Division Offices (SDO), academy networks, and diocesan school clusters.',
-    price_monthly: 4990,
-    price_annual_monthly: 3990,
-    billing_annual_total: 39900,
-    trial_days: 0,
-    is_featured: 0,
-    badge: 'Network SDO',
-    cta_text: 'Inquire for Division',
-    cta_url: 'mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Division%20Inquiry',
-    features: [
-      'Multi-school governance console',
-      'Division-wide attendance aggregation',
-      'Centralized license provisioning & seat management',
-      'Custom institutional security & SSO integration',
-      'Dedicated account engineer & SLA guarantee',
-      'Data Privacy Act (RA 10173) compliance verification'
-    ]
-  }
-]
-// Payment channels are database-backed. An empty database result must remain empty.
+// Pricing plans and payment channels are database-backed. Empty database
+// results remain empty so deleted or unconfigured records never reappear.
 const paymentMethods = ref([])
 const copiedPaymentId = ref(null)
 const showQrModal = ref(false)
 const selectedQrMethod = ref(null)
 
-const plans = ref(DEFAULT_PLANS)
+const plans = ref([])
 const activeSchool = ref(null)
+const landingStats = ref({
+  totalStudents: 0,
+  maleStudents: 0,
+  femaleStudents: 0,
+  averageDailyAttendance: 0,
+  attendanceRate: 0,
+  schoolDays: 0,
+  atRiskStudents: 0,
+  retentionLabel: 'No attendance records',
+  monthLabel: ''
+})
+const demoStudents = ref([])
+const riskStudents = ref([])
 
-const demoStudents = ref([
-  { id: 1, name: 'DELA CRUZ, JUAN M.', gender: 'Male', am1: 'E', am2: 'E', am3: 'E', am4: 'E', status: 'Present' },
-  { id: 2, name: 'SANTOS, MARIA A.', gender: 'Female', am1: 'E', am2: 'T', am3: 'E', am4: 'E', status: 'Present' },
-  { id: 3, name: 'REYES, PEDRO B.', gender: 'Male', am1: 'A', am2: 'A', am3: 'A', am4: 'A', status: 'Absent' },
-  { id: 4, name: 'AQUINO, BEA C.', gender: 'Female', am1: 'E', am2: 'E', am3: 'E', am4: 'E', status: 'Present' }
-])
+const previewContextLabel = computed(() => {
+  const student = demoStudents.value[0]
+  if (!student?.grade && !student?.section) return 'DATABASE ATTENDANCE PREVIEW'
+  return `${student.grade || 'GRADE'} · ${student.section || 'SECTION'} · ADVISORY`
+})
 
 let landingPaymentPollInterval = null
 
@@ -1298,22 +1232,23 @@ async function loadLandingData() {
       if (data.school) {
         activeSchool.value = data.school
       }
-      if (data.stats?.totalSections) {
-        sectionCount.value = Math.max(data.stats.totalSections, 4)
+      if (data.stats) {
+        sectionCount.value = Number(data.stats.totalSections || 0)
+        landingStats.value = {
+          ...landingStats.value,
+          ...data.stats,
+          monthLabel: data.stats.monthLabel || ''
+        }
       }
-      if (Array.isArray(data.previewStudents) && data.previewStudents.length > 0) {
-        demoStudents.value = data.previewStudents.slice(0, 5).map((st, i) => ({
-          id: i + 1,
-          name: st.name,
-          gender: st.gender || (i % 2 === 0 ? 'Male' : 'Female'),
-          lrn: st.id ? `10482910${st.id}` : `10482910${i + 1}`,
-          am1: i === 2 ? 'A' : 'E',
-          am2: i === 1 ? 'T' : (i === 2 ? 'A' : 'E'),
-          am3: i === 2 ? 'A' : 'E',
-          am4: i === 2 ? 'A' : 'E',
-          status: i === 2 ? 'Absent' : 'Present'
-        }))
-      }
+      demoStudents.value = Array.isArray(data.previewStudents) ? data.previewStudents.map(st => ({
+        ...st,
+        status: st.status || 'Present',
+        am1: st.am1 || 'E',
+        am2: st.am2 || 'E',
+        am3: st.am3 || 'E',
+        am4: st.am4 || 'E'
+      })) : []
+      riskStudents.value = Array.isArray(data.riskStudents) ? data.riskStudents : []
       if (Array.isArray(data.paymentMethods)) {
         // Assign [] as well: deleted/inactive payment methods must disappear.
         paymentMethods.value = data.paymentMethods
@@ -1344,6 +1279,7 @@ function toggleStudentStatus(index) {
 }
 
 const calculatedAttendanceRate = computed(() => {
+  if (!demoStudents.value.length) return 0
   const presentCount = demoStudents.value.filter(s => s.status === 'Present').length
   return Math.round((presentCount / demoStudents.value.length) * 100)
 })
@@ -1383,8 +1319,8 @@ const faqItems = [
     a: 'Yes. ElyTrack adheres strictly to the official DepEd Form 2 guidelines, including standardized calculation rules for Average Daily Attendance (ADA), percentage of attendance for the month, and SARDO tracking.'
   },
   {
-    q: 'How does the Adviser 14-day free trial work?',
-    a: 'Advisers can evaluate the full system for 14 days with zero upfront payment. During the trial, you can record daily attendance, generate monthly SF2 reports, and test student retention flags.'
+    q: 'How does the configured free trial work?',
+    a: 'Trial duration, included modules, and account limits are configured in the database for each plan. Select a plan to see its current trial terms before creating a workspace.'
   },
   {
     q: 'Can we export directly into official DepEd Excel spreadsheets?',
@@ -1403,6 +1339,13 @@ const faqItems = [
     a: 'ElyTrack officially accepts GCash, Maya, QR Ph, and direct Philippine bank transfers (BDO, BPI, Landbank, UnionBank). You can view full account details and scan QR codes in the Payments & QR section above. After payment, send the confirmation reference to ely.ashzyl@gmail.com or our live support desk for immediate activation.'
   }
 ]
+
+function planCta(plan) {
+  if (Number(plan?.trial_days || 0) > 0) {
+    return `/subscribe?plan=${encodeURIComponent(plan.tier || plan.id)}`
+  }
+  return plan?.cta_url || '/login'
+}
 
 function formatPaymentType(type) {
   switch (type) {

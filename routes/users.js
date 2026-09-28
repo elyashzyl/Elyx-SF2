@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
         const currentTeachers = (await query('SELECT COUNT(*) as cnt FROM users WHERE school_id = ? AND role = "teacher"', [targetSchoolId]))[0]?.cnt || 0
         if (currentTeachers >= license.max_teachers) {
           return res.status(400).json({
-            error: `License seat limit reached (${currentTeachers}/${license.max_teachers} advisers). Upgrade to School Pro or Division to add more faculty.`
+            error: `License seat limit reached (${currentTeachers}/${license.max_teachers} advisers). Review the assigned plan or contact the platform administrator.`
           })
         }
       }

@@ -212,6 +212,7 @@ model SubscriptionPlan {
   priceMonthly       Int     @default(0) @map("price_monthly")
   priceAnnualMonthly Int     @default(0) @map("price_annual_monthly")
   billingAnnualTotal Int     @default(0) @map("billing_annual_total")
+  billingMonths      Int?    @map("billing_months")
   currency           String  @default("PHP") @db.VarChar(10)
   trialDays          Int     @default(14) @map("trial_days")
   maxTeachers        Int     @default(1) @map("max_teachers")
@@ -225,6 +226,27 @@ model SubscriptionPlan {
   sortOrder          Int     @default(0) @map("sort_order")
 
   @@map("subscription_plans")
+}
+
+model SubscriptionRequest {
+  id                String   @id @default(uuid()) @db.VarChar(96)
+  schoolId          String   @default("") @map("school_id") @db.VarChar(96)
+  licenseId         String   @default("") @map("license_id") @db.VarChar(96)
+  planTier          String   @default("campus") @map("plan_tier") @db.VarChar(32)
+  billingCycle      String   @default("annual") @map("billing_cycle") @db.VarChar(32)
+  amount            Int      @default(0)
+  paymentMethodId   String   @default("") @map("payment_method_id") @db.VarChar(96)
+  paymentReference  String   @default("") @map("payment_reference") @db.VarChar(255)
+  proofUrl          String   @default("") @map("proof_url") @db.Text
+  status            String   @default("pending") @db.VarChar(32)
+  requestedBy       String   @default("") @map("requested_by") @db.VarChar(96)
+  reviewedBy        String   @default("") @map("reviewed_by") @db.VarChar(96)
+  reviewedAt        String   @default("") @map("reviewed_at") @db.Text
+  notes             String   @default("") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  @@map("subscription_requests")
 }
 
 model Inquiry {

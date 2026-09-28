@@ -15,16 +15,14 @@ Web-based daily attendance recording and DepEd Form 2 (SF2) reporting system for
 
 ```bash
 npm install
-npm run db:setup
+npm run db:migrate
 npm run dev
 ```
 
 Frontend: http://localhost:5173  
 Backend API: http://localhost:3001  
 
-Default seed credentials:
-- Superadmin: `admin` / `ElyTrack2026!`
-- Teachers: `msantos`, `jdelacruz`, `rmendoza`, `creyes` / `teacher123`
+The application does not create default accounts, schools, plans, licenses, payment methods, or sample records. Insert those records intentionally through the superadmin UI or the explicit JSON seeder described below.
 
 ---
 
@@ -44,58 +42,26 @@ npm run db:migrate:status
 # Drop all tables and rerun migrations from scratch
 npm run db:migrate:fresh
 
-# Seed database with configurable credentials and sample data
-npm run db:seed
-
-# Run migrations then seed database
-npm run db:setup
+# Explicitly import records from a JSON file. The file is never bundled
+# with the application and is not read during startup.
+node scripts/seed.mjs --data-file ./private/seed-data.json
 ```
 
-### Custom Seeder Execution (No Hardcoded Values)
-
-All values can be customized through CLI arguments or environment variables:
-
-```bash
-node scripts/seed.mjs \
-  --admin-user myadmin \
-  --admin-pass "MySecretPass2026!" \
-  --admin-name "Principal John Doe" \
-  --school-name "Manila Science High School" \
-  --school-short "MSHS" \
-  --school-id "300456" \
-  --school-address "Manila, Philippines" \
-  --students-per-section 20 \
-  --sample
-```
-
-To seed only the essential school and admin accounts without sample data:
-
-```bash
-npm run db:seed -- --no-sample
-```
+The seed file must provide its own school and administrator credentials. It may also provide plans, licenses, grade levels, payment methods, teachers, and students. Migrations create schema only; they never insert records.
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|---|---|---|
-| `DATABASE_URL` | MySQL connection URL (optional when `DB_*` variables are provided) | `(unset)` |
-| `DB_CONNECTION` | Database driver; set to `mysql` for production | `(unset)` |
-| `DB_HOST` | MySQL hostname | `(unset)` |
-| `DB_PORT` | MySQL port | `3306` |
-| `DB_DATABASE` | MySQL database name | `(unset)` |
-| `DB_USERNAME` | MySQL username | `(unset)` |
-| `DB_PASSWORD` | MySQL password | `(unset)` |
-| `DB_PATH` | SQLite file path | `attendance.db` |
-| `ADMIN_USERNAME` | Superadmin username | `admin` |
-| `ADMIN_PASSWORD` | Superadmin password | `ElyTrack2026!` |
-| `ADMIN_NAME` | Superadmin display name | `System Administrator` |
-| `SCHOOL_NAME` | Primary school name | `Baguio Patriotic High School` |
-| `SCHOOL_SHORT` | School short code | `BPHS` |
-| `SCHOOL_ID` | DepEd School ID | `406219` |
-| `SCHOOL_ADDRESS` | School address | `Baguio City, Philippines` |
-| `SEED_SAMPLE_DATA` | Seed sample faculty, students & records | `true` |
-| `STUDENTS_PER_SECTION` | Number of students per section | `15` |
-| `TEACHER_PASSWORD` | Default password for sample teachers | `teacher123` |
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | MySQL connection URL (optional when `DB_*` variables are provided) |
+| `DB_CONNECTION` | Database driver; set to `mysql` for production |
+| `DB_HOST` | MySQL hostname |
+| `DB_PORT` | MySQL port |
+| `DB_DATABASE` | MySQL database name |
+| `DB_USERNAME` | MySQL username |
+| `DB_PASSWORD` | MySQL password |
+| `DB_PATH` | SQLite file path |
+| `SEED_DATA_FILE` | Explicit JSON seed file path |
 
 ## Project Structure
 

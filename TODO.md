@@ -4,6 +4,15 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
 
 ---
 
+## 0. Security and Data Integrity Follow-ups
+
+- [ ] **Migrate legacy plaintext passwords to bcrypt/argon2**
+  - Preserve login compatibility during a one-time migration, then remove plaintext password support.
+- [ ] **Rotate exposed database credentials and application keys**
+  - The previously shared environment values must be treated as compromised and replaced in deployment secrets.
+
+---
+
 ## 1. Prisma ORM Incremental Route Migration
 
 Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are established and synchronized with the MySQL schema. Currently, Express route handlers in `routes/` still use raw SQL queries via `query()` and `run()` in `db.js`.
@@ -31,7 +40,7 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 - [x] **Automated Startup Migration Entrypoint**
   - Created `docker-entrypoint.sh` script to run before `CMD ["node", "server.js"]`:
     - Automatically runs `npm run db:migrate` on container boot.
-    - Runs `npm run db:seed` when `AUTO_SEED=1` or `AUTO_SEED=true` is provided.
+    - Does not run a seeder. Deployments only run schema migrations; data seeding requires an explicit private JSON file.
   - Updated `Dockerfile` with `ENTRYPOINT ["/app/docker-entrypoint.sh"]` and `CMD ["node", "server.js"]`.
 - [x] **SF2 Excel Template Persistence**
   - In `routes/export.js`, user-uploaded templates via `POST /api/export/template` persist to `/data/templates/SF2.xlsx` (or custom `TEMPLATE_DIR`) with automatic fallback to bundled `templates/SF2.xlsx` or `test_final2.xlsx`.
@@ -68,7 +77,7 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 ## Completed Milestones (Reference)
 
 - [x] Dynamic database URL resolution supporting Laravel-style `DB_*` variables (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
-- [x] Decoupled hardcoded school credentials (`BAGUIO PATRIOTIC HIGH SCHOOL`, `admin123`) to dynamic environment variables (`SCHOOL_*`, `ADMIN_*`).
+- [x] Removed runtime and deployment data seeding. Accounts, schools, plans, licenses, payment methods, and sample records are created only by explicit API or seed-file actions.
 - [x] Prevented unhandled SQLite fatal crashes in production mode when `DATABASE_URL` is unset.
 - [x] Configured Prisma ORM schema (`prisma/schema.prisma`) with all 15 models mapped to MySQL tables.
 - [x] Synchronized `process.env.DATABASE_URL` for Prisma when using individual `DB_*` variables in `db.js` and `prisma/client.js`.

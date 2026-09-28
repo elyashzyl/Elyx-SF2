@@ -233,17 +233,17 @@
               </div>
               <div class="form-group">
                 <label>School ID</label>
-                <input v-model="form.school_id" :disabled="!canEditSchool" placeholder="e.g. 406219" />
+                <input v-model="form.school_id" :disabled="!canEditSchool" placeholder="Enter school ID" />
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Short Name / Abbreviation</label>
-                <input v-model="form.school_short" :disabled="!canEditSchool" placeholder="e.g. BPHS" />
+                <input v-model="form.school_short" :disabled="!canEditSchool" placeholder="Enter short name" />
               </div>
               <div class="form-group">
                 <label>Address</label>
-                <input v-model="form.school_address" :disabled="!canEditSchool" placeholder="e.g. Baguio City" />
+                <input v-model="form.school_address" :disabled="!canEditSchool" placeholder="Enter school address" />
               </div>
             </div>
             <div class="form-actions" v-if="canEditSchool">

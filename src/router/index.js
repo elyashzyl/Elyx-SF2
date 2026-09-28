@@ -2,11 +2,13 @@ import { createRouter, createWebHistory, START_LOCATION } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import Landing from '../views/Landing.vue'
 import Login from '../views/Login.vue'
+import Subscribe from '../views/Subscribe.vue'
 
 const routes = [
   { path: '/', name: 'Landing', component: Landing },
   { path: '/login', name: 'Login', component: Login },
-  { path: '/signup', redirect: '/login' },
+  { path: '/subscribe', name: 'Subscribe', component: Subscribe },
+  { path: '/signup', redirect: '/subscribe' },
   {
     path: '/admin',
     name: 'AdminDashboard',

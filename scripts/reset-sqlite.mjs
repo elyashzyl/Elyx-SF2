@@ -55,8 +55,8 @@ function printHelp() {
   console.log(`Rebuild the active SQLite database while preserving existing data.
 
 Options:
-  --username <name>    Account whose password will be reset (default: admin)
-  --password <value>   New password (default: admin123)
+  --username <name>    Account whose password will be reset
+  --password <value>   New password (required)
   -h, --help           Show this help
 
 Environment equivalents:
@@ -70,15 +70,13 @@ if (options.help) {
   process.exit(0)
 }
 
-const resetUsername = options.username || process.env.RESET_USERNAME || 'admin'
-const resetPassword = options.password || process.env.RESET_PASSWORD || 'admin123'
+const resetUsername = options.username || process.env.RESET_USERNAME
+const resetPassword = options.password || process.env.RESET_PASSWORD
 
 if (!resetUsername || !resetPassword) {
   throw new Error('Both a reset username and password are required.')
 }
-if (resetPassword === 'admin123') {
-  console.warn('WARNING: using the development default password. Set RESET_PASSWORD or --password before production use.')
-}
+
 if (!fs.existsSync(dbPath)) {
   throw new Error(`SQLite database not found at ${dbPath}`)
 }

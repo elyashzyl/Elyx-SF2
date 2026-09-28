@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels, seedGradeLevelsForSchool } from '../db.js'
+import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels } from '../db.js'
 import { schoolToResponse, requireRole, isLicenseActive } from './_context.js'
 
 const router = Router()
@@ -66,9 +66,135 @@ router.post('/login', async (req, res) => {
   }
 })
 
-// Public registration is disabled; accounts are provisioned through subscription
+// Public registration is disabled; accounts are provisioned through subscription.
+// The trial endpoint below is intentionally separate from /register so the
+// regular account-provisioning policy remains unchanged.
 router.post('/register', (_req, res) => {
   res.status(403).json({ error: 'Public registration is disabled. Accounts are provisioned upon school deployment.' })
+})
+
+// Start a database-backed free trial from the public landing page.
+// This does not grant any administrative access beyond the new school workspace.
+router.post('/trial', async (req, res) => {
+  const body = req.body || {}
+  const planTier = String(body.plan_tier || '').trim().toLowerCase()
+  const schoolName = String(body.school_name || '').trim()
+  const externalSchoolId = String(body.school_id || '').trim()
+  const address = String(body.address || '').trim()
+  const short = String(body.short || '').trim()
+  const adminName = String(body.admin_name || '').trim()
+  const username = String(body.admin_username || '').trim()
+  const password = String(body.admin_password || '')
+  const passwordConfirmation = String(body.admin_password_confirmation || '')
+
+  if (!planTier || !schoolName || !adminName || !username || !password || !passwordConfirmation) {
+    return res.status(400).json({ error: 'Plan, school name, administrator name, username, password, and password confirmation are required' })
+  }
+  if (schoolName.length > 255 || adminName.length > 255 || username.length > 255) {
+    return res.status(400).json({ error: 'School name, administrator name, and username must be 255 characters or fewer' })
+  }
+  if (!/^[A-Za-z0-9._-]{3,255}$/.test(username)) {
+    return res.status(400).json({ error: 'Username may contain only letters, numbers, dots, underscores, and hyphens' })
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' })
+  }
+  if (password !== passwordConfirmation) {
+    return res.status(400).json({ error: 'Passwords do not match' })
+  }
+
+  let schoolId = ''
+  let userId = ''
+  let licenseId = ''
+  try {
+    const planRows = await query('SELECT * FROM subscription_plans WHERE tier = ? OR id = ? LIMIT 1', [planTier, planTier])
+    const plan = planRows[0]
+    if (!plan) return res.status(400).json({ error: 'The selected subscription plan is not available' })
+
+    const trialDays = Number(plan.trial_days)
+    if (!Number.isInteger(trialDays) || trialDays <= 0) {
+      return res.status(400).json({ error: 'The selected plan does not include a valid free trial' })
+    }
+    const maxTeachers = Number(plan.max_teachers)
+    const maxStudents = Number(plan.max_students)
+    if (!Number.isInteger(maxTeachers) || maxTeachers <= 0 || !Number.isInteger(maxStudents) || maxStudents <= 0) {
+      return res.status(400).json({ error: 'The selected plan has invalid capacity limits' })
+    }
+
+    const duplicate = await query('SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1', [username])
+    if (duplicate.length > 0) {
+      return res.status(409).json({ error: 'That username is already in use. Choose another username or sign in.' })
+    }
+
+    schoolId = uuidv4()
+    userId = uuidv4()
+    licenseId = uuidv4()
+    const now = new Date()
+    const trialEnds = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
+    const issuedAt = now.toISOString().split('T')[0]
+    const trialEndsAt = trialEnds.toISOString().split('T')[0]
+    const rand = Math.random().toString(36).slice(2, 8).toUpperCase()
+    const licenseKey = `ELY-TRIAL-${trialDays}D-${rand}`
+    const features = typeof plan.modules === 'string' ? plan.modules : JSON.stringify(plan.modules || {})
+
+    await run(
+      'INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
+      [schoolId, schoolName, externalSchoolId, address, short]
+    )
+    await run(
+      'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, username, password, adminName, 'admin', '', '', '', schoolId]
+    )
+    await run(
+      `INSERT INTO licenses (
+        id, school_id, license_key, plan_tier, status, billing_cycle,
+        max_teachers, max_students, issued_at, expires_at, trial_ends_at,
+        features, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        licenseId,
+        schoolId,
+        licenseKey,
+        plan.tier || planTier,
+        'trial',
+        'trial',
+        maxTeachers,
+        maxStudents,
+        issuedAt,
+        trialEndsAt,
+        trialEndsAt,
+        features,
+        `${trialDays}-Day Free Trial started from public onboarding`
+      ]
+    )
+
+    // A new school starts with no grade or section records. Its administrator
+    // configures those records explicitly after onboarding.
+    saveDatabase()
+
+    const createdUser = (await query('SELECT * FROM users WHERE id = ?', [userId]))[0]
+    const createdLicense = (await query('SELECT * FROM licenses WHERE id = ?', [licenseId]))[0]
+    res.status(201).json({
+      user: await publicUser(createdUser),
+      license: {
+        ...createdLicense,
+        features: typeof createdLicense.features === 'string'
+          ? JSON.parse(createdLicense.features || '{}')
+          : (createdLicense.features || {})
+      },
+      trial_days: trialDays
+    })
+  } catch (err) {
+    // Keep retries from leaving an orphaned school or license if a later
+    // insert fails. MySQL and SQLite both support these simple compensating
+    // deletes through the shared database adapter.
+    try { if (licenseId) await run('DELETE FROM licenses WHERE id = ?', [licenseId]) } catch {}
+    try { if (schoolId) await run('DELETE FROM grade_levels WHERE school_id = ?', [schoolId]) } catch {}
+    try { if (userId) await run('DELETE FROM users WHERE id = ?', [userId]) } catch {}
+    try { if (schoolId) await run('DELETE FROM schools WHERE id = ?', [schoolId]) } catch {}
+    console.error('Trial onboarding error:', err.message)
+    res.status(500).json({ error: 'Unable to start the trial. Please try again.' })
+  }
 })
 
 // Superadmin starts impersonating another user (admin or teacher).

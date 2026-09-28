@@ -17,6 +17,7 @@ import scheduleRoutes from './routes/schedules.js'
 import licenseRoutes from './routes/licenses.js'
 import inquiryRoutes from './routes/inquiries.js'
 import paymentMethodRoutes from './routes/payment_methods.js'
+import subscriptionRoutes from './routes/subscriptions.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -61,6 +62,7 @@ app.use('/api/schedules', scheduleRoutes)
 app.use('/api/licenses', licenseRoutes)
 app.use('/api/inquiries', inquiryRoutes)
 app.use('/api/payment-methods', paymentMethodRoutes)
+app.use('/api/subscriptions', subscriptionRoutes)
 
 app.get('/api/health', async (req, res) => {
   if (!dbReady) {

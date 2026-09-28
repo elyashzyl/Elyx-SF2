@@ -2,7 +2,7 @@
 // Description: Creates the licenses table for ElyTrack subscription and license-based management.
 
 export const id = '003_licenses_and_subscriptions'
-export const description = 'Create licenses table and seed default school licenses'
+export const description = 'Create licenses table without inserting records'
 
 export async function up({ run, isMysql }) {
   if (isMysql) {

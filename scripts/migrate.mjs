@@ -153,8 +153,11 @@ async function main() {
     process.exit(0)
   }
 
-  const isMysql = USE_MYSQL || !!process.env.DATABASE_URL
-  if (isMysql) {
+  // Verify a configured MySQL database before initialization, but determine
+  // the migration dialect only after initDatabase(). initDatabase() may
+  // intentionally fall back to SQLite when MySQL is unavailable.
+  const configuredMysql = DB_MODE === 'mysql' && (USE_MYSQL || !!process.env.DATABASE_URL)
+  if (configuredMysql) {
     await ensureMysqlDatabaseExists(DATABASE_URL || process.env.DATABASE_URL)
   } else {
     const dbPath = path.resolve(process.env.DB_PATH || path.join(projectRoot, 'attendance.db'))
@@ -164,6 +167,7 @@ async function main() {
 
   await initDatabase()
   console.log(`[db] Active backend: ${DB_MODE.toUpperCase()}`)
+  const isMysql = DB_MODE === 'mysql'
 
   if (args.fresh) {
     await dropAllTables(isMysql)

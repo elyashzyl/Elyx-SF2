@@ -49,6 +49,12 @@ export const useAuthStore = defineStore('auth', () => {
   const schoolId = computed(() => user.value?.school_id || '')
   const school = computed(() => user.value?.school || null)
 
+  function setUser(nextUser) {
+    user.value = nextUser || null
+    if (nextUser) localStorage.setItem('auth_user', JSON.stringify(nextUser))
+    else localStorage.removeItem('auth_user')
+  }
+
   async function login(username, password) {
     try {
       const data = await fetchJson(`${API}/auth/login`, {
@@ -57,8 +63,7 @@ export const useAuthStore = defineStore('auth', () => {
         body: JSON.stringify({ username, password })
       })
       if (!data || !data.user) return false
-      user.value = data.user
-      localStorage.setItem('auth_user', JSON.stringify(data.user))
+      setUser(data.user)
       return true
     } catch {
       return false
@@ -246,5 +251,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, login, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

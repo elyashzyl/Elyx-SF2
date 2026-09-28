@@ -36,7 +36,7 @@
             <span class="dot"></span>
             <span>{{ activeLicense.status.toUpperCase() }}</span>
           </span>
-          <span v-if="activeLicense.is_trial" class="trial-pill">14-Day Free Trial</span>
+          <span v-if="activeLicense.is_trial" class="trial-pill">{{ activeLicense.trial_days || 'Configured' }}-Day Free Trial</span>
         </div>
 
         <div class="license-meta-keys">
@@ -124,7 +124,7 @@
 
         <div v-if="auth.isSuperadmin" class="hero-btns">
           <button v-if="activeLicense.is_trial" class="btn btn-sm btn-secondary" @click="extendTrial">
-            <span>Extend 14 Days</span>
+            <span>Extend Trial</span>
           </button>
           <button v-if="activeLicense.status === 'active'" class="btn btn-sm btn-danger" @click="suspendLicense(activeLicense.id)">
             <span>Stop / Suspend License</span>
@@ -133,7 +133,7 @@
             <span>Resume License</span>
           </button>
           <button class="btn btn-sm btn-primary" @click="openRenewModal">
-            <span>Renew Subscription (10 Months)</span>
+            <span>Renew Subscription</span>
           </button>
         </div>
         <div v-else class="hero-readonly-note">
@@ -161,7 +161,7 @@
               <th>Plan Tier</th>
               <th>Name</th>
               <th>Monthly Price</th>
-              <th>School Year Rate</th>
+              <th>Annual Rate</th>
               <th>Max Teachers</th>
               <th>Max Students</th>
               <th>Trial</th>
@@ -178,7 +178,7 @@
               <td>₱{{ Number(p.price_monthly || 0).toLocaleString() }} / mo</td>
               <td>
                 <strong>₱{{ Number(p.price_annual_monthly || 0).toLocaleString() }} / mo</strong>
-                <small style="display: block; color: var(--muted-foreground);">₱{{ Number(p.billing_annual_total || 0).toLocaleString() }} / 10-mo yr</small>
+                <small style="display: block; color: var(--muted-foreground);">₱{{ Number(p.billing_annual_total || 0).toLocaleString() }} / {{ p.billing_months || 'configured' }}-month term</small>
               </td>
               <td>{{ p.max_teachers }}</td>
               <td>{{ p.max_students }}</td>
@@ -334,6 +334,67 @@
       </div>
     </div>
 
+    <!-- Subscription lifecycle: school admins submit payment for verification; superadmins review it. -->
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-header-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3>Subscription &amp; Payment Requests</h3>
+          <p class="desc">Submit a payment reference after paying through an official channel. A superadmin verifies it before the license is activated or renewed.</p>
+        </div>
+        <button v-if="!auth.isSuperadmin" class="btn btn-sm btn-primary" type="button" @click="openSubscriptionRequestModal">Submit Payment</button>
+      </div>
+      <div v-if="auth.isSuperadmin && subscriptionRequests.length" class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>School</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr v-for="request in subscriptionRequests" :key="request.id">
+              <td><strong>{{ request.school_name || request.school_id }}</strong></td>
+              <td>{{ request.plan_name || request.plan_tier }}<small style="display:block;color:var(--muted-foreground);">{{ request.billing_cycle }}</small></td>
+              <td>₱{{ Number(request.amount || 0).toLocaleString() }}</td>
+              <td><code>{{ request.payment_reference || 'Proof attached' }}</code></td>
+              <td><span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span></td>
+              <td>{{ formatDate(request.created_at) }}</td>
+              <td v-if="request.status === 'pending'" class="table-actions">
+                <button class="btn btn-sm btn-success" type="button" @click="reviewSubscriptionRequest(request, 'approved')">Approve</button>
+                <button class="btn btn-sm btn-danger" type="button" @click="reviewSubscriptionRequest(request, 'rejected')">Reject</button>
+              </td>
+              <td v-else>Reviewed</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else-if="!auth.isSuperadmin && subscriptionRequests.length" class="subscription-request-list">
+        <div v-for="request in subscriptionRequests" :key="request.id" class="subscription-request-row">
+          <strong>{{ request.plan_name || request.plan_tier }}</strong>
+          <span>{{ request.billing_cycle }} · ₱{{ Number(request.amount || 0).toLocaleString() }}</span>
+          <span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span>
+        </div>
+      </div>
+      <p v-else class="empty-state">{{ auth.isSuperadmin ? 'No subscription payment requests.' : 'No payment request submitted yet.' }}</p>
+    </div>
+
+    <!-- MODAL: SUBMIT SUBSCRIPTION PAYMENT (School admin) -->
+    <div v-if="showSubscriptionRequestModal" class="modal-overlay" @click.self="showSubscriptionRequestModal = false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Submit Subscription Payment</h3>
+          <button class="modal-close" type="button" @click="showSubscriptionRequestModal = false">&times;</button>
+        </div>
+        <form @submit.prevent="submitSubscriptionRequest">
+          <div class="modal-body">
+            <p class="desc">Pay using one of the official payment options above, then enter the payment reference below. The superadmin will verify the request.</p>
+            <div class="form-group"><label>Plan *</label><select v-model="subscriptionForm.plan_tier" required><option v-for="plan in availablePlans" :key="plan.id" :value="plan.tier">{{ plan.name }} (₱{{ Number(subscriptionForm.billing_cycle === 'monthly' ? plan.price_monthly : plan.billing_annual_total).toLocaleString() }})</option></select></div>
+            <div class="form-group"><label>Billing cycle *</label><select v-model="subscriptionForm.billing_cycle"><option value="annual">Annual plan term</option><option value="monthly">Monthly</option></select></div>
+            <div class="form-group"><label>Payment channel</label><select v-model="subscriptionForm.payment_method_id"><option value="">Not specified</option><option v-for="method in paymentMethods.filter(pm => pm.is_active)" :key="method.id" :value="method.id">{{ method.bank_name }}</option></select></div>
+            <div class="form-group"><label>Payment reference *</label><input v-model.trim="subscriptionForm.payment_reference" type="text" maxlength="255" placeholder="Reference number or transaction ID" /></div>
+            <div class="form-group"><label>Proof URL (optional)</label><input v-model.trim="subscriptionForm.proof_url" type="url" placeholder="https://..." /></div>
+            <div class="form-group"><label>Notes</label><textarea v-model.trim="subscriptionForm.notes" rows="2" placeholder="Additional payment details"></textarea></div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" @click="showSubscriptionRequestModal = false">Cancel</button><button type="submit" class="btn btn-primary" :disabled="submitting">{{ submitting ? 'Submitting…' : 'Submit for Verification' }}</button></div>
+        </form>
+      </div>
+    </div>
+
     <!-- MODAL: EDIT PLAN (Superadmin) -->
     <div v-if="auth.isSuperadmin && showEditPlanModal" class="modal-overlay" @click.self="showEditPlanModal = false">
       <div class="modal-card">
@@ -357,7 +418,7 @@
                 <input v-model.number="editPlanForm.price_monthly" type="number" min="0" required />
               </div>
               <div class="form-group">
-                <label>School Year Rate / Month (₱)</label>
+                <label>Annual Rate / Month (₱)</label>
                 <input v-model.number="editPlanForm.price_annual_monthly" type="number" min="0" required />
               </div>
             </div>
@@ -366,6 +427,12 @@
                 <label>Annual Total (₱)</label>
                 <input v-model.number="editPlanForm.billing_annual_total" type="number" min="0" required />
               </div>
+              <div class="form-group">
+                <label>Annual Term (months)</label>
+                <input v-model.number="editPlanForm.billing_months" type="number" min="1" required />
+              </div>
+            </div>
+            <div class="form-row">
               <div class="form-group">
                 <label>Trial Days</label>
                 <input v-model.number="editPlanForm.trial_days" type="number" min="0" required />
@@ -453,7 +520,7 @@
                       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
                   </button>
-                  <button class="btn-icon" @click="quickRenew(lic)" title="Quick Add 10 Months">
+                  <button class="btn-icon" @click="quickRenew(lic)" title="Quick renew using the plan term">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                     </svg>
@@ -494,7 +561,7 @@
                 id="activate-key"
                 v-model="activateKeyInput"
                 type="text"
-                placeholder="e.g. ELY-CAMPUS-2026-ABCD"
+                placeholder="Enter the license key provided by the platform administrator"
                 required
                 style="text-transform: uppercase; font-family: monospace; font-size: 1rem; font-weight: 700;"
               />
@@ -541,11 +608,16 @@
 
               <div class="form-group">
                 <label for="issue-cycle">Billing Cycle</label>
-                <select id="issue-cycle" v-model="issueForm.billing_cycle">
-                  <option value="annual">School Year (10 Months)</option>
+                <select id="issue-cycle" v-model="issueForm.billing_cycle" required>
+                  <option value="annual">Annual plan term</option>
                   <option value="monthly">Monthly</option>
                 </select>
               </div>
+            </div>
+
+            <div class="form-group">
+              <label for="issue-duration">Annual term duration (months)</label>
+              <input id="issue-duration" v-model.number="issueForm.duration_months" type="number" min="1" required />
             </div>
 
             <div class="form-row">
@@ -561,7 +633,7 @@
 
             <div class="form-group">
               <label for="issue-notes">Contract / DepEd Procurement Notes</label>
-              <input id="issue-notes" v-model="issueForm.notes" type="text" placeholder="e.g. MOA Contract Ref # 2026-BPHS-01" />
+              <input id="issue-notes" v-model="issueForm.notes" type="text" placeholder="Optional contract or procurement reference" />
             </div>
           </div>
           <div class="modal-footer">
@@ -587,13 +659,8 @@
               Extend this campus's operational validity for another academic term.
             </p>
             <div class="form-group">
-              <label for="renew-duration">Extension Period *</label>
-              <select id="renew-duration" v-model.number="renewMonths">
-                <option :value="10">Full School Year (10 Months)</option>
-                <option :value="12">1 Calendar Year (12 Months)</option>
-                <option :value="5">1 Semester (5 Months)</option>
-                <option :value="1">1 Month Extension</option>
-              </select>
+              <label for="renew-duration">Extension Period (months) *</label>
+              <input id="renew-duration" v-model.number="renewMonths" type="number" min="1" required />
             </div>
           </div>
           <div class="modal-footer">
@@ -634,7 +701,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Account Holder Name *</label>
-                <input v-model="paymentForm.account_name" type="text" placeholder="e.g. ElyTrack Operations" required />
+                <input v-model="paymentForm.account_name" type="text" placeholder="Enter account holder name" required />
               </div>
               <div class="form-group">
                 <label>Account / Mobile Number *</label>
@@ -748,6 +815,16 @@ const schoolsList = ref([])
 const availablePlans = ref([])
 
 const paymentMethods = ref([])
+const subscriptionRequests = ref([])
+const showSubscriptionRequestModal = ref(false)
+const subscriptionForm = reactive({
+  plan_tier: '',
+  billing_cycle: '',
+  payment_method_id: '',
+  payment_reference: '',
+  proof_url: '',
+  notes: ''
+})
 let paymentMethodsRequestId = 0
 const paymentActionId = ref(null)
 const showPaymentModal = ref(false)
@@ -771,7 +848,7 @@ const showActivateModal = ref(false)
 const activateKeyInput = ref('')
 const showIssueModal = ref(false)
 const showRenewModal = ref(false)
-const renewMonths = ref(10)
+const renewMonths = ref(null)
 const submitting = ref(false)
 
 const showEditPlanModal = ref(false)
@@ -783,17 +860,19 @@ const editPlanForm = reactive({
   price_monthly: 0,
   price_annual_monthly: 0,
   billing_annual_total: 0,
-  trial_days: 14,
+  billing_months: null,
+  trial_days: 0,
   max_teachers: 1,
   max_students: 65
 })
 
 const issueForm = reactive({
   school_id: '',
-  plan_tier: 'campus',
-  billing_cycle: 'annual',
-  max_teachers: 60,
-  max_students: 2500,
+  plan_tier: '',
+  billing_cycle: '',
+  duration_months: null,
+  max_teachers: null,
+  max_students: null,
   notes: ''
 })
 
@@ -1049,9 +1128,7 @@ async function deletePaymentMethod(pm) {
 function planTierName(tier) {
   const p = availablePlans.value.find(x => x.tier === tier)
   if (p) return p.name
-  if (tier === 'adviser') return 'Adviser Dedicated'
-  if (tier === 'division') return 'Division Enterprise'
-  return 'School Pro Campus'
+  return tier || 'Unconfigured plan'
 }
 
 function formatDate(d) {
@@ -1079,16 +1156,73 @@ function onTierChange() {
     issueForm.max_teachers = p.max_teachers
     issueForm.max_students = p.max_students
   } else {
-    if (issueForm.plan_tier === 'adviser') {
-      issueForm.max_teachers = 1
-      issueForm.max_students = 65
-    } else if (issueForm.plan_tier === 'division') {
-      issueForm.max_teachers = 500
-      issueForm.max_students = 25000
-    } else {
-      issueForm.max_teachers = 60
-      issueForm.max_students = 2500
-    }
+    issueForm.max_teachers = null
+    issueForm.max_students = null
+  }
+
+  issueForm.duration_months = p?.billing_months || null
+  if (p?.billing_months) issueForm.billing_cycle = 'annual'
+}
+
+async function loadSubscriptionRequests() {
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/subscriptions/requests?${qs}`, { cache: 'no-store', headers: auth.actorHeaders() })
+    if (res.ok) subscriptionRequests.value = await res.json()
+  } catch (err) {
+    console.error('Failed to load subscription requests:', err)
+  }
+}
+
+function openSubscriptionRequestModal() {
+  if (auth.isSuperadmin) return
+  subscriptionForm.plan_tier = availablePlans.value[0]?.tier || ''
+  subscriptionForm.billing_cycle = availablePlans.value[0]?.billing_months ? 'annual' : 'monthly'
+  subscriptionForm.payment_method_id = paymentMethods.value.find(pm => pm.is_active)?.id || ''
+  subscriptionForm.payment_reference = ''
+  subscriptionForm.proof_url = ''
+  subscriptionForm.notes = ''
+  showSubscriptionRequestModal.value = true
+}
+
+async function submitSubscriptionRequest() {
+  if (auth.isSuperadmin) return
+  submitting.value = true
+  try {
+    const res = await fetch('/api/subscriptions/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.actorHeaders() },
+      body: JSON.stringify(auth.actorParams(subscriptionForm))
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to submit payment request')
+    showSubscriptionRequestModal.value = false
+    showSuccess('Payment submitted for superadmin verification.')
+    await loadSubscriptionRequests()
+  } catch (err) {
+    showError(err.message)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function reviewSubscriptionRequest(request, status) {
+  if (!auth.isSuperadmin) return
+  const action = status === 'approved' ? 'approve and activate this subscription' : 'reject this payment request'
+  if (!confirm(`Are you sure you want to ${action}?`)) return
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/subscriptions/requests/${request.id}/status?${qs}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...auth.actorHeaders() },
+      body: JSON.stringify(auth.actorParams({ status }))
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to review request')
+    showSuccess(status === 'approved' ? 'Subscription approved and license activated.' : 'Payment request rejected.')
+    await Promise.all([loadSubscriptionRequests(), loadLicenseData()])
+  } catch (err) {
+    showError(err.message)
   }
 }
 
@@ -1097,7 +1231,9 @@ async function loadPlans() {
     const res = await fetch('/api/licenses/plans')
     if (res.ok) {
       availablePlans.value = await res.json()
-      if (availablePlans.value.length > 0 && !issueForm.school_id) {
+      if (availablePlans.value.length > 0) {
+        if (!issueForm.plan_tier) issueForm.plan_tier = availablePlans.value[0].tier
+        if (!issueForm.billing_cycle) issueForm.billing_cycle = availablePlans.value[0].billing_months ? 'annual' : 'monthly'
         onTierChange()
       }
     }
@@ -1116,6 +1252,7 @@ function openEditPlanModal(plan) {
     price_monthly: plan.price_monthly,
     price_annual_monthly: plan.price_annual_monthly,
     billing_annual_total: plan.billing_annual_total,
+    billing_months: plan.billing_months,
     trial_days: plan.trial_days,
     max_teachers: plan.max_teachers,
     max_students: plan.max_students
@@ -1206,6 +1343,9 @@ function openActivateModal() {
 function openIssueModal() {
   if (!auth.isSuperadmin) return
   issueForm.school_id = schoolsList.value[0]?.id || ''
+  issueForm.plan_tier = availablePlans.value[0]?.tier || ''
+  issueForm.billing_cycle = availablePlans.value[0]?.billing_months ? 'annual' : 'monthly'
+  onTierChange()
   showIssueModal.value = true
 }
 
@@ -1269,7 +1409,7 @@ async function handleRenew() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(auth.actorParams({
         schoolId: auth.schoolId,
-        months: renewMonths.value
+        months: Number(renewMonths.value)
       }))
     })
     const data = await res.json()
@@ -1290,11 +1430,11 @@ async function extendTrial() {
     const res = await fetch('/api/licenses/start-trial', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(auth.actorParams({ schoolId: auth.schoolId }))
+      body: JSON.stringify(auth.actorParams({ schoolId: auth.schoolId, plan_tier: activeLicense.value?.plan_tier }))
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Could not extend trial')
-    showSuccess('14-Day Free Trial extended!')
+    showSuccess('Trial extended successfully.')
     await loadLicenseData()
   } catch (err) {
     showError(err.message)
@@ -1363,7 +1503,7 @@ async function quickRenew(lic) {
     const res = await fetch('/api/licenses/renew', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(auth.actorParams({ schoolId: lic.school_id, months: 10 }))
+      body: JSON.stringify(auth.actorParams({ schoolId: lic.school_id, months: Number(lic.billing_cycle === 'monthly' ? 1 : availablePlans.value.find(plan => plan.tier === lic.plan_tier)?.billing_months) }))
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Renewal failed')
@@ -1386,12 +1526,14 @@ onMounted(async () => {
     loadLicenseData(),
     loadSchoolsList(),
     loadPlans(),
-    loadPaymentMethods()
+    loadPaymentMethods(),
+    loadSubscriptionRequests()
   ])
   // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
   licensePollInterval = setInterval(() => {
     void loadLicenseData()
-    void loadPaymentMethods()
+    void loadSubscriptionRequests()
+    loadPaymentMethods()
   }, 6000)
 })
 

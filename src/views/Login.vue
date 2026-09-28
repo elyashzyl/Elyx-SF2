@@ -142,7 +142,7 @@
                   v-model="loginUsername"
                   type="text"
                   required
-                  placeholder="e.g. msantos or admin"
+                  placeholder="Enter your username"
                   autocomplete="username"
                   autofocus
                   :disabled="loading"

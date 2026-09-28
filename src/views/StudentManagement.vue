@@ -20,8 +20,8 @@
           <template v-else>
             <div class="form-group">
               <label>Student Names</label>
-              <span class="label-hint">One name per line (e.g. DELA CRUZ, JUAN M.)</span>
-              <textarea v-model="form.names" rows="5" required placeholder="DELA CRUZ, JUAN M.&#10;SANTOS, MARIA A.&#10;REYES, PEDRO B."></textarea>
+              <span class="label-hint">One learner name per line</span>
+              <textarea v-model="form.names" rows="5" required placeholder="Enter one learner name per line"></textarea>
             </div>
           </template>
           <div class="form-row">

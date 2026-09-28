@@ -874,7 +874,7 @@ router.post('/sf2', async (req, res) => {
       if (newWs[addr] && newWs[addr].s) delete newWs[addr].s.border
     }
     // Adviser name (row 76, AE77:AK77) with signature line
-    sec(newWs, S + 26, 30, S + 26, 36, (adviser || 'LEEVIN JONES O. GOYAO').toUpperCase(), { ...A8_CENTER, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } } })
+    sec(newWs, S + 26, 30, S + 26, 36, String(adviser || '').toUpperCase(), { ...A8_CENTER, border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } } })
     // Adviser signature + designation (row 77, AE78:AK78)
     sec(newWs, S + 27, 30, S + 27, 36, '(Signature of Adviser over Printed Name)', A8_CENTER)
     // Attested by (row 79, AD80)
