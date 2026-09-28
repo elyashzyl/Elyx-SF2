@@ -14,7 +14,7 @@ async function addColumn(run, sql) {
   try {
     await run(sql)
   } catch (error) {
-    if (!/duplicate|exists/i.test(String(error.message))) throw error
+    if (!/duplicate|exists|ER_DUP_FIELDNAME/i.test(String(error.message || error.code || ''))) throw error
   }
 }
 

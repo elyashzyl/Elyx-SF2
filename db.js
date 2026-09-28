@@ -507,10 +507,49 @@ async function initMysql() {
     }
   }
   for (const raw of MYSQL_DDL) await mysqlPool.query(stripTextDefaults(raw))
+  // Ensure table columns added in later versions exist on MySQL (mirrors initSqlite schema alters)
+  await ensureMysqlColumns()
   // Database initialization is schema-only. Versioned migrations handle
   // changes to existing installations. Accounts, schools, grades, plans,
   // licenses, and payment data are created by explicit commands or API actions.
   await migrateToMultiSchoolMysql()
+}
+
+async function ensureMysqlColumns() {
+  if (!mysqlPool) return
+  const alters = [
+    ["users", "grade", "VARCHAR(255) DEFAULT ''"],
+    ["users", "section", "VARCHAR(255) DEFAULT ''"],
+    ["users", "period", "VARCHAR(255) DEFAULT ''"],
+    ["users", "school_id", "VARCHAR(96) DEFAULT ''"],
+    ["students", "gender", "VARCHAR(32) DEFAULT ''"],
+    ["students", "school_id", "VARCHAR(96) DEFAULT ''"],
+    ["students", "enrollment_status", "VARCHAR(32) NOT NULL DEFAULT 'active'"],
+    ["monthly_records", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"],
+    ["monthly_records", "summary_data", "LONGTEXT"],
+    ["monthly_records", "excluded_dates", "LONGTEXT"],
+    ["monthly_records", "school_head", "VARCHAR(255) DEFAULT ''"],
+    ["monthly_records", "school_id", "VARCHAR(96) DEFAULT ''"],
+    ["attendance_records", "school_id", "VARCHAR(96) DEFAULT ''"],
+    ["schools", "attendance_lock_cutoff", "VARCHAR(255) DEFAULT ''"],
+    ["attendance_records", "locked", "TINYINT(1) NOT NULL DEFAULT 0"],
+    ["attendance_records", "locked_at", "DATETIME NULL"],
+    ["attendance_records", "locked_by", "VARCHAR(96) DEFAULT ''"],
+    ["attendance_records", "reopened_at", "DATETIME NULL"],
+    ["attendance_records", "reopened_by", "VARCHAR(96) DEFAULT ''"],
+    ["attendance_records", "reopen_reason", "TEXT"],
+    ["monthly_entries", "late_enrollee", "TINYINT(1) DEFAULT 0"]
+  ]
+
+  for (const [tbl, col, def] of alters) {
+    try {
+      await mysqlPool.query(`ALTER TABLE \`${tbl}\` ADD COLUMN \`${col}\` ${def}`)
+    } catch (err) {
+      if (!/duplicate|exists|ER_DUP_FIELDNAME/i.test(String(err.message || err.code || ''))) {
+        // Table might not exist yet or column already exists; non-fatal
+      }
+    }
+  }
 }
 
 async function migrateToMultiSchoolMysql() {

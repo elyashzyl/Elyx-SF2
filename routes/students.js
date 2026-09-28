@@ -1,12 +1,74 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run } from '../db.js'
+import { query, run, DB_MODE } from '../db.js'
 import { requireRole, resolveScopeSchool, assertValidClass, audit, getSchoolLicense } from './_context.js'
 
 const router = Router()
 
+let enrollmentColumnEnsured = false
+async function ensureEnrollmentStatusColumn() {
+  if (enrollmentColumnEnsured) return
+  try {
+    const isMysql = DB_MODE === 'mysql'
+    if (isMysql) {
+      await run("ALTER TABLE students ADD COLUMN enrollment_status VARCHAR(32) NOT NULL DEFAULT 'active'")
+    } else {
+      await run("ALTER TABLE students ADD COLUMN enrollment_status TEXT NOT NULL DEFAULT 'active'")
+    }
+  } catch (err) {
+    if (!/duplicate|exists|ER_DUP_FIELDNAME/i.test(String(err.message || err.code || ''))) {
+      // non-fatal
+    }
+  }
+  try {
+    const isMysql = DB_MODE === 'mysql'
+    await run(isMysql
+      ? `CREATE TABLE IF NOT EXISTS student_enrollment_events (
+          id VARCHAR(96) PRIMARY KEY,
+          student_id VARCHAR(96) NOT NULL,
+          school_id VARCHAR(96) NOT NULL,
+          event_type VARCHAR(32) NOT NULL,
+          status VARCHAR(32) NOT NULL,
+          effective_on VARCHAR(10) NOT NULL,
+          grade VARCHAR(255) NOT NULL DEFAULT '',
+          section VARCHAR(255) NOT NULL DEFAULT '',
+          reason VARCHAR(1000) NOT NULL DEFAULT '',
+          actor_id VARCHAR(96) NOT NULL DEFAULT '',
+          actor_name VARCHAR(255) NOT NULL DEFAULT '',
+          actor_role VARCHAR(32) NOT NULL DEFAULT '',
+          transfer_group_id VARCHAR(96) NOT NULL DEFAULT '',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+      : `CREATE TABLE IF NOT EXISTS student_enrollment_events (
+          id TEXT PRIMARY KEY,
+          student_id TEXT NOT NULL,
+          school_id TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          effective_on TEXT NOT NULL,
+          grade TEXT NOT NULL DEFAULT '',
+          section TEXT NOT NULL DEFAULT '',
+          reason TEXT NOT NULL DEFAULT '',
+          actor_id TEXT NOT NULL DEFAULT '',
+          actor_name TEXT NOT NULL DEFAULT '',
+          actor_role TEXT NOT NULL DEFAULT '',
+          transfer_group_id TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`)
+  } catch (err) {
+    if (!/duplicate|exists/i.test(String(err.message || err.code || ''))) {
+      // non-fatal
+    }
+  }
+  try {
+    await run("UPDATE students SET enrollment_status = 'active' WHERE enrollment_status IS NULL OR enrollment_status = ''")
+  } catch {}
+  enrollmentColumnEnsured = true
+}
+
 router.get('/', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
     const { me, schoolId } = scope
@@ -70,7 +132,20 @@ router.get('/', async (req, res) => {
     }
     sql += ` ORDER BY ${historical ? 's.name' : 'name'}`
 
-    const students = await query(sql, params)
+    let students = []
+    try {
+      students = await query(sql, params)
+    } catch (err) {
+      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+        const fallbackConditions = conditions.filter(c => !c.includes('enrollment_status'))
+        let fallbackSql = 'SELECT * FROM students'
+        if (fallbackConditions.length) fallbackSql += ' WHERE ' + fallbackConditions.join(' AND ')
+        fallbackSql += ' ORDER BY name'
+        students = await query(fallbackSql, params)
+      } else {
+        throw err
+      }
+    }
     res.json(students)
   } catch (err) {
     console.error('Failed to fetch students', err.message)
@@ -119,6 +194,7 @@ async function addEnrollmentEvent({ student, eventType, status, effectiveOn, gra
 
 router.post('/', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const scope = await studentSchoolScope(req, res)
@@ -133,7 +209,12 @@ router.post('/', async (req, res) => {
 
     const license = await getSchoolLicense(scope.schoolId)
     if (license && license.max_students > 0) {
-      const currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+      let currentStudents = 0
+      try {
+        currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+      } catch {
+        currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [scope.schoolId]))[0]?.cnt || 0
+      }
       if (currentStudents >= license.max_students) {
         return res.status(400).json({
           error: `Student population limit reached (${currentStudents}/${license.max_students} students). Upgrade your license capacity to enroll more students.`
@@ -157,6 +238,7 @@ router.post('/', async (req, res) => {
 
 router.post('/bulk', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const scope = await studentSchoolScope(req, res)
@@ -219,6 +301,7 @@ router.get('/:id/enrollment-history', async (req, res) => {
 
 router.post('/:id/enrollment-events', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const scope = await studentSchoolScope(req, res)
@@ -267,7 +350,12 @@ router.post('/:id/enrollment-events', async (req, res) => {
     if (eventType === 'reenroll' && student.enrollment_status === 'withdrawn') {
       const license = await getSchoolLicense(scope.schoolId)
       if (license && license.max_students > 0) {
-        const currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+        let currentStudents = 0
+        try {
+          currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+        } catch {
+          currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [scope.schoolId]))[0]?.cnt || 0
+        }
         if (currentStudents >= license.max_students) {
           return res.status(400).json({
             error: `Student population limit reached (${currentStudents}/${license.max_students} students). Upgrade your license capacity to enroll more students.`
@@ -290,7 +378,15 @@ router.post('/:id/enrollment-events', async (req, res) => {
       actor: me,
       transferGroupId: String(req.body.transferGroupId || '')
     })
-    await run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?', [currentGrade, currentSection, status, student.id])
+    try {
+      await run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?', [currentGrade, currentSection, status, student.id])
+    } catch (err) {
+      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+        await run('UPDATE students SET grade = ?, section = ? WHERE id = ?', [currentGrade, currentSection, student.id])
+      } else {
+        throw err
+      }
+    }
     await audit(me, `student.${eventType}`, { type: 'student', id: student.id, name: student.name, schoolId: student.school_id || '' }, `${eventType} for "${student.name}" effective ${effDate}: ${reason}`)
     const updated = (await query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
     res.status(201).json({ event, student: updated, currentEnrollment: event })
@@ -302,6 +398,7 @@ router.post('/:id/enrollment-events', async (req, res) => {
 
 router.post('/:id/reenroll', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const target = await scopedStudent(req)
@@ -331,7 +428,12 @@ router.post('/:id/reenroll', async (req, res) => {
     if (target.enrollment_status === 'withdrawn') {
       const license = await getSchoolLicense(target.school_id)
       if (license && license.max_students > 0) {
-        const currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [target.school_id]))[0]?.cnt || 0
+        let currentActive = 0
+        try {
+          currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [target.school_id]))[0]?.cnt || 0
+        } catch {
+          currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [target.school_id]))[0]?.cnt || 0
+        }
         if (currentActive >= license.max_students) {
           return res.status(400).json({
             error: `Student population limit reached (${currentActive}/${license.max_students} students). Upgrade your license capacity to re-enroll this student.`
@@ -350,7 +452,15 @@ router.post('/:id/reenroll', async (req, res) => {
       reason,
       actor: me
     })
-    await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [targetGrade, targetSection, target.id])
+    try {
+      await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [targetGrade, targetSection, target.id])
+    } catch (err) {
+      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+        await run("UPDATE students SET grade = ?, section = ? WHERE id = ?", [targetGrade, targetSection, target.id])
+      } else {
+        throw err
+      }
+    }
     await audit(me, 'student.reenroll', { type: 'student', id: target.id, name: target.name, schoolId: target.school_id || '' }, `Re-enrolled "${target.name}" (${targetGrade} - ${targetSection}) effective ${effectiveOn}: ${reason}`)
     const updated = (await query('SELECT * FROM students WHERE id = ?', [target.id]))[0]
     res.json({ success: true, event, student: updated })
@@ -362,6 +472,7 @@ router.post('/:id/reenroll', async (req, res) => {
 
 router.post('/bulk-reenroll', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const { ids } = req.body
@@ -384,9 +495,19 @@ router.post('/bulk-reenroll', async (req, res) => {
     if (scopeSchoolId) {
       const license = await getSchoolLicense(scopeSchoolId)
       if (license && license.max_students > 0) {
-        const currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scopeSchoolId]))[0]?.cnt || 0
+        let currentActive = 0
+        try {
+          currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scopeSchoolId]))[0]?.cnt || 0
+        } catch {
+          currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [scopeSchoolId]))[0]?.cnt || 0
+        }
         const placeholders = ids.map(() => '?').join(',')
-        const toActivate = (await query(`SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND id IN (${placeholders}) AND enrollment_status = 'withdrawn'`, [scopeSchoolId, ...ids]))[0]?.cnt || 0
+        let toActivate = 0
+        try {
+          toActivate = (await query(`SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND id IN (${placeholders}) AND enrollment_status = 'withdrawn'`, [scopeSchoolId, ...ids]))[0]?.cnt || 0
+        } catch {
+          toActivate = 0
+        }
         if (currentActive + toActivate > license.max_students) {
           return res.status(400).json({
             error: `Re-enrolling would exceed student population limit (${currentActive + toActivate}/${license.max_students} students). Upgrade your license capacity to re-enroll these students.`
@@ -432,7 +553,15 @@ router.post('/bulk-reenroll', async (req, res) => {
         reason,
         actor: me
       })
-      await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [finalGrade, finalSection, target.id])
+      try {
+        await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [finalGrade, finalSection, target.id])
+      } catch (err) {
+        if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+          await run("UPDATE students SET grade = ?, section = ? WHERE id = ?", [finalGrade, finalSection, target.id])
+        } else {
+          throw err
+        }
+      }
       count++
     }
     if (count) await audit(me, 'student.bulk_reenroll', { type: 'student', id: '', name: `${count} students`, schoolId: scopeSchoolId || me.school_id || '' }, `Bulk re-enrolled ${count} students`)
@@ -468,6 +597,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const target = await scopedStudent(req)
@@ -481,7 +611,11 @@ router.delete('/:id', async (req, res) => {
     const reason = String(req.body?.reason || req.query?.reason || 'Removed from the active roster').trim()
     const effectiveOn = effectiveDate(requestedDate)
     const event = await addEnrollmentEvent({ student: target, eventType: 'withdraw', status: 'withdrawn', effectiveOn, grade: target.grade, section: target.section, reason, actor: me })
-    await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [target.id])
+    try {
+      await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [target.id])
+    } catch (err) {
+      if (!/unknown column 'enrollment_status'/i.test(String(err.message || ''))) throw err
+    }
     await audit(me, 'student.withdraw', { type: 'student', id: target.id, name: target.name, schoolId: target.school_id || '' }, `Withdrawn "${target.name}" effective ${effectiveOn}: ${reason}`)
     res.json({ success: true, event })
   } catch (err) {
@@ -492,6 +626,7 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/bulk-action', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const { ids, action } = req.body || {}
@@ -530,9 +665,19 @@ router.post('/bulk-action', async (req, res) => {
       if (scopeSchoolId) {
         const license = await getSchoolLicense(scopeSchoolId)
         if (license && license.max_students > 0) {
-          const currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scopeSchoolId]))[0]?.cnt || 0
+          let currentActive = 0
+          try {
+            currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scopeSchoolId]))[0]?.cnt || 0
+          } catch {
+            currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [scopeSchoolId]))[0]?.cnt || 0
+          }
           const placeholders = ids.map(() => '?').join(',')
-          const toActivate = (await query(`SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND id IN (${placeholders}) AND enrollment_status = 'withdrawn'`, [scopeSchoolId, ...ids]))[0]?.cnt || 0
+          let toActivate = 0
+          try {
+            toActivate = (await query(`SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND id IN (${placeholders}) AND enrollment_status = 'withdrawn'`, [scopeSchoolId, ...ids]))[0]?.cnt || 0
+          } catch {
+            toActivate = 0
+          }
           if (currentActive + toActivate > license.max_students) {
             return res.status(400).json({
               error: `Re-enrolling would exceed student population limit (${currentActive + toActivate}/${license.max_students} students). Upgrade your license capacity to re-enroll these students.`
@@ -591,7 +736,11 @@ router.post('/bulk-action', async (req, res) => {
           reason: reason || defaultReasons.withdraw,
           actor: me
         })
-        await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [target.id])
+        try {
+          await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [target.id])
+        } catch (err) {
+          if (!/unknown column 'enrollment_status'/i.test(String(err.message || ''))) throw err
+        }
         count++
         continue
       }
@@ -633,7 +782,15 @@ router.post('/bulk-action', async (req, res) => {
         reason: reason || defaultReasons[action],
         actor: me
       })
-      await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [finalGrade, finalSection, target.id])
+      try {
+        await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [finalGrade, finalSection, target.id])
+      } catch (err) {
+        if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+          await run("UPDATE students SET grade = ?, section = ? WHERE id = ?", [finalGrade, finalSection, target.id])
+        } else {
+          throw err
+        }
+      }
       count++
     }
 
@@ -678,6 +835,7 @@ router.post('/bulk-permanent-delete', async (req, res) => {
 
 router.post('/bulk-delete', async (req, res) => {
   try {
+    await ensureEnrollmentStatusColumn()
     const me = await assertWritable(req, res)
     if (!me) return
     const { ids } = req.body
@@ -691,7 +849,11 @@ router.post('/bulk-delete', async (req, res) => {
       if (me.role !== 'superadmin' && target.school_id !== me.school_id) continue
       if (target.enrollment_status === 'withdrawn') continue
       await addEnrollmentEvent({ student: target, eventType: 'withdraw', status: 'withdrawn', effectiveOn: effectiveDate(req.body.effectiveOn), grade: target.grade, section: target.section, reason: String(req.body.reason || 'Removed from the active roster').trim(), actor: me })
-      await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [id])
+      try {
+        await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [id])
+      } catch (err) {
+        if (!/unknown column 'enrollment_status'/i.test(String(err.message || ''))) throw err
+      }
       count++
     }
     if (count) await audit(me, 'student.bulk_withdraw', { type: 'student', id: '', name: `${count} students`, schoolId: me.school_id || '' }, `Bulk withdrew ${count} students`)
