@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, saveDatabase, getSchoolById, getGradeLevels, setGradeLevels } from '../db.js'
 import { requireRole, schoolToResponse, audit } from './_context.js'
+import { hashPassword } from '../lib/passwords.js'
 
 const router = Router()
 
@@ -41,8 +42,9 @@ router.post('/', async (req, res) => {
         await run('DELETE FROM schools WHERE id = ?', [id])
         return res.status(400).json({ error: 'Username already exists' })
       }
+      const passwordHash = await hashPassword(String(admin.password))
       await run('INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [uuidv4(), admin.username, admin.password, admin.name, 'admin', '', '', '', id])
+        [uuidv4(), admin.username, passwordHash, admin.name, 'admin', '', '', '', id])
     }
 
     await audit(me, 'school.create', { type: 'school', id, name: String(name).trim(), schoolId: id }, `Registered school "${String(name).trim()}"`)

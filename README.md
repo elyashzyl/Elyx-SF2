@@ -22,7 +22,7 @@ npm run dev
 Frontend: http://localhost:5173  
 Backend API: http://localhost:3001  
 
-The application does not create default accounts, schools, plans, licenses, payment methods, or sample records. Insert those records intentionally through the superadmin UI or the explicit JSON seeder described below.
+The application does not create default accounts, schools, plans, licenses, payment methods, or sample records. Insert those records intentionally through the superadmin UI or the explicit JSON seeder described below. New passwords are stored with bcrypt; legacy plaintext credentials are rehashed after a successful login during the migration period.
 
 ---
 
@@ -42,12 +42,26 @@ npm run db:migrate:status
 # Drop all tables and rerun migrations from scratch
 npm run db:migrate:fresh
 
+# Create a database backup
+npm run db:backup
+
+# Restore a SQLite backup after verifying the file and target path
+node scripts/restore.mjs --file ./backups/attendance-backup-YYYY-MM-DD_HH-MM-SS.db --force
+
+# Restore a MySQL SQL dump (requires the mysql client and DATABASE_URL)
+DATABASE_URL=mysql://user:password@host:3306/database \\
+  node scripts/restore.mjs --file ./backups/elytrack-mysql-database-YYYY-MM-DD_HH-MM-SS.sql --force
+
 # Explicitly import records from a JSON file. The file is never bundled
 # with the application and is not read during startup.
 node scripts/seed.mjs --data-file ./private/seed-data.json
 ```
 
 The seed file must provide its own school and administrator credentials. It may also provide plans, licenses, grade levels, payment methods, teachers, and students. Migrations create schema only; they never insert records.
+
+### Backup and restore safety
+
+`npm run db:backup` creates a timestamped SQLite snapshot or MySQL dump and removes backups older than `BACKUP_RETAIN` days. Restore is intentionally a separate, explicit operation and requires `--force`; it never runs during deployment. Before replacing an SQLite database, the restore script creates a `.pre-restore-<timestamp>` safety copy of the active file. Always verify the backup, target environment, and recent backup before restoring production data.
 
 ### Environment Variables
 
@@ -75,6 +89,10 @@ src/
 server.js        — Express entry point
 db.js            — SQLite schema & helpers
 ```
+
+## Continuous integration
+
+GitHub Actions runs on pushes to `main`/`master` and on pull requests. The workflow installs dependencies with optional platform packages enabled, checks migration status against an isolated SQLite database, runs the complete test suite, builds the frontend, and checks for whitespace errors.
 
 ## Note
 

@@ -12,6 +12,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import initSqlJs from 'sql.js'
+import { hashPassword } from '../lib/passwords.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.join(__dirname, '..')
@@ -81,6 +82,7 @@ if (!fs.existsSync(dbPath)) {
   throw new Error(`SQLite database not found at ${dbPath}`)
 }
 
+const hashedResetPassword = await hashPassword(resetPassword)
 const tempPath = `${dbPath}.new-${process.pid}`
 const backupPath = `${dbPath}.backup-${timestamp()}`
 if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true })
@@ -148,7 +150,7 @@ try {
   const existingUser = userRows.find(row => row[usernameIndex] === resetUsername)
 
   if (existingUser) {
-    target.run(`UPDATE ${quoteTable('users')} SET ${quoteIdentifier('password')} = ? WHERE ${quoteIdentifier('username')} = ?`, [resetPassword, resetUsername])
+    target.run(`UPDATE ${quoteTable('users')} SET ${quoteIdentifier('password')} = ? WHERE ${quoteIdentifier('username')} = ?`, [hashedResetPassword, resetUsername])
   } else {
     const required = ['id', 'username', 'password', 'name', 'role']
     const missing = required.filter(column => !userColumns.includes(column))
@@ -157,7 +159,7 @@ try {
     const newUser = {
       id: `reset-${Date.now().toString(36)}`,
       username: resetUsername,
-      password: resetPassword,
+      password: hashedResetPassword,
       name: 'System Admin',
       role: 'superadmin',
       grade: '',

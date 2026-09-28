@@ -14,6 +14,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { v4 as uuidv4 } from 'uuid'
 import { initDatabase, query, run, saveDatabase, DB_MODE } from '../db.js'
+import { hashPassword, isPasswordHash } from '../lib/passwords.js'
 
 function parseArgs(argv) {
   const options = {}
@@ -85,15 +86,16 @@ async function upsertUser(user, schoolId, role) {
   required(user?.password, `${role}.password`)
   required(user?.name, `${role}.name`)
   const id = user.id || uuidv4()
+  const passwordValue = isPasswordHash(user.password) ? user.password : await hashPassword(String(user.password))
   const existing = await query('SELECT id FROM users WHERE id = ? OR username = ?', [id, user.username])
   if (existing.length) {
     await run(`UPDATE users SET username = ?, password = ?, name = ?, role = ?, grade = ?, section = ?, period = ?, school_id = ? WHERE id = ?`,
-      [user.username, user.password, user.name, role, user.grade || '', user.section || '', user.period || '', schoolId || '', existing[0].id])
+      [user.username, passwordValue, user.name, role, user.grade || '', user.section || '', user.period || '', schoolId || '', existing[0].id])
     return existing[0].id
   }
   await run(`INSERT INTO users (id, username, password, name, role, grade, section, period, school_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, user.username, user.password, user.name, role, user.grade || '', user.section || '', user.period || '', schoolId || ''])
+    [id, user.username, passwordValue, user.name, role, user.grade || '', user.section || '', user.period || '', schoolId || ''])
   return id
 }
 

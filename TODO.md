@@ -6,8 +6,12 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
 
 ## 0. Security and Data Integrity Follow-ups
 
-- [ ] **Migrate legacy plaintext passwords to bcrypt/argon2**
-  - Preserve login compatibility during a one-time migration, then remove plaintext password support.
+- [x] **Hash new passwords with bcrypt and migrate on login**
+  - Added `lib/passwords.js` using bcryptjs with 12 rounds.
+  - Trial signup, user creation/updates, school-admin creation, explicit seeding, and reset-account flows now hash passwords.
+  - Existing plaintext passwords remain temporarily compatible and are rehashed after successful login.
+- [ ] **Remove legacy plaintext password fallback**
+  - Audit and migrate remaining existing records, then remove plaintext comparison support.
 - [ ] **Rotate exposed database credentials and application keys**
   - The previously shared environment values must be treated as compromised and replaced in deployment secrets.
 
@@ -49,6 +53,11 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
     - Creates timestamped snapshots for SQLite (`attendance-backup-<timestamp>.db`).
     - Executes `mysqldump` (with fallback table query dump) for MySQL deployments.
     - Implements automated retention policy (cleans backups older than 14 days).
+- [x] **Backup Restore Procedure and Verification**
+  - Added `scripts/restore.mjs` and `npm run db:restore`.
+  - SQLite restores validate the backup and preserve a `.pre-restore-<timestamp>` safety copy.
+  - MySQL SQL restores require `DATABASE_URL`, the `mysql` client, and explicit `--force` confirmation.
+  - Added `tests/backup-restore.test.mjs` for isolated SQLite backup/restore verification.
 
 ---
 
@@ -71,6 +80,9 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
     - `tests/sf2-calculations.test.mjs`: Validates DepEd School Form 2 calculations (ADA, percentage of attendance, gender normalization).
 - [x] **Export Regression Test**
   - `tests/export-regression.test.mjs`: Verifies SF2 template existence, workbook structure, and worksheet accessibility.
+- [x] **Continuous Integration Verification**
+  - Added `.github/workflows/ci.yml` for pushes and pull requests.
+  - CI runs migration status, the complete SQLite test suite, the frontend build, and `git diff --check`.
 
 ---
 

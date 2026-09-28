@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
 import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit, getSchoolLicense, isLicenseActive, actingUser } from './_context.js'
+import { hashPassword } from '../lib/passwords.js'
 
 const router = Router()
 
@@ -69,8 +70,9 @@ router.post('/', async (req, res) => {
     }
 
     const id = uuidv4()
+    const passwordHash = await hashPassword(String(password))
     await run('INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, username, password, name, role, grade || '', section || '', period || '', targetSchoolId || ''])
+      [id, username, passwordHash, name, role, grade || '', section || '', period || '', targetSchoolId || ''])
     await audit(me, 'user.create', { type: 'user', id, name: `${name} (${username})`, schoolId: targetSchoolId || '' }, `Created ${role} "${username}"`)
     res.json({ id, username, name, role })
   } catch (err) {
@@ -124,7 +126,7 @@ router.put('/:id', async (req, res) => {
 
       if (password && String(password).trim()) {
         sets.push('password=?')
-        params.push(String(password).trim())
+        params.push(await hashPassword(String(password).trim()))
       }
 
       params.push(id)
@@ -205,7 +207,7 @@ router.put('/:id', async (req, res) => {
     const params = [vals.username, vals.name, newRole, vals.grade, vals.section, vals.period, newRole === 'superadmin' ? '' : (newSchoolId || '')]
     if (password && String(password).trim()) {
       sets.push('password=?')
-      params.push(String(password).trim())
+      params.push(await hashPassword(String(password).trim()))
     }
     params.push(id)
     await run(`UPDATE users SET ${sets.join(', ')} WHERE id=?`, params)

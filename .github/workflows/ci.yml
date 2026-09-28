@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify application
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DB_CONNECTION: sqlite
+      DATABASE_URL: ''
+      MYSQL_URL: ''
+      MYSQL_CONNECTION_URL: ''
+      DB_URL: ''
+      MYSQL_URI: ''
+      DB_URI: ''
+      REQUIRE_MYSQL: '0'
+      DB_PATH: ${{ runner.temp }}/elytrack-test.db
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev --include=optional
+
+      - name: Check migration status
+        run: npm run db:migrate:status
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Check generated and source files
+        run: git diff --check

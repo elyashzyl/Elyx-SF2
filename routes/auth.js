@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels } from '../db.js'
 import { schoolToResponse, requireRole, isLicenseActive } from './_context.js'
+import { hashPassword, verifyPassword, isPasswordHash } from '../lib/passwords.js'
 
 const router = Router()
 
@@ -40,11 +41,18 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' })
     }
     const cleanUsername = String(username).trim()
-    const users = await query('SELECT * FROM users WHERE LOWER(username) = LOWER(?) AND password = ?', [cleanUsername, password])
-    if (users.length === 0) {
+    const users = await query('SELECT * FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1', [cleanUsername])
+    if (users.length === 0 || !(await verifyPassword(password, users[0].password))) {
       return res.status(401).json({ error: 'Invalid username or password' })
     }
     const user = users[0]
+
+    // Migrate legacy plaintext credentials transparently after a successful login.
+    if (!isPasswordHash(user.password)) {
+      user.password = await hashPassword(password)
+      await run('UPDATE users SET password = ? WHERE id = ?', [user.password, user.id])
+      saveDatabase()
+    }
 
     // License enforcement: check school's license status
     if (user.role !== 'superadmin' && user.school_id) {
@@ -141,9 +149,10 @@ router.post('/trial', async (req, res) => {
       'INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)',
       [schoolId, schoolName, externalSchoolId, address, short]
     )
+    const passwordHash = await hashPassword(password)
     await run(
       'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, username, password, adminName, 'admin', '', '', '', schoolId]
+      [userId, username, passwordHash, adminName, 'admin', '', '', '', schoolId]
     )
     await run(
       `INSERT INTO licenses (
