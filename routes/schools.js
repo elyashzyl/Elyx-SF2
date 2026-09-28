@@ -175,6 +175,7 @@ router.delete('/:id', async (req, res) => {
     await run('DELETE FROM grade_levels WHERE school_id = ?', [id])
     await run('DELETE FROM subscription_requests WHERE school_id = ?', [id])
     await run('DELETE FROM licenses WHERE school_id = ?', [id])
+    await run('DELETE FROM student_enrollment_events WHERE school_id = ?', [id])
     await run('DELETE FROM students WHERE school_id = ?', [id])
     await run('DELETE FROM users WHERE school_id = ?', [id])
     await run('DELETE FROM schools WHERE id = ?', [id])

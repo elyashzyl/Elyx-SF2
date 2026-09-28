@@ -56,6 +56,31 @@ function databaseTimestamp() {
   return new Date().toISOString().slice(0, 19).replace('T', ' ')
 }
 
+async function validateEntryStudents(entries, schoolId, date, grade, section) {
+  const ids = [...new Set(entries.map(entry => String(entry.studentId || '').trim()).filter(Boolean))]
+  if (!ids.length) return null
+  for (const studentId of ids) {
+    const rows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [studentId, schoolId])
+    if (!rows.length) return `Student ${studentId} does not belong to the selected school`
+    const events = await query(`
+      SELECT event_type, status, grade, section
+      FROM student_enrollment_events
+      WHERE student_id = ? AND school_id = ? AND effective_on <= ?
+      ORDER BY effective_on DESC, created_at DESC, id DESC
+      LIMIT 1`, [studentId, schoolId, date])
+    const enrollment = events[0]
+    if (enrollment) {
+      if (enrollment.status !== 'active') return `Student ${studentId} was not actively enrolled on ${date}`
+      if (enrollment.grade !== grade || enrollment.section !== section) {
+        return `Student ${studentId} was not enrolled in ${grade} - ${section} on ${date}`
+      }
+    } else if (rows[0].grade !== grade || rows[0].section !== section) {
+      return `Student ${studentId} is not enrolled in ${grade} - ${section}`
+    }
+  }
+  return null
+}
+
 async function addCorrection({ record, studentId = '', field, oldValue, newValue, reason = '', actor }) {
   if (!record?.reopened_at || String(oldValue ?? '') === String(newValue ?? '')) return
   await run(`INSERT INTO attendance_corrections
@@ -152,6 +177,9 @@ router.post('/', async (req, res) => {
     if (!scope) return
     if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
     const { date, grade, section, adviser, entries = [] } = req.body
+    if (!date || !grade || !section) return res.status(400).json({ error: 'date, grade, and section are required' })
+    const entryScopeError = await validateEntryStudents(entries, scope.schoolId, date, grade, section)
+    if (entryScopeError) return res.status(400).json({ error: entryScopeError })
     const existing = await query(
       'SELECT * FROM attendance_records WHERE date = ? AND grade = ? AND section = ? AND school_id = ?',
       [date, grade, section, scope.schoolId]

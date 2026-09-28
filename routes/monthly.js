@@ -72,6 +72,19 @@ router.post('/', async (req, res) => {
     if (!scope) return
     if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
     const { month, year, grade, section, adviser, entries, created_by, created_by_name } = req.body
+    if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' })
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+    for (const entry of entries) {
+      const student = (await query('SELECT id, school_id FROM students WHERE id = ? AND school_id = ?', [entry.studentId, scope.schoolId]))[0]
+      if (!student) return res.status(400).json({ error: `Student ${entry.studentId} does not belong to the selected school` })
+      const enrollment = (await query(`
+        SELECT grade, section, status FROM student_enrollment_events
+        WHERE student_id = ? AND school_id = ? AND effective_on <= ?
+        ORDER BY effective_on DESC, created_at DESC, id DESC LIMIT 1`, [entry.studentId, scope.schoolId, monthStart]))[0]
+      if (enrollment && (enrollment.status !== 'active' || enrollment.grade !== grade || enrollment.section !== section)) {
+        return res.status(400).json({ error: `Student ${entry.studentId} was not enrolled in ${grade} - ${section} at the start of this month` })
+      }
+    }
     const cls = resolveClassScope(me, grade, section)
     if (cls.error) return res.status(403).json({ error: cls.error })
     if (!await assertValidClass(res, scope.schoolId, cls.grade, cls.section)) return

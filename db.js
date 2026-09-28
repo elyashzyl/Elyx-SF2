@@ -218,7 +218,24 @@ const MYSQL_DDL = [
     grade TEXT NOT NULL,
     section TEXT NOT NULL,
     gender TEXT NOT NULL DEFAULT (''),
-    school_id TEXT NOT NULL DEFAULT ('')
+    school_id TEXT NOT NULL DEFAULT ('') ,
+    enrollment_status VARCHAR(32) NOT NULL DEFAULT 'active'
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS student_enrollment_events (
+    id VARCHAR(96) PRIMARY KEY,
+    student_id VARCHAR(96) NOT NULL,
+    school_id VARCHAR(96) NOT NULL,
+    event_type VARCHAR(32) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    effective_on VARCHAR(10) NOT NULL,
+    grade VARCHAR(255) NOT NULL DEFAULT ('') ,
+    section VARCHAR(255) NOT NULL DEFAULT ('') ,
+    reason VARCHAR(1000) NOT NULL DEFAULT ('') ,
+    actor_id VARCHAR(96) NOT NULL DEFAULT ('') ,
+    actor_name VARCHAR(255) NOT NULL DEFAULT ('') ,
+    actor_role VARCHAR(32) NOT NULL DEFAULT ('') ,
+    transfer_group_id VARCHAR(96) NOT NULL DEFAULT ('') ,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS attendance_records (
     id VARCHAR(96) PRIMARY KEY,
@@ -580,7 +597,25 @@ async function initSqlite() {
       name TEXT NOT NULL,
       grade TEXT NOT NULL,
       section TEXT NOT NULL,
-      gender TEXT DEFAULT ''
+      gender TEXT DEFAULT '',
+      school_id TEXT DEFAULT '',
+      enrollment_status TEXT NOT NULL DEFAULT 'active'
+    )`,
+    `CREATE TABLE IF NOT EXISTS student_enrollment_events (
+      id TEXT PRIMARY KEY,
+      student_id TEXT NOT NULL,
+      school_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      effective_on TEXT NOT NULL,
+      grade TEXT NOT NULL DEFAULT '',
+      section TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      actor_id TEXT NOT NULL DEFAULT '',
+      actor_name TEXT NOT NULL DEFAULT '',
+      actor_role TEXT NOT NULL DEFAULT '',
+      transfer_group_id TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS attendance_records (
       id TEXT PRIMARY KEY,
@@ -591,6 +626,7 @@ async function initSqlite() {
       created_by TEXT DEFAULT '',
       created_by_name TEXT DEFAULT '',
       summary_data TEXT DEFAULT '{}',
+      school_id TEXT DEFAULT '',
       locked INTEGER NOT NULL DEFAULT 0,
       locked_at TEXT,
       locked_by TEXT DEFAULT '',
@@ -791,6 +827,7 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE users ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN enrollment_status TEXT NOT NULL DEFAULT 'active'") } catch {}
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN created_at TEXT DEFAULT (datetime('now'))") } catch {}
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN summary_data TEXT DEFAULT '{}'") } catch {}
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN excluded_dates TEXT DEFAULT '[]'") } catch {}

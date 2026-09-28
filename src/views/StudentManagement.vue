@@ -59,6 +59,65 @@
       </div>
     </div>
 
+    <div v-if="showEnrollmentModal" class="modal-overlay" @click.self="closeEnrollmentModal">
+      <div class="form-card">
+        <h3>{{ enrollmentStudent?.name }} — Enrollment Change</h3>
+        <form @submit.prevent="saveEnrollmentEvent">
+          <div class="form-group">
+            <label>Action</label>
+            <select v-model="enrollmentForm.eventType" required>
+              <option value="transfer">Change Class</option>
+              <option value="promote">Promote</option>
+              <option value="reenroll">Re-enroll</option>
+              <option value="withdraw">Withdraw</option>
+            </select>
+          </div>
+          <div class="form-row" v-if="enrollmentForm.eventType !== 'withdraw'">
+            <div class="form-group">
+              <label>Grade Level</label>
+              <select v-model="enrollmentForm.grade" required>
+                <option v-for="g in grades" :key="g">{{ g }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Section</label>
+              <select v-model="enrollmentForm.section" required>
+                <option v-for="s in (sectionsByGrade[enrollmentForm.grade] || [])" :key="s">{{ s }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Effective Date</label>
+            <input v-model="enrollmentForm.effectiveOn" type="date" required />
+          </div>
+          <div class="form-group">
+            <label>Reason</label>
+            <textarea v-model="enrollmentForm.reason" rows="3" required placeholder="Explain this enrollment change"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" :disabled="enrollmentSaving">{{ enrollmentSaving ? 'Saving...' : 'Save Change' }}</button>
+            <button type="button" @click="closeEnrollmentModal" class="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div v-if="showHistoryModal" class="modal-overlay" @click.self="showHistoryModal = false">
+      <div class="form-card">
+        <h3>{{ historyStudent?.name }} — Enrollment History</h3>
+        <div v-if="historyLoading" class="empty">Loading history...</div>
+        <div v-else-if="!history.length" class="empty">No enrollment history found.</div>
+        <div v-else class="activity-list">
+          <div v-for="item in history" :key="item.id" class="activity-item">
+            <strong>{{ item.event_type }}</strong>
+            <span>{{ item.effective_on }} · {{ item.grade }} · {{ item.section }}</span>
+            <small>{{ item.reason }}</small>
+          </div>
+        </div>
+        <div class="form-actions"><button type="button" @click="showHistoryModal = false" class="btn-secondary">Close</button></div>
+      </div>
+    </div>
+
     <div class="table-card">
       <div class="table-toolbar">
         <div class="table-toolbar-left">
@@ -101,12 +160,13 @@
             <option value="Male">Male</option>
             <option value="Female">Female</option>
           </select>
+          <label class="tbl-check"><input v-model="includeWithdrawn" @change="currentPage = 1; loadStudents()" type="checkbox" /> Include withdrawn</label>
         </div>
       </div>
       <div class="bulk-bar" v-if="selectedIds.size" style="margin: 12px 20px 0;">
         <span>{{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected</span>
-        <button @click="bulkDelete" class="btn-sm btn-danger">Delete Selected</button>
-        <button @click="selectedIds.clear()" class="btn-sm btn-secondary">Clear</button>
+        <button @click="bulkWithdraw" class="btn-sm btn-danger">Withdraw Selected</button>
+        <button @click="clearSelection" class="btn-sm btn-secondary">Clear</button>
       </div>
       <div style="overflow-x: auto;">
       <table class="data-table" v-if="students.length">
@@ -141,13 +201,19 @@
               <span v-else style="color: var(--muted-foreground)">—</span>
             </td>
             <td>{{ s.grade }}</td>
-            <td>{{ s.section }}</td>
+            <td>{{ s.section }} <span v-if="s.enrollment_status === 'withdrawn'" class="pill pill--red">Withdrawn</span></td>
             <td style="text-align: right;">
               <div class="row-actions">
-                <button @click="editStudent(s)" class="icon-btn" title="Edit">
+                <button @click="viewHistory(s)" class="icon-btn" title="View enrollment history">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+                </button>
+                <button @click="openEnrollmentModal(s)" class="icon-btn" title="Change enrollment">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>
+                </button>
+                <button @click="editStudent(s)" class="icon-btn" title="Edit details">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                 </button>
-                <button @click="removeStudent(s.id)" class="icon-btn icon-btn--danger" title="Delete">
+                <button @click="removeStudent(s)" class="icon-btn icon-btn--danger" title="Withdraw">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                 </button>
               </div>
@@ -198,9 +264,18 @@ const effectiveSchoolId = computed(() => auth.isSuperadmin ? (filterSchoolId.val
 const filterGrade = ref('')
 const filterSection = ref('')
 const filterGender = ref('')
+const includeWithdrawn = ref(false)
 const searchQuery = ref('')
 const students = ref([])
 const form = ref({ names: '', name: '', grade: '', section: '', gender: '' })
+const showEnrollmentModal = ref(false)
+const enrollmentStudent = ref(null)
+const enrollmentSaving = ref(false)
+const enrollmentForm = ref({ eventType: 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: '', section: '', reason: '' })
+const showHistoryModal = ref(false)
+const historyStudent = ref(null)
+const history = ref([])
+const historyLoading = ref(false)
 const selectedIds = ref(new Set())
 const pageSize = ref(10)
 const currentPage = ref(1)
@@ -242,7 +317,7 @@ const allSelected = computed(() => students.value.length > 0 && students.value.e
 
 function toggleAll() {
   if (allSelected.value) {
-    selectedIds.value.clear()
+    selectedIds.value = new Set()
   } else {
     selectedIds.value = new Set(students.value.map(s => s.id))
   }
@@ -254,13 +329,17 @@ function toggleOne(id) {
   selectedIds.value = next
 }
 
-async function bulkDelete() {
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+
+async function bulkWithdraw() {
   const ids = Array.from(selectedIds.value)
   if (!ids.length) return
-  const result = await store.deleteStudents(ids)
+  const result = await store.deleteStudents(ids, effectiveSchoolId.value)
   selectedIds.value = new Set()
   await loadStudents()
-  addToast(result.count + ' students deleted', 'success')
+  addToast(result.count + ' students withdrawn', 'success')
 }
 
 onMounted(async () => {
@@ -291,6 +370,7 @@ async function loadStudents() {
   if (filterSection.value) params.section = filterSection.value
   if (filterGender.value) params.gender = filterGender.value
   if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
+  if (includeWithdrawn.value) params.includeWithdrawn = 'true'
   students.value = await store.getStudents(params)
   if (currentPage.value > totalPages.value) currentPage.value = 1
 }
@@ -332,7 +412,7 @@ async function handleSave() {
     const sid = effectiveSchoolId.value
     if (auth.isSuperadmin && !sid) throw new Error('Select a school first')
     if (editingStudent.value) {
-      await store.updateStudent(editingStudent.value.id, { name: capitalizeName(form.value.name), grade: form.value.grade, section: form.value.section, gender: form.value.gender })
+      await store.updateStudent(editingStudent.value.id, { name: capitalizeName(form.value.name), gender: form.value.gender })
       addToast('Student updated', 'success')
       await loadStudents()
       cancelForm()
@@ -370,9 +450,48 @@ function editStudent(s) {
   showForm.value = true
 }
 
-async function removeStudent(id) {
-  await store.deleteStudent(id)
-  await loadStudents()
-  addToast('Student deleted', 'success')
+function openEnrollmentModal(student) {
+  enrollmentStudent.value = student
+  enrollmentForm.value = { eventType: student.enrollment_status === 'withdrawn' ? 'reenroll' : 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: student.grade, section: student.section, reason: '' }
+  showEnrollmentModal.value = true
+}
+
+function closeEnrollmentModal() {
+  showEnrollmentModal.value = false
+  enrollmentStudent.value = null
+}
+
+async function saveEnrollmentEvent() {
+  if (!enrollmentStudent.value) return
+  enrollmentSaving.value = true
+  try {
+    await store.createEnrollmentEvent(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
+    addToast('Enrollment updated', 'success')
+    closeEnrollmentModal()
+    await loadStudents()
+  } catch (e) {
+    addToast(e.message, 'error')
+  } finally {
+    enrollmentSaving.value = false
+  }
+}
+
+async function viewHistory(student) {
+  historyStudent.value = student
+  history.value = []
+  historyLoading.value = true
+  showHistoryModal.value = true
+  try { history.value = await store.getEnrollmentHistory(student.id, effectiveSchoolId.value) } catch (e) { addToast(e.message, 'error') }
+  finally { historyLoading.value = false }
+}
+
+async function removeStudent(student) {
+  try {
+    await store.deleteStudent(student.id, effectiveSchoolId.value)
+    await loadStudents()
+    addToast('Student withdrawn', 'success')
+  } catch (e) {
+    addToast(e.message, 'error')
+  }
 }
 </script>

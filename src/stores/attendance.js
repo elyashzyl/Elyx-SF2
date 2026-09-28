@@ -105,6 +105,22 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function getEnrollmentHistory(id, schoolId) {
+    const extra = schoolId ? { schoolId } : {}
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/students/${id}/enrollment-history?${query}`) || []
+  }
+
+  async function createEnrollmentEvent(id, data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${id}/enrollment-events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
   async function deleteStudent(id, schoolId) {
     const auth = getAuth()
     const extra = { userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }
@@ -287,7 +303,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
   }
 
   return {
-    getStudents, addStudent, addStudents, updateStudent, deleteStudent, deleteStudents,
+    getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
     updateEntry, reopenRecord, getCorrections, getAllRecords, deleteRecord,
     fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlyRemarks

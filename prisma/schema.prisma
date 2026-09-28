@@ -64,10 +64,30 @@ model Student {
   name     String @db.Text
   grade    String @db.Text
   section  String @db.Text
-  gender   String @default("") @db.Text
-  schoolId String @default("") @map("school_id") @db.Text
+  gender           String   @default("") @db.Text
+  schoolId         String   @default("") @map("school_id") @db.Text
+  enrollmentStatus String   @default("active") @map("enrollment_status") @db.VarChar(32)
 
   @@map("students")
+}
+
+model StudentEnrollmentEvent {
+  id              String   @id @default(uuid()) @db.VarChar(96)
+  studentId       String   @map("student_id") @db.VarChar(96)
+  schoolId        String   @map("school_id") @db.VarChar(96)
+  eventType       String   @map("event_type") @db.VarChar(32)
+  status          String   @db.VarChar(32)
+  effectiveOn     String   @map("effective_on") @db.VarChar(10)
+  grade           String   @default("") @db.VarChar(255)
+  section         String   @default("") @db.VarChar(255)
+  reason          String   @default("") @db.VarChar(1000)
+  actorId         String   @default("") @map("actor_id") @db.VarChar(96)
+  actorName       String   @default("") @map("actor_name") @db.VarChar(255)
+  actorRole       String   @default("") @map("actor_role") @db.VarChar(32)
+  transferGroupId String   @default("") @map("transfer_group_id") @db.VarChar(96)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("student_enrollment_events")
 }
 
 model AttendanceRecord {

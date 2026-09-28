@@ -89,6 +89,24 @@ Remaining attendance follow-ups:
 
 ---
 
+## 3.5 Student Enrollment History
+
+- [x] Add append-only enrollment events and backfill existing students.
+- [x] Add transfer, promotion, reenrollment, and withdrawal API workflows.
+- [x] Keep historical attendance and monthly entries when withdrawing students.
+- [x] Add school-scoped enrollment history endpoint and student-management actions.
+- [x] Validate attendance entries against the selected school and historical enrollment.
+
+## 3A. Student Enrollment History Follow-ups
+
+- [ ] Add guardian contacts, emergency information, and consent history.
+- [ ] Add LRN and duplicate-student matching rules.
+- [x] Add historical/as-of roster support to monthly SF2 generation.
+- [ ] Add cross-school transfer workflow with paired source/destination events.
+- [ ] Add database transaction helpers for atomic roster and enrollment-event writes.
+
+---
+
 ## 4. Database Health & Telemetry
 
 - [x] **Enhance Health Check Endpoint (`/api/health`)**

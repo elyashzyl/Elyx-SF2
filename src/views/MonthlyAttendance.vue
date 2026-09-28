@@ -645,7 +645,8 @@ async function openMonthly() {
   }
   loadError.value = ''
   const sid = effectiveSchoolId.value
-  const students = await store.getStudents({ grade: form.grade, section: form.section, ...(sid ? { schoolId: sid } : {}) })
+  const asOf = `${form.year}-${String(form.month).padStart(2, '0')}-01`
+  const students = await store.getStudents({ grade: form.grade, section: form.section, includeWithdrawn: 'true', asOf, ...(sid ? { schoolId: sid } : {}) })
   const lookup = {}
   for (const s of students) lookup[s.id] = s.gender || ''
   studentsLookup.value = lookup

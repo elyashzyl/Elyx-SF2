@@ -57,7 +57,7 @@ DATABASE_URL=mysql://user:password@host:3306/database \\
 node scripts/seed.mjs --data-file ./private/seed-data.json
 ```
 
-The seed file must provide its own school and administrator credentials. It may also provide plans, licenses, grade levels, payment methods, teachers, and students. Migrations create schema only; they never insert records.
+The seed file must provide its own school and administrator credentials. It may also provide plans, licenses, grade levels, payment methods, teachers, and students. Migrations create schema only; they never insert operational records. Migration `011_student_enrollment_history` backfills one baseline enrollment event for existing students because historical enrollment dates cannot be recovered when they were never recorded.
 
 ### Backup and restore safety
 
@@ -80,6 +80,8 @@ Treat any database password, application key, or deployment token shared outside
 | `DB_PASSWORD` | MySQL password |
 | `DB_PATH` | SQLite file path |
 | `SEED_DATA_FILE` | Explicit JSON seed file path |
+
+Student enrollment changes are append-only. Withdrawal keeps historical attendance and monthly entries, while the active roster hides withdrawn students by default. Use `/api/students/:id/enrollment-events` for class changes, promotion, reenrollment, and withdrawal; direct grade/section edits are rejected. Student roster requests support `asOf=YYYY-MM-DD` for historical enrollment snapshots.
 
 ## Project Structure
 

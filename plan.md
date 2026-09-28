@@ -140,9 +140,11 @@ The following capabilities already exist or are substantially implemented:
 **Priority: High**
 
 - [ ] Expand student profiles with guardian contacts and emergency information.
-- [ ] Add enrollment history by school year, grade, and section.
-- [ ] Add student transfer, promotion, and withdrawal workflows.
-- [ ] Preserve historical attendance when a student changes section or grade.
+- [x] Add append-only enrollment history by effective date, grade, and section.
+- [x] Add student transfer, promotion, reenrollment, and withdrawal workflows.
+- [x] Preserve historical attendance entries when a student changes section or grade or is withdrawn.
+  - Current roster rows are retained; withdrawal is a status transition instead of destructive deletion.
+  - Attendance saves validate student school ownership and historical enrollment class.
 - [ ] Add configurable student risk rules for SARDO instead of fixed thresholds.
 - [ ] Add intervention records:
   - Concern type.
@@ -317,7 +319,7 @@ These modules should be added only after attendance and subscription workflows a
 2. Add API-level authorization tests for every school-owned route. **Completed for the current users, students, schools, and license authorization boundaries; extend coverage when new school-owned routes are added.**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 3. Implement attendance lock and correction history. **Completed:** migration 010, API enforcement, school cutoff settings, reopen authorization, audit logging, correction history, UI status controls, and regression tests.
-4. Add enrollment history before adding more LMS features.
+4. Add enrollment history before adding more LMS features. **Completed:** migration 011, backfill, school-scoped history, transfer/promotion/reenrollment/withdrawal workflows, non-destructive roster status, historical attendance validation, and UI actions.
 5. Add payment proof, receipts, and expiration reminders.
 6. Add database backup restore testing. **Completed:** restore tooling, safety checks, and documented commands are now available; production restore drills remain a recurring operational task.
 7. Add CI to run migrations, tests, frontend build, and export regression checks. **Completed:** `.github/workflows/ci.yml` runs migration status, the full SQLite test suite, the frontend build, and `git diff --check` on pushes and pull requests.
