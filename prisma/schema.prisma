@@ -232,6 +232,7 @@ model SubscriptionRequest {
   id                String   @id @default(uuid()) @db.VarChar(96)
   schoolId          String   @default("") @map("school_id") @db.VarChar(96)
   licenseId         String   @default("") @map("license_id") @db.VarChar(96)
+  requestType       String   @default("") @map("request_type") @db.VarChar(32)
   planTier          String   @default("campus") @map("plan_tier") @db.VarChar(32)
   billingCycle      String   @default("annual") @map("billing_cycle") @db.VarChar(32)
   amount            Int      @default(0)

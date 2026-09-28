@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run, getSchoolById, getGradeLevels, setGradeLevels } from '../db.js'
+import { query, run, saveDatabase, getSchoolById, getGradeLevels, setGradeLevels } from '../db.js'
 import { requireRole, schoolToResponse, audit } from './_context.js'
 
 const router = Router()
@@ -145,30 +145,43 @@ router.put('/:id/grades', async (req, res) => {
   }
 })
 
-// Delete a school (superadmin only). Refuse if dependent rows exist.
+// Delete a school (superadmin only).
+// School deletion is an explicit destructive operation. It removes the school's
+// operational records and dependent child rows so the UI does not fail simply
+// because the school already has users, attendance, or subscription history.
 router.delete('/:id', async (req, res) => {
   try {
     const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
-    const id = req.params.id
-    for (const [table, label] of [
-      ['users', 'users'], ['students', 'students'],
-      ['monthly_records', 'monthly records'], ['attendance_records', 'attendance records']
-    ]) {
-      const n = (await query(`SELECT COUNT(*) as cnt FROM "${table}" WHERE school_id = ?`, [id]))[0]?.cnt || 0
-      if (n > 0) return res.status(400).json({ error: `Cannot delete: school still has ${n} ${label}. Reassign or remove them first.` })
-    }
+
+    const id = String(req.params.id || '').trim()
     const doomed = await getSchoolById(id)
+    if (!doomed) return res.status(404).json({ error: 'School not found' })
+
+    // Delete child rows first. The shared schema intentionally does not rely on
+    // database foreign keys, so this cleanup must be explicit for both MySQL
+    // and SQLite deployments.
+    await run('DELETE FROM inquiry_messages WHERE inquiry_id IN (SELECT id FROM inquiries WHERE school_id = ?)', [id])
+    await run('DELETE FROM inquiries WHERE school_id = ?', [id])
+    await run('DELETE FROM monthly_entries WHERE record_id IN (SELECT id FROM monthly_records WHERE school_id = ?)', [id])
+    await run('DELETE FROM monthly_records WHERE school_id = ?', [id])
+    await run('DELETE FROM attendance_entries WHERE record_id IN (SELECT id FROM attendance_records WHERE school_id = ?)', [id])
+    await run('DELETE FROM attendance_records WHERE school_id = ?', [id])
+    await run('DELETE FROM teacher_schedules WHERE school_id = ? OR teacher_id IN (SELECT id FROM users WHERE school_id = ?)', [id, id])
     await run('DELETE FROM calendar_events WHERE school_id = ?', [id])
     await run('DELETE FROM quarterly_events WHERE school_id = ?', [id])
     await run('DELETE FROM grade_levels WHERE school_id = ?', [id])
+    await run('DELETE FROM subscription_requests WHERE school_id = ?', [id])
     await run('DELETE FROM licenses WHERE school_id = ?', [id])
+    await run('DELETE FROM students WHERE school_id = ?', [id])
+    await run('DELETE FROM users WHERE school_id = ?', [id])
     await run('DELETE FROM schools WHERE id = ?', [id])
-    await audit(me, 'school.delete', { type: 'school', id, name: doomed?.name || '', schoolId: id }, `Deleted school "${doomed?.name || id}"`)
-    res.json({ success: true })
+    await audit(me, 'school.delete', { type: 'school', id, name: doomed.name || '', schoolId: id }, `Deleted school "${doomed.name || id}" and its operational records`)
+    saveDatabase()
+    res.json({ success: true, deletedSchoolId: id })
   } catch (err) {
     console.error('Failed to delete school', err.message)
-    res.status(500).json({ error: 'Failed to delete school' })
+    res.status(500).json({ error: 'Failed to delete school: ' + err.message })
   }
 })
 

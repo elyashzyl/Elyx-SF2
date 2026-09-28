@@ -345,10 +345,11 @@
       </div>
       <div v-if="auth.isSuperadmin && subscriptionRequests.length" class="table-wrapper">
         <table class="data-table">
-          <thead><tr><th>School</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
+          <thead><tr><th>School</th><th>Request</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
           <tbody>
             <tr v-for="request in subscriptionRequests" :key="request.id">
               <td><strong>{{ request.school_name || request.school_id }}</strong></td>
+              <td>{{ formatRequestType(request.request_type) }}</td>
               <td>{{ request.plan_name || request.plan_tier }}<small style="display:block;color:var(--muted-foreground);">{{ request.billing_cycle }}</small></td>
               <td>₱{{ Number(request.amount || 0).toLocaleString() }}</td>
               <td><code>{{ request.payment_reference || 'Proof attached' }}</code></td>
@@ -365,7 +366,7 @@
       </div>
       <div v-else-if="!auth.isSuperadmin && subscriptionRequests.length" class="subscription-request-list">
         <div v-for="request in subscriptionRequests" :key="request.id" class="subscription-request-row">
-          <strong>{{ request.plan_name || request.plan_tier }}</strong>
+          <strong>{{ formatRequestType(request.request_type) }} · {{ request.plan_name || request.plan_tier }}</strong>
           <span>{{ request.billing_cycle }} · ₱{{ Number(request.amount || 0).toLocaleString() }}</span>
           <span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span>
         </div>
@@ -383,6 +384,7 @@
         <form @submit.prevent="submitSubscriptionRequest">
           <div class="modal-body">
             <p class="desc">Pay using one of the official payment options above, then enter the payment reference below. The superadmin will verify the request.</p>
+            <div class="form-group"><label>Request type *</label><select v-model="subscriptionForm.request_type" required><option value="activation">New activation</option><option value="renewal">Renewal</option><option value="upgrade">Plan upgrade</option></select></div>
             <div class="form-group"><label>Plan *</label><select v-model="subscriptionForm.plan_tier" required><option v-for="plan in availablePlans" :key="plan.id" :value="plan.tier">{{ plan.name }} (₱{{ Number(subscriptionForm.billing_cycle === 'monthly' ? plan.price_monthly : plan.billing_annual_total).toLocaleString() }})</option></select></div>
             <div class="form-group"><label>Billing cycle *</label><select v-model="subscriptionForm.billing_cycle"><option value="annual">Annual plan term</option><option value="monthly">Monthly</option></select></div>
             <div class="form-group"><label>Payment channel</label><select v-model="subscriptionForm.payment_method_id"><option value="">Not specified</option><option v-for="method in paymentMethods.filter(pm => pm.is_active)" :key="method.id" :value="method.id">{{ method.bank_name }}</option></select></div>
@@ -818,6 +820,7 @@ const paymentMethods = ref([])
 const subscriptionRequests = ref([])
 const showSubscriptionRequestModal = ref(false)
 const subscriptionForm = reactive({
+  request_type: 'renewal',
   plan_tier: '',
   billing_cycle: '',
   payment_method_id: '',
@@ -1125,6 +1128,10 @@ async function deletePaymentMethod(pm) {
   }
 }
 
+function formatRequestType(type) {
+  return { activation: 'Activation', renewal: 'Renewal', upgrade: 'Upgrade' }[type] || 'Subscription request'
+}
+
 function planTierName(tier) {
   const p = availablePlans.value.find(x => x.tier === tier)
   if (p) return p.name
@@ -1176,6 +1183,7 @@ async function loadSubscriptionRequests() {
 
 function openSubscriptionRequestModal() {
   if (auth.isSuperadmin) return
+  subscriptionForm.request_type = activeLicense.value ? 'renewal' : 'activation'
   subscriptionForm.plan_tier = availablePlans.value[0]?.tier || ''
   subscriptionForm.billing_cycle = availablePlans.value[0]?.billing_months ? 'annual' : 'monthly'
   subscriptionForm.payment_method_id = paymentMethods.value.find(pm => pm.is_active)?.id || ''

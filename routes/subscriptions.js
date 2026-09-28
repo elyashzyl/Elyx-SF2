@@ -48,12 +48,13 @@ router.get('/requests', async (req, res) => {
 // Admins submit a payment reference/proof for a selected database plan.
 router.post('/requests', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'admin', 'superadmin')
+    const { me, error } = await requireRole(req, res, 'admin')
     if (error) return
-    if (!me.school_id && me.role !== 'superadmin') return res.status(400).json({ error: 'No school is assigned to this account' })
+    if (!me.school_id) return res.status(400).json({ error: 'No school is assigned to this account' })
 
     const {
       school_id,
+      request_type = 'renewal',
       plan_tier = '',
       billing_cycle,
       payment_method_id = '',
@@ -61,8 +62,9 @@ router.post('/requests', async (req, res) => {
       proof_url = '',
       notes = ''
     } = req.body || {}
-    const targetSchoolId = me.role === 'superadmin' ? String(school_id || me.school_id || '').trim() : me.school_id
+    const targetSchoolId = me.school_id
     if (!targetSchoolId || !String(plan_tier).trim() || !billing_cycle) return res.status(400).json({ error: 'School, plan, and billing cycle are required' })
+    if (!['activation', 'renewal', 'upgrade'].includes(request_type)) return res.status(400).json({ error: 'Request type must be activation, renewal, or upgrade' })
     if (!['monthly', 'annual'].includes(billing_cycle)) return res.status(400).json({ error: 'Billing cycle must be monthly or annual' })
     if (!String(payment_reference).trim() && !String(proof_url).trim()) return res.status(400).json({ error: 'Payment reference or proof is required' })
 
@@ -82,11 +84,11 @@ router.post('/requests', async (req, res) => {
     const id = uuidv4()
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19)
     await run(`INSERT INTO subscription_requests (
-      id, school_id, license_id, plan_tier, billing_cycle, amount, payment_method_id,
+      id, school_id, license_id, request_type, plan_tier, billing_cycle, amount, payment_method_id,
       payment_reference, proof_url, status, requested_by, reviewed_by, reviewed_at,
       notes, created_at, updated_at
-    ) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, 'pending', ?, '', '', ?, ?, ?)`, [
-      id, targetSchoolId, plan.tier, billing_cycle, amountFor(plan, billing_cycle), payment_method_id || '',
+    ) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, ?, 'pending', ?, '', '', ?, ?, ?)`, [
+      id, targetSchoolId, request_type, plan.tier, billing_cycle, amountFor(plan, billing_cycle), payment_method_id || '',
       String(payment_reference).trim(), String(proof_url).trim(), me.id, String(notes).trim(), now, now
     ])
     await audit(me, 'subscription_request.create', { type: 'subscription_request', id, schoolId: targetSchoolId }, `Submitted ${plan.tier} subscription payment for review`)
@@ -118,12 +120,18 @@ router.patch('/requests/:id/status', async (req, res) => {
     if (!Number.isInteger(renewalMonths) || renewalMonths <= 0) {
       return res.status(400).json({ error: 'The selected plan has no valid billing duration' })
     }
-    const expiry = new Date(now)
-    expiry.setMonth(expiry.getMonth() + renewalMonths)
-    const expiryString = expiry.toISOString().split('T')[0]
 
     if (status === 'approved') {
       const license = (await query('SELECT * FROM licenses WHERE school_id = ? ORDER BY issued_at DESC LIMIT 1', [request.school_id]))[0]
+      if (request.request_type === 'activation' && license && ['active', 'trial'].includes(license.status)) {
+        return res.status(409).json({ error: 'This school already has an active license. Submit an upgrade or renewal request instead.' })
+      }
+      const baseDate = request.request_type === 'renewal' && license?.expires_at && new Date(license.expires_at) > now
+        ? new Date(license.expires_at)
+        : now
+      const expiry = new Date(baseDate)
+      expiry.setMonth(expiry.getMonth() + renewalMonths)
+      const expiryString = expiry.toISOString().split('T')[0]
       const features = typeof plan.modules === 'string' ? plan.modules : JSON.stringify(plan.modules || {})
       if (license) {
         await run(`UPDATE licenses SET plan_tier = ?, status = 'active', billing_cycle = ?, max_teachers = ?, max_students = ?, issued_at = ?, expires_at = ?, trial_ends_at = '', features = ?, notes = ? WHERE id = ?`, [

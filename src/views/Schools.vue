@@ -391,7 +391,7 @@ function editSchool(s) {
 }
 
 async function removeSchool(id) {
-  if (!confirm('Delete this school? This only works when it has no users, students, or records.')) return
+  if (!confirm('Delete this school and all of its users, students, attendance, inquiries, licenses, and subscription requests? This cannot be undone.')) return
   try {
     await auth.deleteSchool(id)
     await loadSchools()
