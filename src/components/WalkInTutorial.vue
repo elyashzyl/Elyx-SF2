@@ -431,11 +431,7 @@
             </div>
 
             <div class="completion-note">
-              <label class="remember-checkbox-label">
-                <input type="checkbox" v-model="dontShowAgain" />
-                <span>Don't show this walkthrough automatically when signing in</span>
-              </label>
-              <small>You can reopen this tutorial at any time by clicking the <strong>Tutorial (?)</strong> icon in the top navigation bar.</small>
+              <small>This walkthrough will not open automatically again for this account. You can reopen it at any time by clicking the <strong>Tutorial (?)</strong> icon in the top navigation bar.</small>
             </div>
           </div>
         </div>
@@ -512,7 +508,14 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const currentStep = ref(0)
-const dontShowAgain = ref(true)
+
+function tutorialSeenKey() {
+  return `elytrack_tutorial_seen:${auth.user?.id || auth.user?.username || 'guest'}`
+}
+
+function markTutorialSeen() {
+  localStorage.setItem(tutorialSeenKey(), '1')
+}
 
 const steps = [
   { shortTitle: 'Platform Overview' },
@@ -544,13 +547,12 @@ function prevStep() {
 }
 
 function finishTutorial() {
-  if (dontShowAgain.value) {
-    localStorage.setItem('elytrack_tutorial_seen', '1')
-  }
   closeTutorial()
 }
 
 function closeTutorial() {
+  // Completion, skipping, closing, and backdrop dismissal all count as seen.
+  markTutorialSeen()
   emit('update:show', false)
   emit('close')
 }

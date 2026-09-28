@@ -40,6 +40,8 @@ test('WalkInTutorial.vue contains 6 multi-role onboarding slides and localStorag
   assert.ok(content.includes('code-absent'), 'Slide 2 should include code chips (A)')
   assert.ok(content.includes('auth.isAdmin || auth.isSuperadmin'), 'Slide 5 should branch for Admin vs Teacher')
   assert.ok(content.includes('elytrack_tutorial_seen'), 'Should store completion flag in localStorage')
+  assert.ok(content.includes('tutorialSeenKey'), 'Tutorial state should be scoped to the authenticated account')
+  assert.ok(content.includes('markTutorialSeen'), 'Tutorial dismissal should persist completion')
 })
 
 test('App.vue mounts WalkInTutorial and provides tutorial button in top navigation', () => {
@@ -50,6 +52,8 @@ test('App.vue mounts WalkInTutorial and provides tutorial button in top navigati
   assert.ok(content.includes('tutorial-btn'), 'App.vue should have tutorial-btn in top nav')
   assert.ok(content.includes('showTutorial'), 'App.vue should have showTutorial state')
   assert.ok(content.includes('elytrack_tutorial_seen'), 'App.vue should check elytrack_tutorial_seen')
+  assert.ok(content.includes('tutorialSeenKey'), 'App.vue should use a per-user tutorial key')
+  assert.ok(content.includes('maybeShowTutorial'), 'App.vue should centralize first-login tutorial checks')
 })
 
 test('Licenses route blocks school admins from mutation endpoints', () => {

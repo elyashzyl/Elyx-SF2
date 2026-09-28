@@ -357,6 +357,13 @@ const stoppingImpersonation = ref(false)
 const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
 
 const showTutorial = ref(false)
+const tutorialSeenKey = computed(() => `elytrack_tutorial_seen:${auth.user?.id || auth.user?.username || 'guest'}`)
+
+function maybeShowTutorial() {
+  if (auth.user && !localStorage.getItem(tutorialSeenKey.value)) {
+    showTutorial.value = true
+  }
+}
 
 const licenseLocked = ref(false)
 const licenseStatus = ref('active')
@@ -442,10 +449,8 @@ onMounted(() => {
   checkLicenseStatus()
   restoreScrollAfterLoad()
 
-  // Auto-launch walkthrough for first-time authenticated users
-  if (auth.user && !localStorage.getItem('elytrack_tutorial_seen')) {
-    showTutorial.value = true
-  }
+  // Auto-launch the walkthrough once for each authenticated user.
+  maybeShowTutorial()
 
   // Realtime license validation check every 10 seconds for instant locking on suspension
   appLicenseInterval = setInterval(() => {
@@ -462,9 +467,7 @@ watch(() => auth.user?.school_id, () => {
 })
 
 watch(() => auth.user, (newUser) => {
-  if (newUser && !localStorage.getItem('elytrack_tutorial_seen')) {
-    showTutorial.value = true
-  }
+  if (newUser) maybeShowTutorial()
 })
 
 function closeSidebar() {
