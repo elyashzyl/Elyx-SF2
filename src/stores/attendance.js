@@ -141,6 +141,26 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function bulkStudentAction(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/bulk-action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function bulkPermanentDeleteStudents(ids, schoolId) {
+    const extra = { ids }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/bulk-permanent-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
   async function deleteStudent(id, schoolId) {
     const auth = getAuth()
     const extra = { userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }
@@ -323,7 +343,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
   }
 
   return {
-    getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, deleteStudent, deleteStudents,
+    getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
     updateEntry, reopenRecord, getCorrections, getAllRecords, deleteRecord,
     fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlyRemarks

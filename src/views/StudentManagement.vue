@@ -118,47 +118,114 @@
       </div>
     </div>
 
-    <div v-if="showBulkReenrollModal" class="modal-overlay" @click.self="closeBulkReenrollModal">
-      <div class="form-card">
-        <h3>Re-enroll {{ selectedIds.size }} Selected Student{{ selectedIds.size > 1 ? 's' : '' }}</h3>
-        <form @submit.prevent="submitBulkReenroll">
-          <div class="form-group">
-            <label>Class Assignment</label>
-            <select v-model="bulkReenrollMode">
-              <option value="keep">Keep each student's current grade and section</option>
-              <option value="assign">Assign all selected students to a new class</option>
-            </select>
-          </div>
-          <div class="form-row" v-if="bulkReenrollMode === 'assign'">
+    <!-- Unified Bulk Action Modal -->
+    <div v-if="showBulkModal" class="modal-overlay" @click.self="closeBulkModal">
+      <div class="form-card" style="max-width: 520px;">
+        <div class="modal-header-compact">
+          <h3>{{ bulkModalTitle }}</h3>
+          <p class="modal-subtext">{{ bulkModalSubtitle }}</p>
+        </div>
+
+        <form @submit.prevent="submitBulkAction">
+          <!-- Class Assignment for Transfer / Promote -->
+          <div v-if="['transfer', 'promote'].includes(bulkActionType)" class="form-row">
             <div class="form-group">
-              <label>Grade Level</label>
-              <select v-model="bulkReenrollForm.grade" required>
+              <label>Target Grade Level <span class="required">*</span></label>
+              <select v-model="bulkForm.grade" @change="bulkForm.section = (sectionsByGrade[bulkForm.grade] || [])[0] || ''" required>
                 <option value="" disabled>Select grade</option>
                 <option v-for="g in grades" :key="g">{{ g }}</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Section</label>
-              <select v-model="bulkReenrollForm.section" required>
+              <label>Target Section <span class="required">*</span></label>
+              <select v-model="bulkForm.section" required>
                 <option value="" disabled>Select section</option>
-                <option v-for="s in (sectionsByGrade[bulkReenrollForm.grade] || [])" :key="s">{{ s }}</option>
+                <option v-for="s in (sectionsByGrade[bulkForm.grade] || [])" :key="s">{{ s }}</option>
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label>Effective Date</label>
-            <input v-model="bulkReenrollForm.effectiveOn" type="date" required />
+
+          <!-- Class Assignment for Re-enroll -->
+          <template v-if="bulkActionType === 'reenroll'">
+            <div class="form-group">
+              <label>Class Assignment</label>
+              <select v-model="bulkForm.reenrollMode">
+                <option value="keep">Keep previous grade and section</option>
+                <option value="assign">Assign to a new grade and section</option>
+              </select>
+            </div>
+            <div class="form-row" v-if="bulkForm.reenrollMode === 'assign'">
+              <div class="form-group">
+                <label>Target Grade Level <span class="required">*</span></label>
+                <select v-model="bulkForm.grade" @change="bulkForm.section = (sectionsByGrade[bulkForm.grade] || [])[0] || ''" required>
+                  <option value="" disabled>Select grade</option>
+                  <option v-for="g in grades" :key="g">{{ g }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Target Section <span class="required">*</span></label>
+                <select v-model="bulkForm.section" required>
+                  <option value="" disabled>Select section</option>
+                  <option v-for="s in (sectionsByGrade[bulkForm.grade] || [])" :key="s">{{ s }}</option>
+                </select>
+              </div>
+            </div>
+          </template>
+
+          <!-- Gender Assignment -->
+          <div v-if="bulkActionType === 'gender'" class="form-group">
+            <label>Learner Gender <span class="required">*</span></label>
+            <select v-model="bulkForm.gender" required>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
           </div>
-          <div class="form-group">
-            <label>Reason</label>
-            <textarea v-model="bulkReenrollForm.reason" rows="3" required placeholder="Reason for re-enrollment"></textarea>
+
+          <!-- Withdrawal Reason Presets -->
+          <template v-if="bulkActionType === 'withdraw'">
+            <div class="form-group">
+              <label>Common Withdrawal Reason</label>
+              <select v-model="bulkForm.withdrawPreset" @change="onWithdrawPresetChange">
+                <option value="Transferred out to another school">Transferred out to another school (T.O.)</option>
+                <option value="Family relocation / moved residence">Family relocation / moved residence</option>
+                <option value="Illness / medical leave">Illness / medical leave</option>
+                <option value="Financial / employment reasons">Financial / employment reasons</option>
+                <option value="Dropped out / personal reasons">Dropped out / personal reasons</option>
+                <option value="Other">Other (enter custom reason below)</option>
+              </select>
+            </div>
+          </template>
+
+          <!-- Effective Date -->
+          <div v-if="!['gender', 'permanent_delete'].includes(bulkActionType)" class="form-group">
+            <label>Effective Date <span class="required">*</span></label>
+            <input v-model="bulkForm.effectiveOn" type="date" required />
           </div>
+
+          <!-- Reason / Notes Field -->
+          <div v-if="!['gender', 'permanent_delete'].includes(bulkActionType)" class="form-group">
+            <label>Reason / Notes <span class="required">*</span></label>
+            <textarea v-model="bulkForm.reason" rows="2" required placeholder="Explain this change"></textarea>
+          </div>
+
+          <!-- Permanent Delete Confirmation Checkbox -->
+          <div v-if="bulkActionType === 'permanent_delete'" class="form-group" style="margin-top: 10px;">
+            <label class="tbl-check" style="color: var(--destructive); font-weight: 700;">
+              <input v-model="bulkForm.confirmDelete" type="checkbox" required />
+              I understand that this action permanently deletes these learners and all their attendance history.
+            </label>
+          </div>
+
           <div class="form-actions">
-            <button type="submit" class="btn-primary" :disabled="bulkReenrollSaving">
-              <span v-if="bulkReenrollSaving" class="spinner" style="margin-right: 6px;"></span>
-              {{ bulkReenrollSaving ? 'Re-enrolling...' : 'Re-enroll Students' }}
+            <button
+              type="submit"
+              :class="bulkActionType === 'withdraw' || bulkActionType === 'permanent_delete' ? 'btn-danger' : 'btn-primary'"
+              :disabled="bulkSaving"
+            >
+              <span v-if="bulkSaving" class="spinner" style="margin-right: 6px;"></span>
+              {{ bulkSubmitButtonLabel }}
             </button>
-            <button type="button" @click="closeBulkReenrollModal" class="btn-secondary">Cancel</button>
+            <button type="button" @click="closeBulkModal" class="btn-secondary">Cancel</button>
           </div>
         </form>
       </div>
@@ -210,15 +277,57 @@
         </div>
       </div>
       <div class="bulk-bar" v-if="selectedIds.size" style="margin: 12px 20px 0;">
-        <span>{{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected</span>
-        <button @click="openBulkReenrollModal" class="btn-sm btn-success">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
-          </svg>
-          Re-enroll Selected
-        </button>
-        <button @click="bulkWithdraw" class="btn-sm btn-danger">Withdraw Selected</button>
-        <button @click="clearSelection" class="btn-sm btn-secondary">Clear</button>
+        <div class="bulk-bar-left">
+          <span>{{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected</span>
+          <span v-if="selectedWithdrawnCount > 0 && selectedActiveCount > 0" class="bulk-bar-sub">
+            ({{ selectedActiveCount }} active, {{ selectedWithdrawnCount }} withdrawn)
+          </span>
+          <span v-else-if="selectedWithdrawnCount > 0" class="bulk-bar-sub">
+            (all withdrawn)
+          </span>
+        </div>
+        <div class="bulk-bar-right">
+          <!-- Re-enroll: prominently shown if any selected student is withdrawn -->
+          <button v-if="selectedWithdrawnCount > 0" @click="openBulkModal('reenroll')" class="btn-sm btn-success">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+            </svg>
+            Re-enroll {{ selectedWithdrawnCount < selectedIds.size ? `(${selectedWithdrawnCount})` : '' }}
+          </button>
+
+          <!-- Change Class / Transfer (for active students) -->
+          <button v-if="selectedActiveCount > 0" @click="openBulkModal('transfer')" class="btn-sm btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+            </svg>
+            Change Class
+          </button>
+
+          <!-- Promote (for active students) -->
+          <button v-if="selectedActiveCount > 0" @click="openBulkModal('promote')" class="btn-sm btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m18 15-6-6-6 6"/>
+            </svg>
+            Promote
+          </button>
+
+          <!-- Assign Gender -->
+          <button @click="openBulkModal('gender')" class="btn-sm btn-secondary">
+            Set Gender
+          </button>
+
+          <!-- Withdraw (for active students) -->
+          <button v-if="selectedActiveCount > 0" @click="openBulkModal('withdraw')" class="btn-sm btn-danger">
+            Withdraw
+          </button>
+
+          <!-- Permanent Delete (admin/superadmin) -->
+          <button v-if="auth.isAdmin" @click="openBulkModal('permanent_delete')" class="btn-sm btn-secondary" style="color: var(--destructive);" title="Permanently delete from database">
+            Delete
+          </button>
+
+          <button @click="clearSelection" class="btn-sm btn-secondary">Clear</button>
+        </div>
       </div>
       <div style="overflow-x: auto;">
       <table class="data-table" v-if="students.length">
@@ -338,10 +447,19 @@ const showEnrollmentModal = ref(false)
 const enrollmentStudent = ref(null)
 const enrollmentSaving = ref(false)
 const enrollmentForm = ref({ eventType: 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: '', section: '', reason: '' })
-const showBulkReenrollModal = ref(false)
-const bulkReenrollSaving = ref(false)
-const bulkReenrollMode = ref('keep')
-const bulkReenrollForm = ref({ grade: '', section: '', effectiveOn: new Date().toISOString().slice(0, 10), reason: 'Re-enrolled' })
+const showBulkModal = ref(false)
+const bulkActionType = ref('transfer')
+const bulkSaving = ref(false)
+const bulkForm = ref({
+  grade: '',
+  section: '',
+  gender: 'Male',
+  effectiveOn: new Date().toISOString().slice(0, 10),
+  reason: '',
+  reenrollMode: 'keep',
+  withdrawPreset: 'Transferred out to another school',
+  confirmDelete: false
+})
 const showHistoryModal = ref(false)
 const historyStudent = ref(null)
 const history = ref([])
@@ -382,6 +500,10 @@ function schoolNameOf(s) {
   const found = schools.value.find(x => x.id === s.school_id)
   return found ? (found.short ? `${found.name} (${found.short})` : found.name) : s.school_id
 }
+
+const selectedStudents = computed(() => students.value.filter(s => selectedIds.value.has(s.id)))
+const selectedActiveCount = computed(() => selectedStudents.value.filter(s => s.enrollment_status !== 'withdrawn').length)
+const selectedWithdrawnCount = computed(() => selectedStudents.value.filter(s => s.enrollment_status === 'withdrawn').length)
 
 const allSelected = computed(() => students.value.length > 0 && students.value.every(s => selectedIds.value.has(s.id)))
 
@@ -538,54 +660,175 @@ function openReenrollModal(student) {
   showEnrollmentModal.value = true
 }
 
-function openBulkReenrollModal() {
-  bulkReenrollMode.value = 'keep'
-  bulkReenrollForm.value = {
-    grade: grades.value[0] || '',
-    section: '',
+function openBulkModal(action) {
+  bulkActionType.value = action
+  const defaultGrade = filterGrade.value || grades.value[0] || ''
+  const defaultSec = filterSection.value || (sectionsByGrade.value[defaultGrade] || [])[0] || ''
+
+  bulkForm.value = {
+    grade: defaultGrade,
+    section: defaultSec,
+    gender: 'Male',
     effectiveOn: new Date().toISOString().slice(0, 10),
-    reason: 'Re-enrolled'
+    reason: '',
+    reenrollMode: 'keep',
+    withdrawPreset: 'Transferred out to another school',
+    confirmDelete: false
   }
-  showBulkReenrollModal.value = true
+
+  if (action === 'transfer') {
+    bulkForm.value.reason = 'Class section transfer'
+  } else if (action === 'promote') {
+    bulkForm.value.reason = 'Promoted to next grade level'
+  } else if (action === 'reenroll') {
+    bulkForm.value.reason = 'Re-enrolled after withdrawal'
+  } else if (action === 'withdraw') {
+    bulkForm.value.reason = 'Transferred out to another school'
+  }
+
+  showBulkModal.value = true
 }
 
-function closeBulkReenrollModal() {
-  showBulkReenrollModal.value = false
+function closeBulkModal() {
+  showBulkModal.value = false
 }
 
-async function submitBulkReenroll() {
-  const ids = Array.from(selectedIds.value)
-  if (!ids.length) return
-  bulkReenrollSaving.value = true
+function onWithdrawPresetChange() {
+  if (bulkForm.value.withdrawPreset !== 'Other') {
+    bulkForm.value.reason = bulkForm.value.withdrawPreset
+  }
+}
+
+const bulkModalTitle = computed(() => {
+  const count = selectedIds.value.size
+  switch (bulkActionType.value) {
+    case 'transfer':
+      return `Change Class for ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
+    case 'promote':
+      return `Promote ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
+    case 'reenroll':
+      return `Re-enroll ${selectedWithdrawnCount.value || count} Student${(selectedWithdrawnCount.value || count) > 1 ? 's' : ''}`
+    case 'withdraw':
+      return `Withdraw ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
+    case 'gender':
+      return `Set Gender for ${count} Student${count > 1 ? 's' : ''}`
+    case 'permanent_delete':
+      return `Permanently Delete ${count} Student${count > 1 ? 's' : ''}`
+    default:
+      return 'Bulk Student Action'
+  }
+})
+
+const bulkModalSubtitle = computed(() => {
+  switch (bulkActionType.value) {
+    case 'transfer':
+      return 'Move selected active learners to another grade level and section. An enrollment transfer event will be recorded.'
+    case 'promote':
+      return 'Advance selected active learners to their next grade level and section.'
+    case 'reenroll':
+      return 'Restore withdrawn learners back to active enrollment status and record a re-enrollment event.'
+    case 'withdraw':
+      return 'Mark learners as withdrawn. Their historical attendance and monthly SF2 filings will remain preserved.'
+    case 'gender':
+      return 'Batch assign learner gender (Male / Female) for official DepEd SF2 attendance reporting.'
+    case 'permanent_delete':
+      return 'Completely remove selected students and all associated attendance entries from the database.'
+    default:
+      return ''
+  }
+})
+
+const bulkSubmitButtonLabel = computed(() => {
+  if (bulkSaving.value) return 'Processing...'
+  switch (bulkActionType.value) {
+    case 'transfer': return 'Apply Class Change'
+    case 'promote': return 'Promote Students'
+    case 'reenroll': return 'Re-enroll Students'
+    case 'withdraw': return 'Confirm Withdrawal'
+    case 'gender': return 'Update Gender'
+    case 'permanent_delete': return 'Permanently Delete'
+    default: return 'Confirm'
+  }
+})
+
+async function submitBulkAction() {
+  const allIds = Array.from(selectedIds.value)
+  if (!allIds.length) return
+
+  let targetIds = allIds
+  if (['transfer', 'promote', 'withdraw'].includes(bulkActionType.value)) {
+    targetIds = selectedStudents.value.filter(s => s.enrollment_status !== 'withdrawn').map(s => s.id)
+    if (!targetIds.length) {
+      addToast('No active students selected for this action', 'warning')
+      return
+    }
+  } else if (bulkActionType.value === 'reenroll') {
+    const withdrawnIds = selectedStudents.value.filter(s => s.enrollment_status === 'withdrawn').map(s => s.id)
+    targetIds = withdrawnIds.length ? withdrawnIds : allIds
+  }
+
+  if (bulkActionType.value === 'permanent_delete' && !bulkForm.value.confirmDelete) {
+    addToast('Please check the confirmation box to permanently delete students', 'error')
+    return
+  }
+
+  if (['transfer', 'promote'].includes(bulkActionType.value)) {
+    if (!bulkForm.value.grade || !bulkForm.value.section) {
+      addToast('Please select both grade and section', 'error')
+      return
+    }
+  }
+
+  if (bulkActionType.value === 'reenroll' && bulkForm.value.reenrollMode === 'assign') {
+    if (!bulkForm.value.grade || !bulkForm.value.section) {
+      addToast('Please select both grade and section', 'error')
+      return
+    }
+  }
+
+  bulkSaving.value = true
   try {
     const payload = {
-      ids,
-      effectiveOn: bulkReenrollForm.value.effectiveOn,
-      reason: bulkReenrollForm.value.reason
+      ids: targetIds,
+      action: bulkActionType.value,
+      effectiveOn: bulkForm.value.effectiveOn,
+      reason: bulkForm.value.reason
     }
-    if (bulkReenrollMode.value === 'assign') {
-      if (!bulkReenrollForm.value.grade || !bulkReenrollForm.value.section) {
-        addToast('Please select both grade and section', 'error')
-        bulkReenrollSaving.value = false
-        return
-      }
-      payload.grade = bulkReenrollForm.value.grade
-      payload.section = bulkReenrollForm.value.section
+
+    if (['transfer', 'promote'].includes(bulkActionType.value)) {
+      payload.grade = bulkForm.value.grade
+      payload.section = bulkForm.value.section
+    } else if (bulkActionType.value === 'reenroll' && bulkForm.value.reenrollMode === 'assign') {
+      payload.grade = bulkForm.value.grade
+      payload.section = bulkForm.value.section
+    } else if (bulkActionType.value === 'gender') {
+      payload.gender = bulkForm.value.gender
     }
-    const result = await store.reenrollStudents(payload, effectiveSchoolId.value)
-    closeBulkReenrollModal()
+
+    const result = await store.bulkStudentAction(payload, effectiveSchoolId.value)
+    closeBulkModal()
     selectedIds.value = new Set()
     await loadStudents()
+
+    const actionLabels = {
+      transfer: 'transferred',
+      promote: 'promoted',
+      reenroll: 're-enrolled',
+      withdraw: 'withdrawn',
+      gender: 'gender updated for',
+      permanent_delete: 'permanently deleted'
+    }
+
     if (result.count) {
-      addToast(`${result.count} student${result.count > 1 ? 's' : ''} re-enrolled`, 'success')
+      addToast(`${result.count} student${result.count > 1 ? 's' : ''} ${actionLabels[bulkActionType.value] || 'updated'} successfully`, 'success')
     }
     if (result.skipped?.length) {
-      addToast(`${result.skipped.length} student${result.skipped.length > 1 ? 's' : ''} skipped`, 'warning')
+      addToast(`${result.skipped.length} student${result.skipped.length > 1 ? 's' : ''} skipped: ${result.skipped[0]?.reason}`, 'warning')
     }
   } catch (err) {
     addToast(err.message, 'error')
   } finally {
-    bulkReenrollSaving.value = false
+    bulkSaving.value = false
   }
 }
 

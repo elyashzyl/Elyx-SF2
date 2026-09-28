@@ -483,6 +483,187 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
+router.post('/bulk-action', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const { ids, action } = req.body || {}
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No student ids provided' })
+    }
+    const validActions = ['transfer', 'promote', 'reenroll', 'withdraw', 'gender', 'permanent_delete']
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ error: `Action must be one of: ${validActions.join(', ')}` })
+    }
+
+    const scopeSchoolId = req.body.schoolId || me.school_id || ''
+    const effectiveOn = effectiveDate(req.body.effectiveOn)
+    const targetGrade = String(req.body.grade || '').trim()
+    const targetSection = String(req.body.section || '').trim()
+    const targetGender = String(req.body.gender || '').trim()
+    const defaultReasons = {
+      transfer: 'Class transfer',
+      promote: 'Promoted to next grade level',
+      reenroll: 'Re-enrolled after withdrawal',
+      withdraw: 'Withdrawn from active roster'
+    }
+    const reason = String(req.body.reason || defaultReasons[action] || '').trim()
+
+    if (['transfer', 'promote'].includes(action)) {
+      if (!targetGrade || !targetSection) {
+        return res.status(400).json({ error: 'Both grade and section are required' })
+      }
+      if (scopeSchoolId && !(await assertValidClass(res, scopeSchoolId, targetGrade, targetSection))) return
+    }
+
+    if (action === 'reenroll') {
+      if (targetGrade && targetSection && scopeSchoolId) {
+        if (!(await assertValidClass(res, scopeSchoolId, targetGrade, targetSection))) return
+      }
+      if (scopeSchoolId) {
+        const license = await getSchoolLicense(scopeSchoolId)
+        if (license && license.max_students > 0) {
+          const currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scopeSchoolId]))[0]?.cnt || 0
+          const placeholders = ids.map(() => '?').join(',')
+          const toActivate = (await query(`SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND id IN (${placeholders}) AND enrollment_status = 'withdrawn'`, [scopeSchoolId, ...ids]))[0]?.cnt || 0
+          if (currentActive + toActivate > license.max_students) {
+            return res.status(400).json({
+              error: `Re-enrolling would exceed student population limit (${currentActive + toActivate}/${license.max_students} students). Upgrade your license capacity to re-enroll these students.`
+            })
+          }
+        }
+      }
+    }
+
+    if (action === 'gender' && !['Male', 'Female'].includes(targetGender)) {
+      return res.status(400).json({ error: 'Gender must be Male or Female' })
+    }
+
+    let count = 0
+    const skipped = []
+
+    for (const id of ids) {
+      const target = (await query('SELECT * FROM students WHERE id = ?', [id]))[0]
+      if (!target) {
+        skipped.push({ id, reason: 'Student not found' })
+        continue
+      }
+      if (me.role !== 'superadmin' && target.school_id !== me.school_id) {
+        skipped.push({ id, name: target.name, reason: 'Outside your school' })
+        continue
+      }
+
+      if (action === 'gender') {
+        await run('UPDATE students SET gender = ? WHERE id = ?', [targetGender, target.id])
+        count++
+        continue
+      }
+
+      if (action === 'permanent_delete') {
+        await run('DELETE FROM attendance_corrections WHERE student_id = ?', [id])
+        await run('DELETE FROM student_enrollment_events WHERE student_id = ?', [id])
+        await run('DELETE FROM attendance_entries WHERE student_id = ?', [id])
+        await run('DELETE FROM monthly_entries WHERE student_id = ?', [id])
+        await run('DELETE FROM students WHERE id = ?', [id])
+        count++
+        continue
+      }
+
+      if (action === 'withdraw') {
+        if (target.enrollment_status === 'withdrawn') {
+          skipped.push({ id, name: target.name, reason: 'Already withdrawn' })
+          continue
+        }
+        await addEnrollmentEvent({
+          student: target,
+          eventType: 'withdraw',
+          status: 'withdrawn',
+          effectiveOn,
+          grade: target.grade,
+          section: target.section,
+          reason: reason || defaultReasons.withdraw,
+          actor: me
+        })
+        await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [target.id])
+        count++
+        continue
+      }
+
+      const finalGrade = targetGrade || target.grade
+      const finalSection = targetSection || target.section
+      if (!finalGrade || !finalSection) {
+        skipped.push({ id, name: target.name, reason: 'Missing grade or section' })
+        continue
+      }
+
+      const latestEvent = (await query(`
+        SELECT * FROM student_enrollment_events
+        WHERE student_id = ? AND school_id = ?
+        ORDER BY effective_on DESC, created_at DESC, id DESC
+        LIMIT 1`, [target.id, target.school_id]))[0]
+      if (latestEvent && effectiveOn < latestEvent.effective_on) {
+        skipped.push({ id, name: target.name, reason: `Effective date before last event (${latestEvent.effective_on})` })
+        continue
+      }
+
+      if (['transfer', 'promote'].includes(action) && target.enrollment_status === 'withdrawn') {
+        skipped.push({ id, name: target.name, reason: 'Withdrawn students must be re-enrolled before class change' })
+        continue
+      }
+
+      await addEnrollmentEvent({
+        student: target,
+        eventType: action,
+        status: 'active',
+        effectiveOn,
+        grade: finalGrade,
+        section: finalSection,
+        reason: reason || defaultReasons[action],
+        actor: me
+      })
+      await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [finalGrade, finalSection, target.id])
+      count++
+    }
+
+    if (count) {
+      await audit(me, `student.bulk_${action}`, { type: 'student', id: '', name: `${count} students`, schoolId: scopeSchoolId || me.school_id || '' }, `Bulk ${action} on ${count} students`)
+    }
+
+    res.json({ success: true, count, skipped })
+  } catch (err) {
+    console.error('Failed to perform bulk student action:', err.message)
+    res.status(500).json({ error: 'Failed to perform bulk student action: ' + err.message })
+  }
+})
+
+router.post('/bulk-permanent-delete', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const { ids } = req.body || {}
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No ids provided' })
+    }
+    let count = 0
+    for (const id of ids) {
+      const target = (await query('SELECT * FROM students WHERE id = ?', [id]))[0]
+      if (!target) continue
+      if (me.role !== 'superadmin' && target.school_id !== me.school_id) continue
+      await run('DELETE FROM attendance_corrections WHERE student_id = ?', [id])
+      await run('DELETE FROM student_enrollment_events WHERE student_id = ?', [id])
+      await run('DELETE FROM attendance_entries WHERE student_id = ?', [id])
+      await run('DELETE FROM monthly_entries WHERE student_id = ?', [id])
+      await run('DELETE FROM students WHERE id = ?', [id])
+      count++
+    }
+    if (count) await audit(me, 'student.bulk_permanent_delete', { type: 'student', id: '', name: `${count} students`, schoolId: me.school_id || '' }, `Permanently deleted ${count} students`)
+    res.json({ count, success: true })
+  } catch (err) {
+    console.error('Failed to bulk permanently delete students', err.message)
+    res.status(500).json({ error: 'Failed to bulk permanently delete students' })
+  }
+})
+
 router.post('/bulk-delete', async (req, res) => {
   try {
     const me = await assertWritable(req, res)
