@@ -4,7 +4,8 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --include=dev
+# Keep optional platform packages enabled for Vite's native build tools.
+RUN npm ci --include=dev --include=optional
 
 COPY . .
 RUN npx prisma generate
