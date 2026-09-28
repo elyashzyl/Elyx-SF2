@@ -245,11 +245,18 @@ router.post('/:id/enrollment-events', async (req, res) => {
       WHERE student_id = ? AND school_id = ?
       ORDER BY effective_on DESC, created_at DESC, id DESC
       LIMIT 1`, [student.id, student.school_id]))[0]
-    if (latestEvent && effectiveOn < latestEvent.effective_on) {
+    let effDate = effectiveOn
+    if (eventType === 'reenroll') {
+      if (latestEvent && effDate < latestEvent.effective_on) {
+        effDate = latestEvent.effective_on
+      }
+    } else if (latestEvent && effDate < latestEvent.effective_on) {
       return res.status(409).json({ error: 'Enrollment changes must be effective on or after the latest enrollment event' })
     }
-    if (latestEvent && effectiveOn === latestEvent.effective_on && latestEvent.event_type === eventType && latestEvent.grade === (targetGrade || student.grade) && latestEvent.section === (targetSection || student.section)) {
-      return res.status(409).json({ error: 'An identical enrollment event already exists for this date' })
+    if (latestEvent && effDate === latestEvent.effective_on && latestEvent.event_type === eventType && latestEvent.grade === (targetGrade || student.grade) && latestEvent.section === (targetSection || student.section)) {
+      if (eventType !== 'reenroll') {
+        return res.status(409).json({ error: 'An identical enrollment event already exists for this date' })
+      }
     }
     if (eventType === 'withdraw' && student.enrollment_status === 'withdrawn') {
       return res.status(409).json({ error: 'Student is already withdrawn' })
@@ -276,7 +283,7 @@ router.post('/:id/enrollment-events', async (req, res) => {
       student,
       eventType,
       status,
-      effectiveOn,
+      effectiveOn: effDate,
       grade: currentGrade,
       section: currentSection,
       reason,
@@ -284,7 +291,7 @@ router.post('/:id/enrollment-events', async (req, res) => {
       transferGroupId: String(req.body.transferGroupId || '')
     })
     await run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?', [currentGrade, currentSection, status, student.id])
-    await audit(me, `student.${eventType}`, { type: 'student', id: student.id, name: student.name, schoolId: student.school_id || '' }, `${eventType} for "${student.name}" effective ${effectiveOn}: ${reason}`)
+    await audit(me, `student.${eventType}`, { type: 'student', id: student.id, name: student.name, schoolId: student.school_id || '' }, `${eventType} for "${student.name}" effective ${effDate}: ${reason}`)
     const updated = (await query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
     res.status(201).json({ event, student: updated, currentEnrollment: event })
   } catch (err) {
@@ -308,7 +315,7 @@ router.post('/:id/reenroll', async (req, res) => {
     if (!(await assertValidClass(res, target.school_id, targetGrade, targetSection))) return
 
     if (req.body.effectiveOn && !validDate(req.body.effectiveOn)) return res.status(400).json({ error: 'effectiveOn must use YYYY-MM-DD format' })
-    const effectiveOn = effectiveDate(req.body.effectiveOn)
+    let effectiveOn = effectiveDate(req.body.effectiveOn)
     const reason = String(req.body.reason || (target.enrollment_status === 'withdrawn' ? 'Re-enrolled after withdrawal' : 'Re-enrolled')).trim()
     if (!reason) return res.status(400).json({ error: 'A reason is required for re-enrollment' })
 
@@ -318,7 +325,7 @@ router.post('/:id/reenroll', async (req, res) => {
       ORDER BY effective_on DESC, created_at DESC, id DESC
       LIMIT 1`, [target.id, target.school_id]))[0]
     if (latestEvent && effectiveOn < latestEvent.effective_on) {
-      return res.status(409).json({ error: 'Re-enrollment date must be on or after the latest enrollment event' })
+      effectiveOn = latestEvent.effective_on
     }
 
     if (target.enrollment_status === 'withdrawn') {
@@ -411,15 +418,15 @@ router.post('/bulk-reenroll', async (req, res) => {
         WHERE student_id = ? AND school_id = ?
         ORDER BY effective_on DESC, created_at DESC, id DESC
         LIMIT 1`, [target.id, target.school_id]))[0]
-      if (latestEvent && effectiveOn < latestEvent.effective_on) {
-        skipped.push({ id, name: target.name, reason: `Effective date before last event (${latestEvent.effective_on})` })
-        continue
+      let itemEffectiveOn = effectiveOn
+      if (latestEvent && itemEffectiveOn < latestEvent.effective_on) {
+        itemEffectiveOn = latestEvent.effective_on
       }
       await addEnrollmentEvent({
         student: target,
         eventType: 'reenroll',
         status: 'active',
-        effectiveOn,
+        effectiveOn: itemEffectiveOn,
         grade: finalGrade,
         section: finalSection,
         reason,
@@ -601,7 +608,12 @@ router.post('/bulk-action', async (req, res) => {
         WHERE student_id = ? AND school_id = ?
         ORDER BY effective_on DESC, created_at DESC, id DESC
         LIMIT 1`, [target.id, target.school_id]))[0]
-      if (latestEvent && effectiveOn < latestEvent.effective_on) {
+      let itemEffectiveOn = effectiveOn
+      if (action === 'reenroll') {
+        if (latestEvent && itemEffectiveOn < latestEvent.effective_on) {
+          itemEffectiveOn = latestEvent.effective_on
+        }
+      } else if (latestEvent && effectiveOn < latestEvent.effective_on) {
         skipped.push({ id, name: target.name, reason: `Effective date before last event (${latestEvent.effective_on})` })
         continue
       }
@@ -615,7 +627,7 @@ router.post('/bulk-action', async (req, res) => {
         student: target,
         eventType: action,
         status: 'active',
-        effectiveOn,
+        effectiveOn: itemEffectiveOn,
         grade: finalGrade,
         section: finalSection,
         reason: reason || defaultReasons[action],

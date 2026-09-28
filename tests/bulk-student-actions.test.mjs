@@ -193,6 +193,53 @@ test('bulk action reenroll reactivates withdrawn students', async () => {
   }
 })
 
+test('bulk action reenroll clamps effective date if earlier than latest event', async () => {
+  // Withdraw student 0 with a future effective date
+  await request('/api/students/bulk-action', {
+    method: 'POST',
+    headers: headers(adminId, 'admin'),
+    body: JSON.stringify({
+      ids: [studentIds[0]],
+      action: 'withdraw',
+      effectiveOn: '2026-11-15',
+      reason: 'Temporary absence',
+      schoolId
+    })
+  })
+
+  // Re-enroll with an earlier effective date (e.g. 2026-10-01) - should clamp without skipping
+  const res = await request('/api/students/bulk-action', {
+    method: 'POST',
+    headers: headers(adminId, 'admin'),
+    body: JSON.stringify({
+      ids: [studentIds[0]],
+      action: 'reenroll',
+      grade: 'Grade 8',
+      section: 'Section 1',
+      effectiveOn: '2026-10-01',
+      reason: 'Re-enrolled early',
+      schoolId
+    })
+  })
+
+  assert.equal(res.response.status, 200)
+  assert.equal(res.body.count, 1)
+  assert.equal(res.body.skipped.length, 0)
+
+  const r = (await query('SELECT enrollment_status, grade, section FROM students WHERE id = ?', [studentIds[0]]))[0]
+  assert.equal(r.enrollment_status, 'active')
+  assert.equal(r.grade, 'Grade 8')
+  assert.equal(r.section, 'Section 1')
+
+  const latest = (await query(`
+    SELECT * FROM student_enrollment_events
+    WHERE student_id = ?
+    ORDER BY effective_on DESC, created_at DESC, id DESC
+    LIMIT 1`, [studentIds[0]]))[0]
+  assert.equal(latest.event_type, 'reenroll')
+  assert.equal(latest.effective_on, '2026-11-15')
+})
+
 test('bulk action permanent_delete deletes students completely', async () => {
   const res = await request('/api/students/bulk-action', {
     method: 'POST',

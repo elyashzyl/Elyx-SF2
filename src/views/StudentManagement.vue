@@ -75,7 +75,7 @@
           <div class="form-row" v-if="enrollmentForm.eventType !== 'withdraw'">
             <div class="form-group">
               <label>Grade Level</label>
-              <select v-model="enrollmentForm.grade" required>
+              <select v-model="enrollmentForm.grade" @change="enrollmentForm.section = (sectionsByGrade[enrollmentForm.grade] || [])[0] || ''" required>
                 <option v-for="g in grades" :key="g">{{ g }}</option>
               </select>
             </div>
@@ -287,24 +287,24 @@
           </span>
         </div>
         <div class="bulk-bar-right">
-          <!-- Re-enroll: prominently shown if any selected student is withdrawn -->
-          <button v-if="selectedWithdrawnCount > 0" @click="openBulkModal('reenroll')" class="btn-sm btn-success">
+          <!-- Re-enroll Selected: always visible when students are selected -->
+          <button @click="openBulkModal('reenroll')" class="btn-sm btn-success">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
             </svg>
-            Re-enroll {{ selectedWithdrawnCount < selectedIds.size ? `(${selectedWithdrawnCount})` : '' }}
+            Re-enroll Selected
           </button>
 
-          <!-- Change Class / Transfer (for active students) -->
-          <button v-if="selectedActiveCount > 0" @click="openBulkModal('transfer')" class="btn-sm btn-primary">
+          <!-- Change Class / Transfer -->
+          <button @click="openBulkModal('transfer')" class="btn-sm btn-primary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
             </svg>
             Change Class
           </button>
 
-          <!-- Promote (for active students) -->
-          <button v-if="selectedActiveCount > 0" @click="openBulkModal('promote')" class="btn-sm btn-secondary">
+          <!-- Promote -->
+          <button @click="openBulkModal('promote')" class="btn-sm btn-secondary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m18 15-6-6-6 6"/>
             </svg>
@@ -316,8 +316,8 @@
             Set Gender
           </button>
 
-          <!-- Withdraw (for active students) -->
-          <button v-if="selectedActiveCount > 0" @click="openBulkModal('withdraw')" class="btn-sm btn-danger">
+          <!-- Withdraw -->
+          <button @click="openBulkModal('withdraw')" class="btn-sm btn-danger">
             Withdraw
           </button>
 
@@ -650,11 +650,12 @@ function openEnrollmentModal(student) {
 
 function openReenrollModal(student) {
   enrollmentStudent.value = student
+  const defaultGrade = student.grade || (grades.value[0] || '')
   enrollmentForm.value = {
     eventType: 'reenroll',
     effectiveOn: new Date().toISOString().slice(0, 10),
-    grade: student.grade || (grades.value[0] || ''),
-    section: student.section || (sectionsByGrade.value[student.grade]?.[0] || ''),
+    grade: defaultGrade,
+    section: student.section || (sectionsByGrade.value[defaultGrade]?.[0] || ''),
     reason: student.enrollment_status === 'withdrawn' ? 'Re-enrolled after withdrawal' : 'Re-enrolled'
   }
   showEnrollmentModal.value = true
@@ -707,7 +708,7 @@ const bulkModalTitle = computed(() => {
     case 'promote':
       return `Promote ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
     case 'reenroll':
-      return `Re-enroll ${selectedWithdrawnCount.value || count} Student${(selectedWithdrawnCount.value || count) > 1 ? 's' : ''}`
+      return `Re-enroll ${count} Student${count > 1 ? 's' : ''}`
     case 'withdraw':
       return `Withdraw ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
     case 'gender':
@@ -726,7 +727,7 @@ const bulkModalSubtitle = computed(() => {
     case 'promote':
       return 'Advance selected active learners to their next grade level and section.'
     case 'reenroll':
-      return 'Restore withdrawn learners back to active enrollment status and record a re-enrollment event.'
+      return 'Restore selected learners back to active enrollment status and record a re-enrollment event.'
     case 'withdraw':
       return 'Mark learners as withdrawn. Their historical attendance and monthly SF2 filings will remain preserved.'
     case 'gender':
@@ -756,15 +757,22 @@ async function submitBulkAction() {
   if (!allIds.length) return
 
   let targetIds = allIds
-  if (['transfer', 'promote', 'withdraw'].includes(bulkActionType.value)) {
-    targetIds = selectedStudents.value.filter(s => s.enrollment_status !== 'withdrawn').map(s => s.id)
-    if (!targetIds.length) {
-      addToast('No active students selected for this action', 'warning')
+  if (['transfer', 'promote'].includes(bulkActionType.value)) {
+    const active = selectedStudents.value.filter(s => s.enrollment_status !== 'withdrawn').map(s => s.id)
+    if (!active.length) {
+      addToast('No active students selected for this action. Please re-enroll withdrawn students first.', 'warning')
       return
     }
+    targetIds = active
+  } else if (bulkActionType.value === 'withdraw') {
+    const active = selectedStudents.value.filter(s => s.enrollment_status !== 'withdrawn').map(s => s.id)
+    if (!active.length) {
+      addToast('Selected students are already withdrawn', 'warning')
+      return
+    }
+    targetIds = active
   } else if (bulkActionType.value === 'reenroll') {
-    const withdrawnIds = selectedStudents.value.filter(s => s.enrollment_status === 'withdrawn').map(s => s.id)
-    targetIds = withdrawnIds.length ? withdrawnIds : allIds
+    targetIds = allIds
   }
 
   if (bulkActionType.value === 'permanent_delete' && !bulkForm.value.confirmDelete) {
@@ -841,7 +849,11 @@ async function saveEnrollmentEvent() {
   if (!enrollmentStudent.value) return
   enrollmentSaving.value = true
   try {
-    await store.createEnrollmentEvent(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
+    if (enrollmentForm.value.eventType === 'reenroll') {
+      await store.reenrollStudent(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
+    } else {
+      await store.createEnrollmentEvent(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
+    }
     addToast('Enrollment updated', 'success')
     closeEnrollmentModal()
     await loadStudents()
