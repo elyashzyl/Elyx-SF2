@@ -88,8 +88,8 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
+import { fileURLToPath, pathToFileURL } from 'url'
+import { dirname, join, resolve } from 'path'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -105,16 +105,26 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-const HOST = process.env.HOST || '0.0.0.0'
-
-app.listen(PORT, HOST, () => {
-  console.log(`Server listening on http://${HOST}:${PORT}`)
-})
-
-initDatabase().then(() => {
+export async function initializeServerDatabase() {
+  await initDatabase()
   dbReady = true
-  console.log('Database initialized')
-}).catch(err => {
-  console.error('Failed to initialize database:', err)
-  process.exit(1)
-})
+  return app
+}
+
+const isMainModule = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url
+if (isMainModule) {
+  const HOST = process.env.HOST || '0.0.0.0'
+
+  app.listen(PORT, HOST, () => {
+    console.log(`Server listening on http://${HOST}:${PORT}`)
+  })
+
+  initializeServerDatabase().then(() => {
+    console.log('Database initialized')
+  }).catch(err => {
+    console.error('Failed to initialize database:', err)
+    process.exit(1)
+  })
+}
+
+export default app

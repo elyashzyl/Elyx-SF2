@@ -63,6 +63,10 @@ The seed file must provide its own school and administrator credentials. It may 
 
 `npm run db:backup` creates a timestamped SQLite snapshot or MySQL dump and removes backups older than `BACKUP_RETAIN` days. Restore is intentionally a separate, explicit operation and requires `--force`; it never runs during deployment. Before replacing an SQLite database, the restore script creates a `.pre-restore-<timestamp>` safety copy of the active file. Always verify the backup, target environment, and recent backup before restoring production data.
 
+### Secret rotation
+
+Treat any database password, application key, or deployment token shared outside the secret manager as compromised. Generate replacement values with `npm run secrets:generate`, rotate the MySQL credential at the provider, update deployment secrets, redeploy, verify `/api/health`, and revoke the old credential. See [`docs/secret-rotation.md`](docs/secret-rotation.md) for the complete procedure.
+
 ### Environment Variables
 
 | Variable | Description |

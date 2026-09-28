@@ -13,7 +13,10 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
 - [ ] **Remove legacy plaintext password fallback**
   - Audit and migrate remaining existing records, then remove plaintext comparison support.
 - [ ] **Rotate exposed database credentials and application keys**
-  - The previously shared environment values must be treated as compromised and replaced in deployment secrets.
+  - Code-side preparation completed: `npm run secrets:generate`, `.env.example` guidance, and [`docs/secret-rotation.md`](docs/secret-rotation.md) are available.
+  - Remaining operator action: rotate the MySQL credential and any exposed application/deployment secrets in the provider and revoke the old values.
+- [x] **Add API authorization regression coverage**
+  - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 
 ---
 

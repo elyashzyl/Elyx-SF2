@@ -62,6 +62,8 @@ The following capabilities already exist or are substantially implemented:
   - Existing plaintext accounts remain temporarily compatible and are rehashed after successful login.
   - Remaining follow-up: audit existing records, confirm all accounts have logged in or run an approved migration, then remove plaintext fallback.
 - [ ] Rotate all previously exposed database credentials, application keys, and deployment secrets.
+  - Code-side preparation completed: `npm run secrets:generate`, `.env.example` guidance, and `docs/secret-rotation.md`.
+  - Provider-side credential replacement and revocation still require deployment access.
 - [ ] Add secure session or token handling with expiration and revocation.
 - [ ] Add rate limiting to login, trial signup, password reset, inquiry, and payment endpoints.
 - [ ] Add request validation for every route using a shared validation layer.
@@ -306,8 +308,9 @@ These modules should be added only after attendance and subscription workflows a
 
 ## 6. Recommended Immediate Next Steps
 
-1. Fix password storage and rotate exposed credentials.
-2. Add API-level authorization tests for every school-owned route.
+1. Fix password storage and rotate exposed credentials. **Password hashing and rotation preparation completed; provider-side secret replacement remains pending.**
+2. Add API-level authorization tests for every school-owned route. **Completed for the current users, students, schools, and license authorization boundaries; extend coverage when new school-owned routes are added.**
+  - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 3. Implement attendance lock and correction history.
 4. Add enrollment history before adding more LMS features.
 5. Add payment proof, receipts, and expiration reminders.

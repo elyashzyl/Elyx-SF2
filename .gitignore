@@ -44,3 +44,6 @@ check_*.js
 .env
 .env.local
 .env.*.local
+
+# Generated secret output
+secret-output.txt
