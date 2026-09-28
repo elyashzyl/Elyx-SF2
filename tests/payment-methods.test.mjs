@@ -13,7 +13,7 @@ function read(rel) {
 // 1. Database Schema & Migration: payment_methods
 // ---------------------------------------------------------------------------
 
-test('db.js defines payment_methods table in MySQL and SQLite DDL and seeds defaults', () => {
+test('db.js defines payment_methods table in MySQL and SQLite DDL without startup seeding', () => {
   const db = read('db.js')
 
   // MySQL DDL
@@ -25,9 +25,9 @@ test('db.js defines payment_methods table in MySQL and SQLite DDL and seeds defa
   assert.ok(db.includes('qr_image_url TEXT DEFAULT \'\''), 'SQLite DDL must define qr_image_url')
   assert.ok(db.includes('is_active INTEGER DEFAULT 1'), 'SQLite DDL must define is_active flag')
 
-  // Seeder
-  assert.ok(db.includes('export async function seedDefaultPaymentMethods()'), 'db.js must export seedDefaultPaymentMethods function')
-  assert.ok(db.includes('SELECT COUNT(*) as cnt FROM payment_methods'), 'Seeder must only insert if table is empty')
+  // Payment methods must be managed explicitly by superadmins, not inserted on app startup.
+  assert.ok(!db.includes('seedDefaultPaymentMethods'), 'db.js must not seed payment methods during startup')
+  assert.ok(!db.includes('gcash-official'), 'db.js must not contain hardcoded default payment methods')
 })
 
 test('Migration 006_payment_methods.mjs non-destructively creates payment_methods table', () => {

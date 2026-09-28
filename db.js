@@ -896,7 +896,8 @@ export async function initDatabase() {
     console.warn(`[db] SQLite backend ready (${DB_PATH}).`)
   }
   await seedDefaultPlans()
-  await seedDefaultPaymentMethods()
+  // Payment methods are managed by superadmins and must never be inserted during app startup.
+  // The payment_methods table is created by migration 006_payment_methods only.
   return getDb()
 }
 
@@ -1205,49 +1206,6 @@ export async function seedDefaultPlans() {
   }
 }
 
-export async function seedDefaultPaymentMethods() {
-  try {
-    const existing = await query('SELECT COUNT(*) as cnt FROM payment_methods')
-    if (existing[0]?.cnt > 0) return
-
-    const defaultMethods = [
-      {
-        id: 'gcash-official',
-        type: 'gcash_qr',
-        bank_name: 'GCash (Official e-Wallet)',
-        account_name: 'ElyTrack Platform Operations',
-        account_number: '0917-000-0000',
-        qr_image_url: '',
-        instructions: 'Scan via GCash or send to mobile number. Put your School ID or Name in the notes, then send reference number in the chat.',
-        is_active: 1,
-        sort_order: 1
-      },
-      {
-        id: 'bdo-official',
-        type: 'bank_transfer',
-        bank_name: 'BDO Unibank (Direct Transfer / QR Ph)',
-        account_name: 'ElyTrack Educational Operations',
-        account_number: '0012-3456-7890',
-        qr_image_url: '',
-        instructions: 'Bank Transfer / Over-The-Counter deposit. Attach or message your deposit slip / transaction reference in the support desk.',
-        is_active: 1,
-        sort_order: 2
-      }
-    ]
-
-    for (const m of defaultMethods) {
-      await run(
-        `INSERT INTO payment_methods (
-          id, type, bank_name, account_name, account_number, qr_image_url, instructions, is_active, sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [m.id, m.type, m.bank_name, m.account_name, m.account_number, m.qr_image_url, m.instructions, m.is_active, m.sort_order]
-      )
-    }
-    saveDatabase()
-  } catch (err) {
-    console.error('[db] Error seeding default payment methods:', err.message)
-  }
-}
 
 export { prisma } from './prisma/client.js'
 
