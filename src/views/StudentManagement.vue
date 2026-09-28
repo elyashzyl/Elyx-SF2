@@ -118,6 +118,52 @@
       </div>
     </div>
 
+    <div v-if="showBulkReenrollModal" class="modal-overlay" @click.self="closeBulkReenrollModal">
+      <div class="form-card">
+        <h3>Re-enroll {{ selectedIds.size }} Selected Student{{ selectedIds.size > 1 ? 's' : '' }}</h3>
+        <form @submit.prevent="submitBulkReenroll">
+          <div class="form-group">
+            <label>Class Assignment</label>
+            <select v-model="bulkReenrollMode">
+              <option value="keep">Keep each student's current grade and section</option>
+              <option value="assign">Assign all selected students to a new class</option>
+            </select>
+          </div>
+          <div class="form-row" v-if="bulkReenrollMode === 'assign'">
+            <div class="form-group">
+              <label>Grade Level</label>
+              <select v-model="bulkReenrollForm.grade" required>
+                <option value="" disabled>Select grade</option>
+                <option v-for="g in grades" :key="g">{{ g }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Section</label>
+              <select v-model="bulkReenrollForm.section" required>
+                <option value="" disabled>Select section</option>
+                <option v-for="s in (sectionsByGrade[bulkReenrollForm.grade] || [])" :key="s">{{ s }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Effective Date</label>
+            <input v-model="bulkReenrollForm.effectiveOn" type="date" required />
+          </div>
+          <div class="form-group">
+            <label>Reason</label>
+            <textarea v-model="bulkReenrollForm.reason" rows="3" required placeholder="Reason for re-enrollment"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" :disabled="bulkReenrollSaving">
+              <span v-if="bulkReenrollSaving" class="spinner" style="margin-right: 6px;"></span>
+              {{ bulkReenrollSaving ? 'Re-enrolling...' : 'Re-enroll Students' }}
+            </button>
+            <button type="button" @click="closeBulkReenrollModal" class="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="table-card">
       <div class="table-toolbar">
         <div class="table-toolbar-left">
@@ -165,6 +211,12 @@
       </div>
       <div class="bulk-bar" v-if="selectedIds.size" style="margin: 12px 20px 0;">
         <span>{{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected</span>
+        <button @click="openBulkReenrollModal" class="btn-sm btn-success">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+          </svg>
+          Re-enroll Selected
+        </button>
         <button @click="bulkWithdraw" class="btn-sm btn-danger">Withdraw Selected</button>
         <button @click="clearSelection" class="btn-sm btn-secondary">Clear</button>
       </div>
@@ -201,7 +253,18 @@
               <span v-else style="color: var(--muted-foreground)">—</span>
             </td>
             <td>{{ s.grade }}</td>
-            <td>{{ s.section }} <span v-if="s.enrollment_status === 'withdrawn'" class="pill pill--red">Withdrawn</span></td>
+            <td>
+              {{ s.section }}
+              <span v-if="s.enrollment_status === 'withdrawn'" class="pill pill--red">Withdrawn</span>
+              <button
+                v-if="s.enrollment_status === 'withdrawn'"
+                @click="openReenrollModal(s)"
+                class="btn-xs-reenroll"
+                title="Re-enroll this student"
+              >
+                Re-enroll
+              </button>
+            </td>
             <td style="text-align: right;">
               <div class="row-actions">
                 <button @click="viewHistory(s)" class="icon-btn" title="View enrollment history">
@@ -210,10 +273,13 @@
                 <button @click="openEnrollmentModal(s)" class="icon-btn" title="Change enrollment">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>
                 </button>
+                <button @click="openReenrollModal(s)" class="icon-btn" :class="{ 'icon-btn--success': s.enrollment_status === 'withdrawn' }" title="Re-enroll student">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+                </button>
                 <button @click="editStudent(s)" class="icon-btn" title="Edit details">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                 </button>
-                <button @click="removeStudent(s)" class="icon-btn icon-btn--danger" title="Withdraw">
+                <button v-if="s.enrollment_status !== 'withdrawn'" @click="removeStudent(s)" class="icon-btn icon-btn--danger" title="Withdraw">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                 </button>
               </div>
@@ -272,6 +338,10 @@ const showEnrollmentModal = ref(false)
 const enrollmentStudent = ref(null)
 const enrollmentSaving = ref(false)
 const enrollmentForm = ref({ eventType: 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: '', section: '', reason: '' })
+const showBulkReenrollModal = ref(false)
+const bulkReenrollSaving = ref(false)
+const bulkReenrollMode = ref('keep')
+const bulkReenrollForm = ref({ grade: '', section: '', effectiveOn: new Date().toISOString().slice(0, 10), reason: 'Re-enrolled' })
 const showHistoryModal = ref(false)
 const historyStudent = ref(null)
 const history = ref([])
@@ -454,6 +524,69 @@ function openEnrollmentModal(student) {
   enrollmentStudent.value = student
   enrollmentForm.value = { eventType: student.enrollment_status === 'withdrawn' ? 'reenroll' : 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: student.grade, section: student.section, reason: '' }
   showEnrollmentModal.value = true
+}
+
+function openReenrollModal(student) {
+  enrollmentStudent.value = student
+  enrollmentForm.value = {
+    eventType: 'reenroll',
+    effectiveOn: new Date().toISOString().slice(0, 10),
+    grade: student.grade || (grades.value[0] || ''),
+    section: student.section || (sectionsByGrade.value[student.grade]?.[0] || ''),
+    reason: student.enrollment_status === 'withdrawn' ? 'Re-enrolled after withdrawal' : 'Re-enrolled'
+  }
+  showEnrollmentModal.value = true
+}
+
+function openBulkReenrollModal() {
+  bulkReenrollMode.value = 'keep'
+  bulkReenrollForm.value = {
+    grade: grades.value[0] || '',
+    section: '',
+    effectiveOn: new Date().toISOString().slice(0, 10),
+    reason: 'Re-enrolled'
+  }
+  showBulkReenrollModal.value = true
+}
+
+function closeBulkReenrollModal() {
+  showBulkReenrollModal.value = false
+}
+
+async function submitBulkReenroll() {
+  const ids = Array.from(selectedIds.value)
+  if (!ids.length) return
+  bulkReenrollSaving.value = true
+  try {
+    const payload = {
+      ids,
+      effectiveOn: bulkReenrollForm.value.effectiveOn,
+      reason: bulkReenrollForm.value.reason
+    }
+    if (bulkReenrollMode.value === 'assign') {
+      if (!bulkReenrollForm.value.grade || !bulkReenrollForm.value.section) {
+        addToast('Please select both grade and section', 'error')
+        bulkReenrollSaving.value = false
+        return
+      }
+      payload.grade = bulkReenrollForm.value.grade
+      payload.section = bulkReenrollForm.value.section
+    }
+    const result = await store.reenrollStudents(payload, effectiveSchoolId.value)
+    closeBulkReenrollModal()
+    selectedIds.value = new Set()
+    await loadStudents()
+    if (result.count) {
+      addToast(`${result.count} student${result.count > 1 ? 's' : ''} re-enrolled`, 'success')
+    }
+    if (result.skipped?.length) {
+      addToast(`${result.skipped.length} student${result.skipped.length > 1 ? 's' : ''} skipped`, 'warning')
+    }
+  } catch (err) {
+    addToast(err.message, 'error')
+  } finally {
+    bulkReenrollSaving.value = false
+  }
 }
 
 function closeEnrollmentModal() {

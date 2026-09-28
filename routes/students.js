@@ -257,6 +257,17 @@ router.post('/:id/enrollment-events', async (req, res) => {
     if (eventType !== 'withdraw' && student.enrollment_status !== 'active' && eventType !== 'reenroll') {
       return res.status(409).json({ error: 'Withdrawn students must be reenrolled before changing class' })
     }
+    if (eventType === 'reenroll' && student.enrollment_status === 'withdrawn') {
+      const license = await getSchoolLicense(scope.schoolId)
+      if (license && license.max_students > 0) {
+        const currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+        if (currentStudents >= license.max_students) {
+          return res.status(400).json({
+            error: `Student population limit reached (${currentStudents}/${license.max_students} students). Upgrade your license capacity to enroll more students.`
+          })
+        }
+      }
+    }
 
     const currentGrade = targetGrade || student.grade
     const currentSection = targetSection || student.section
@@ -279,6 +290,149 @@ router.post('/:id/enrollment-events', async (req, res) => {
   } catch (err) {
     console.error('Failed to create enrollment event', err.message)
     res.status(500).json({ error: 'Failed to create enrollment event' })
+  }
+})
+
+router.post('/:id/reenroll', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const target = await scopedStudent(req)
+    if (!target) return res.status(404).json({ error: 'Student not found' })
+    if (me.role !== 'superadmin' && target.school_id !== me.school_id) {
+      return res.status(403).json({ error: 'Forbidden: outside your school' })
+    }
+    const targetGrade = String(req.body.grade || target.grade || '').trim()
+    const targetSection = String(req.body.section || target.section || '').trim()
+    if (!targetGrade || !targetSection) return res.status(400).json({ error: 'grade and section are required' })
+    if (!(await assertValidClass(res, target.school_id, targetGrade, targetSection))) return
+
+    if (req.body.effectiveOn && !validDate(req.body.effectiveOn)) return res.status(400).json({ error: 'effectiveOn must use YYYY-MM-DD format' })
+    const effectiveOn = effectiveDate(req.body.effectiveOn)
+    const reason = String(req.body.reason || (target.enrollment_status === 'withdrawn' ? 'Re-enrolled after withdrawal' : 'Re-enrolled')).trim()
+    if (!reason) return res.status(400).json({ error: 'A reason is required for re-enrollment' })
+
+    const latestEvent = (await query(`
+      SELECT * FROM student_enrollment_events
+      WHERE student_id = ? AND school_id = ?
+      ORDER BY effective_on DESC, created_at DESC, id DESC
+      LIMIT 1`, [target.id, target.school_id]))[0]
+    if (latestEvent && effectiveOn < latestEvent.effective_on) {
+      return res.status(409).json({ error: 'Re-enrollment date must be on or after the latest enrollment event' })
+    }
+
+    if (target.enrollment_status === 'withdrawn') {
+      const license = await getSchoolLicense(target.school_id)
+      if (license && license.max_students > 0) {
+        const currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [target.school_id]))[0]?.cnt || 0
+        if (currentActive >= license.max_students) {
+          return res.status(400).json({
+            error: `Student population limit reached (${currentActive}/${license.max_students} students). Upgrade your license capacity to re-enroll this student.`
+          })
+        }
+      }
+    }
+
+    const event = await addEnrollmentEvent({
+      student: target,
+      eventType: 'reenroll',
+      status: 'active',
+      effectiveOn,
+      grade: targetGrade,
+      section: targetSection,
+      reason,
+      actor: me
+    })
+    await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [targetGrade, targetSection, target.id])
+    await audit(me, 'student.reenroll', { type: 'student', id: target.id, name: target.name, schoolId: target.school_id || '' }, `Re-enrolled "${target.name}" (${targetGrade} - ${targetSection}) effective ${effectiveOn}: ${reason}`)
+    const updated = (await query('SELECT * FROM students WHERE id = ?', [target.id]))[0]
+    res.json({ success: true, event, student: updated })
+  } catch (err) {
+    console.error('Failed to re-enroll student', err.message)
+    res.status(500).json({ error: 'Failed to re-enroll student' })
+  }
+})
+
+router.post('/bulk-reenroll', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const { ids } = req.body
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No ids provided' })
+    }
+    const targetGrade = String(req.body.grade || '').trim()
+    const targetSection = String(req.body.section || '').trim()
+    if ((targetGrade && !targetSection) || (!targetGrade && targetSection)) {
+      return res.status(400).json({ error: 'Both grade and section are required when assigning a new class' })
+    }
+    const scopeSchoolId = req.body.schoolId || me.school_id || ''
+    if (targetGrade && targetSection && scopeSchoolId) {
+      if (!(await assertValidClass(res, scopeSchoolId, targetGrade, targetSection))) return
+    }
+    if (req.body.effectiveOn && !validDate(req.body.effectiveOn)) return res.status(400).json({ error: 'effectiveOn must use YYYY-MM-DD format' })
+    const effectiveOn = effectiveDate(req.body.effectiveOn)
+    const reason = String(req.body.reason || 'Bulk re-enrolled').trim()
+
+    if (scopeSchoolId) {
+      const license = await getSchoolLicense(scopeSchoolId)
+      if (license && license.max_students > 0) {
+        const currentActive = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scopeSchoolId]))[0]?.cnt || 0
+        const placeholders = ids.map(() => '?').join(',')
+        const toActivate = (await query(`SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND id IN (${placeholders}) AND enrollment_status = 'withdrawn'`, [scopeSchoolId, ...ids]))[0]?.cnt || 0
+        if (currentActive + toActivate > license.max_students) {
+          return res.status(400).json({
+            error: `Re-enrolling would exceed student population limit (${currentActive + toActivate}/${license.max_students} students). Upgrade your license capacity to re-enroll these students.`
+          })
+        }
+      }
+    }
+
+    let count = 0
+    const skipped = []
+    for (const id of ids) {
+      const target = (await query('SELECT * FROM students WHERE id = ?', [id]))[0]
+      if (!target) {
+        skipped.push({ id, reason: 'Student not found' })
+        continue
+      }
+      if (me.role !== 'superadmin' && target.school_id !== me.school_id) {
+        skipped.push({ id, name: target.name, reason: 'Outside your school' })
+        continue
+      }
+      const finalGrade = targetGrade || target.grade
+      const finalSection = targetSection || target.section
+      if (!finalGrade || !finalSection) {
+        skipped.push({ id, name: target.name, reason: 'Missing grade or section' })
+        continue
+      }
+      const latestEvent = (await query(`
+        SELECT * FROM student_enrollment_events
+        WHERE student_id = ? AND school_id = ?
+        ORDER BY effective_on DESC, created_at DESC, id DESC
+        LIMIT 1`, [target.id, target.school_id]))[0]
+      if (latestEvent && effectiveOn < latestEvent.effective_on) {
+        skipped.push({ id, name: target.name, reason: `Effective date before last event (${latestEvent.effective_on})` })
+        continue
+      }
+      await addEnrollmentEvent({
+        student: target,
+        eventType: 'reenroll',
+        status: 'active',
+        effectiveOn,
+        grade: finalGrade,
+        section: finalSection,
+        reason,
+        actor: me
+      })
+      await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [finalGrade, finalSection, target.id])
+      count++
+    }
+    if (count) await audit(me, 'student.bulk_reenroll', { type: 'student', id: '', name: `${count} students`, schoolId: scopeSchoolId || me.school_id || '' }, `Bulk re-enrolled ${count} students`)
+    res.json({ count, skipped })
+  } catch (err) {
+    console.error('Failed to bulk re-enroll students', err.message)
+    res.status(500).json({ error: 'Failed to bulk re-enroll students' })
   }
 })
 

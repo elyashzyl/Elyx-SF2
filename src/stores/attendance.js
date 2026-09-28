@@ -121,6 +121,26 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function reenrollStudent(id, data = {}, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${id}/reenroll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function reenrollStudents(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/bulk-reenroll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
   async function deleteStudent(id, schoolId) {
     const auth = getAuth()
     const extra = { userId: auth?.user?.id || '', userRole: auth?.user?.role || '' }
@@ -303,7 +323,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
   }
 
   return {
-    getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, deleteStudent, deleteStudents,
+    getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
     updateEntry, reopenRecord, getCorrections, getAllRecords, deleteRecord,
     fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlyRemarks

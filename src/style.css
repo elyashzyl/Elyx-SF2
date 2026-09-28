@@ -527,6 +527,10 @@ svg { display: block; }
 .btn-icon:hover,
 .icon-btn:hover { border-color: var(--border); background: var(--secondary); color: var(--primary); }
 .icon-btn--danger:hover { border-color: color-mix(in srgb, var(--destructive) 25%, var(--border)); background: var(--red-bg); color: var(--destructive); }
+.icon-btn--success { color: var(--success); }
+.icon-btn--success:hover { border-color: color-mix(in srgb, var(--success) 25%, var(--border)); background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); }
+.btn-xs-reenroll { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); font-size: .62rem; font-weight: 700; cursor: pointer; vertical-align: middle; transition: background .12s ease, color .12s ease; }
+.btn-xs-reenroll:hover { background: var(--success); color: #ffffff; }
 .icon-btn:disabled { cursor: not-allowed; opacity: .4; }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
