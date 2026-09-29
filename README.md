@@ -104,7 +104,9 @@ Treat any database password, application key, or deployment token shared outside
 | `API_BODY_LIMIT` | Maximum parsed JSON/form request size; defaults to `50mb` for QR/template compatibility |
 | `SECRETS_ROTATED` | Must be `1` in production after provider secrets are replaced and old values revoked |
 | `ALLOW_LEGACY_PASSWORD_LOGIN` | Local/test-only temporary plaintext compatibility; never enabled in production |
-| `APP_URL` | Public application URL used in account email links |
+| `APP_URL` | Public application URL used in account email links and same-origin CORS fallback |
+| `ALLOWED_ORIGINS` | Comma-separated public frontend origins allowed to call the API; include the Coolify domain and custom domain if both are used |
+| `CORS_ORIGINS` | Alias for `ALLOWED_ORIGINS` |
 | `MAIL_MAILER` | `log` for local development or `smtp` for delivery |
 | `MAIL_HOST` | SMTP hostname when `MAIL_MAILER=smtp` |
 | `MAIL_PORT` | SMTP port when `MAIL_MAILER=smtp` |

@@ -47,11 +47,29 @@ assertProductionConfiguration()
 
 let dbReady = false
 
+function normalizeOrigin(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  try {
+    const url = new URL(text)
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return ''
+    return `${url.protocol}//${url.host}`
+  } catch {
+    return ''
+  }
+}
+
 function allowedOrigins() {
-  return String(process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS || '')
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean)
+  return [...new Set([
+    ...String(process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS || '')
+      .split(',')
+      .map(normalizeOrigin)
+      .filter(Boolean),
+    // The frontend and API are normally served from the same public URL.
+    // APP_URL is therefore a safe fallback when a separate CORS variable is
+    // not configured, while explicit allowlists still take precedence.
+    normalizeOrigin(process.env.APP_URL)
+  ].filter(Boolean))]
 }
 
 const configuredOrigins = allowedOrigins()
@@ -62,7 +80,7 @@ app.use(cors({
   origin(origin, callback) {
     // Same-origin requests and command-line clients do not send Origin.
     if (!origin) return callback(null, true)
-    if (configuredOrigins.includes(origin)) return callback(null, true)
+    if (configuredOrigins.includes(normalizeOrigin(origin))) return callback(null, true)
     if (!isProduction && configuredOrigins.length === 0) return callback(null, true)
     return callback(new Error('CORS origin is not allowed'))
   },
@@ -122,8 +140,9 @@ function hasSessionCookie(req) {
 function isSameOriginRequest(req) {
   const origin = req.get('origin')
   if (!origin) return true
-  const sameOrigin = `${req.protocol}://${req.get('host')}`
-  return origin === sameOrigin || configuredOrigins.includes(origin)
+  const sameOrigin = normalizeOrigin(`${req.protocol}://${req.get('host')}`)
+  const requestOrigin = normalizeOrigin(origin)
+  return requestOrigin === sameOrigin || configuredOrigins.includes(requestOrigin)
 }
 
 // SameSite cookies provide the browser-level default. This additional Origin

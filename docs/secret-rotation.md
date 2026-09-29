@@ -50,6 +50,15 @@ Production must use MySQL. The application logs a warning if this acknowledgemen
 
 ## 5. Deploy and verify
 
+Also configure the public application origin in the deployment environment:
+
+```env
+APP_URL=https://your-public-elytrack-domain.example
+ALLOWED_ORIGINS=https://your-public-elytrack-domain.example
+```
+
+Use comma-separated origins when both a Coolify-generated domain and a custom domain are active. Do not add a trailing path such as `/login`; origins contain only scheme and host.
+
 After updating the deployment secrets:
 
 ```bash
