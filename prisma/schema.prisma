@@ -22,6 +22,7 @@ model User {
   passwordChangedAt DateTime? @map("password_changed_at")
   email             String    @default("") @db.VarChar(255)
   emailVerifiedAt   DateTime? @map("email_verified_at")
+  avatarUrl         String    @default("") @map("avatar_url") @db.VarChar(2048)
   failedLoginCount  Int       @default(0) @map("failed_login_count")
   lockedUntil       DateTime? @map("locked_until")
 

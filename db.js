@@ -186,7 +186,8 @@ const MYSQL_DDL = [
     failed_login_count INT NOT NULL DEFAULT 0,
     locked_until DATETIME NULL,
     email VARCHAR(255) NOT NULL DEFAULT (''),
-    email_verified_at DATETIME NULL
+    email_verified_at DATETIME NULL,
+    avatar_url VARCHAR(2048) NOT NULL DEFAULT ('')
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS account_tokens (
     id VARCHAR(96) PRIMARY KEY,
@@ -656,7 +657,8 @@ async function initSqlite() {
       failed_login_count INTEGER NOT NULL DEFAULT 0,
       locked_until TEXT,
       email TEXT NOT NULL DEFAULT '',
-      email_verified_at TEXT
+      email_verified_at TEXT,
+      avatar_url TEXT NOT NULL DEFAULT ''
     )`,
     `CREATE TABLE IF NOT EXISTS account_tokens (
       id TEXT PRIMARY KEY,

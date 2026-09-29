@@ -240,7 +240,10 @@
             title="User Profile & Settings"
           >
             <div class="sidebar-profile-avatar-wrap">
-              <div class="sidebar-profile-avatar">{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</div>
+              <div class="sidebar-profile-avatar">
+                <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Profile avatar" />
+                <span v-else>{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</span>
+              </div>
               <span class="sidebar-status-dot" title="Account active"></span>
             </div>
             <div class="sidebar-profile-info">

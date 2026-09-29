@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels } from '../db.js'
+import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels, DB_MODE } from '../db.js'
+import prisma from '../prisma/client.js'
 import { schoolToResponse, requireRole, isLicenseActive } from './_context.js'
 import { hashPassword, hashLegacyPasswordForMigration, verifyPassword, isPasswordHash } from '../lib/passwords.js'
 import { createSession, setSessionCookie, clearSessionCookie, revokeSession, getSession, updateSessionUser, revokeAllUserSessions } from '../lib/sessions.js'
@@ -9,6 +10,35 @@ import { ACCOUNT_TOKEN_TYPES, consumeAccountToken, inspectAccountToken, issueAcc
 import { accountLink, sendAccountEmail } from '../lib/mailer.js'
 
 const router = Router()
+
+async function listPublicSchoolsWithPrisma() {
+  if (DB_MODE !== 'mysql' || !prisma) return null
+  try {
+    const rows = await prisma.school.findMany({
+      where: { archivedAt: null },
+      select: { id: true, name: true, schoolId: true, address: true, short: true },
+      orderBy: { name: 'asc' }
+    })
+    return rows.map(row => schoolToResponse({
+      ...row,
+      school_id: row.schoolId,
+      attendance_lock_cutoff: '',
+      contact_email: '',
+      contact_phone: '',
+      division: '',
+      district: '',
+      principal_name: '',
+      school_year: '',
+      grading_period: '',
+      archived_at: null,
+      archived_by: '',
+      archive_reason: ''
+    }))
+  } catch (error) {
+    console.warn('[auth] Prisma public school list fallback:', error.message)
+    return null
+  }
+}
 
 function parseDatabaseDate(value) {
   if (!value) return null
@@ -29,6 +59,8 @@ async function publicUser(row) {
 // Public endpoint to list schools for registration
 router.get('/schools', async (req, res) => {
   try {
+    const prismaSchools = await listPublicSchoolsWithPrisma()
+    if (prismaSchools) return res.json(prismaSchools)
     const schools = await query('SELECT id, name, school_id, address, short FROM schools WHERE archived_at IS NULL ORDER BY name ASC')
     res.json(schools.map(schoolToResponse))
   } catch (err) {

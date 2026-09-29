@@ -104,7 +104,10 @@ The following capabilities already exist or are substantially implemented:
   - Login timestamps, password-change timestamps, failed-login counts, and lock expiry are persisted without exposing password data.
 - [x] Add account email and one-time token storage.
   - Migration `016_account_tokens_and_email` adds email fields and the `account_tokens` table without inserting operational records.
-- [ ] Add profile photo or avatar support if needed, stored through a configurable file/object storage provider.
+- [x] Add profile avatar support using database-backed HTTPS or local relative URLs.
+  - Added migration `020_user_avatar_url` without modifying existing user data.
+  - Settings and sidebar show the avatar with initials fallback; profile updates preserve role, grade, section, and school.
+  - Uploaded files are intentionally not stored in the container; object/file storage can be added later when a persistent provider is configured.
 - [x] Add school profile settings:
   - School name and short name.
   - Address and contact information.
@@ -122,10 +125,13 @@ The following capabilities already exist or are substantially implemented:
   - Authentication secrets, passwords, session rows, and one-time account tokens are excluded.
   - Permanent deletion requires a recorded export first, and export actions are audit logged.
 - [ ] Complete incremental Prisma route migration where it improves maintainability and transaction safety.
+  - Completed the first low-risk read-only slice: user listing and public school listing use Prisma on MySQL when available, with the shared SQL adapter retained for SQLite and Prisma failures.
+  - Added focused avatar/session regression coverage and regenerated the Prisma client after adding `avatarUrl`.
+  - Authentication writes, sessions, tokens, authorization-sensitive mutations, and operational routes remain on the shared adapter.
 
 **Definition of done:** Administrators can safely manage their own school and accounts without viewing or modifying another school's data.
 
-**Next recommended Phase 1 step:** Decide whether to begin the incremental Prisma migration with one tested route group, or keep raw SQL for the remaining high-risk operational routes until a dedicated migration slice is planned.
+**Next recommended Phase 1 step:** Add tests against a real isolated MySQL schema for the Prisma read-only slice, then migrate one additional low-risk read route. Do not migrate authentication writes or session/token code until transaction behavior is covered.
 
 ---
 

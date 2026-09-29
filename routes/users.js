@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import crypto from 'node:crypto'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run } from '../db.js'
+import { query, run, DB_MODE } from '../db.js'
+import prisma from '../prisma/client.js'
 import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit, getSchoolLicense, isLicenseActive, actingUser } from './_context.js'
 import { hashPassword } from '../lib/passwords.js'
 import { revokeAllUserSessions } from '../lib/sessions.js'
@@ -12,6 +13,72 @@ const router = Router()
 
 const VALID_ROLES = ['superadmin', 'admin', 'teacher']
 const VALID_ACCOUNT_STATUSES = ['active', 'invited', 'disabled', 'locked']
+
+const MAX_AVATAR_URL_LENGTH = 2048
+
+function isValidAvatarUrl(value) {
+  if (value.length > MAX_AVATAR_URL_LENGTH) return false
+  if (value.startsWith('/')) return !value.startsWith('//') && !/[\u0000-\u001f\u007f]/.test(value)
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !/[\u0000-\u001f\u007f]/.test(value)
+  } catch {
+    return false
+  }
+}
+
+const USER_LIST_SELECT = {
+  id: true,
+  username: true,
+  name: true,
+  email: true,
+  emailVerifiedAt: true,
+  role: true,
+  grade: true,
+  section: true,
+  period: true,
+  schoolId: true,
+  accountStatus: true,
+  lastLoginAt: true,
+  passwordChangedAt: true,
+  lockedUntil: true,
+  avatarUrl: true
+}
+
+function mapPrismaUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    name: row.name,
+    email: row.email || '',
+    email_verified_at: row.emailVerifiedAt || null,
+    role: row.role,
+    grade: row.grade || '',
+    section: row.section || '',
+    period: row.period || '',
+    school_id: row.schoolId || '',
+    account_status: row.accountStatus || 'active',
+    last_login_at: row.lastLoginAt || null,
+    password_changed_at: row.passwordChangedAt || null,
+    locked_until: row.lockedUntil || null,
+    avatar_url: row.avatarUrl || ''
+  }
+}
+
+async function listUsersWithPrisma(schoolId) {
+  if (DB_MODE !== 'mysql' || !prisma) return null
+  try {
+    const rows = await prisma.user.findMany({
+      ...(schoolId ? { where: { schoolId } } : {}),
+      select: USER_LIST_SELECT,
+      orderBy: { name: 'asc' }
+    })
+    return rows.map(mapPrismaUser)
+  } catch (error) {
+    console.warn('[users] Prisma list fallback:', error.message)
+    return null
+  }
+}
 
 async function sendVerificationEmail(userId, email, createdBy = '') {
   const issued = await issueAccountToken({ userId, tokenType: ACCOUNT_TOKEN_TYPES.EMAIL_VERIFICATION, createdBy })
@@ -33,9 +100,10 @@ router.get('/', async (req, res) => {
     if (error) return
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
-    const users = scope.schoolId
-      ? await query('SELECT id, username, name, email, email_verified_at, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users WHERE school_id = ? ORDER BY name', [scope.schoolId])
-      : await query('SELECT id, username, name, email, email_verified_at, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users ORDER BY name')
+    const prismaUsers = await listUsersWithPrisma(scope.schoolId)
+    const users = prismaUsers ?? (scope.schoolId
+      ? await query('SELECT id, username, name, email, email_verified_at, avatar_url, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users WHERE school_id = ? ORDER BY name', [scope.schoolId])
+      : await query('SELECT id, username, name, email, email_verified_at, avatar_url, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users ORDER BY name'))
     res.json(users)
   } catch (err) {
     console.error('Error listing users:', err.message)
@@ -235,7 +303,7 @@ router.put('/:id', async (req, res) => {
     // their own username, password, and display name.
     // They are explicitly prevented from modifying their assigned grade, section, school, or role.
     if (isSelf) {
-      const { username, password, name, email, role, grade, section, schoolId, school_id } = req.body || {}
+      const { username, password, name, email, avatar_url, avatarUrl, role, grade, section, schoolId, school_id } = req.body || {}
 
       if (role !== undefined && role !== target.role) {
         return res.status(403).json({ error: 'You cannot change your own role' })
@@ -266,9 +334,12 @@ router.put('/:id', async (req, res) => {
         if (emailDup.length) return res.status(400).json({ error: 'Email already exists' })
       }
       const emailChanged = newEmail !== (target.email || '')
+      const newAvatarUrl = avatarUrl !== undefined ? String(avatarUrl || '').trim() : String(avatar_url !== undefined ? avatar_url || '' : target.avatar_url || '').trim()
+      if (newAvatarUrl.length > MAX_AVATAR_URL_LENGTH) return res.status(400).json({ error: `Avatar URL must be ${MAX_AVATAR_URL_LENGTH} characters or fewer` })
+      if (newAvatarUrl && !isValidAvatarUrl(newAvatarUrl)) return res.status(400).json({ error: 'Avatar URL must use HTTPS or be a local relative path' })
 
-      const sets = ['username=?', 'name=?', 'email=?']
-      const params = [newUsername, newName, newEmail]
+      const sets = ['username=?', 'name=?', 'email=?', 'avatar_url=?']
+      const params = [newUsername, newName, newEmail, newAvatarUrl]
 
       if (password && String(password).trim()) {
         sets.push('password=?', 'password_changed_at=CURRENT_TIMESTAMP')
@@ -305,7 +376,8 @@ router.put('/:id', async (req, res) => {
           grade: target.grade,
           section: target.section,
           period: target.period,
-          school_id: target.school_id
+          school_id: target.school_id,
+          avatar_url: newAvatarUrl
         }
       })
     }
@@ -315,7 +387,7 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' })
     }
 
-    const { username, password, name, email, role, grade, section, period } = req.body || {}
+    const { username, password, name, email, avatar_url, avatarUrl, role, grade, section, period } = req.body || {}
     const newRole = role || target.role
     if (!VALID_ROLES.includes(newRole)) return res.status(400).json({ error: 'Invalid role' })
 
@@ -359,6 +431,9 @@ router.put('/:id', async (req, res) => {
     }
 
     const emailChanged = newEmail !== (target.email || '')
+    const newAvatarUrl = avatarUrl !== undefined ? String(avatarUrl || '').trim() : String(avatar_url !== undefined ? avatar_url || '' : target.avatar_url || '').trim()
+    if (newAvatarUrl.length > MAX_AVATAR_URL_LENGTH) return res.status(400).json({ error: `Avatar URL must be ${MAX_AVATAR_URL_LENGTH} characters or fewer` })
+    if (newAvatarUrl && !isValidAvatarUrl(newAvatarUrl)) return res.status(400).json({ error: 'Avatar URL must use HTTPS or be a local relative path' })
     const vals = {
       username: newUsername,
       name: (name !== undefined ? name : target.name)?.trim() || target.name,
@@ -366,8 +441,8 @@ router.put('/:id', async (req, res) => {
       section: section !== undefined ? (section || '') : (target.section || ''),
       period: period !== undefined ? (period || '') : (target.period || '')
     }
-    const sets = ['username=?', 'name=?', 'email=?', 'role=?', 'grade=?', 'section=?', 'period=?', 'school_id=?']
-    const params = [vals.username, vals.name, newEmail, newRole, vals.grade, vals.section, vals.period, newRole === 'superadmin' ? '' : (newSchoolId || '')]
+    const sets = ['username=?', 'name=?', 'email=?', 'avatar_url=?', 'role=?', 'grade=?', 'section=?', 'period=?', 'school_id=?']
+    const params = [vals.username, vals.name, newEmail, newAvatarUrl, newRole, vals.grade, vals.section, vals.period, newRole === 'superadmin' ? '' : (newSchoolId || '')]
     if (password && String(password).trim()) {
       sets.push('password=?', 'password_changed_at=CURRENT_TIMESTAMP')
       params.push(await hashPassword(String(password).trim()))
@@ -395,7 +470,8 @@ router.put('/:id', async (req, res) => {
         grade: vals.grade,
         section: vals.section,
         period: vals.period,
-        school_id: newRole === 'superadmin' ? '' : (newSchoolId || '')
+        school_id: newRole === 'superadmin' ? '' : (newSchoolId || ''),
+        avatar_url: newAvatarUrl
       }
     })
   } catch (err) {

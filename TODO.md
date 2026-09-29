@@ -57,14 +57,25 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added superadmin-only `GET /api/schools/:id/export` with school-scoped JSON snapshots, safe user fields, archived-school support, download UI, audit logging, and server-side export-before-delete enforcement.
   - Added `tests/school-export.test.mjs` covering authorization, school isolation, secret exclusion, content headers, audit logging, and archived-school export.
 
-**Next recommended task:** Begin Prisma migration with one route group only after adding model/query compatibility tests; do not migrate all routes in one change.
+**Next recommended task:** Add isolated MySQL integration coverage for the completed Prisma read-only slice, then migrate one additional low-risk read route. Keep authentication writes, sessions, and token flows on the shared adapter for now.
+
+- [x] **Add optional avatar support without ephemeral file storage**
+  - Added schema-only migration `020_user_avatar_url` and Prisma `avatarUrl` mapping.
+  - Avatar URLs are limited to 2048 characters and accept only HTTPS or local relative paths; blank values clear the avatar.
+  - Settings and sidebar use the database-backed value with initials fallback.
+  - Added migration, API, session, and self-update regression coverage.
+- [ ] **Add isolated MySQL integration coverage for Prisma read slices**
+  - Requires a disposable MySQL schema/service and credentials outside the repository.
+  - Keep the shared SQL adapter as the fallback and do not move authentication/token/session writes until transaction behavior is covered.
 
 ## 2. Prisma ORM Incremental Route Migration
 
 Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are established and synchronized with the MySQL schema. Currently, Express route handlers in `routes/` still use raw SQL queries via `query()` and `run()` in `db.js`.
 
 - [ ] **Migrate Authentication & Users (`routes/auth.js`, `routes/users.js`)**
-  - Replace raw SQL `SELECT` / `INSERT` with `prisma.user.findUnique()`, `prisma.user.findMany()`, `prisma.user.create()`.
+  - [x] Migrate the read-only user list to Prisma on MySQL with SQL fallback for SQLite/Prisma unavailability.
+  - [x] Migrate the public school list to Prisma on MySQL with SQL fallback.
+  - [ ] Replace authentication and account mutation SQL only after transaction/session behavior has dedicated coverage.
   - Maintain bcrypt password hashing compatibility.
 - [ ] **Migrate Campus & Grade Level Entities (`routes/schools.js`)**
   - Replace raw SQL queries for `schools`, `grade_levels`, and `sections` with `prisma.school` and `prisma.gradeLevel`.

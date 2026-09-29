@@ -7,7 +7,8 @@
         <!-- Profile Card -->
         <div class="settings-profile-card">
           <div class="settings-avatar">
-            <span>{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</span>
+            <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Profile avatar" />
+            <span v-else>{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</span>
           </div>
           <h3 class="settings-profile-name">{{ auth.user?.name || 'User' }}</h3>
           <p class="settings-profile-email">{{ auth.user?.username || '' }}</p>
@@ -160,6 +161,10 @@
               <div class="form-group">
                 <label>New Password <span class="label-hint">Leave blank to keep current</span></label>
                 <input v-model="profile.password" type="password" placeholder="Enter new password" autocomplete="new-password" />
+              </div>
+              <div class="form-group">
+                <label>Avatar URL <span class="label-hint">HTTPS or local path; leave blank for initials</span></label>
+                <input v-model="profile.avatar_url" type="text" maxlength="2048" placeholder="https://example.com/avatar.jpg or /avatars/me.jpg" autocomplete="url" />
               </div>
               <div class="form-group">
                 <label>Role</label>
@@ -358,7 +363,7 @@ const form = reactive({
   grading_period: '',
   attendance_lock_cutoff: ''
 })
-const profile = reactive({ name: '', username: '', email: '', password: '' })
+const profile = reactive({ name: '', username: '', email: '', password: '', avatar_url: '' })
 const savingProfile = ref(false)
 const sendingVerification = ref(false)
 const profileError = ref('')
@@ -384,6 +389,7 @@ onMounted(async () => {
   profile.name = auth.user?.name || ''
   profile.username = auth.user?.username || ''
   profile.email = auth.user?.email || ''
+  profile.avatar_url = auth.user?.avatar_url || ''
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
     selectedSchoolId.value = noneSelected.value ? '' : (auth.schoolId || schools.value[0]?.id || '')
@@ -476,7 +482,7 @@ async function saveProfile() {
   savingProfile.value = true
   profileError.value = ''
   try {
-    const payload = { name: profile.name.trim(), username: profile.username.trim(), email: profile.email.trim() }
+    const payload = { name: profile.name.trim(), username: profile.username.trim(), email: profile.email.trim(), avatar_url: profile.avatar_url.trim() }
     if (profile.password && profile.password.trim()) payload.password = profile.password.trim()
     await auth.updateUser(auth.user.id, payload)
     profile.password = ''

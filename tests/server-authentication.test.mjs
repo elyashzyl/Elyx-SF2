@@ -31,7 +31,7 @@ before(async () => {
   await initializeServerDatabase()
   await run(
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [userId, username, await hashPassword('session-password'), 'Session User', 'admin', '', '', '', '']
+    [userId, username, await hashPassword('session-password'), 'Session User', 'admin', 'Grade 7', 'Section A', '', '']
   )
   await run(
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -64,6 +64,82 @@ test('login establishes a server-side session and /me restores it', async () => 
   assert.equal(me.response.status, 200)
   assert.equal(me.body.user.id, userId)
   assert.match(me.response.headers.get('set-cookie') || '', /^elytrack_session=/)
+})
+
+test('self profile updates save and clear avatars without changing assignments', async () => {
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username, password: 'session-password' })
+  })
+  const cookie = cookieFrom(login.response)
+  assert.match(cookie, /^elytrack_session=/)
+
+  const saved = await request(`/api/users/${userId}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Updated Session User',
+      username,
+      avatar_url: 'https://cdn.example.test/avatars/session-user.png',
+      grade: 'Grade 8',
+      section: 'Section B',
+      role: 'teacher',
+      school_id: 'other-school'
+    })
+  })
+  assert.equal(saved.response.status, 403)
+
+  const valid = await request(`/api/users/${userId}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Updated Session User',
+      username,
+      avatar_url: 'https://cdn.example.test/avatars/session-user.png'
+    })
+  })
+  assert.equal(valid.response.status, 200)
+  assert.equal(valid.body.user.avatar_url, 'https://cdn.example.test/avatars/session-user.png')
+  assert.equal(valid.body.user.grade, 'Grade 7')
+  assert.equal(valid.body.user.section, 'Section A')
+  assert.equal(valid.body.user.role, 'admin')
+  assert.equal(valid.body.user.school_id, '')
+
+  const me = await request('/api/auth/me', { headers: { cookie } })
+  assert.equal(me.response.status, 200)
+  assert.equal(me.body.user.avatar_url, 'https://cdn.example.test/avatars/session-user.png')
+
+  const cleared = await request(`/api/users/${userId}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ username, avatar_url: '' })
+  })
+  assert.equal(cleared.response.status, 200)
+  assert.equal(cleared.body.user.avatar_url, '')
+})
+
+test('avatar URLs reject unsafe schemes and excessive lengths', async () => {
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username, password: 'session-password' })
+  })
+  const cookie = cookieFrom(login.response)
+
+  const unsafe = await request(`/api/users/${userId}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ username, avatar_url: 'javascript:alert(1)' })
+  })
+  assert.equal(unsafe.response.status, 400)
+
+  const tooLong = await request(`/api/users/${userId}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ username, avatar_url: `https://example.com/${'a'.repeat(2041)}` })
+  })
+  assert.equal(tooLong.response.status, 400)
 })
 
 test('logout revokes the session cookie', async () => {
