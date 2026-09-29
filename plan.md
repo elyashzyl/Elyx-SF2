@@ -34,7 +34,8 @@ The following capabilities already exist or are substantially implemented:
 - School-level access restrictions.
 - Daily attendance with DepEd attendance codes.
 - Teacher attendance workflow and advisory scoping.
-- Monthly SF2 attendance calculations and Excel export.
+- [x] Monthly SF2 attendance calculations and Excel export.
+  - Teacher generation and export now use the authenticated advisory grade/section, reject cross-class requests, and surface scoped API errors instead of silently opening an empty report.
 - SARDO early-warning indicators.
 - Grade levels and sections.
 - Student and user management.

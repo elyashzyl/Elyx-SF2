@@ -63,13 +63,14 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return res
   }
 
-  async function getStudents(params = {}, schoolId) {
+  async function getStudents(params = {}, schoolId, options = {}) {
     try {
       const extra = { ...params }
       if (schoolId) extra.schoolId = schoolId
       const query = new URLSearchParams(actor(extra)).toString()
       return await fetchJson(`${API}/students?${query}`) || []
-    } catch {
+    } catch (error) {
+      if (options.throwOnError) throw error
       return []
     }
   }
@@ -308,11 +309,12 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
-  async function fetchMonthly(grade, section, month, year, schoolId) {
+  async function fetchMonthly(grade, section, month, year, schoolId, options = {}) {
     try {
       const params = new URLSearchParams(actor({ grade, section, month, year, ...(schoolId ? { schoolId } : {}) }))
       return await fetchJson(`${API}/monthly?${params}`)
-    } catch {
+    } catch (error) {
+      if (options.throwOnError) throw error
       return null
     }
   }

@@ -13,6 +13,7 @@ const adminA = `auth-admin-a-${suffix}`
 const adminB = `auth-admin-b-${suffix}`
 const teacherB = `auth-teacher-b-${suffix}`
 const studentB = `auth-student-b-${suffix}`
+const gradeLevelB = `auth-grade-level-b-${suffix}`
 let server
 let baseUrl
 
@@ -53,6 +54,10 @@ before(async () => {
     'INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
     [studentB, 'Student B', 'Grade 1', 'Section A', 'Female', schoolB]
   )
+  await run(
+    'INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)',
+    [gradeLevelB, schoolB, 'Grade 1', JSON.stringify(['Section A']), 1]
+  )
 
   server = http.createServer(app)
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -61,7 +66,10 @@ before(async () => {
 })
 
 after(async () => {
+  await run('DELETE FROM monthly_entries WHERE record_id IN (SELECT id FROM monthly_records WHERE school_id = ? AND month IN (?, ?))', [schoolB, 9, 10])
+  await run('DELETE FROM monthly_records WHERE school_id = ? AND month IN (?, ?)', [schoolB, 9, 10])
   await run('DELETE FROM students WHERE id = ?', [studentB])
+  await run('DELETE FROM grade_levels WHERE id = ?', [gradeLevelB])
   await run('DELETE FROM users WHERE id IN (?, ?, ?, ?)', [adminA, adminB, teacherB, `missing-${suffix}`])
   await run('DELETE FROM schools WHERE id IN (?, ?)', [schoolA, schoolB])
   await new Promise(resolve => server.close(resolve))
@@ -113,6 +121,63 @@ test('teachers cannot list users or mutate students', async () => {
     headers: actorHeaders(teacherB, 'teacher')
   })
   assert.equal(remove.response.status, 403)
+})
+
+test('teachers can create monthly SF2 records only for their advisory class', async () => {
+  const save = await request('/api/monthly', {
+    method: 'POST',
+    headers: actorHeaders(teacherB, 'teacher'),
+    body: JSON.stringify({
+      schoolId: schoolB,
+      month: 9,
+      year: 2026,
+      // Omitted intentionally: the API must resolve the teacher assignment.
+      entries: [{ studentId: studentB, name: 'Student B', days: {}, present: 0, absent: 0 }]
+    })
+  })
+  assert.equal(save.response.status, 200)
+  assert.equal(save.body.success, true)
+  assert.ok(save.body.record.id)
+
+  const saved = await request(`/api/monthly?schoolId=${encodeURIComponent(schoolB)}&month=9&year=2026&grade=Grade%201&section=Section%20A`, {
+    headers: actorHeaders(teacherB, 'teacher')
+  })
+  assert.equal(saved.response.status, 200)
+  assert.equal(saved.body.grade, 'Grade 1')
+  assert.equal(saved.body.section, 'Section A')
+
+  const crossClass = await request('/api/monthly', {
+    method: 'POST',
+    headers: actorHeaders(teacherB, 'teacher'),
+    body: JSON.stringify({
+      schoolId: schoolB,
+      month: 10,
+      year: 2026,
+      grade: 'Grade 2',
+      section: 'Section B',
+      entries: []
+    })
+  })
+  assert.equal(crossClass.response.status, 403)
+  assert.match(crossClass.body.error, /advisory class/i)
+})
+
+test('teacher SF2 export rejects a different advisory class', async () => {
+  const exportResponse = await request('/api/export/sf2', {
+    method: 'POST',
+    headers: actorHeaders(teacherB, 'teacher'),
+    body: JSON.stringify({
+      schoolId: schoolB,
+      sheetName: 'Sheet1',
+      entries: [{ studentId: studentB, name: 'Student B', days: {} }],
+      month: 9,
+      year: 2026,
+      grade: 'Grade 2',
+      section: 'Section B'
+    })
+  })
+  assert.equal(exportResponse.response.status, 403)
+  assert.match(exportResponse.body.error, /advisory class/i)
 })
 
 test('caller-supplied roles cannot elevate database permissions', async () => {

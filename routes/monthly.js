@@ -8,6 +8,9 @@ const router = Router()
 function resolveClassScope(me, grade, section) {
   if (me.role === 'teacher') {
     if (!me.grade || !me.section) return { error: 'No advisory class assigned' }
+    if ((grade && grade !== me.grade) || (section && section !== me.section) || (grade && !section) || (!grade && section)) {
+      return { error: 'Forbidden: outside your advisory class' }
+    }
     return { grade: me.grade, section: me.section }
   }
   if (!grade || !section) return { error: 'grade and section are required' }
@@ -71,8 +74,12 @@ router.post('/', async (req, res) => {
     const scope = await resolveScopeSchool(req, res, req.body.schoolId)
     if (!scope) return
     if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
-    const { month, year, grade, section, adviser, entries } = req.body
+    const { month, year, grade, section, entries } = req.body
+    const adviserName = typeof req.body.adviser === 'string' ? req.body.adviser : ''
     if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' })
+    const cls = resolveClassScope(me, grade, section)
+    if (cls.error) return res.status(403).json({ error: cls.error })
+    if (!await assertValidClass(res, scope.schoolId, cls.grade, cls.section)) return
     const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
     for (const entry of entries) {
       const student = (await query('SELECT id, school_id FROM students WHERE id = ? AND school_id = ?', [entry.studentId, scope.schoolId]))[0]
@@ -81,13 +88,10 @@ router.post('/', async (req, res) => {
         SELECT grade, section, status FROM student_enrollment_events
         WHERE student_id = ? AND school_id = ? AND effective_on <= ?
         ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC LIMIT 1`, [entry.studentId, scope.schoolId, monthStart]))[0]
-      if (enrollment && (enrollment.status !== 'active' || enrollment.grade !== grade || enrollment.section !== section)) {
-        return res.status(400).json({ error: `Student ${entry.studentId} was not enrolled in ${grade} - ${section} at the start of this month` })
+      if (enrollment && (enrollment.status !== 'active' || enrollment.grade !== cls.grade || enrollment.section !== cls.section)) {
+        return res.status(400).json({ error: `Student ${entry.studentId} was not enrolled in ${cls.grade} - ${cls.section} at the start of this month` })
       }
     }
-    const cls = resolveClassScope(me, grade, section)
-    if (cls.error) return res.status(403).json({ error: cls.error })
-    if (!await assertValidClass(res, scope.schoolId, cls.grade, cls.section)) return
     const existing = await query(
       'SELECT id FROM monthly_records WHERE month = ? AND year = ? AND grade = ? AND section = ? AND school_id = ?',
       [month, year, cls.grade, cls.section, scope.schoolId]
@@ -98,11 +102,11 @@ router.post('/', async (req, res) => {
       const rec = (await query('SELECT * FROM monthly_records WHERE id = ?', [recordId]))[0]
       if (!scopeRecordCheck(me, rec)) return res.status(403).json({ error: 'Forbidden: outside your school' })
       await run('DELETE FROM monthly_entries WHERE record_id = ?', [recordId])
-      await run('UPDATE monthly_records SET adviser=?, school_head=? WHERE id=?', [adviser, '', recordId])
+      await run('UPDATE monthly_records SET adviser=?, school_head=? WHERE id=?', [adviserName, '', recordId])
     } else {
       recordId = uuidv4()
       await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [recordId, month, year, cls.grade, cls.section, adviser, '', me.id, me.name || me.username || '', scope.schoolId])
+        [recordId, month, year, cls.grade, cls.section, adviserName, '', me.id, me.name || me.username || '', scope.schoolId])
     }
     for (const entry of entries) {
       await run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

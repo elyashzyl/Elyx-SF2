@@ -383,7 +383,7 @@ async function exportToSF2() {
       body: JSON.stringify({
         userId: auth.user?.id || '',
         userRole: auth.user?.role || '',
-        schoolId: auth.schoolId || '',
+        schoolId: effectiveSchoolId.value || '',
         sheetName: sheetName.value || 'Sheet1',
         entries: record.value.entries,
         month: form.month,
@@ -635,6 +635,12 @@ function startNum(gi) {
 }
 
 async function openMonthly() {
+  // A teacher's advisory class is authoritative. This also clears stale
+  // values restored from a previous page state or URL.
+  if (auth.isTeacher) {
+    form.grade = auth.user?.grade || ''
+    form.section = auth.user?.section || ''
+  }
   if (!form.grade || !form.section) {
     loadError.value = 'Please fill in all fields'
     return
@@ -643,62 +649,73 @@ async function openMonthly() {
     loadError.value = 'Please select a school'
     return
   }
+
   loadError.value = ''
-  const sid = effectiveSchoolId.value
-  const asOf = `${form.year}-${String(form.month).padStart(2, '0')}-01`
-  const students = await store.getStudents({ grade: form.grade, section: form.section, includeWithdrawn: 'true', asOf, ...(sid ? { schoolId: sid } : {}) })
-  const lookup = {}
-  for (const s of students) lookup[s.id] = s.gender || ''
-  studentsLookup.value = lookup
-  let data = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined)
-  if (!data) {
-    const entries = students.map(s => ({
-      studentId: s.id,
-      name: s.name,
-      gender: s.gender || '',
-      days: {},
-      present: 0,
-      absent: 0,
-      remarks: '',
-      late_enrollee: 0
-    }))
-    data = { month: form.month, year: form.year, grade: form.grade, section: form.section, adviser: auth.user?.name || '', entries }
-    const result = await store.saveMonthly(data, auth.user, effectiveSchoolId.value || undefined)
-    if (result) data.id = result.id
-  } else {
-    const currentIds = new Set(students.map(s => s.id))
-    data.entries = data.entries.filter(e => currentIds.has(e.studentId))
-    for (const e of data.entries) {
-      e.gender = studentsLookup.value[e.studentId] || ''
-    }
-    const existingIds = new Set(data.entries.map(e => e.studentId))
-    const missing = students.filter(s => !existingIds.has(s.id))
-    if (missing.length > 0) {
-      for (const s of missing) {
-        data.entries.push({
-          studentId: s.id,
-          name: s.name,
-          gender: s.gender || '',
-          days: {},
-          present: 0,
-          absent: 0,
-          remarks: '',
-          late_enrollee: 1
-        })
-      }
-      await store.saveMonthly(data, auth.user, effectiveSchoolId.value || undefined)
-    }
-  }
-  record.value = data
   try {
-    localStorage.setItem('monthlyAttendance', JSON.stringify({
-      month: form.month,
-      year: form.year,
-      grade: form.grade,
-      section: form.section
-    }))
-  } catch {}
-  initSummaryEdits()
+    const sid = effectiveSchoolId.value
+    const asOf = `${form.year}-${String(form.month).padStart(2, '0')}-01`
+    const students = await store.getStudents(
+      { grade: form.grade, section: form.section, includeWithdrawn: 'true', asOf },
+      sid || undefined,
+      { throwOnError: true }
+    )
+    const lookup = {}
+    for (const s of students) lookup[s.id] = s.gender || ''
+    studentsLookup.value = lookup
+
+    let data = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined, { throwOnError: true })
+    if (!data) {
+      const entries = students.map(s => ({
+        studentId: s.id,
+        name: s.name,
+        gender: s.gender || '',
+        days: {},
+        present: 0,
+        absent: 0,
+        remarks: '',
+        late_enrollee: 0
+      }))
+      data = { month: form.month, year: form.year, grade: form.grade, section: form.section, adviser: auth.user?.name || '', entries }
+      const result = await store.saveMonthly(data, auth.user, sid || undefined)
+      if (result) data.id = result.id
+    } else {
+      const currentIds = new Set(students.map(s => s.id))
+      data.entries = data.entries.filter(e => currentIds.has(e.studentId))
+      for (const e of data.entries) e.gender = studentsLookup.value[e.studentId] || ''
+
+      const existingIds = new Set(data.entries.map(e => e.studentId))
+      const missing = students.filter(s => !existingIds.has(s.id))
+      if (missing.length > 0) {
+        for (const s of missing) {
+          data.entries.push({
+            studentId: s.id,
+            name: s.name,
+            gender: s.gender || '',
+            days: {},
+            present: 0,
+            absent: 0,
+            remarks: '',
+            late_enrollee: 1
+          })
+        }
+        await store.saveMonthly(data, auth.user, sid || undefined)
+      }
+    }
+
+    record.value = data
+    try {
+      localStorage.setItem('monthlyAttendance', JSON.stringify({
+        month: form.month,
+        year: form.year,
+        grade: form.grade,
+        section: form.section
+      }))
+    } catch {}
+    initSummaryEdits()
+  } catch (error) {
+    record.value = null
+    loadError.value = error?.message || 'Unable to generate the monthly SF2 report'
+  }
 }
 
 function onSummaryChange(field) {

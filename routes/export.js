@@ -71,11 +71,18 @@ router.post('/sf2', async (req, res) => {
 
     const scope = await resolveScopeSchool(req, res, req.body.schoolId)
     if (!scope) return
+    let exportGrade = grade
+    let exportSection = section
     if (scope.me.role === 'teacher') {
-      const recGrade = req.body.grade
-      const recSection = req.body.section
-      if (recGrade && recSection && (recGrade !== scope.me.grade || recSection !== scope.me.section)) {
+      if ((grade && grade !== scope.me.grade) || (section && section !== scope.me.section)) {
         return res.status(403).json({ error: 'Forbidden: outside your advisory class' })
+      }
+      // The authenticated teacher assignment is authoritative, even if the
+      // client omitted stale or incomplete class fields.
+      exportGrade = scope.me.grade
+      exportSection = scope.me.section
+      if (!exportGrade || !exportSection) {
+        return res.status(403).json({ error: 'No advisory class assigned' })
       }
     }
     const school = await getSettings(scope.schoolId || undefined)
@@ -203,8 +210,8 @@ router.post('/sf2', async (req, res) => {
     const schoolYear = `${syNum}-${syNum + 1}`
     const monthNames = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER']
     const monthName = monthNames[month - 1]
-    const gradeNum = grade ? (parseInt(grade.replace(/\D/g, ''), 10) || 0) : ''
-    const sectionVal = section ? section.toUpperCase() : ''
+    const gradeNum = exportGrade ? (parseInt(String(exportGrade).replace(/\D/g, ''), 10) || 0) : ''
+    const sectionVal = exportSection ? String(exportSection).toUpperCase() : ''
 
     // Row 4 (r:3): First Info Row
     // School ID(A-D) (E-g) | School Year(h-j) (k-o) | Month(p-s) (u-z)

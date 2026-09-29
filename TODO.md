@@ -82,6 +82,7 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 - [ ] **Migrate Student Enrollment (`routes/students.js`)**
   - Refactor learner CRUD operations, LRN uniqueness validation, and grade/section filtering to Prisma queries.
 - [ ] **Migrate Daily & Monthly Attendance (`routes/attendance.js`, `routes/monthly.js`)**
+  - Teacher monthly SF2 generation/export authorization and regression coverage are complete; Prisma migration remains a separate future task.
   - Convert `attendance_entries` and `monthly_entries` upserts.
   - Retain transactional batch performance when updating multiple student attendance rows simultaneously.
 - [ ] **Migrate Licensing & Subscriptions (`routes/licenses.js`)**
