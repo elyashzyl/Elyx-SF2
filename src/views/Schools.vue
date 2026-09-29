@@ -78,10 +78,17 @@
       </div>
       <div style="padding: 18px 20px;">
         <div v-if="pagedSchools.length" class="schools-grid">
-          <div v-for="(s, idx) in pagedSchools" :key="s?.id || idx" class="school-card">
+          <div v-for="(s, idx) in pagedSchools" :key="s?.id || idx" class="school-card" :class="{ 'school-card--archived': !!s?.archived_at }">
             <div class="school-card-top">
-              <div class="school-card-avatar">
-                {{ (s?.short || s?.name || 'S').charAt(0).toUpperCase() }}
+              <div class="school-card-identity">
+                <div class="school-card-avatar" aria-hidden="true">
+                  {{ (s?.short || s?.name || 'S').charAt(0).toUpperCase() }}
+                </div>
+                <div class="school-card-heading">
+                  <h3 class="school-card-name">{{ s?.name || 'School' }}</h3>
+                  <span v-if="s?.archived_at" class="badge badge-warning">Archived</span>
+                  <span v-else class="school-card-status">Active school</span>
+                </div>
               </div>
               <div class="school-card-actions">
                 <button v-if="!s?.archived_at" @click="editSchool(s)" class="table-action-btn" title="Edit">
@@ -108,40 +115,39 @@
                   </svg>
                   {{ exportingSchoolId === s?.id ? 'Exporting...' : 'Export' }}
                 </button>
-                <button v-if="auth.isSuperadmin" @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                <button v-if="auth.isSuperadmin" @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete" aria-label="Delete school">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-1 2-1h4c1 0 2 1 2 2v1"/>
                   </svg>
                 </button>
               </div>
             </div>
             <div class="school-card-body">
-              <h3 class="school-card-name">{{ s?.name || 'School' }}</h3>
-              <span v-if="s?.archived_at" class="badge badge-warning">Archived</span>
               <div class="school-card-details">
-                <div v-if="s?.school_id" class="school-card-detail">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <div class="school-card-detail" :class="{ 'school-card-detail--empty': !s?.school_id }">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
-                  <span>{{ s.school_id }}</span>
+                  <span>{{ s?.school_id || 'No school ID' }}</span>
                 </div>
-                <div v-if="s?.short" class="school-card-detail">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <div class="school-card-detail" :class="{ 'school-card-detail--empty': !s?.short }">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
                   </svg>
-                  <span>{{ s.short }}</span>
+                  <span>{{ s?.short || 'No short name' }}</span>
                 </div>
-                <div v-if="s?.address" class="school-card-detail">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <div class="school-card-detail school-card-detail--address" :class="{ 'school-card-detail--empty': !s?.address }">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
                   </svg>
-                  <span>{{ s.address }}</span>
+                  <span>{{ s?.address || 'No address provided' }}</span>
                 </div>
               </div>
             </div>
             <div class="school-card-footer">
               <span class="badge badge-info" v-if="s?.school_id">ID: {{ s.school_id }}</span>
               <span class="badge badge-success" v-if="s?.short">{{ s.short }}</span>
+              <span v-if="!s?.school_id && !s?.short" class="school-card-footer-empty">Profile details pending</span>
             </div>
           </div>
         </div>
@@ -678,11 +684,26 @@ function removeSchool(id) {
   border-color: var(--primary);
 }
 
+.school-card--archived {
+  opacity: 0.82;
+}
+
+.school-card--archived:hover {
+  opacity: 1;
+}
+
 .school-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px 0;
+}
+
+.school-card-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .school-card-avatar {
@@ -694,9 +715,26 @@ function removeSchool(id) {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 46px;
   font-weight: 700;
   font-size: 1.15rem;
   font-family: 'Lora', serif;
+}
+
+.school-card-heading {
+  min-width: 0;
+}
+
+.school-card-heading .school-card-name {
+  margin: 0;
+}
+
+.school-card-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--success);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .school-card-actions {
@@ -725,7 +763,6 @@ function removeSchool(id) {
   font-weight: 700;
   color: var(--foreground);
   line-height: 1.3;
-  margin-bottom: 10px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -751,12 +788,53 @@ function removeSchool(id) {
   opacity: 0.65;
 }
 
+.school-card-detail span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.school-card-detail--empty {
+  opacity: 0.68;
+  font-style: italic;
+}
+
 .school-card-footer {
+  min-height: 43px;
   padding: 10px 20px;
   border-top: 1px solid var(--border);
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.school-card-footer-empty {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .schools-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .school-card-top {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .school-card-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .school-card-actions .table-action-btn {
+    padding: 5px 7px;
+    font-size: 0.68rem;
+  }
 }
 
 /* Badge variants */
