@@ -28,7 +28,7 @@ FROM node:22-alpine AS app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=5173
+ENV PORT=3001
 # Production uses MySQL only. SQLite fallback is disabled by default.
 # DB_PATH remains available for explicitly configured local/test deployments.
 ENV ALLOW_PERSISTED_SQLITE=0
@@ -64,9 +64,12 @@ USER node
 
 # Persistent mount point for the SQLite-fallback database (see ALLOW_PERSISTED_SQLITE)
 VOLUME ["/data"]
-EXPOSE 5173
+EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+# MySQL connectivity and additive migrations can take longer than the first
+# health-check window on a fresh deployment. Do not restart a healthy process
+# while it is still waiting for the managed database to become reachable.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
   CMD wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
