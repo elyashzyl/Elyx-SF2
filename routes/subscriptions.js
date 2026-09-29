@@ -21,7 +21,7 @@ function publicRequest(row) {
 // can see all requests so payment verification stays database-backed.
 router.get('/requests', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
     let rows
     if (me.role === 'superadmin') {

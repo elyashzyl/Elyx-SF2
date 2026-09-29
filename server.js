@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import crypto from 'node:crypto'
 import { initDatabase, query, DB_MODE } from './db.js'
 import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
@@ -24,18 +25,100 @@ const PORT = process.env.PORT || 3001
 
 let dbReady = false
 
-app.use(cors())
+function allowedOrigins() {
+  return String(process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+}
+
+const configuredOrigins = allowedOrigins()
+const isProduction = process.env.NODE_ENV === 'production'
+
+app.set('trust proxy', 1)
+app.use(cors({
+  origin(origin, callback) {
+    // Same-origin requests and command-line clients do not send Origin.
+    if (!origin) return callback(null, true)
+    if (configuredOrigins.includes(origin)) return callback(null, true)
+    if (!isProduction && configuredOrigins.length === 0) return callback(null, true)
+    return callback(new Error('CORS origin is not allowed'))
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-User-ID', 'X-User-Role']
+}))
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
-app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-  const _writeHead = res.writeHead
-  res.writeHead = function (...args) {
-    if (this.getHeader('Expires')) this.removeHeader('Expires')
-    if (this.getHeader('X-Frame-Options')) this.removeHeader('X-Frame-Options')
-    return _writeHead.apply(this, args)
+// Small in-process limiter for deployment safety. This is intentionally a
+// defense-in-depth control; multi-instance deployments should also enforce
+// limits at the reverse proxy or API gateway.
+const rateBuckets = new Map()
+const rateWindowMs = Math.max(10_000, Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000))
+const rateLimitMax = Math.max(1, Number(process.env.RATE_LIMIT_MAX || 120))
+const sensitiveRateLimitMax = Math.max(1, Number(process.env.SENSITIVE_RATE_LIMIT_MAX || 20))
+function rateLimit(req, res, next) {
+  if (!isProduction && process.env.RATE_LIMIT_IN_TESTS !== '1') return next()
+  const path = req.path || ''
+  const sensitive = /^(\/auth\/(login|trial)|\/inquiries(?:\/|$)|\/payment-methods(?:\/|$)|\/subscriptions(?:\/|$))/.test(path)
+  const max = sensitive ? sensitiveRateLimitMax : rateLimitMax
+  const key = `${req.ip}:${sensitive ? 'sensitive' : 'general'}`
+  const now = Date.now()
+  const bucket = rateBuckets.get(key)
+  if (!bucket || now - bucket.startedAt >= rateWindowMs) {
+    rateBuckets.set(key, { startedAt: now, count: 1 })
+    return next()
   }
+  bucket.count += 1
+  if (bucket.count > max) {
+    const retryAfter = Math.max(1, Math.ceil((rateWindowMs - (now - bucket.startedAt)) / 1000))
+    res.setHeader('Retry-After', retryAfter)
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' })
+  }
+  next()
+}
+app.use('/api', rateLimit)
+
+function hasSessionCookie(req) {
+  return /(?:^|;)\s*elytrack_session=/.test(req.get('cookie') || '')
+}
+
+function isSameOriginRequest(req) {
+  const origin = req.get('origin')
+  if (!origin) return true
+  const sameOrigin = `${req.protocol}://${req.get('host')}`
+  return origin === sameOrigin || configuredOrigins.includes(origin)
+}
+
+// SameSite cookies provide the browser-level default. This additional Origin
+// check protects cookie-authenticated state changes when a deployment allows
+// cross-origin frontend access through the configured CORS allowlist.
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req) || isSameOriginRequest(req)) return next()
+  return res.status(403).json({ error: 'Cross-site request blocked' })
+})
+
+app.use((req, res, next) => {
+  const requestId = req.get('X-Request-ID') || crypto.randomUUID()
+  req.requestId = requestId
+  res.setHeader('X-Request-ID', requestId)
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; script-src 'self'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+  }
+  const startedAt = Date.now()
+  res.on('finish', () => {
+    if (isProduction) {
+      const actor = req.user ? { id: req.user.id || '', role: req.user.role || '', schoolId: req.user.school_id || '' } : null
+      console.info(JSON.stringify({ requestId, method: req.method, path: req.path, actor, status: res.statusCode, durationMs: Date.now() - startedAt }))
+    }
+  })
   next()
 })
 

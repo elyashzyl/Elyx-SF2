@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels } from '../db.js'
 import { schoolToResponse, requireRole, isLicenseActive } from './_context.js'
 import { hashPassword, verifyPassword, isPasswordHash } from '../lib/passwords.js'
+import { createSession, setSessionCookie, clearSessionCookie, revokeSession, getSession, updateSessionUser } from '../lib/sessions.js'
+import { asTrimmedString } from '../lib/validation.js'
 
 const router = Router()
 
@@ -37,10 +39,11 @@ router.get('/schools/:id/grades', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body || {}
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' })
+    const usernameValue = asTrimmedString(username, 'Username', { required: true, max: 255 })
+    if (usernameValue.error || typeof password !== 'string' || !password) {
+      return res.status(400).json({ error: usernameValue.error || 'Password is required' })
     }
-    const cleanUsername = String(username).trim()
+    const cleanUsername = usernameValue.value
     const users = await query('SELECT * FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1', [cleanUsername])
     if (users.length === 0 || !(await verifyPassword(password, users[0].password))) {
       return res.status(401).json({ error: 'Invalid username or password' })
@@ -67,10 +70,40 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    res.json({ user: await publicUser(user) })
+    const session = await createSession(user.id)
+    setSessionCookie(res, session.token, session.expiresAt)
+    res.json({ user: await publicUser(user), expiresAt: session.expiresAt.toISOString() })
   } catch (err) {
     console.error('Login error:', err.message)
     res.status(500).json({ error: 'Login failed' })
+  }
+})
+
+router.get('/me', async (req, res) => {
+  try {
+    const session = await getSession(req)
+    if (!session) return res.status(401).json({ error: 'Not authenticated' })
+    setSessionCookie(res, session.token, session.expiresAt)
+    const user = (await query('SELECT * FROM users WHERE id = ?', [session.user.id]))[0]
+    if (!user) {
+      clearSessionCookie(res)
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+    res.json({ user: await publicUser(user), expiresAt: session.expiresAt.toISOString() })
+  } catch (err) {
+    console.error('Session lookup error:', err.message)
+    res.status(500).json({ error: 'Unable to validate session' })
+  }
+})
+
+router.post('/logout', async (req, res) => {
+  try {
+    await revokeSession(req, res)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Logout error:', err.message)
+    clearSessionCookie(res)
+    res.status(500).json({ error: 'Logout failed' })
   }
 })
 
@@ -206,9 +239,8 @@ router.post('/trial', async (req, res) => {
   }
 })
 
-// Superadmin starts impersonating another user (admin or teacher).
-// The client swaps its session to the returned user but keeps the original
-// superadmin id so it can stop impersonating later.
+// Superadmin starts impersonating another user. The authenticated server-side
+// session is switched; caller-provided user IDs are not used for identity.
 router.post('/impersonate', async (req, res) => {
   try {
     const { me, error } = await requireRole(req, res, 'superadmin')
@@ -219,6 +251,13 @@ router.post('/impersonate', async (req, res) => {
     const target = (await query('SELECT * FROM users WHERE id = ?', [targetId]))[0]
     if (!target) return res.status(404).json({ error: 'User not found' })
     if (target.role === 'superadmin') return res.status(403).json({ error: 'Cannot impersonate another superadmin' })
+    const session = await getSession(req)
+    if (session) {
+      await updateSessionUser(session.sessionId, target.id, me.id)
+      setSessionCookie(res, session.token, session.expiresAt)
+    } else if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
     await logAudit({
       actor_id: me.id, actor_name: me.name, actor_role: me.role, actor_school_id: me.school_id || '',
       action: 'impersonate.start',
@@ -233,17 +272,24 @@ router.post('/impersonate', async (req, res) => {
   }
 })
 
-// Stop impersonating: verify the original superadmin still exists, then
-// restore their session. The client sends back the stored superadmin id.
+// Stop impersonating using the authenticated session's original superadmin id.
 router.post('/impersonate/stop', async (req, res) => {
   try {
-    const { superadminId, userId } = req.body || {}
-    if (!superadminId) return res.status(400).json({ error: 'superadminId is required' })
+    const session = await getSession(req)
+    const requestedId = req.body?.superadminId
+    const superadminId = session?.impersonatorId || requestedId
+    if (!superadminId) return res.status(400).json({ error: 'No active impersonation session' })
     const admin = (await query('SELECT * FROM users WHERE id = ?', [superadminId]))[0]
     if (!admin || admin.role !== 'superadmin') {
       return res.status(403).json({ error: 'Original superadmin session is no longer valid' })
     }
-    const stopped = userId ? (await query('SELECT * FROM users WHERE id = ?', [userId]))[0] : null
+    const stopped = session?.user?.id ? (await query('SELECT * FROM users WHERE id = ?', [session.user.id]))[0] : null
+    if (session) {
+      await updateSessionUser(session.sessionId, admin.id, '')
+      setSessionCookie(res, session.token, session.expiresAt)
+    } else if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
     await logAudit({
       actor_id: admin.id, actor_name: admin.name, actor_role: admin.role, actor_school_id: admin.school_id || '',
       action: 'impersonate.stop',

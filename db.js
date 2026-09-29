@@ -51,7 +51,6 @@ export function resolveDatabaseUrl() {
   )?.trim()
 
   if (explicitUrl) {
-    process.env.DATABASE_URL = explicitUrl
     return explicitUrl
   }
 
@@ -86,7 +85,6 @@ export function resolveDatabaseUrl() {
   const port = (process.env.DB_PORT || process.env.MYSQL_PORT || process.env.DATABASE_PORT)?.trim() || '3306'
   const password = process.env.DB_PASSWORD || process.env.DB_PASS || process.env.MYSQL_PASSWORD || process.env.MYSQL_ROOT_PASSWORD || process.env.DATABASE_PASSWORD || ''
   const resolved = `mysql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`
-  process.env.DATABASE_URL = resolved
   return resolved
 }
 
@@ -183,6 +181,16 @@ const MYSQL_DDL = [
     period TEXT NOT NULL DEFAULT (''),
     school_id TEXT NOT NULL DEFAULT ('')
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS auth_sessions (
+    id VARCHAR(96) PRIMARY KEY,
+    user_id VARCHAR(96) NOT NULL,
+    impersonator_id VARCHAR(96) NOT NULL DEFAULT (''),
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME NULL
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS schools (
     id VARCHAR(96) PRIMARY KEY,
     name TEXT NOT NULL,
@@ -235,7 +243,8 @@ const MYSQL_DDL = [
     actor_name VARCHAR(255) NOT NULL DEFAULT ('') ,
     actor_role VARCHAR(32) NOT NULL DEFAULT ('') ,
     transfer_group_id VARCHAR(96) NOT NULL DEFAULT ('') ,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    event_sequence BIGINT NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS attendance_records (
     id VARCHAR(96) PRIMARY KEY,
@@ -602,6 +611,16 @@ async function initSqlite() {
       period TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
     )`,
+    `CREATE TABLE IF NOT EXISTS auth_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      impersonator_id TEXT NOT NULL DEFAULT '',
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      revoked_at TEXT
+    )`,
     `CREATE TABLE IF NOT EXISTS schools (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -654,7 +673,8 @@ async function initSqlite() {
       actor_name TEXT NOT NULL DEFAULT '',
       actor_role TEXT NOT NULL DEFAULT '',
       transfer_group_id TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      event_sequence INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
     )`,
     `CREATE TABLE IF NOT EXISTS attendance_records (
       id TEXT PRIMARY KEY,

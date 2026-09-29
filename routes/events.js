@@ -51,7 +51,7 @@ router.post('/calendar', async (req, res) => {
       return res.status(400).json({ error: 'title, type, and event_date are required' })
     }
     await run('INSERT INTO calendar_events (title, type, event_date, color, created_by, school_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, type, event_date, color || '', req.body?.userId || '', s.schoolId])
+      [title, type, event_date, color || '', s.me.id, s.schoolId])
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: 'Failed to create event' })

@@ -70,7 +70,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
+  async function restoreSession() {
+    try {
+      const data = await fetchJson(`${API}/auth/me`)
+      if (!data?.user) return false
+      setUser(data.user)
+      return true
+    } catch {
+      user.value = null
+      impersonatedBy.value = null
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('auth_impersonator')
+      return false
+    }
+  }
+
+  async function logout() {
+    try {
+      await fetchJson(`${API}/auth/logout`, { method: 'POST' })
+    } catch {}
     user.value = null
     impersonatedBy.value = null
     localStorage.removeItem('auth_user')
@@ -99,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
     const data = await fetchJson(`${API}/auth/impersonate/stop`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ superadminId: impersonatedBy.value.id, userId: user.value?.id })
+      body: JSON.stringify({ superadminId: impersonatedBy.value.id })
     })
     if (data?.error) throw new Error(data.error)
     if (!data || !data.user) throw new Error('Could not restore session')
@@ -251,5 +269,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

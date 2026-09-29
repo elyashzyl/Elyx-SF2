@@ -12,13 +12,24 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Existing plaintext passwords remain temporarily compatible and are rehashed after successful login.
 - [ ] **Remove legacy plaintext password fallback**
   - Audit and migrate remaining existing records, then remove plaintext comparison support.
+  - The login path still rehashes a legacy value after successful authentication; run an approved account audit before removing compatibility.
 - [ ] **Rotate exposed database credentials and application keys**
   - Code-side preparation completed: `npm run secrets:generate`, `.env.example` guidance, and [`docs/secret-rotation.md`](docs/secret-rotation.md) are available.
   - Remaining operator action: rotate the MySQL credential and any exposed application/deployment secrets in the provider and revoke the old values.
+- [x] **Add server-side sessions and authentication regression coverage**
+  - Added `lib/sessions.js`, migration `012_auth_sessions.mjs`, `/api/auth/me`, logout revocation, server-side impersonation state, and `tests/server-authentication.test.mjs`.
 - [x] **Add API authorization regression coverage**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 
 ---
+
+- [x] **Add production request protections**
+  - Added configurable rate limits, production CORS allowlisting, CSRF Origin checks for cookie-authenticated mutations, security headers, request IDs, and structured production request logs.
+- [x] **Add deterministic enrollment-event ordering and operational indexes**
+  - Added migration `013_enrollment_event_order.mjs` and `014_operational_indexes.mjs`.
+  - Same-date events now use an explicit per-student sequence instead of random UUID ordering.
+- [ ] **Complete shared request validation for all routes**
+  - Added `lib/validation.js` and applied the boundary pattern to critical authentication/enrollment paths; attendance, billing, school, and export payloads still need migration to the shared helpers.
 
 ## 1. Prisma ORM Incremental Route Migration
 

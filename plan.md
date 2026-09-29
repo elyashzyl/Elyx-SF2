@@ -64,17 +64,24 @@ The following capabilities already exist or are substantially implemented:
 - [ ] Rotate all previously exposed database credentials, application keys, and deployment secrets.
   - Code-side preparation completed: `npm run secrets:generate`, `.env.example` guidance, and `docs/secret-rotation.md`.
   - Provider-side credential replacement and revocation still require deployment access.
-- [ ] Add secure session or token handling with expiration and revocation.
-- [ ] Add rate limiting to login, trial signup, password reset, inquiry, and payment endpoints.
+- [x] Add secure session or token handling with expiration and revocation.
+  - Added `auth_sessions`, HttpOnly/SameSite cookies, sliding expiration, revocation, logout, and server-side impersonation state.
+- [x] Add rate limiting to login, trial signup, password reset, inquiry, and payment endpoints.
+  - Added configurable in-process limits; use `RATE_LIMIT_*` variables and enforce limits at the gateway for multi-instance deployments.
 - [ ] Add request validation for every route using a shared validation layer.
-- [ ] Add CSRF protection if cookie-based authentication is used.
-- [ ] Add security headers and a production CORS allowlist.
+  - Started with reusable validators in `lib/validation.js`; full route coverage remains a follow-up.
+- [x] Add CSRF protection if cookie-based authentication is used.
+  - Added Origin validation for state-changing requests carrying the session cookie.
+- [x] Add security headers and a production CORS allowlist.
+  - Added `ALLOWED_ORIGINS`/`CORS_ORIGINS`, CSP, HSTS, frame, content-type, referrer, and permissions headers.
 - [x] Add a documented backup restore procedure, not only backup creation.
   - Added `scripts/restore.mjs` and `npm run db:restore`.
   - SQLite restores validate the file and preserve a `.pre-restore-<timestamp>` safety copy.
   - MySQL restores require an explicit `DATABASE_URL` and the `--force` confirmation.
-- [ ] Add database indexes after reviewing production query performance.
-- [ ] Add structured server logging with request IDs and environment-safe error messages.
+- [x] Add database indexes after reviewing production query performance.
+  - Added migration `014_operational_indexes.mjs` for school, enrollment, attendance, inquiry, license, subscription, and payment query paths.
+- [x] Add structured server logging with request IDs and environment-safe error messages.
+  - Production logs include request ID, route, status, duration, and actor scope without credentials or session tokens.
 
 **Definition of done:** A production deployment can be audited, backed up, restored, and operated without exposing credentials or accepting unsafe account actions.
 
@@ -315,7 +322,7 @@ These modules should be added only after attendance and subscription workflows a
 
 ## 6. Recommended Immediate Next Steps
 
-1. Fix password storage and rotate exposed credentials. **Password hashing and rotation preparation completed; provider-side secret replacement remains pending.**
+1. Fix password storage and rotate exposed credentials. **Password hashing, server sessions, and rotation preparation completed; provider-side secret replacement and plaintext-account audit remain pending.**
 2. Add API-level authorization tests for every school-owned route. **Completed for the current users, students, schools, and license authorization boundaries; extend coverage when new school-owned routes are added.**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 3. Implement attendance lock and correction history. **Completed:** migration 010, API enforcement, school cutoff settings, reopen authorization, audit logging, correction history, UI status controls, and regression tests.

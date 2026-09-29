@@ -10,7 +10,7 @@ const router = Router()
 // Admins and teachers see their own inquiries (or inquiries from their school).
 router.get('/', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const { status, category, search } = req.query
@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
 // Triggered when superadmin marks an issue as finished or sends a reply
 router.get('/notifications/unread', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const rows = await query(
@@ -81,7 +81,7 @@ router.get('/notifications/unread', async (req, res) => {
 // Create new inquiry / ticket
 router.post('/', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const { subject, category = 'general', message, userEmail = '' } = req.body
@@ -148,7 +148,7 @@ router.post('/', async (req, res) => {
 // Get single inquiry and its chat thread
 router.get('/:id', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const { id } = req.params
@@ -179,7 +179,7 @@ router.get('/:id', async (req, res) => {
 // Send reply message in inquiry thread
 router.post('/:id/messages', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const { id } = req.params
@@ -243,7 +243,7 @@ router.post('/:id/messages', async (req, res) => {
 // Update status: superadmin can mark as finished or reopen
 router.patch('/:id/status', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const { id } = req.params
@@ -310,7 +310,7 @@ router.patch('/:id/status', async (req, res) => {
 // Dismiss notification for a resolved inquiry
 router.post('/:id/dismiss-notification', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
 
     const { id } = req.params

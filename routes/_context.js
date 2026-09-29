@@ -1,4 +1,5 @@
 import { query, getSchoolById, isValidClass, logAudit } from '../db.js'
+import { getSession, setSessionCookie, legacyAuthAllowed } from '../lib/sessions.js'
 
 export { logAudit }
 
@@ -29,22 +30,34 @@ export async function assertValidClass(res, schoolId, grade, section) {
 // Roles in privilege order
 const RANK = { superadmin: 3, admin: 2, teacher: 1 }
 
-// Resolve the acting user from body/query auth fields.
-// All school-scoped endpoints accept { userId, userRole } in body or query.
-export async function actingUser(req) {
+// Resolve the acting user from the server-side session. Caller-provided identity
+// fields remain accepted only outside production while existing integration tests
+// and local development migrate to cookies.
+export async function actingUser(req, res = req.res || null) {
+  const session = await getSession(req)
+  if (session) {
+    if (res) setSessionCookie(res, session.token, session.expiresAt)
+    req.user = session.user
+    return session.user
+  }
+  if (!legacyAuthAllowed()) return null
+
   const userId = req.body?.userId ?? req.query?.userId ?? req.headers?.['x-user-id'] ?? req.body?.created_by ?? null
   const userRole = req.body?.userRole ?? req.query?.userRole ?? req.headers?.['x-user-role'] ?? null
   if (!userId) return null
   const rows = await query('SELECT id, username, name, role, grade, section, period, school_id FROM users WHERE id = ?', [userId])
   if (!rows.length) return null
   const u = rows[0]
-  // Trust-but-verify: ignore caller-supplied role if it disagrees with DB
-  if (userRole && userRole !== u.role) return { ...u, roleMismatch: true }
+  if (userRole && userRole !== u.role) {
+    req.user = { ...u, roleMismatch: true }
+    return req.user
+  }
+  req.user = u
   return u
 }
 
 export async function requireRole(req, res, ...allowed) {
-  const me = await actingUser(req)
+  const me = await actingUser(req, res)
   if (!me) return { error: res.status(401).json({ error: 'Not authenticated' }) }
   if (me.roleMismatch) return { error: res.status(403).json({ error: 'Role mismatch — please sign in again' }) }
   if (!allowed.includes(me.role)) return { error: res.status(403).json({ error: 'Forbidden' }) }
@@ -61,7 +74,7 @@ export function actorSchoolId(me) {
 // Enforce that a target school id is visible to the actor.
 // Superadmin sees all; admin/teacher are confined to their own school.
 export async function assertSchoolAccess(req, res, targetSchoolId) {
-  const me = await actingUser(req)
+  const me = await actingUser(req, res)
   if (!me) { res.status(401).json({ error: 'Not authenticated' }); return null }
   if (me.roleMismatch) { res.status(403).json({ error: 'Role mismatch — please sign in again' }); return null }
   if (me.role === 'superadmin') return me
@@ -96,7 +109,7 @@ export async function getSchoolLicense(schoolId) {
 // explicit param wins (checked against actor), else actor's own school.
 // Options: { checkLicense: true (default) }
 export async function resolveScopeSchool(req, res, explicit, options = { checkLicense: true }) {
-  const me = await actingUser(req)
+  const me = await actingUser(req, res)
   if (!me) { res.status(401).json({ error: 'Not authenticated' }); return null }
   if (me.roleMismatch) { res.status(403).json({ error: 'Role mismatch — please sign in again' }); return null }
   

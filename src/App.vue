@@ -474,8 +474,8 @@ function closeSidebar() {
   sidebarOpen.value = false
 }
 
-function handleLogout() {
-  auth.logout()
+async function handleLogout() {
+  await auth.logout()
   closeSidebar()
   router.push('/login')
 }

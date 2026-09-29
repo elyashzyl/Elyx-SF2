@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
 // Used by login screen, top bar, sheets, and exports.
 router.get('/school', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     // Pre-login callers (login page branding): return first school if any
     if (!me) {
       const rows = await query('SELECT * FROM schools ORDER BY name LIMIT 1')

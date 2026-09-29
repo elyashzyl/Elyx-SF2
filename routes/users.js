@@ -83,7 +83,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     if (!me) return res.status(401).json({ error: 'Not authenticated' })
     if (me.roleMismatch) return res.status(403).json({ error: 'Role mismatch — please sign in again' })
     const { id } = req.params

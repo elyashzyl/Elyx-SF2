@@ -10,7 +10,7 @@ const router = Router()
 // Superadmin sees all payment methods with configuration toggles
 router.get('/', async (req, res) => {
   try {
-    const me = await actingUser(req)
+    const me = await actingUser(req, res)
     let sql = 'SELECT * FROM payment_methods'
     const params = []
 

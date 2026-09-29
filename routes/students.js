@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, DB_MODE } from '../db.js'
 import { requireRole, resolveScopeSchool, assertValidClass, audit, getSchoolLicense } from './_context.js'
+import { asTrimmedString } from '../lib/validation.js'
 
 const router = Router()
 
@@ -37,7 +38,8 @@ async function ensureEnrollmentStatusColumn() {
           actor_name VARCHAR(255) NOT NULL DEFAULT '',
           actor_role VARCHAR(32) NOT NULL DEFAULT '',
           transfer_group_id VARCHAR(96) NOT NULL DEFAULT '',
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          event_sequence BIGINT NOT NULL DEFAULT 0,
+          created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
         ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
       : `CREATE TABLE IF NOT EXISTS student_enrollment_events (
           id TEXT PRIMARY KEY,
@@ -53,8 +55,18 @@ async function ensureEnrollmentStatusColumn() {
           actor_name TEXT NOT NULL DEFAULT '',
           actor_role TEXT NOT NULL DEFAULT '',
           transfer_group_id TEXT NOT NULL DEFAULT '',
-          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          event_sequence INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
         )`)
+  } catch (err) {
+    if (!/duplicate|exists/i.test(String(err.message || err.code || ''))) {
+      // non-fatal
+    }
+  }
+  try {
+    await run(DB_MODE === 'mysql'
+      ? 'ALTER TABLE student_enrollment_events ADD COLUMN event_sequence BIGINT NOT NULL DEFAULT 0'
+      : 'ALTER TABLE student_enrollment_events ADD COLUMN event_sequence INTEGER NOT NULL DEFAULT 0')
   } catch (err) {
     if (!/duplicate|exists/i.test(String(err.message || err.code || ''))) {
       // non-fatal
@@ -87,8 +99,9 @@ router.get('/', async (req, res) => {
              WHERE newer.student_id = e.student_id AND newer.school_id = e.school_id
                AND newer.effective_on <= ?
                AND (newer.effective_on > e.effective_on
-                 OR (newer.effective_on = e.effective_on AND newer.created_at > e.created_at)
-                 OR (newer.effective_on = e.effective_on AND newer.created_at = e.created_at AND newer.id > e.id))
+                 OR (newer.effective_on = e.effective_on AND newer.event_sequence > e.event_sequence)
+                 OR (newer.effective_on = e.effective_on AND newer.event_sequence = e.event_sequence AND newer.created_at > e.created_at)
+                 OR (newer.effective_on = e.effective_on AND newer.event_sequence = e.event_sequence AND newer.created_at = e.created_at AND newer.id > e.id))
            )`
       : 'SELECT * FROM students'
     const params = historical ? [schoolId, historicalDate, historicalDate] : [schoolId]
@@ -183,13 +196,19 @@ function effectiveDate(value) {
 
 async function addEnrollmentEvent({ student, eventType, status, effectiveOn, grade, section, reason, actor, transferGroupId = '' }) {
   const id = uuidv4()
+  const sequenceRows = await query(
+    'SELECT COALESCE(MAX(event_sequence), 0) AS latest_sequence FROM student_enrollment_events WHERE student_id = ? AND school_id = ?',
+    [student.id, student.school_id || '']
+  )
+  const eventSequence = Number(sequenceRows[0]?.latest_sequence || 0) + 1
+  const createdAt = new Date().toISOString().replace('T', ' ').replace('Z', '')
   await run(`INSERT INTO student_enrollment_events
-    (id, student_id, school_id, event_type, status, effective_on, grade, section, reason, actor_id, actor_name, actor_role, transfer_group_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    (id, student_id, school_id, event_type, status, effective_on, grade, section, reason, actor_id, actor_name, actor_role, transfer_group_id, event_sequence, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
     id, student.id, student.school_id || '', eventType, status, effectiveOn,
-    grade || '', section || '', reason || '', actor?.id || '', actor?.name || '', actor?.role || '', transferGroupId
+    grade || '', section || '', reason || '', actor?.id || '', actor?.name || '', actor?.role || '', transferGroupId, eventSequence, createdAt
   ])
-  return { id, student_id: student.id, school_id: student.school_id || '', event_type: eventType, status, effective_on: effectiveOn, grade: grade || '', section: section || '', reason: reason || '', actor_id: actor?.id || '', actor_name: actor?.name || '', actor_role: actor?.role || '', transfer_group_id: transferGroupId }
+  return { id, student_id: student.id, school_id: student.school_id || '', event_type: eventType, status, effective_on: effectiveOn, grade: grade || '', section: section || '', reason: reason || '', actor_id: actor?.id || '', actor_name: actor?.name || '', actor_role: actor?.role || '', transfer_group_id: transferGroupId, event_sequence: eventSequence }
 }
 
 router.post('/', async (req, res) => {
@@ -200,8 +219,9 @@ router.post('/', async (req, res) => {
     const scope = await studentSchoolScope(req, res)
     if (!scope) return
     const { name, grade, section, gender } = req.body
-    const trimmed = (name || '').trim()
-    if (!trimmed) return res.status(400).json({ error: 'Name is required' })
+    const nameValue = asTrimmedString(name, 'Name', { required: true, max: 255 })
+    if (nameValue.error) return res.status(400).json({ error: nameValue.error })
+    const trimmed = nameValue.value
     if (!grade || !section) return res.status(400).json({ error: 'grade and section are required' })
     if (!(await assertValidClass(res, scope.schoolId, grade, section))) return
     const dupes = await duplicateNames([trimmed], scope.schoolId)
@@ -285,7 +305,7 @@ router.get('/:id/enrollment-history', async (req, res) => {
     const scope = await studentSchoolScope(req, res)
     if (!scope) return
     const rows = await query(
-      'SELECT * FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on ASC, created_at ASC, id ASC',
+      'SELECT * FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC',
       [req.params.id, scope.schoolId]
     )
     if (!rows.length) {
@@ -326,7 +346,7 @@ router.post('/:id/enrollment-events', async (req, res) => {
     const latestEvent = (await query(`
       SELECT * FROM student_enrollment_events
       WHERE student_id = ? AND school_id = ?
-      ORDER BY effective_on DESC, created_at DESC, id DESC
+      ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
       LIMIT 1`, [student.id, student.school_id]))[0]
     let effDate = effectiveOn
     if (eventType === 'reenroll') {
@@ -419,7 +439,7 @@ router.post('/:id/reenroll', async (req, res) => {
     const latestEvent = (await query(`
       SELECT * FROM student_enrollment_events
       WHERE student_id = ? AND school_id = ?
-      ORDER BY effective_on DESC, created_at DESC, id DESC
+      ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
       LIMIT 1`, [target.id, target.school_id]))[0]
     if (latestEvent && effectiveOn < latestEvent.effective_on) {
       effectiveOn = latestEvent.effective_on
@@ -537,7 +557,7 @@ router.post('/bulk-reenroll', async (req, res) => {
       const latestEvent = (await query(`
         SELECT * FROM student_enrollment_events
         WHERE student_id = ? AND school_id = ?
-        ORDER BY effective_on DESC, created_at DESC, id DESC
+        ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
         LIMIT 1`, [target.id, target.school_id]))[0]
       let itemEffectiveOn = effectiveOn
       if (latestEvent && itemEffectiveOn < latestEvent.effective_on) {
@@ -755,7 +775,7 @@ router.post('/bulk-action', async (req, res) => {
       const latestEvent = (await query(`
         SELECT * FROM student_enrollment_events
         WHERE student_id = ? AND school_id = ?
-        ORDER BY effective_on DESC, created_at DESC, id DESC
+        ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
         LIMIT 1`, [target.id, target.school_id]))[0]
       let itemEffectiveOn = effectiveOn
       if (action === 'reenroll') {
