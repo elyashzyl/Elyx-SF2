@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import express from 'express'
-import cors from 'cors'
+
 import crypto from 'node:crypto'
 import { initDatabase, query, DB_MODE } from './db.js'
 import authRoutes from './routes/auth.js'
@@ -61,7 +61,11 @@ function normalizeOrigin(value) {
 
 function allowedOrigins() {
   return [...new Set([
-    ...String(process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS || '')
+    ...String(process.env.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map(normalizeOrigin)
+      .filter(Boolean),
+    ...String(process.env.CORS_ORIGINS || '')
       .split(',')
       .map(normalizeOrigin)
       .filter(Boolean),
@@ -75,19 +79,46 @@ function allowedOrigins() {
 const configuredOrigins = allowedOrigins()
 const isProduction = process.env.NODE_ENV === 'production'
 
+function requestOrigin(req) {
+  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim()
+  const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim()
+  const protocol = forwardedProto || req.protocol
+  const host = forwardedHost || req.get('host')
+  return normalizeOrigin(`${protocol}://${host}`)
+}
+
+function originAllowed(req, origin) {
+  const normalized = normalizeOrigin(origin)
+  if (!normalized) return false
+  // Same-origin requests must continue to work even when the reverse proxy's
+  // internal host differs from the public host seen by the browser.
+  if (normalized === requestOrigin(req)) return true
+  if (configuredOrigins.includes(normalized)) return true
+  return !isProduction && configuredOrigins.length === 0
+}
+
 app.set('trust proxy', 1)
-app.use(cors({
-  origin(origin, callback) {
-    // Same-origin requests and command-line clients do not send Origin.
-    if (!origin) return callback(null, true)
-    if (configuredOrigins.includes(normalizeOrigin(origin))) return callback(null, true)
-    if (!isProduction && configuredOrigins.length === 0) return callback(null, true)
-    return callback(new Error('CORS origin is not allowed'))
-  },
-  credentials: true,
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-User-ID', 'X-User-Role']
-}))
+app.use((req, res, next) => {
+  const origin = String(req.get('origin') || '').trim()
+  // Requests without Origin include normal browser navigations, health checks,
+  // images, and command-line clients; they do not need CORS response headers.
+  if (!origin) return next()
+  if (!originAllowed(req, origin)) {
+    console.warn('[cors] rejected origin', JSON.stringify({
+      origin: normalizeOrigin(origin),
+      requestOrigin: requestOrigin(req),
+      configuredOrigins
+    }))
+    return res.status(403).json({ error: 'CORS origin is not allowed' })
+  }
+  res.setHeader('Access-Control-Allow-Origin', normalizeOrigin(origin))
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID, X-User-ID, X-User-Role')
+  res.setHeader('Vary', 'Origin')
+  if (req.method === 'OPTIONS') return res.status(204).end()
+  return next()
+})
 // Keep the historical 50 MB ceiling for payment QR/template uploads while
 // allowing deployments to choose a smaller limit through API_BODY_LIMIT.
 const requestBodyLimit = process.env.API_BODY_LIMIT || '50mb'
@@ -140,9 +171,11 @@ function hasSessionCookie(req) {
 function isSameOriginRequest(req) {
   const origin = req.get('origin')
   if (!origin) return true
-  const sameOrigin = normalizeOrigin(`${req.protocol}://${req.get('host')}`)
-  const requestOrigin = normalizeOrigin(origin)
-  return requestOrigin === sameOrigin || configuredOrigins.includes(requestOrigin)
+  const normalized = normalizeOrigin(origin)
+  // Use the same forwarded-host/proto-aware calculation as the CORS layer.
+  // Coolify terminates TLS before forwarding the request to Node, so req.protocol
+  // and req.get('host') may otherwise describe the internal container address.
+  return normalized === requestOrigin(req) || configuredOrigins.includes(normalized)
 }
 
 // SameSite cookies provide the browser-level default. This additional Origin
