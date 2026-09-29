@@ -4,6 +4,7 @@ import http from 'node:http'
 import { randomUUID } from 'node:crypto'
 import app, { initializeServerDatabase } from '../server.js'
 import { query, run } from '../db.js'
+import { hashPassword } from '../lib/passwords.js'
 
 const suffix = randomUUID()
 const schoolA = `auth-school-a-${suffix}`
@@ -38,15 +39,15 @@ before(async () => {
   await run('INSERT INTO schools (id, name, school_id, address, short) VALUES (?, ?, ?, ?, ?)', [schoolB, 'Authorization School B', '', '', 'B'])
   await run(
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [adminA, adminA, 'test-password', 'Admin A', 'admin', '', '', '', schoolA]
+    [adminA, adminA, await hashPassword('test-password'), 'Admin A', 'admin', '', '', '', schoolA]
   )
   await run(
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [adminB, adminB, 'test-password', 'Admin B', 'admin', '', '', '', schoolB]
+    [adminB, adminB, await hashPassword('test-password'), 'Admin B', 'admin', '', '', '', schoolB]
   )
   await run(
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [teacherB, teacherB, 'test-password', 'Teacher B', 'teacher', 'Grade 1', 'Section A', '', schoolB]
+    [teacherB, teacherB, await hashPassword('test-password'), 'Teacher B', 'teacher', 'Grade 1', 'Section A', '', schoolB]
   )
   await run(
     'INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',

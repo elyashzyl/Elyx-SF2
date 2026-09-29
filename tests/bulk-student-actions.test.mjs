@@ -4,6 +4,7 @@ import http from 'node:http'
 import { randomUUID } from 'node:crypto'
 import app, { initializeServerDatabase } from '../server.js'
 import { query, run } from '../db.js'
+import { hashPassword } from '../lib/passwords.js'
 
 const suffix = randomUUID().substring(0, 8)
 const schoolId = `bulk-school-${suffix}`
@@ -35,7 +36,7 @@ before(async () => {
   await run('INSERT INTO grade_levels (id, school_id, grade, sections, sort) VALUES (?, ?, ?, ?, ?)', [`gl-g8-${suffix}`, schoolId, 'Grade 8', '["Section 1","Section 2"]', 2])
   await run(
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [adminId, adminId, 'password123', 'Bulk Admin', 'admin', '', '', '', schoolId]
+    [adminId, adminId, await hashPassword('password123'), 'Bulk Admin', 'admin', '', '', '', schoolId]
   )
 
   // Seed 3 test students

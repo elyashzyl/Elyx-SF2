@@ -184,7 +184,19 @@ const MYSQL_DDL = [
     last_login_at DATETIME NULL,
     password_changed_at DATETIME NULL,
     failed_login_count INT NOT NULL DEFAULT 0,
-    locked_until DATETIME NULL
+    locked_until DATETIME NULL,
+    email VARCHAR(255) NOT NULL DEFAULT (''),
+    email_verified_at DATETIME NULL
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS account_tokens (
+    id VARCHAR(96) PRIMARY KEY,
+    user_id VARCHAR(96) NOT NULL,
+    token_type VARCHAR(32) NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_by VARCHAR(96) NOT NULL DEFAULT ('') ,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS auth_sessions (
     id VARCHAR(96) PRIMARY KEY,
@@ -541,6 +553,8 @@ async function ensureMysqlColumns() {
     ["users", "password_changed_at", "DATETIME NULL"],
     ["users", "failed_login_count", "INT NOT NULL DEFAULT 0"],
     ["users", "locked_until", "DATETIME NULL"],
+    ["users", "email", "VARCHAR(255) NOT NULL DEFAULT ''"],
+    ["users", "email_verified_at", "DATETIME NULL"],
     ["students", "gender", "VARCHAR(32) DEFAULT ''"],
     ["students", "school_id", "VARCHAR(96) DEFAULT ''"],
     ["students", "enrollment_status", "VARCHAR(32) NOT NULL DEFAULT 'active'"],
@@ -624,7 +638,19 @@ async function initSqlite() {
       last_login_at TEXT,
       password_changed_at TEXT,
       failed_login_count INTEGER NOT NULL DEFAULT 0,
-      locked_until TEXT
+      locked_until TEXT,
+      email TEXT NOT NULL DEFAULT '',
+      email_verified_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS account_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_type TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS auth_sessions (
       id TEXT PRIMARY KEY,
@@ -904,6 +930,8 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE users ADD COLUMN password_changed_at TEXT") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN failed_login_count INTEGER NOT NULL DEFAULT 0") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN locked_until TEXT") } catch {}
+    try { sqlite.run("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE users ADD COLUMN email_verified_at TEXT") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN enrollment_status TEXT NOT NULL DEFAULT 'active'") } catch {}
@@ -939,13 +967,15 @@ async function initSqlite() {
       last_login_at TEXT,
       password_changed_at TEXT,
       failed_login_count INTEGER NOT NULL DEFAULT 0,
-      locked_until TEXT
+      locked_until TEXT,
+      email TEXT NOT NULL DEFAULT '',
+      email_verified_at TEXT
     )`)
-    sqlite.run(`INSERT INTO users_new (id, username, password, name, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, failed_login_count, locked_until)
+    sqlite.run(`INSERT INTO users_new (id, username, password, name, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, failed_login_count, locked_until, email, email_verified_at)
       SELECT id, username, password, name, role,
         COALESCE(grade, ''), COALESCE(section, ''), COALESCE(period, ''), COALESCE(school_id, ''),
         COALESCE(account_status, 'active'), last_login_at, password_changed_at,
-        COALESCE(failed_login_count, 0), locked_until
+        COALESCE(failed_login_count, 0), locked_until, COALESCE(email, ''), email_verified_at
       FROM users`)
     sqlite.run(`DROP TABLE users`)
     sqlite.run(`ALTER TABLE users_new RENAME TO users`)

@@ -154,8 +154,12 @@
             </div>
             <div class="form-row">
               <div class="form-group">
+                <label>Email <span class="label-hint">Used for account recovery</span></label>
+                <input v-model="profile.email" type="email" placeholder="name@example.com" autocomplete="email" />
+              </div>
+              <div class="form-group">
                 <label>New Password <span class="label-hint">Leave blank to keep current</span></label>
-                <input v-model="profile.password" type="text" placeholder="Enter new password" />
+                <input v-model="profile.password" type="password" placeholder="Enter new password" autocomplete="new-password" />
               </div>
               <div class="form-group">
                 <label>Role</label>
@@ -175,6 +179,9 @@
             <div class="form-actions">
               <button type="submit" class="btn-primary" :disabled="savingProfile">
                 {{ savingProfile ? 'Saving...' : 'Save Profile' }}
+              </button>
+              <button v-if="profile.email && !auth.user?.email_verified_at" type="button" class="btn-secondary" @click="resendVerification" :disabled="sendingVerification">
+                {{ sendingVerification ? 'Sending...' : 'Resend verification' }}
               </button>
             </div>
             <p v-if="profileError" class="error-msg">{{ profileError }}</p>
@@ -310,8 +317,9 @@ const form = reactive({
   school_address: '',
   attendance_lock_cutoff: ''
 })
-const profile = reactive({ name: '', username: '', password: '' })
+const profile = reactive({ name: '', username: '', email: '', password: '' })
 const savingProfile = ref(false)
+const sendingVerification = ref(false)
 const profileError = ref('')
 
 const canEditSchool = computed(() => auth.isSuperadmin || auth.user?.role === 'admin')
@@ -334,6 +342,7 @@ const assignedClassLabel = computed(() => {
 onMounted(async () => {
   profile.name = auth.user?.name || ''
   profile.username = auth.user?.username || ''
+  profile.email = auth.user?.email || ''
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
     selectedSchoolId.value = noneSelected.value ? '' : (auth.schoolId || schools.value[0]?.id || '')
@@ -389,11 +398,23 @@ async function loadSchool() {
   }
 }
 
+async function resendVerification() {
+  sendingVerification.value = true
+  try {
+    await auth.resendEmailVerification()
+    notify('Verification email sent', 'success')
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    sendingVerification.value = false
+  }
+}
+
 async function saveProfile() {
   savingProfile.value = true
   profileError.value = ''
   try {
-    const payload = { name: profile.name.trim(), username: profile.username.trim() }
+    const payload = { name: profile.name.trim(), username: profile.username.trim(), email: profile.email.trim() }
     if (profile.password && profile.password.trim()) payload.password = profile.password.trim()
     await auth.updateUser(auth.user.id, payload)
     profile.password = ''

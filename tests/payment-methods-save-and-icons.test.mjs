@@ -11,8 +11,9 @@ function read(rel) {
 
 test('server.js configures large payload limit for payment QR uploads', () => {
   const server = read('server.js')
-  assert.ok(server.includes("express.json({ limit: '50mb' })"), 'server.js must configure express.json with 50mb limit')
-  assert.ok(server.includes("express.urlencoded({ limit: '50mb', extended: true })"), 'server.js must configure express.urlencoded with 50mb limit')
+  assert.ok(server.includes("process.env.API_BODY_LIMIT || '50mb'"), 'server.js must configure a 50mb default JSON limit')
+  assert.ok(server.includes("express.json({ limit: requestBodyLimit, strict: true })"), 'server.js must configure express.json with the shared limit')
+  assert.ok(server.includes("express.urlencoded({ limit: requestBodyLimit, extended: false })"), 'server.js must configure express.urlencoded with the shared limit')
 })
 
 test('Licenses.vue handles large QR uploads, error responses, and query params', () => {

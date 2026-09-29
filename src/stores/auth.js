@@ -154,6 +154,36 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function inviteUser(userData) {
+    const data = await fetchJson(`${API}/users/invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actorParams(userData))
+    })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  async function resendInvitation(id) {
+    const data = await fetchJson(`${API}/users/${id}/invite/resend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actorParams())
+    })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  async function requestUserPasswordReset(id) {
+    const data = await fetchJson(`${API}/users/${id}/password-reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actorParams())
+    })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
   async function addUser(userData) {
     const data = await fetchJson(`${API}/users`, {
       method: 'POST',
@@ -185,6 +215,46 @@ export const useAuthStore = defineStore('auth', () => {
   async function deleteUser(id) {
     const params = new URLSearchParams(actorParams())
     await fetchJson(`${API}/users/${id}?${params}`, { method: 'DELETE' })
+  }
+
+  async function inspectInvitation(token) {
+    return fetchJson(`${API}/auth/invitations/inspect`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token })
+    })
+  }
+
+  async function acceptInvitation(payload) {
+    return fetchJson(`${API}/auth/invitations/accept`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    })
+  }
+
+  async function requestPasswordReset(identifier) {
+    return fetchJson(`${API}/auth/password-reset/request`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emailOrUsername: identifier })
+    })
+  }
+
+  async function inspectPasswordReset(token) {
+    return fetchJson(`${API}/auth/password-reset/inspect`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token })
+    })
+  }
+
+  async function resetPassword(payload) {
+    return fetchJson(`${API}/auth/password-reset/consume`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    })
+  }
+
+  async function verifyEmail(token) {
+    return fetchJson(`${API}/auth/email-verification/confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token })
+    })
+  }
+
+  async function resendEmailVerification() {
+    return fetchJson(`${API}/auth/email-verification/resend`, { method: 'POST' })
   }
 
   async function updateUserStatus(id, status, lockedUntil = null) {
@@ -279,5 +349,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, updateUserStatus, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

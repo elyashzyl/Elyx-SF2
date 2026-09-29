@@ -10,6 +10,8 @@ import { hashToken } from '../lib/sessions.js'
 const suffix = randomUUID()
 const userId = `session-user-${suffix}`
 const username = `session-user-${suffix}`
+const legacyUserId = `legacy-user-${suffix}`
+const legacyUsername = `legacy-user-${suffix}`
 let server
 let baseUrl
 
@@ -31,6 +33,10 @@ before(async () => {
     'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [userId, username, await hashPassword('session-password'), 'Session User', 'admin', '', '', '', '']
   )
+  await run(
+    'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [legacyUserId, legacyUsername, 'legacy-password', 'Legacy User', 'admin', '', '', '', '']
+  )
   server = http.createServer(app)
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   baseUrl = `http://127.0.0.1:${server.address().port}`
@@ -38,7 +44,7 @@ before(async () => {
 
 after(async () => {
   await run('DELETE FROM auth_sessions WHERE user_id = ?', [userId])
-  await run('DELETE FROM users WHERE id = ?', [userId])
+  await run('DELETE FROM users WHERE id IN (?, ?)', [userId, legacyUserId])
   await new Promise(resolve => server.close(resolve))
 })
 
@@ -81,6 +87,37 @@ test('logout revokes the session cookie', async () => {
   const revoked = await query('SELECT revoked_at FROM auth_sessions WHERE user_id = ? AND token_hash = ?', [userId, tokenHash])
   assert.equal(revoked.length, 1)
   assert.ok(revoked[0].revoked_at)
+})
+
+test('legacy plaintext login is disabled unless explicitly opted in', async () => {
+  const previousNodeEnv = process.env.NODE_ENV
+  const previousFlag = process.env.ALLOW_LEGACY_PASSWORD_LOGIN
+  delete process.env.ALLOW_LEGACY_PASSWORD_LOGIN
+  try {
+    const blocked = await request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: legacyUsername, password: 'legacy-password' })
+    })
+    assert.equal(blocked.response.status, 401)
+
+    process.env.NODE_ENV = 'test'
+    process.env.ALLOW_LEGACY_PASSWORD_LOGIN = '1'
+    const migrated = await request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: legacyUsername, password: 'legacy-password' })
+    })
+    assert.equal(migrated.response.status, 200)
+    const row = (await query('SELECT password FROM users WHERE id = ?', [legacyUserId]))[0]
+    assert.notEqual(row.password, 'legacy-password')
+    assert.equal(row.password.startsWith('$2'), true)
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previousNodeEnv
+    if (previousFlag === undefined) delete process.env.ALLOW_LEGACY_PASSWORD_LOGIN
+    else process.env.ALLOW_LEGACY_PASSWORD_LOGIN = previousFlag
+  }
 })
 
 test('production rejects caller-supplied identity when no session exists', async () => {

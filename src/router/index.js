@@ -8,6 +8,10 @@ const routes = [
   { path: '/', name: 'Landing', component: Landing },
   { path: '/login', name: 'Login', component: Login },
   { path: '/subscribe', name: 'Subscribe', component: Subscribe },
+  { path: '/accept-invitation', name: 'AcceptInvitation', component: () => import('../views/AcceptInvitation.vue') },
+  { path: '/forgot-password', name: 'ForgotPassword', component: () => import('../views/ForgotPassword.vue') },
+  { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue') },
+  { path: '/verify-email', name: 'VerifyEmail', component: () => import('../views/VerifyEmail.vue') },
   { path: '/signup', redirect: '/subscribe' },
   {
     path: '/admin',

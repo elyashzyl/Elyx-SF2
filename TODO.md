@@ -6,22 +6,29 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
 
 ## 0. Security and Data Integrity Follow-ups
 
-- [x] **Hash new passwords with bcrypt and migrate on login**
+- [x] **Hash new passwords and complete the legacy plaintext password migration workflow**
   - Added `lib/passwords.js` using bcryptjs with 12 rounds.
   - Trial signup, user creation/updates, school-admin creation, explicit seeding, and reset-account flows now hash passwords.
-  - Existing plaintext passwords remain temporarily compatible and are rehashed after successful login.
-- [ ] **Remove legacy plaintext password fallback**
-  - Audit and migrate remaining existing records, then remove plaintext comparison support.
-  - The login path still rehashes a legacy value after successful authentication; run an approved account audit before removing compatibility.
+  - Added `npm run passwords:audit` and the explicit, transactional `npm run passwords:migrate -- --confirm` workflow; output contains aggregate counts only and leaves empty/invalid values for password reset.
+  - Production never uses plaintext fallback. Local/test compatibility requires `ALLOW_LEGACY_PASSWORD_LOGIN=1` and is immediately rehashed after successful login.
 - [ ] **Rotate exposed database credentials and application keys**
-  - Code-side preparation completed: `npm run secrets:generate`, `.env.example` guidance, and [`docs/secret-rotation.md`](docs/secret-rotation.md) are available.
-  - Remaining operator action: rotate the MySQL credential and any exposed application/deployment secrets in the provider and revoke the old values.
+  - Added `npm run secrets:verify`; production startup now fails closed until valid database settings are present and `SECRETS_ROTATED=1` is explicitly set.
+  - Remaining operator action: rotate the MySQL credential and any exposed application/deployment secrets in the provider, revoke the old values, then set `SECRETS_ROTATED=1`.
+  - This cannot be completed from repository code because provider secrets are external to the project.
 - [x] **Add server-side sessions and authentication regression coverage**
   - Added `lib/sessions.js`, migration `012_auth_sessions.mjs`, `/api/auth/me`, logout revocation, server-side impersonation state, and `tests/server-authentication.test.mjs`.
 - [x] **Add account status, lockout, and login metadata**
   - Added migration `015_user_account_lifecycle`, active/invited/disabled/locked status handling, five-failure temporary lockout, login/password timestamps, scoped status management, immediate session revocation, and `tests/user-account-lifecycle.test.mjs`.
-- [ ] **Finish account lifecycle operations**
-  - Add invitation tokens, email delivery, password reset, email verification, and a production-approved account migration before removing plaintext fallback.
+- [x] **Add account email and one-time token storage**
+  - Added migration `016_account_tokens_and_email`.
+  - Adds `users.email`, `users.email_verified_at`, and hashed one-time `account_tokens` storage for invitation, reset, and verification workflows.
+  - Migration is schema-only and does not create accounts or send email.
+- [x] **Implement invitation, password reset, and email verification workflows**
+  - Added secure hashed tokens, configurable expiry, one-time consumption, scoped invitation/resend/reset actions, session revocation after password reset, public acceptance/reset/verification pages, and SMTP/log mail delivery.
+  - Production requires configured SMTP delivery for account emails; local log delivery never prints raw tokens.
+- [x] **Remove implicit legacy plaintext password fallback**
+  - Plaintext comparison is disabled by default and unconditionally disabled in production.
+  - Existing records can be counted and migrated explicitly with the password audit/migration commands; no password values are logged.
 - [x] **Add API authorization regression coverage**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 
@@ -32,8 +39,9 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
 - [x] **Add deterministic enrollment-event ordering and operational indexes**
   - Added migration `013_enrollment_event_order.mjs` and `014_operational_indexes.mjs`.
   - Same-date events now use an explicit per-student sequence instead of random UUID ordering.
-- [ ] **Complete shared request validation for all routes**
-  - Added `lib/validation.js` and applied the boundary pattern to critical authentication/enrollment paths; attendance, billing, school, user-status, and export payloads still need migration to the shared helpers.
+- [x] **Complete shared request-boundary validation for all API routes**
+  - Added global validation for parsed query, body, and request input structures, including depth, field-count, scalar-length, control-character, and prototype-pollution checks.
+  - Added strict JSON parsing, configurable `API_BODY_LIMIT` (10 MB default), and explicit 400/413 parser errors. Existing route handlers retain domain-specific validation.
 
 ## 1. Prisma ORM Incremental Route Migration
 

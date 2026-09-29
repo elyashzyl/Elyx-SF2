@@ -32,7 +32,23 @@ If another ElyTrack service or a Laravel-compatible integration consumes `APP_KE
 
 If cookie sessions, JWTs, or another token mechanism is introduced later, add its secret as a deployment-only variable and rotate it using a documented invalidation procedure.
 
-## 4. Deploy and verify
+## 4. Verify the deployment configuration
+
+Before deploying, verify that replacement values are present without printing them:
+
+```bash
+NODE_ENV=production npm run secrets:verify
+```
+
+After the provider password, application key, and any deployment tokens have been replaced and the old values revoked, set this deployment-only acknowledgement:
+
+```text
+SECRETS_ROTATED=1
+```
+
+The server intentionally refuses to start in production without this acknowledgement or with SQLite configured. Production must use MySQL. The acknowledgement is not a secret; it is an operator-controlled rotation gate.
+
+## 5. Deploy and verify
 
 After updating the deployment secrets:
 
@@ -50,7 +66,7 @@ GET /api/health
 
 The response should contain `status: "ok"` and the expected production database backend. Log in with a known account, verify school data, and confirm that migrations completed without inserting plans, payment methods, schools, or users.
 
-## 5. Revoke old values and review exposure
+## 6. Revoke old values and review exposure
 
 After verification:
 

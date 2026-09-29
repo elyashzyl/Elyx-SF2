@@ -200,9 +200,8 @@
 
           <div class="auth-card-footnote">
             <span>Need school access or forgot credentials?</span>
-            <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Access%20Assistance" class="auth-support-link">
-              Contact school deployment support
-            </a>
+            <router-link to="/forgot-password" class="auth-support-link">Reset your password</router-link>
+            <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Access%20Assistance" class="auth-support-link">Contact school deployment support</a>
           </div>
         </div>
       </section>

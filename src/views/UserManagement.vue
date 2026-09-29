@@ -20,8 +20,12 @@
             <input v-model="form.username" required placeholder="Enter username" />
           </div>
           <div class="form-group">
+            <label>Email</label>
+            <input v-model="form.email" type="email" :required="!editingUser" placeholder="name@example.com" autocomplete="email" />
+          </div>
+          <div class="form-group" v-if="editingUser">
             <label>Password</label>
-            <input v-model="form.password" :required="!editingUser" type="text" :placeholder="editingUser ? 'Leave blank to keep unchanged' : 'Enter password'" />
+            <input v-model="form.password" type="password" placeholder="Leave blank to keep unchanged" autocomplete="new-password" />
           </div>
           <div class="form-group">
             <label>Role</label>
@@ -60,7 +64,7 @@
           <div class="form-actions">
             <button type="submit" class="btn-primary" :disabled="saving">
               <span v-if="saving" class="spinner" style="margin-right: 6px;"></span>
-              {{ saving ? 'Saving...' : (editingUser ? 'Update Account' : 'Save Account') }}
+              {{ saving ? 'Saving...' : (editingUser ? 'Update Account' : 'Send Invitation') }}
             </button>
             <button type="button" @click="cancelForm" class="btn-secondary">Cancel</button>
           </div>
@@ -80,7 +84,7 @@
               <option :value="50">50</option>
             </select>
           </span>
-          <button @click="showForm = true" class="btn-primary" v-if="!showForm">
+          <button @click="startInvite" class="btn-primary" v-if="!showForm">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
@@ -121,7 +125,7 @@
                 <span class="cell-avatar">{{ (u.name || '?').charAt(0).toUpperCase() }}</span>
                 <div style="min-width: 0;">
                   <div class="cell-main">{{ u.name }}</div>
-                  <div class="cell-sub">@{{ u.username }}</div>
+                  <div class="cell-sub">@{{ u.username }}<span v-if="u.email"> · {{ u.email }}</span></div>
                 </div>
               </div>
             </td>
@@ -141,6 +145,12 @@
                 </button>
                 <button @click="impersonateUser(u)" class="icon-btn" title="Impersonate" v-if="auth.isSuperadmin && u.id !== auth.user?.id && u.role !== 'superadmin'" :disabled="impersonatingId === u.id">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <button @click="resendInvite(u)" class="icon-btn" title="Resend invitation" v-if="u.account_status === 'invited' && canManageStatus(u)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.36-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.36 6.36L3 16"/><path d="M3 21v-5h5"/></svg>
+                </button>
+                <button @click="requestReset(u)" class="icon-btn" title="Send password reset" v-if="u.account_status !== 'invited' && u.email && canManageStatus(u)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </button>
                 <button @click="toggleStatus(u)" class="icon-btn" :title="u.account_status === 'disabled' ? 'Enable account' : 'Disable account'" v-if="u.id !== auth.user?.id && canManageStatus(u)">
                   <svg v-if="u.account_status === 'disabled'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>
@@ -221,7 +231,7 @@ function goToPage(p) { currentPage.value = p }
 function prevPage() { if (currentPage.value > 1) currentPage.value-- }
 function nextPage() { if (currentPage.value < totalPages.value) currentPage.value++ }
 function onPageSizeChange() { currentPage.value = 1 }
-const form = ref({ name: '', username: '', password: '', role: 'teacher', grade: '', section: '', schoolId: '' })
+const form = ref({ name: '', username: '', email: '', password: '', role: 'teacher', grade: '', section: '', schoolId: '' })
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
 const { activeSchool } = useActiveSchool()
 const activeSchoolId = computed(() => activeSchool.value?.id || '')
@@ -277,7 +287,7 @@ function canManageStatus(u) {
 }
 
 function resetForm() {
-  form.value = { name: '', username: '', password: '', role: 'teacher', grade: '', section: '', schoolId: auth.isSuperadmin ? (activeSchoolId.value || '') : (auth.schoolId || '') }
+  form.value = { name: '', username: '', email: '', password: '', role: 'teacher', grade: '', section: '', schoolId: auth.isSuperadmin ? (activeSchoolId.value || '') : (auth.schoolId || '') }
   editingUser.value = null
   formError.value = ''
 }
@@ -296,11 +306,11 @@ async function handleSave() {
       if (!data.password) delete data.password
       await auth.updateUser(editingUser.value.id, data)
     } else {
-      await auth.addUser({ ...form.value })
+      await auth.inviteUser({ ...form.value })
     }
     await loadUsers()
     cancelForm()
-    addToast(editingUser.value ? 'User updated' : 'User added', 'success')
+    addToast(editingUser.value ? 'User updated' : 'Invitation sent', 'success')
   } catch (e) {
     formError.value = e.message
     addToast(e.message, 'error')
@@ -311,8 +321,23 @@ async function handleSave() {
 
 function editUser(u) {
   editingUser.value = u
-  form.value = { name: u.name, username: u.username, password: '', role: u.role, grade: u.grade || '', section: u.section || '', schoolId: u.school_id || '' }
+  form.value = { name: u.name, username: u.username, email: u.email || '', password: '', role: u.role, grade: u.grade || '', section: u.section || '', schoolId: u.school_id || '' }
   showForm.value = true
+}
+
+function startInvite() {
+  resetForm()
+  showForm.value = true
+}
+
+async function resendInvite(u) {
+  try { await auth.resendInvitation(u.id); addToast('Invitation resent', 'success') }
+  catch (e) { addToast(e.message, 'error') }
+}
+
+async function requestReset(u) {
+  try { await auth.requestUserPasswordReset(u.id); addToast('Password reset sent', 'success') }
+  catch (e) { addToast(e.message, 'error') }
 }
 
 async function toggleStatus(u) {

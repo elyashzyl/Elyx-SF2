@@ -19,9 +19,31 @@ import licenseRoutes from './routes/licenses.js'
 import inquiryRoutes from './routes/inquiries.js'
 import paymentMethodRoutes from './routes/payment_methods.js'
 import subscriptionRoutes from './routes/subscriptions.js'
+import { validateRequestInput } from './lib/validation.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
+
+function assertProductionConfiguration() {
+  if (process.env.NODE_ENV !== 'production') return
+  const hasUrl = Boolean(String(process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.DB_URL || '').trim())
+  const hasParts = ['DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD'].every(name => String(process.env[name] || '').trim())
+  const connection = String(process.env.DB_CONNECTION || '').toLowerCase()
+  if (connection === 'sqlite') {
+    throw new Error('Production requires MySQL; SQLite is disabled for production deployments')
+  }
+  if (!hasUrl && !hasParts) {
+    throw new Error('Production requires DATABASE_URL or DB_HOST, DB_DATABASE, DB_USERNAME, and DB_PASSWORD')
+  }
+  if (process.env.ALLOW_LEGACY_PASSWORD_LOGIN === '1') {
+    throw new Error('ALLOW_LEGACY_PASSWORD_LOGIN must not be enabled in production')
+  }
+  if (process.env.SECRETS_ROTATED !== '1') {
+    throw new Error('Set SECRETS_ROTATED=1 after rotating provider credentials and exposed application secrets')
+  }
+}
+
+assertProductionConfiguration()
 
 let dbReady = false
 
@@ -48,8 +70,21 @@ app.use(cors({
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-User-ID', 'X-User-Role']
 }))
-app.use(express.json({ limit: '50mb' }))
-app.use(express.urlencoded({ limit: '50mb', extended: true }))
+// Keep the historical 50 MB ceiling for payment QR/template uploads while
+// allowing deployments to choose a smaller limit through API_BODY_LIMIT.
+const requestBodyLimit = process.env.API_BODY_LIMIT || '50mb'
+app.use(express.json({ limit: requestBodyLimit, strict: true }))
+app.use(express.urlencoded({ limit: requestBodyLimit, extended: false }))
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({ error: 'Request body is too large' })
+  }
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Request body contains invalid JSON' })
+  }
+  return next(err)
+})
+app.use('/api', validateRequestInput)
 
 // Small in-process limiter for deployment safety. This is intentionally a
 // defense-in-depth control; multi-instance deployments should also enforce
@@ -61,7 +96,7 @@ const sensitiveRateLimitMax = Math.max(1, Number(process.env.SENSITIVE_RATE_LIMI
 function rateLimit(req, res, next) {
   if (!isProduction && process.env.RATE_LIMIT_IN_TESTS !== '1') return next()
   const path = req.path || ''
-  const sensitive = /^(\/auth\/(login|trial)|\/inquiries(?:\/|$)|\/payment-methods(?:\/|$)|\/subscriptions(?:\/|$))/.test(path)
+  const sensitive = /^(\/auth\/(login|trial|invitations|password-reset|email-verification)|\/users\/[^/]+\/(invite\/resend|password-reset)|\/inquiries(?:\/|$)|\/payment-methods(?:\/|$)|\/subscriptions(?:\/|$))/.test(path)
   const max = sensitive ? sensitiveRateLimitMax : rateLimitMax
   const key = `${req.ip}:${sensitive ? 'sensitive' : 'general'}`
   const now = Date.now()

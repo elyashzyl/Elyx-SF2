@@ -2,9 +2,11 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, getSchoolById, logAudit, saveDatabase, getGradeLevels } from '../db.js'
 import { schoolToResponse, requireRole, isLicenseActive } from './_context.js'
-import { hashPassword, verifyPassword, isPasswordHash } from '../lib/passwords.js'
-import { createSession, setSessionCookie, clearSessionCookie, revokeSession, getSession, updateSessionUser } from '../lib/sessions.js'
+import { hashPassword, hashLegacyPasswordForMigration, verifyPassword, isPasswordHash } from '../lib/passwords.js'
+import { createSession, setSessionCookie, clearSessionCookie, revokeSession, getSession, updateSessionUser, revokeAllUserSessions } from '../lib/sessions.js'
 import { asTrimmedString } from '../lib/validation.js'
+import { ACCOUNT_TOKEN_TYPES, consumeAccountToken, inspectAccountToken, issueAccountToken } from '../lib/account-tokens.js'
+import { accountLink, sendAccountEmail } from '../lib/mailer.js'
 
 const router = Router()
 
@@ -43,6 +45,163 @@ router.get('/schools/:id/grades', async (req, res) => {
   } catch (err) {
     console.error('Failed to fetch school grades:', err.message)
     res.json([])
+  }
+})
+
+function passwordInput(body) {
+  const password = typeof body?.password === 'string' ? body.password : ''
+  const confirmation = typeof body?.password_confirmation === 'string'
+    ? body.password_confirmation
+    : (typeof body?.passwordConfirmation === 'string' ? body.passwordConfirmation : '')
+  if (password.length < 8) return { error: 'Password must be at least 8 characters' }
+  if (password !== confirmation) return { error: 'Passwords do not match' }
+  return { password }
+}
+
+function publicTokenPayload(tokenRow) {
+  if (!tokenRow) return null
+  return {
+    username: tokenRow.username,
+    name: tokenRow.name,
+    email: tokenRow.email,
+    role: tokenRow.role,
+    school_id: tokenRow.school_id,
+    grade: tokenRow.grade,
+    section: tokenRow.section,
+    account_status: tokenRow.account_status,
+    expiresAt: tokenRow.expires_at
+  }
+}
+
+router.post('/invitations/inspect', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim()
+    const row = await inspectAccountToken(token, ACCOUNT_TOKEN_TYPES.INVITATION)
+    if (!row || row.account_status !== 'invited') return res.status(400).json({ error: 'This invitation is invalid or expired' })
+    res.json({ invitation: publicTokenPayload(row) })
+  } catch (err) {
+    console.error('Invitation inspection error:', err.message)
+    res.status(400).json({ error: 'This invitation is invalid or expired' })
+  }
+})
+
+router.post('/invitations/accept', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim()
+    const inspected = await inspectAccountToken(token, ACCOUNT_TOKEN_TYPES.INVITATION)
+    if (!inspected || inspected.account_status !== 'invited') return res.status(400).json({ error: 'This invitation is invalid or expired' })
+    const credentials = passwordInput(req.body)
+    if (credentials.error) return res.status(400).json({ error: credentials.error })
+    const username = String(req.body?.username || inspected.username || '').trim()
+    const name = String(req.body?.name || inspected.name || '').trim()
+    if (!username || !/^[A-Za-z0-9._-]{3,255}$/.test(username)) return res.status(400).json({ error: 'Username may contain only letters, numbers, dots, underscores, and hyphens' })
+    if (!name) return res.status(400).json({ error: 'Name is required' })
+    const duplicate = await query('SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ? LIMIT 1', [username, inspected.user_id])
+    if (duplicate.length) return res.status(409).json({ error: 'That username is already in use' })
+
+    const consumed = await consumeAccountToken(token, ACCOUNT_TOKEN_TYPES.INVITATION)
+    if (!consumed) return res.status(400).json({ error: 'This invitation is invalid or expired' })
+    const passwordHash = await hashPassword(credentials.password)
+    await run(`UPDATE users SET username = ?, name = ?, password = ?, account_status = 'active',
+      password_changed_at = CURRENT_TIMESTAMP, email_verified_at = CURRENT_TIMESTAMP,
+      failed_login_count = 0, locked_until = NULL WHERE id = ? AND account_status = 'invited'`,
+      [username, name, passwordHash, inspected.user_id])
+    saveDatabase()
+    const user = (await query('SELECT * FROM users WHERE id = ?', [inspected.user_id]))[0]
+    if (!user || user.account_status !== 'active') return res.status(409).json({ error: 'This invitation is no longer available' })
+    const session = await createSession(user.id)
+    setSessionCookie(res, session.token, session.expiresAt)
+    res.status(201).json({ user: await publicUser(user), expiresAt: session.expiresAt.toISOString() })
+  } catch (err) {
+    console.error('Invitation acceptance error:', err.message)
+    res.status(500).json({ error: 'Unable to accept invitation' })
+  }
+})
+
+router.post('/password-reset/request', async (req, res) => {
+  const generic = { message: 'If an account matches the supplied details, password reset instructions will be sent.' }
+  try {
+    const lookup = String(req.body?.email || req.body?.username || req.body?.emailOrUsername || '').trim().toLowerCase()
+    if (!lookup) return res.json(generic)
+    const rows = await query(
+      'SELECT * FROM users WHERE (LOWER(email) = ? OR LOWER(username) = ?) AND email IS NOT NULL AND email != "" LIMIT 1',
+      [lookup, lookup]
+    )
+    const user = rows[0]
+    if (!user || user.account_status === 'invited' || !user.email) return res.json(generic)
+    const issued = await issueAccountToken({ userId: user.id, tokenType: ACCOUNT_TOKEN_TYPES.PASSWORD_RESET })
+    const link = accountLink('/reset-password', issued.token)
+    try {
+      await sendAccountEmail({ to: user.email, subject: 'Reset your ElyTrack password', text: `Reset your ElyTrack password here: ${link}`, html: `<p>Use the link below to reset your ElyTrack password.</p><p><a href="${link}">Reset password</a></p>` })
+    } catch (mailError) {
+      console.error('Password reset request delivery error:', mailError.message)
+    }
+    return res.json(generic)
+  } catch (err) {
+    console.error('Password reset request error:', err.message)
+    res.json(generic)
+  }
+})
+
+router.post('/password-reset/inspect', async (req, res) => {
+  try {
+    const row = await inspectAccountToken(String(req.body?.token || '').trim(), ACCOUNT_TOKEN_TYPES.PASSWORD_RESET)
+    if (!row || row.account_status === 'invited') return res.status(400).json({ error: 'This password reset link is invalid or expired' })
+    res.json({ username: row.username, expiresAt: row.expires_at })
+  } catch {
+    res.status(400).json({ error: 'This password reset link is invalid or expired' })
+  }
+})
+
+router.post('/password-reset/consume', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim()
+    const inspected = await inspectAccountToken(token, ACCOUNT_TOKEN_TYPES.PASSWORD_RESET)
+    if (!inspected || inspected.account_status === 'invited') return res.status(400).json({ error: 'This password reset link is invalid or expired' })
+    const credentials = passwordInput(req.body)
+    if (credentials.error) return res.status(400).json({ error: credentials.error })
+    const consumed = await consumeAccountToken(token, ACCOUNT_TOKEN_TYPES.PASSWORD_RESET)
+    if (!consumed) return res.status(400).json({ error: 'This password reset link is invalid or expired' })
+    const passwordHash = await hashPassword(credentials.password)
+    await run('UPDATE users SET password = ?, password_changed_at = CURRENT_TIMESTAMP, failed_login_count = 0, locked_until = NULL WHERE id = ?', [passwordHash, consumed.user_id])
+    await revokeAllUserSessions(consumed.user_id)
+    saveDatabase()
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Password reset completion error:', err.message)
+    res.status(500).json({ error: 'Unable to reset password' })
+  }
+})
+
+router.post('/email-verification/resend', async (req, res) => {
+  try {
+    const session = await getSession(req)
+    if (!session) return res.status(401).json({ error: 'Not authenticated' })
+    const user = (await query('SELECT * FROM users WHERE id = ?', [session.user.id]))[0]
+    if (!user) return res.status(401).json({ error: 'Not authenticated' })
+    if (!user.email) return res.status(400).json({ error: 'Add an email address before requesting verification' })
+    if (user.email_verified_at) return res.json({ success: true, alreadyVerified: true })
+    const issued = await issueAccountToken({ userId: user.id, tokenType: ACCOUNT_TOKEN_TYPES.EMAIL_VERIFICATION })
+    const link = accountLink('/verify-email', issued.token)
+    await sendAccountEmail({ to: user.email, subject: 'Verify your ElyTrack email', text: `Verify your ElyTrack email here: ${link}`, html: `<p>Verify your ElyTrack email address.</p><p><a href="${link}">Verify email</a></p>` })
+    res.json({ success: true, expiresAt: issued.expiresAt.toISOString() })
+  } catch (err) {
+    console.error('Email verification resend error:', err.message)
+    res.status(503).json({ error: 'Verification email could not be delivered' })
+  }
+})
+
+router.post('/email-verification/confirm', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim()
+    const consumed = await consumeAccountToken(token, ACCOUNT_TOKEN_TYPES.EMAIL_VERIFICATION)
+    if (!consumed) return res.status(400).json({ error: 'This email verification link is invalid or expired' })
+    await run('UPDATE users SET email_verified_at = CURRENT_TIMESTAMP WHERE id = ?', [consumed.user_id])
+    saveDatabase()
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Email verification confirmation error:', err.message)
+    res.status(500).json({ error: 'Unable to verify email' })
   }
 })
 
@@ -87,8 +246,9 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' })
     }
 
-    // Migrate legacy plaintext credentials transparently after a successful login.
-    const passwordHash = !isPasswordHash(user.password) ? await hashPassword(password) : user.password
+    // Legacy plaintext login is opt-in in local/test environments only. When it
+    // is enabled, immediately replace the value with a bcrypt hash.
+    const passwordHash = !isPasswordHash(user.password) ? await hashLegacyPasswordForMigration(password) : user.password
     await run('UPDATE users SET password = ?, failed_login_count = 0, locked_until = NULL, account_status = \'active\', last_login_at = CURRENT_TIMESTAMP, password_changed_at = COALESCE(password_changed_at, CURRENT_TIMESTAMP) WHERE id = ?', [passwordHash, user.id])
     user.password = passwordHash
     user.failed_login_count = 0

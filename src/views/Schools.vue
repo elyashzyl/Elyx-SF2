@@ -210,7 +210,7 @@
                 </div>
                 <div class="form-group">
                   <label>Admin Password</label>
-                  <input v-model="form.adminPassword" type="text" placeholder="Enter password" />
+                  <input v-model="form.adminPassword" type="password" placeholder="Enter password" autocomplete="new-password" />
                 </div>
               </div>
             </div>

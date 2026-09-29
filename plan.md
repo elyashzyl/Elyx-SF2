@@ -56,20 +56,21 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: Critical**
 
-- [x] Replace plaintext password handling with bcrypt.
+- [x] Replace plaintext password handling with bcrypt and finish the legacy migration workflow.
   - Added `lib/passwords.js` using bcryptjs with 12 rounds.
   - New trial, user, school-admin, seed, and reset-account passwords are hashed before storage.
-  - Existing plaintext accounts remain temporarily compatible and are rehashed after successful login.
-  - Remaining follow-up: audit existing records, confirm all accounts have logged in or run an approved migration, then remove plaintext fallback.
+  - Added `npm run passwords:audit` and the explicit transactional `npm run passwords:migrate -- --confirm` command; both avoid printing password values.
+  - Production never compares plaintext. Local/test compatibility requires the explicit `ALLOW_LEGACY_PASSWORD_LOGIN=1` flag and immediately rehashes successful compatibility logins.
 - [ ] Rotate all previously exposed database credentials, application keys, and deployment secrets.
-  - Code-side preparation completed: `npm run secrets:generate`, `.env.example` guidance, and `docs/secret-rotation.md`.
-  - Provider-side credential replacement and revocation still require deployment access.
+  - Added `npm run secrets:verify`; production startup fails closed until valid database settings are present and `SECRETS_ROTATED=1` is explicitly set.
+  - Provider-side credential replacement, revocation, and setting `SECRETS_ROTATED=1` still require deployment access.
 - [x] Add secure session or token handling with expiration and revocation.
   - Added `auth_sessions`, HttpOnly/SameSite cookies, sliding expiration, revocation, logout, and server-side impersonation state.
 - [x] Add rate limiting to login, trial signup, password reset, inquiry, and payment endpoints.
   - Added configurable in-process limits; use `RATE_LIMIT_*` variables and enforce limits at the gateway for multi-instance deployments.
-- [ ] Add request validation for every route using a shared validation layer.
-  - Started with reusable validators in `lib/validation.js`; full route coverage remains a follow-up.
+- [x] Add request validation for every route using a shared validation layer.
+  - Global API validation now rejects malformed nested input, prototype-pollution keys, control characters, oversized values, and invalid JSON before route handlers execute.
+  - Domain-specific route validators remain responsible for required fields and allowed business values.
 - [x] Add CSRF protection if cookie-based authentication is used.
   - Added Origin validation for state-changing requests carrying the session cookie.
 - [x] Add security headers and a production CORS allowlist.
@@ -91,13 +92,18 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: High**
 
-- [ ] Add invitation-based account creation for teachers and administrators.
-- [ ] Add password reset through an email provider.
-- [ ] Add email verification for new accounts.
+- [x] Add invitation-based account creation for teachers and administrators.
+  - Added school-scoped invitation issuance, hashed one-time invitation tokens, configurable expiry, SMTP/log delivery, acceptance, account activation, audit logging, and public acceptance UI.
+- [x] Add password reset through an email provider.
+  - Added non-enumerating reset requests, hashed one-time reset tokens, configurable expiry, session revocation after reset, SMTP/log delivery, and public reset UI.
+- [x] Add email verification for new accounts.
+  - Added verification token issuance, one-time confirmation, resend support, email-change invalidation, persistence, SMTP/log delivery, and public verification UI.
 - [x] Add account status management: active, invited, disabled, and locked.
   - Added migration `015_user_account_lifecycle`, scoped status endpoint, session revocation, UI status display, and automatic five-failure/15-minute lockout.
 - [x] Add last-login, password-changed, and failed-login metadata.
   - Login timestamps, password-change timestamps, failed-login counts, and lock expiry are persisted without exposing password data.
+- [x] Add account email and one-time token storage.
+  - Migration `016_account_tokens_and_email` adds email fields and the `account_tokens` table without inserting operational records.
 - [ ] Add profile photo or avatar support if needed, stored through a configurable file/object storage provider.
 - [ ] Add school profile settings:
   - School name and short name.
@@ -324,7 +330,7 @@ These modules should be added only after attendance and subscription workflows a
 
 ## 6. Recommended Immediate Next Steps
 
-1. Fix password storage and rotate exposed credentials. **Password hashing, server sessions, account lifecycle controls, and rotation preparation completed; provider-side secret replacement and plaintext-account audit remain pending.**
+1. Rotate exposed credentials. **Password hashing, explicit legacy password audit/migration, server sessions, account lifecycle controls, and rotation preparation completed; provider-side secret replacement remains pending.**
 2. Complete Phase 1 account lifecycle work. **Initial status, lockout, and login metadata slice completed; invitations, email reset/verification, and school archive workflows remain.**
 2. Add API-level authorization tests for every school-owned route. **Completed for the current users, students, schools, and license authorization boundaries; extend coverage when new school-owned routes are added.**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.

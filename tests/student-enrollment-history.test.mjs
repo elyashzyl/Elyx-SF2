@@ -4,6 +4,7 @@ import http from 'node:http'
 import { randomUUID } from 'node:crypto'
 import app, { initializeServerDatabase } from '../server.js'
 import { query, run } from '../db.js'
+import { hashPassword } from '../lib/passwords.js'
 
 const suffix = randomUUID()
 const schoolA = `enrollment-school-a-${suffix}`
@@ -41,7 +42,7 @@ before(async () => {
   for (const [id, schoolId, name] of [[adminA, schoolA, 'Enrollment Admin A'], [adminB, schoolB, 'Enrollment Admin B']]) {
     await run(
       'INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, id, 'test-password', name, 'admin', '', '', '', schoolId]
+      [id, id, await hashPassword('test-password'), name, 'admin', '', '', '', schoolId]
     )
   }
   server = http.createServer(app)
