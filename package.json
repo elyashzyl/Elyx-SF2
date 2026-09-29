@@ -9,7 +9,7 @@
     "dev:backend": "nodemon --watch routes --watch db.js --watch server.js --watch package.json node server.js",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js",
+    "start": "node scripts/migrate.mjs && node server.js",
     "db:migrate": "node scripts/migrate.mjs",
     "db:migrate:fresh": "node scripts/migrate.mjs --fresh",
     "db:migrate:status": "node scripts/migrate.mjs --status",

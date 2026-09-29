@@ -100,6 +100,9 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
     - Automatically runs `npm run db:migrate` on container boot.
     - Does not run a seeder. Deployments only run schema migrations; data seeding requires an explicit private JSON file.
   - Updated `Dockerfile` with `ENTRYPOINT ["/app/docker-entrypoint.sh"]` and `CMD ["node", "server.js"]`.
+  - Updated the Railpack-compatible `npm start` command to run `node scripts/migrate.mjs` before `node server.js`, covering deployments that bypass the Docker entrypoint.
+  - Added additive migration `021_repair_user_avatar_url` for databases where migration tracking says the avatar migration ran but the column is absent.
+  - Startup migration does not run `migrate:fresh`, seed records, or delete operational data.
 - [x] **SF2 Excel Template Persistence**
   - In `routes/export.js`, user-uploaded templates via `POST /api/export/template` persist to `/data/templates/SF2.xlsx` (or custom `TEMPLATE_DIR`) with automatic fallback to bundled `templates/SF2.xlsx` or `test_final2.xlsx`.
 - [x] **Production Database Backup Strategy**

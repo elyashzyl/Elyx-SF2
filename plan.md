@@ -297,8 +297,10 @@ These modules should be added only after attendance and subscription workflows a
 - [ ] Document every new table, ownership relationship, and retention rule.
 - [ ] Add foreign keys and indexes consistently for MySQL and SQLite-compatible migrations.
 - [ ] Add migration tests for fresh databases and upgrade paths from existing deployments.
-- [ ] Test migration failure behavior before application startup.
-- [ ] Never add default accounts, schools, payment methods, licenses, plans, or sample records to a migration.
+- [x] Test migration failure behavior before application startup.
+  - The migration runner exits non-zero on failure, and both the Docker entrypoint and Railpack-compatible `npm start` stop before launching the server.
+- [x] Never add default accounts, schools, payment methods, licenses, plans, or sample records to a migration.
+  - Startup runs schema migrations only; operational data requires an explicit seed command or UI workflow.
 
 ### Quality assurance
 

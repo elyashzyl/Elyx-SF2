@@ -572,6 +572,7 @@ async function ensureMysqlColumns() {
     ["users", "locked_until", "DATETIME NULL"],
     ["users", "email", "VARCHAR(255) NOT NULL DEFAULT ''"],
     ["users", "email_verified_at", "DATETIME NULL"],
+    ["users", "avatar_url", "VARCHAR(2048) NOT NULL DEFAULT ''"],
     ["students", "gender", "VARCHAR(32) DEFAULT ''"],
     ["students", "school_id", "VARCHAR(96) DEFAULT ''"],
     ["students", "enrollment_status", "VARCHAR(32) NOT NULL DEFAULT 'active'"],
@@ -595,8 +596,13 @@ async function ensureMysqlColumns() {
     try {
       await mysqlPool.query(`ALTER TABLE \`${tbl}\` ADD COLUMN \`${col}\` ${def}`)
     } catch (err) {
-      if (!/duplicate|exists|ER_DUP_FIELDNAME/i.test(String(err.message || err.code || ''))) {
-        // Table might not exist yet or column already exists; non-fatal
+      const message = String(err.message || err.code || '')
+      const duplicateColumn = /duplicate column|already exists|ER_DUP_FIELDNAME/i.test(message)
+      if (!duplicateColumn) {
+        // Do not hide permission, connectivity, or malformed-schema errors.
+        // Startup must stop before serving requests if an additive repair could
+        // not be applied; this does not delete or rewrite existing records.
+        throw err
       }
     }
   }

@@ -16,6 +16,13 @@ test('avatar migration is append-only and does not seed or rewrite users', () =>
   assert.doesNotMatch(migration, /INSERT INTO|UPDATE users/i)
 })
 
+test('avatar schema repair migration is additive and does not delete operational data', () => {
+  const migration = read('migrations/021_repair_user_avatar_url.mjs')
+  assert.match(migration, /export const id = '021_repair_user_avatar_url'/)
+  assert.match(migration, /ALTER TABLE users ADD COLUMN avatar_url/)
+  assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM|TRUNCATE|DROP DATABASE/i)
+})
+
 test('avatar support is database-backed across the API, session, Prisma schema, and settings UI', () => {
   const db = read('db.js')
   const schema = read('prisma/schema.prisma')
@@ -25,6 +32,7 @@ test('avatar support is database-backed across the API, session, Prisma schema, 
   const app = read('src/App.vue')
 
   assert.match(db, /avatar_url/)
+  assert.match(db, /\["users", "avatar_url", "VARCHAR\(2048\) NOT NULL DEFAULT ''"\]/)
   assert.match(schema, /avatarUrl\s+String.*@map\("avatar_url"\)/)
   assert.match(users, /MAX_AVATAR_URL_LENGTH = 2048/)
   assert.match(users, /avatar_url/)

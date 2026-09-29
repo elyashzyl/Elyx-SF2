@@ -24,7 +24,7 @@ In the MySQL provider:
 4. Verify the URL-encoded password is used when `DATABASE_URL` contains reserved URL characters.
 5. Keep the old credential active only long enough to verify the new deployment, then revoke it.
 
-Do not run `migrate:fresh` during this process. The startup entrypoint runs only pending migrations and never seeds records.
+Do not run `migrate:fresh` during this process. The startup entrypoint runs only pending migrations and never seeds or deletes operational records. If a deployment reports a missing column, apply the pending additive migration against the same configured MySQL database and verify `_migrations` before restarting.
 
 ## 3. Rotate application secrets
 

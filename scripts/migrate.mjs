@@ -148,6 +148,9 @@ async function loadMigrationFiles() {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
+  if (args.fresh && process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_MIGRATION !== '1') {
+    throw new Error('Refusing destructive --fresh migration in production. Use normal migrations; set ALLOW_DESTRUCTIVE_MIGRATION=1 only for an intentional, verified reset.')
+  }
   if (args.help) {
     printHelp()
     process.exit(0)

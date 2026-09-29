@@ -22,7 +22,7 @@ npm run dev
 Frontend: http://localhost:5173  
 Backend API: http://localhost:3001  
 
-The application does not create default accounts, schools, plans, licenses, payment methods, or sample records. Insert those records intentionally through the superadmin UI or the explicit JSON seeder described below. New passwords are stored with bcrypt. Production authentication never compares plaintext passwords.
+The application does not create default accounts, schools, plans, licenses, payment methods, or sample records. Insert those records intentionally through the superadmin UI or the explicit JSON seeder described below. New passwords are stored with bcrypt. Production authentication never compares plaintext passwords. Deployment startup runs only additive schema migrations and does not reset, drop, or delete existing operational data.
 
 ### Account lifecycle
 
@@ -36,7 +36,7 @@ Migration `016_account_tokens_and_email` creates only account email/token storag
 
 ## Database, Migrations & Seeding
 
-The database setup, migrations, and seeders are fully configurable via environment variables or CLI arguments (no hardcoded credentials or school names).
+The database setup, migrations, and seeders are fully configurable via environment variables or CLI arguments (no hardcoded credentials or school names). Production startup runs pending migrations before the server starts, including on Railpack deployments that invoke `npm start`; it never runs a seeder or destructive reset.
 
 ### Commands
 
@@ -82,7 +82,7 @@ Legacy plaintext login is disabled by default and is always disabled when `NODE_
 
 ### Backup and restore safety
 
-`npm run db:backup` creates a timestamped SQLite snapshot or MySQL dump and removes backups older than `BACKUP_RETAIN` days. Restore is intentionally a separate, explicit operation and requires `--force`; it never runs during deployment. Before replacing an SQLite database, the restore script creates a `.pre-restore-<timestamp>` safety copy of the active file. Always verify the backup, target environment, and recent backup before restoring production data.
+`npm run db:backup` creates a timestamped SQLite snapshot or MySQL dump and removes backups older than `BACKUP_RETAIN` days. Restore is intentionally a separate, explicit operation and requires `--force`; it never runs during deployment. Before replacing an SQLite database, the restore script creates a `.pre-restore-<timestamp>` safety copy of the active file. Always verify the backup, target environment, and recent backup before restoring production data. Never use `npm run db:migrate:fresh` against the production database: normal startup migration is additive and preserves existing schools, users, students, attendance, licenses, and payment records.
 
 ### Secret rotation
 
