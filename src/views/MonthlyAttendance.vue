@@ -56,6 +56,23 @@
             </select>
           </div>
         </div>
+        <button
+          type="button"
+          class="btn-secondary saturday-toggle"
+          :class="{ active: form.includeSaturdays }"
+          :aria-pressed="form.includeSaturdays"
+          @click="form.includeSaturdays = !form.includeSaturdays"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="17" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <path d="m8 15 2 2 5-5"/>
+          </svg>
+          {{ form.includeSaturdays ? 'Saturdays included' : 'Include Saturdays' }}
+        </button>
+        <p class="form-help">Sunday remains disabled. Existing reports keep their current setting.</p>
         <div class="form-actions">
           <button @click="openMonthly" class="btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -81,6 +98,22 @@
       <div class="sheet-info">
         <span>Grade: {{ record.grade }}</span>
         <span>Section: {{ record.section }}</span>
+        <button
+          type="button"
+          class="btn-secondary saturday-toggle sheet-setting"
+          :class="{ active: record.include_saturdays }"
+          :aria-pressed="record.include_saturdays"
+          @click="updateIncludeSaturdays(!record.include_saturdays)"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="17" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <path d="m8 15 2 2 5-5"/>
+          </svg>
+          {{ record.include_saturdays ? 'Saturdays included' : 'Include Saturdays' }}
+        </button>
         <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
         <span>School Head: <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" /></span>
       </div>
@@ -249,7 +282,7 @@
           <span><strong>◢</strong> - Half Day</span>
           <span><strong>E</strong> - Entered (days before are absent)</span>
         </div>
-        <p class="legend-note">Weekend columns and dates with no classes are grayed out and disabled. Click ✕ on a date header to mark it as no classes.</p>
+        <p class="legend-note">Sunday is always disabled. Saturday is configurable for this report. Other dates with no classes are grayed out and disabled. Click ✕ on a date header to mark it as no classes.</p>
       </div>
 
       <div class="sheet-actions">
@@ -298,7 +331,8 @@ const form = reactive({
   month: savedState?.month ?? (now.getMonth() + 1),
   year: savedState?.year ?? now.getFullYear(),
   grade: savedState?.grade ?? (auth.isTeacher && auth.user?.grade ? auth.user.grade : ''),
-  section: savedState?.section ?? (auth.isTeacher && auth.user?.section ? auth.user.section : '')
+  section: savedState?.section ?? (auth.isTeacher && auth.user?.section ? auth.user.section : ''),
+  includeSaturdays: false
 })
 
 function applyGradeDefaults() {
@@ -390,6 +424,7 @@ async function exportToSF2() {
         year: form.year,
         grade: form.grade,
         section: form.section,
+        includeSaturdays: Boolean(record.value.include_saturdays),
         adviser: record.value.adviser || '',
         schoolHead: record.value.schoolHead || '',
         summary_data: {
@@ -452,7 +487,8 @@ const daysInMonth = computed(() => {
 
 function isWeekend(d) {
   const day = new Date(form.year, form.month - 1, d).getDay()
-  return day === 0 || day === 6
+  if (day === 0) return true
+  return day === 6 && !Boolean(record.value?.include_saturdays)
 }
 
 function isExcluded(d) {
@@ -675,7 +711,7 @@ async function openMonthly() {
         remarks: '',
         late_enrollee: 0
       }))
-      data = { month: form.month, year: form.year, grade: form.grade, section: form.section, adviser: auth.user?.name || '', entries }
+      data = { month: form.month, year: form.year, grade: form.grade, section: form.section, adviser: auth.user?.name || '', include_saturdays: Boolean(form.includeSaturdays), entries }
       const result = await store.saveMonthly(data, auth.user, sid || undefined)
       if (result) data.id = result.id
     } else {
@@ -702,13 +738,16 @@ async function openMonthly() {
       }
     }
 
+    data.include_saturdays = data.include_saturdays === true || Number(data.include_saturdays) === 1
+    form.includeSaturdays = data.include_saturdays
     record.value = data
     try {
       localStorage.setItem('monthlyAttendance', JSON.stringify({
         month: form.month,
         year: form.year,
         grade: form.grade,
-        section: form.section
+        section: form.section,
+        includeSaturdays: form.includeSaturdays
       }))
     } catch {}
     initSummaryEdits()
@@ -806,6 +845,25 @@ function initSummaryEdits() {
   summaryEdits.transfer_in_t = (sd.transfer_in_t !== undefined && sd.transfer_in_t !== null && sd.transfer_in_t !== 0)
     ? sd.transfer_in_t
     : ((Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0))
+}
+
+async function updateIncludeSaturdays(includeSaturdays) {
+  if (!record.value?.id) return
+  try {
+    const result = await store.updateMonthlySettings(record.value.id, includeSaturdays, auth.user?.id, auth.user?.role, effectiveSchoolId.value || undefined)
+    record.value.include_saturdays = result?.include_saturdays === true || Number(result?.include_saturdays) === 1 || includeSaturdays
+    form.includeSaturdays = record.value.include_saturdays
+    const refreshed = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined, { throwOnError: true })
+    if (refreshed) {
+      for (const entry of refreshed.entries || []) entry.gender = studentsLookup.value[entry.studentId] || entry.gender || ''
+      record.value = { ...refreshed, include_saturdays: refreshed.include_saturdays === true || Number(refreshed.include_saturdays) === 1 }
+      form.includeSaturdays = record.value.include_saturdays
+      initSummaryEdits()
+      refreshSummaryFromLive()
+    }
+  } catch (error) {
+    alert(error?.message || 'Unable to update Saturday setting')
+  }
 }
 
 async function saveSummary() {
@@ -937,3 +995,20 @@ async function updateRemarks(entry) {
   await store.updateMonthlyRemarks(record.value.id, entry.studentId, entry.remarks)
 }
 </script>
+
+<style scoped>
+.saturday-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saturday-toggle.active {
+  border-color: var(--primary, #2563eb);
+  color: var(--primary, #2563eb);
+}
+
+.sheet-setting {
+  margin: 0;
+}
+</style>

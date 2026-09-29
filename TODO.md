@@ -57,15 +57,17 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added superadmin-only `GET /api/schools/:id/export` with school-scoped JSON snapshots, safe user fields, archived-school support, download UI, audit logging, and server-side export-before-delete enforcement.
   - Added `tests/school-export.test.mjs` covering authorization, school isolation, secret exclusion, content headers, audit logging, and archived-school export.
 
-**Next recommended task:** Add isolated MySQL integration coverage for the completed Prisma read-only slice, then migrate one additional low-risk read route. Keep authentication writes, sessions, and token flows on the shared adapter for now.
+**Next recommended task:** Run the opt-in isolated MySQL integration suite using a disposable test database. The school read-only route migration is implemented with SQL fallback; keep authentication writes, sessions, and token flows on the shared adapter.
 
 - [x] **Add optional avatar support without ephemeral file storage**
   - Added schema-only migration `020_user_avatar_url` and Prisma `avatarUrl` mapping.
   - Avatar URLs are limited to 2048 characters and accept only HTTPS or local relative paths; blank values clear the avatar.
   - Settings and sidebar use the database-backed value with initials fallback.
   - Added migration, API, session, and self-update regression coverage.
-- [ ] **Add isolated MySQL integration coverage for Prisma read slices**
-  - Requires a disposable MySQL schema/service and credentials outside the repository.
+- [ ] **Run isolated MySQL integration coverage for Prisma read slices**
+  - Added `tests/prisma-read-slices.mysql.test.mjs` as an opt-in suite.
+  - Run it only with `PRISMA_MYSQL_INTEGRATION=1` and `PRISMA_TEST_DATABASE_URL` pointing to a disposable database whose name includes `test`, `testing`, `integration`, `sandbox`, or `ci`.
+  - The suite refuses production mode and skips safely when no isolated database is configured.
   - Keep the shared SQL adapter as the fallback and do not move authentication/token/session writes until transaction behavior is covered.
 
 ## 2. Prisma ORM Incremental Route Migration
@@ -77,12 +79,14 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
   - [x] Migrate the public school list to Prisma on MySQL with SQL fallback.
   - [ ] Replace authentication and account mutation SQL only after transaction/session behavior has dedicated coverage.
   - Maintain bcrypt password hashing compatibility.
-- [ ] **Migrate Campus & Grade Level Entities (`routes/schools.js`)**
-  - Replace raw SQL queries for `schools`, `grade_levels`, and `sections` with `prisma.school` and `prisma.gradeLevel`.
+- [x] **Migrate Campus & Grade Level read entities (`routes/schools.js`)**
+  - School listing, single-school reads, and grade-level/section reads use `prisma.school` and `prisma.gradeLevel` on MySQL.
+  - SQLite, unavailable Prisma, and Prisma query failures continue through the existing shared SQL adapter.
+  - School creation, updates, grade-level writes, archive/restore, deletion, and export remain on the shared adapter.
 - [ ] **Migrate Student Enrollment (`routes/students.js`)**
   - Refactor learner CRUD operations, LRN uniqueness validation, and grade/section filtering to Prisma queries.
 - [ ] **Migrate Daily & Monthly Attendance (`routes/attendance.js`, `routes/monthly.js`)**
-  - Teacher monthly SF2 generation/export authorization and regression coverage are complete; Prisma migration remains a separate future task.
+  - Teacher monthly SF2 generation/export authorization, configurable per-report Saturdays, and calendar regression coverage are complete; Prisma migration remains a separate future task.
   - Convert `attendance_entries` and `monthly_entries` upserts.
   - Retain transactional batch performance when updating multiple student attendance rows simultaneously.
 - [ ] **Migrate Licensing & Subscriptions (`routes/licenses.js`)**
@@ -140,6 +144,9 @@ Remaining attendance follow-ups:
 - [x] Add a dedicated administrator reopen modal instead of the current browser prompt.
 - [ ] Add correction reason fields to every bulk-edit workflow.
 - [ ] Add automatic relocking policy after a defined correction window if required by school policy.
+- [x] Add a database-backed per-report Saturday setting for monthly SF2.
+  - Migration `022_monthly_saturdays` defaults existing reports to Monday-Friday; users can enable Saturdays per report and Sunday remains disabled.
+  - Monthly totals, entry recalculation, and SF2 export honor the setting without changing the existing workbook layout.
 
 ---
 

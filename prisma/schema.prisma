@@ -200,7 +200,8 @@ model MonthlyRecord {
   schoolId      String   @default("") @map("school_id") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
   summaryData   String   @default("{}") @map("summary_data") @db.Text
-  excludedDates String   @default("[]") @map("excluded_dates") @db.Text
+  excludedDates   String   @default("[]") @map("excluded_dates") @db.Text
+  includeSaturdays Boolean  @default(false) @map("include_saturdays")
 
   @@map("monthly_records")
 }

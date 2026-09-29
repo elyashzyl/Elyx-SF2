@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
 import { requireRole, resolveScopeSchool, actingUser, assertValidClass, audit } from './_context.js'
+import { calculateMonthlyEntryTotals } from '../lib/monthly-calendar.js'
 
 const router = Router()
 
@@ -59,6 +60,7 @@ router.get('/', async (req, res) => {
     }))
     record.summary_data = JSON.parse(record.summary_data || '{}')
     record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
+    record.include_saturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     record.schoolHead = record.school_head || ''
     res.json(record)
   } catch (err) {
@@ -75,6 +77,7 @@ router.post('/', async (req, res) => {
     if (!scope) return
     if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
     const { month, year, grade, section, entries } = req.body
+    const includeSaturdays = req.body.includeSaturdays === true || req.body.include_saturdays === true || req.body.includeSaturdays === 1 || req.body.include_saturdays === 1
     const adviserName = typeof req.body.adviser === 'string' ? req.body.adviser : ''
     if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' })
     const cls = resolveClassScope(me, grade, section)
@@ -102,11 +105,12 @@ router.post('/', async (req, res) => {
       const rec = (await query('SELECT * FROM monthly_records WHERE id = ?', [recordId]))[0]
       if (!scopeRecordCheck(me, rec)) return res.status(403).json({ error: 'Forbidden: outside your school' })
       await run('DELETE FROM monthly_entries WHERE record_id = ?', [recordId])
+      // Preserve an existing report's Saturday setting when regenerating its entries.
       await run('UPDATE monthly_records SET adviser=?, school_head=? WHERE id=?', [adviserName, '', recordId])
     } else {
       recordId = uuidv4()
-      await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [recordId, month, year, cls.grade, cls.section, adviserName, '', me.id, me.name || me.username || '', scope.schoolId])
+      await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id, include_saturdays) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [recordId, month, year, cls.grade, cls.section, adviserName, '', me.id, me.name || me.username || '', scope.schoolId, includeSaturdays ? 1 : 0])
     }
     for (const entry of entries) {
       await run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -119,6 +123,7 @@ router.post('/', async (req, res) => {
       { type: 'monthly', id: recordId, name: `${cls.grade} - ${cls.section}`, schoolId: scope.schoolId },
       `Saved monthly SF2 sheet for ${cls.grade} - ${cls.section} (${month}/${year})`
     )
+    if (updated[0]) updated[0].include_saturdays = updated[0].include_saturdays === true || Number(updated[0].include_saturdays) === 1
     res.json({ id: recordId, success: true, record: updated[0] || null })
   } catch (err) {
     console.error('Failed to save monthly record:', err.message)
@@ -161,39 +166,18 @@ router.put('/:recordId/entry', async (req, res) => {
       delete days[day]
     }
 
-    // Compute school days from record
     const rec = records[0]
-    const dim = new Date(rec.year, rec.month, 0).getDate()
     const excluded = JSON.parse(rec.excluded_dates || '[]')
-    let total = 0
-    for (let d = 1; d <= dim; d++) {
-      const dow = new Date(rec.year, rec.month - 1, d).getDay()
-      if (dow === 0 || dow === 6) continue
-      if (excluded.includes(d)) continue
-      total++
-    }
 
-    // Determine earliest enrollment day (E mark)
-    let enrollDay = null
-    for (const d of Object.keys(days)) {
-      if (days[d] === 'E') {
-        const dayNum = parseInt(d, 10)
-        if (enrollDay === null || dayNum < enrollDay) enrollDay = dayNum
-      }
-    }
-
-    let absent = 0
-    for (const d of Object.keys(days)) {
-      const dayNum = parseInt(d, 10)
-      if (excluded.includes(dayNum)) continue
-      const dow = new Date(rec.year, rec.month - 1, dayNum).getDay()
-      if (dow === 0 || dow === 6) continue
-      if (enrollDay !== null && dayNum < enrollDay) { absent++; continue }
-      const s = days[d]
-      if (s === 'A') absent++
-      else if (s === '◢' || s === 'H') absent += 0.5
-    }
-    const present = total - absent
+    const totals = calculateMonthlyEntryTotals({
+      year: rec.year,
+      month: rec.month,
+      days,
+      excludedDates: excluded,
+      includeSaturdays: rec.include_saturdays === true || Number(rec.include_saturdays) === 1
+    })
+    const present = totals.present
+    const absent = totals.absent
 
     await run('UPDATE monthly_entries SET days=?, present=?, absent=? WHERE record_id=? AND student_id=?',
       [JSON.stringify(days), present, absent, recordId, studentId])
@@ -209,6 +193,37 @@ router.put('/:recordId/entry', async (req, res) => {
   } catch (err) {
     console.error('Failed to update monthly entry:', err.message)
     res.status(500).json({ error: 'Failed to update monthly entry' })
+  }
+})
+
+router.put('/:recordId/settings', async (req, res) => {
+  try {
+    const g = await guardRecord(req, res)
+    if (!g) return
+    if (typeof req.body.includeSaturdays !== 'boolean' && typeof req.body.include_saturdays !== 'boolean') {
+      return res.status(400).json({ error: 'includeSaturdays must be a boolean' })
+    }
+    const includeSaturdays = req.body.includeSaturdays ?? req.body.include_saturdays
+    const record = g.record
+    const excluded = JSON.parse(record.excluded_dates || '[]')
+    const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [record.id])
+    await run('UPDATE monthly_records SET include_saturdays=? WHERE id=?', [includeSaturdays ? 1 : 0, record.id])
+    for (const entry of entries) {
+      const days = typeof entry.days === 'string' ? JSON.parse(entry.days || '{}') : (entry.days || {})
+      const totals = calculateMonthlyEntryTotals({
+        year: record.year,
+        month: record.month,
+        days,
+        excludedDates: excluded,
+        includeSaturdays
+      })
+      await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, record.id, entry.student_id])
+    }
+    await audit(g.me, 'monthly.settings_update', { type: 'monthly', id: record.id, name: `${record.grade} - ${record.section}`, schoolId: record.school_id }, `Updated Saturday school-day setting for ${record.month}/${record.year}`)
+    res.json({ success: true, include_saturdays: includeSaturdays })
+  } catch (err) {
+    console.error('Failed to update monthly settings:', err.message)
+    res.status(500).json({ error: 'Failed to update monthly settings' })
   }
 })
 
@@ -247,10 +262,27 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
     const g = await guardRecord(req, res)
     if (!g) return
     const { recordId } = req.params
-    const { excluded_dates } = req.body
+    const excludedDates = Array.isArray(req.body.excluded_dates) ? req.body.excluded_dates : []
+    const record = g.record
     await run('UPDATE monthly_records SET excluded_dates=? WHERE id=?',
-      [JSON.stringify(excluded_dates || []), recordId])
-    res.json({ success: true })
+      [JSON.stringify(excludedDates), recordId])
+
+    // Recalculate stored totals immediately so excluding/restoring a Saturday
+    // stays consistent with the values displayed by the monthly sheet.
+    const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [recordId])
+    const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
+    for (const entry of entries) {
+      const days = typeof entry.days === 'string' ? JSON.parse(entry.days || '{}') : (entry.days || {})
+      const totals = calculateMonthlyEntryTotals({
+        year: record.year,
+        month: record.month,
+        days,
+        excludedDates,
+        includeSaturdays
+      })
+      await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
+    }
+    res.json({ success: true, excluded_dates: excludedDates })
   } catch (err) {
     console.error('Failed to update excluded dates:', err.message)
     res.status(500).json({ error: 'Failed to update excluded dates' })

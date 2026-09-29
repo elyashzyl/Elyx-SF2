@@ -310,7 +310,8 @@ const MYSQL_DDL = [
     school_id TEXT NOT NULL DEFAULT (''),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     summary_data TEXT NOT NULL DEFAULT ('{}'),
-    excluded_dates TEXT NOT NULL DEFAULT ('[]')
+    excluded_dates TEXT NOT NULL DEFAULT ('[]'),
+    include_saturdays TINYINT(1) NOT NULL DEFAULT 0
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS monthly_entries (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -589,7 +590,8 @@ async function ensureMysqlColumns() {
     ["attendance_records", "reopened_at", "DATETIME NULL"],
     ["attendance_records", "reopened_by", "VARCHAR(96) DEFAULT ''"],
     ["attendance_records", "reopen_reason", "TEXT"],
-    ["monthly_entries", "late_enrollee", "TINYINT(1) DEFAULT 0"]
+    ["monthly_entries", "late_enrollee", "TINYINT(1) DEFAULT 0"],
+    ["monthly_records", "include_saturdays", "TINYINT(1) NOT NULL DEFAULT 0"]
   ]
 
   for (const [tbl, col, def] of alters) {
@@ -787,7 +789,8 @@ async function initSqlite() {
       school_id TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now')),
       summary_data TEXT DEFAULT '{}',
-      excluded_dates TEXT DEFAULT '[]'
+      excluded_dates TEXT DEFAULT '[]',
+      include_saturdays INTEGER NOT NULL DEFAULT 0
     )`,
     `CREATE TABLE IF NOT EXISTS monthly_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -989,6 +992,7 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopened_by TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopen_reason TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE monthly_entries ADD COLUMN late_enrollee INTEGER DEFAULT 0") } catch {}
+    try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN include_saturdays INTEGER NOT NULL DEFAULT 0") } catch {}
   }
   // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
   const tbl = querySync("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")

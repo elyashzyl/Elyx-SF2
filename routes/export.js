@@ -63,7 +63,7 @@ router.post('/sheets', (req, res) => {
 
 router.post('/sf2', async (req, res) => {
   try {
-    const { sheetName, entries, month, year, grade, section, templatePath, summary_data, excluded_dates, adviser, schoolHead } = req.body
+    const { sheetName, entries, month, year, grade, section, templatePath, summary_data, excluded_dates, includeSaturdays, adviser, schoolHead } = req.body
     if (!sheetName) return res.status(400).json({ error: 'sheetName is required' })
     if (!entries || !entries.length) return res.status(400).json({ error: 'No entries provided' })
     const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
@@ -272,23 +272,28 @@ router.post('/sf2', async (req, res) => {
 
     // ── Update date columns to match the selected month ──
     const DATE_COL_START = 4
-    const MAX_DATE_COLS = 22
+    // The existing SF2 worksheet reserves columns E:AC for date cells.
+    // Keep the worksheet structure unchanged while allowing Saturdays in that range.
+    const MAX_DATE_COLS = 25
     const DAY_ABBR = { 0: 'Sun', 1: 'M', 2: 'T', 3: 'W', 4: 'TH', 5: 'F', 6: 'Sat' }
 
-    function computeSchoolDays(mon, yr, excl) {
+    function computeSchoolDays(mon, yr, excl, includeSat = false) {
       const days = []
       const dim = new Date(yr, mon, 0).getDate()
       const excluded = excl || []
       for (let d = 1; d <= dim; d++) {
         const dow = new Date(yr, mon - 1, d).getDay()
-        if (dow === 0 || dow === 6) continue
+        if (dow === 0 || (dow === 6 && !includeSat)) continue
         if (excluded.includes(d)) continue
         days.push({ day: d, weekday: dow })
       }
       return days
     }
 
-    const schoolDays = computeSchoolDays(month, year, excluded_dates)
+    const schoolDays = computeSchoolDays(month, year, excluded_dates, includeSaturdays === true || includeSaturdays === 1)
+    if (schoolDays.length > MAX_DATE_COLS) {
+      return res.status(400).json({ error: 'This SF2 worksheet supports up to 25 school-day columns. Exclude non-instructional dates or use the report without Saturdays for this month.' })
+    }
     const dateColMap = {}
     const numDateCols = Math.min(schoolDays.length, MAX_DATE_COLS)
     setVal(newWs, COL_HEADER_ROW, 32, 'n', numDateCols)

@@ -335,6 +335,16 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function updateMonthlySettings(recordId, includeSaturdays, userId, userRole, schoolId) {
+    const extra = { includeSaturdays: Boolean(includeSaturdays), userId, userRole }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/monthly/${recordId}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
   async function updateMonthlyRemarks(recordId, studentId, remarks) {
     const auth = getAuth()
     return await fetchJson(`${API}/monthly/${recordId}/remarks`, {
@@ -348,6 +358,6 @@ export const useAttendanceStore = defineStore('attendance', () => {
     getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
     getRecord, saveRecord, getOrCreateRecord,
     updateEntry, reopenRecord, getCorrections, getAllRecords, deleteRecord,
-    fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlyRemarks
+    fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlySettings, updateMonthlyRemarks
   }
 })

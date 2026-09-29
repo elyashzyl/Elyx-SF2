@@ -3,8 +3,80 @@ import { v4 as uuidv4 } from 'uuid'
 import { query, run, saveDatabase, getSchoolById, getGradeLevels, setGradeLevels, DB_MODE } from '../db.js'
 import { requireRole, schoolToResponse, audit } from './_context.js'
 import { hashPassword } from '../lib/passwords.js'
+import prisma from '../prisma/client.js'
 
 const router = Router()
+
+function mapPrismaSchool(row) {
+  if (!row) return null
+  return schoolToResponse({
+    id: row.id,
+    name: row.name,
+    school_id: row.schoolId,
+    address: row.address,
+    short: row.short,
+    attendance_lock_cutoff: row.attendanceLockCutoff,
+    contact_email: row.contactEmail,
+    contact_phone: row.contactPhone,
+    division: row.division,
+    district: row.district,
+    principal_name: row.principalName,
+    school_year: row.schoolYear,
+    grading_period: row.gradingPeriod,
+    archived_at: row.archivedAt,
+    archived_by: row.archivedBy,
+    archive_reason: row.archiveReason
+  })
+}
+
+function parseSections(value) {
+  if (Array.isArray(value)) return value.map(section => String(section)).filter(Boolean)
+  try {
+    const parsed = JSON.parse(value || '[]')
+    return Array.isArray(parsed) ? parsed.map(section => String(section)).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+export async function listSchoolsWithPrisma(includeArchived = false) {
+  if (DB_MODE !== 'mysql' || !prisma) return null
+  try {
+    const rows = await prisma.school.findMany({
+      ...(includeArchived ? {} : { where: { archivedAt: null } }),
+      orderBy: { name: 'asc' }
+    })
+    return rows.map(mapPrismaSchool)
+  } catch (error) {
+    console.warn('[schools] Prisma school list fallback:', error.message)
+    return null
+  }
+}
+
+export async function findSchoolWithPrisma(id) {
+  if (DB_MODE !== 'mysql' || !prisma) return null
+  try {
+    return { available: true, row: mapPrismaSchool(await prisma.school.findUnique({ where: { id } })) }
+  } catch (error) {
+    console.warn('[schools] Prisma school read fallback:', error.message)
+    return null
+  }
+}
+
+export async function listGradeLevelsWithPrisma(schoolId) {
+  if (DB_MODE !== 'mysql' || !prisma) return null
+  try {
+    const rows = await prisma.gradeLevel.findMany({
+      where: { schoolId },
+      select: { grade: true, sections: true, sort: true },
+      orderBy: [{ sort: 'asc' }, { grade: 'asc' }]
+    })
+    return rows.map(row => ({ grade: row.grade, sections: parseSections(row.sections) }))
+  } catch (error) {
+    console.warn('[schools] Prisma grade-level read fallback:', error.message)
+    return null
+  }
+}
 
 // List schools. Superadmin sees all; others see only their own.
 router.get('/', async (req, res) => {
@@ -13,10 +85,14 @@ router.get('/', async (req, res) => {
     if (error) return
     if (me.role === 'superadmin') {
       const includeArchived = String(req.query.includeArchived || '').toLowerCase() === 'true'
+      const prismaSchools = await listSchoolsWithPrisma(includeArchived)
+      if (prismaSchools !== null) return res.json(prismaSchools)
       const rows = await query(`SELECT * FROM schools ${includeArchived ? '' : 'WHERE archived_at IS NULL'} ORDER BY name`)
       return res.json(rows.map(schoolToResponse))
     }
-    const own = me.school_id ? await getSchoolById(me.school_id) : null
+    if (!me.school_id) return res.json([])
+    const prismaSchool = await findSchoolWithPrisma(me.school_id)
+    const own = prismaSchool ? prismaSchool.row : await getSchoolById(me.school_id)
     return res.json(own && !own.archived_at ? [schoolToResponse(own)] : [])
   } catch (err) {
     console.error('Failed to fetch schools', err.message)
@@ -70,7 +146,8 @@ router.get('/:id', async (req, res) => {
     if (me.role !== 'superadmin' && me.school_id !== req.params.id) {
       return res.status(403).json({ error: 'Forbidden: outside your school' })
     }
-    const row = await getSchoolById(req.params.id)
+    const prismaSchool = await findSchoolWithPrisma(req.params.id)
+    const row = prismaSchool ? prismaSchool.row : await getSchoolById(req.params.id)
     if (!row) return res.status(404).json({ error: 'School not found' })
     if (row.archived_at && me.role !== 'superadmin') return res.status(410).json({ error: 'School is archived' })
     res.json(schoolToResponse(row))
@@ -123,9 +200,11 @@ router.get('/:id/grades', async (req, res) => {
     if (me.role !== 'superadmin' && me.school_id !== req.params.id) {
       return res.status(403).json({ error: 'Forbidden: outside your school' })
     }
-    const row = await getSchoolById(req.params.id)
+    const prismaSchool = await findSchoolWithPrisma(req.params.id)
+    const row = prismaSchool ? prismaSchool.row : await getSchoolById(req.params.id)
     if (!row) return res.status(404).json({ error: 'School not found' })
-    res.json(await getGradeLevels(req.params.id))
+    const prismaLevels = await listGradeLevelsWithPrisma(req.params.id)
+    res.json(prismaLevels !== null ? prismaLevels : await getGradeLevels(req.params.id))
   } catch (err) {
     console.error('Failed to fetch grade levels', err.message)
     res.status(500).json({ error: 'Failed to fetch grade levels' })

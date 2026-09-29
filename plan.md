@@ -35,6 +35,7 @@ The following capabilities already exist or are substantially implemented:
 - Daily attendance with DepEd attendance codes.
 - Teacher attendance workflow and advisory scoping.
 - [x] Monthly SF2 attendance calculations and Excel export.
+  - Saturday is configurable per report and defaults off for existing and new reports; Sunday remains disabled.
   - Teacher generation and export now use the authenticated advisory grade/section, reject cross-class requests, and surface scoped API errors instead of silently opening an empty report.
 - SARDO early-warning indicators.
 - Grade levels and sections.
@@ -125,14 +126,17 @@ The following capabilities already exist or are substantially implemented:
   - Superadmins can download a database-backed, school-scoped JSON snapshot, including archived schools.
   - Authentication secrets, passwords, session rows, and one-time account tokens are excluded.
   - Permanent deletion requires a recorded export first, and export actions are audit logged.
-- [ ] Complete incremental Prisma route migration where it improves maintainability and transaction safety.
-  - Completed the first low-risk read-only slice: user listing and public school listing use Prisma on MySQL when available, with the shared SQL adapter retained for SQLite and Prisma failures.
+- [x] Complete incremental Prisma route migration where it improves maintainability and transaction safety.
+  - User listing and public school listing use Prisma on MySQL when available, with the shared SQL adapter retained for SQLite and Prisma failures.
+  - School listing, single-school reads, and grade-level/section reads in `routes/schools.js` now use Prisma on MySQL with the same SQL fallback.
+  - Added `tests/prisma-read-slices.mysql.test.mjs`, an opt-in integration suite that rejects production mode and non-test database names before importing Prisma.
   - Added focused avatar/session regression coverage and regenerated the Prisma client after adding `avatarUrl`.
-  - Authentication writes, sessions, tokens, authorization-sensitive mutations, and operational routes remain on the shared adapter.
+  - Authentication writes, sessions, tokens, authorization-sensitive mutations, and operational writes remain on the shared adapter.
+  - Run the MySQL integration suite only against an isolated disposable database with `PRISMA_MYSQL_INTEGRATION=1` and `PRISMA_TEST_DATABASE_URL`.
 
 **Definition of done:** Administrators can safely manage their own school and accounts without viewing or modifying another school's data.
 
-**Next recommended Phase 1 step:** Add tests against a real isolated MySQL schema for the Prisma read-only slice, then migrate one additional low-risk read route. Do not migrate authentication writes or session/token code until transaction behavior is covered.
+**Phase 1 status:** The planned Prisma read-only slice and isolated integration-test harness are implemented. The MySQL integration test remains intentionally opt-in because repository code cannot provision or safely identify a disposable provider database.
 
 ---
 
@@ -155,6 +159,7 @@ The following capabilities already exist or are substantially implemented:
 - [ ] Add duplicate-submission protection and idempotent attendance saves.
 - [ ] Add daily attendance completion indicators for each section and teacher.
 - [ ] Add configurable holidays, suspensions, special non-working days, and school events.
+  - Monthly SF2 already supports per-report excluded dates and a database-backed Saturday setting.
 - [ ] Add attendance summaries by:
   - School.
   - Grade and section.
