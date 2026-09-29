@@ -117,12 +117,15 @@ The following capabilities already exist or are substantially implemented:
 - [x] Add a confirmation and dependency preview before deleting a school.
   - School management now shows scoped dependency counts before archive or permanent deletion and refreshes the list immediately after actions.
   - Permanent deletion remains explicit and separate from reversible archive.
-- [ ] Add export of a school's data before archive or deletion.
+- [x] Add export of a school's data before archive or deletion.
+  - Superadmins can download a database-backed, school-scoped JSON snapshot, including archived schools.
+  - Authentication secrets, passwords, session rows, and one-time account tokens are excluded.
+  - Permanent deletion requires a recorded export first, and export actions are audit logged.
 - [ ] Complete incremental Prisma route migration where it improves maintainability and transaction safety.
 
 **Definition of done:** Administrators can safely manage their own school and accounts without viewing or modifying another school's data.
 
-**Next recommended Phase 1 step:** Add a database-backed school data export/download before permanent deletion.
+**Next recommended Phase 1 step:** Decide whether to begin the incremental Prisma migration with one tested route group, or keep raw SQL for the remaining high-risk operational routes until a dedicated migration slice is planned.
 
 ---
 

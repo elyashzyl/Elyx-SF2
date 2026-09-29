@@ -304,6 +304,38 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
+  async function exportSchoolData(id) {
+    const params = new URLSearchParams(actorParams())
+    let response
+    try {
+      response = await fetch(`${API}/schools/${encodeURIComponent(id)}/export?${params}`)
+    } catch {
+      throw new Error('Cannot connect to server')
+    }
+    if (!response.ok) {
+      const text = await response.text()
+      let message = `Request failed (${response.status})`
+      try {
+        const data = text ? JSON.parse(text) : null
+        if (data?.error) message = data.error
+      } catch {}
+      throw new Error(message)
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const match = disposition.match(/filename="?([^";]+)"?/i)
+    const filename = match?.[1] || `elytrack-school-${id}-export.json`
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    return { filename }
+  }
+
   async function getSchoolDependencyPreview(id) {
     const params = new URLSearchParams(actorParams())
     const data = await fetchJson(`${API}/schools/${id}/dependency-preview?${params}`)
@@ -376,5 +408,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, exportSchoolData, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

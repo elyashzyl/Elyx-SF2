@@ -163,6 +163,83 @@ router.put('/:id/grades', async (req, res) => {
   }
 })
 
+// Download a school-scoped JSON snapshot before archiving or permanent deletion.
+// Sensitive credentials and authentication tokens are intentionally excluded.
+router.get('/:id/export', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+    const id = String(req.params.id || '').trim()
+    const school = await getSchoolById(id)
+    if (!school) return res.status(404).json({ error: 'School not found' })
+
+    // Record the export before reading audit logs so the snapshot contains its
+    // own audit trail. Authentication secrets are never included in the query.
+    await audit(me, 'school.export', { type: 'school', id, name: school.name || '', schoolId: id }, `Exported school data for "${school.name || id}"`)
+
+    const [users, students, gradeLevels, attendanceRecords, attendanceEntries, monthlyRecords,
+      monthlyEntries, enrollmentEvents, teacherSchedules, calendarEvents, quarterlyEvents,
+      licenses, subscriptionRequests, inquiries, inquiryMessages, auditLogs] = await Promise.all([
+      query(`SELECT id, username, name, role, grade, section, period, school_id, account_status,
+        last_login_at, password_changed_at, failed_login_count, locked_until, email, email_verified_at
+        FROM users WHERE school_id = ? ORDER BY name, username`, [id]),
+      query('SELECT * FROM students WHERE school_id = ? ORDER BY name', [id]),
+      query('SELECT * FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [id]),
+      query('SELECT * FROM attendance_records WHERE school_id = ? ORDER BY date, grade, section', [id]),
+      query(`SELECT ae.* FROM attendance_entries ae
+        JOIN attendance_records ar ON ar.id = ae.record_id
+        WHERE ar.school_id = ? ORDER BY ae.record_id, ae.id`, [id]),
+      query('SELECT * FROM monthly_records WHERE school_id = ? ORDER BY year, month, grade, section', [id]),
+      query(`SELECT me.* FROM monthly_entries me
+        JOIN monthly_records mr ON mr.id = me.record_id
+        WHERE mr.school_id = ? ORDER BY me.record_id, me.id`, [id]),
+      query('SELECT * FROM student_enrollment_events WHERE school_id = ? ORDER BY student_id, effective_on, event_sequence', [id]),
+      query('SELECT * FROM teacher_schedules WHERE school_id = ? ORDER BY teacher_id, day_of_week, start_time', [id]),
+      query('SELECT * FROM calendar_events WHERE school_id = ? ORDER BY event_date, id', [id]),
+      query('SELECT * FROM quarterly_events WHERE school_id = ? ORDER BY event_name', [id]),
+      query('SELECT * FROM licenses WHERE school_id = ? ORDER BY issued_at', [id]),
+      query('SELECT * FROM subscription_requests WHERE school_id = ? ORDER BY created_at', [id]),
+      query('SELECT * FROM inquiries WHERE school_id = ? ORDER BY created_at', [id]),
+      query(`SELECT im.* FROM inquiry_messages im
+        JOIN inquiries i ON i.id = im.inquiry_id
+        WHERE i.school_id = ? ORDER BY im.inquiry_id, im.created_at`, [id]),
+      query('SELECT * FROM audit_logs WHERE target_school_id = ? OR actor_school_id = ? ORDER BY created_at, id', [id, id])
+    ])
+
+    const exportedAt = new Date().toISOString()
+    const snapshot = {
+      format: 'elytrack-school-export',
+      version: 1,
+      exported_at: exportedAt,
+      school: schoolToResponse(school),
+      data: {
+        users,
+        students,
+        grade_levels: gradeLevels,
+        attendance_records: attendanceRecords,
+        attendance_entries: attendanceEntries,
+        monthly_records: monthlyRecords,
+        monthly_entries: monthlyEntries,
+        enrollment_events: enrollmentEvents,
+        teacher_schedules: teacherSchedules,
+        calendar_events: calendarEvents,
+        quarterly_events: quarterlyEvents,
+        licenses,
+        subscription_requests: subscriptionRequests,
+        inquiries,
+        inquiry_messages: inquiryMessages,
+        audit_logs: auditLogs
+      }
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="elytrack-school-${id}-${exportedAt.slice(0, 10)}.json"`)
+    res.send(JSON.stringify(snapshot, null, 2))
+  } catch (err) {
+    console.error('Failed to export school data', err.message)
+    res.status(500).json({ error: 'Failed to export school data' })
+  }
+})
+
 // Preview the dependent record counts before a destructive deletion.
 router.get('/:id/dependency-preview', async (req, res) => {
   try {
@@ -255,6 +332,12 @@ router.delete('/:id', async (req, res) => {
     const id = String(req.params.id || '').trim()
     const doomed = await getSchoolById(id)
     if (!doomed) return res.status(404).json({ error: 'School not found' })
+
+    const exports = await query(`SELECT id FROM audit_logs
+      WHERE action = 'school.export' AND target_school_id = ? LIMIT 1`, [id])
+    if (!exports.length) {
+      return res.status(409).json({ error: 'Export this school before permanent deletion' })
+    }
 
     // Delete child rows first. The shared schema intentionally does not rely on
     // database foreign keys, so this cleanup must be explicit for both MySQL

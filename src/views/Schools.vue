@@ -102,7 +102,13 @@
                   </svg>
                   Restore
                 </button>
-                <button @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete">
+                <button v-if="auth.isSuperadmin" @click="exportSchool(s)" class="table-action-btn" title="Export school data" :disabled="exportingSchoolId === s?.id">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+                  </svg>
+                  {{ exportingSchoolId === s?.id ? 'Exporting...' : 'Export' }}
+                </button>
+                <button v-if="auth.isSuperadmin" @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
                   </svg>
@@ -273,6 +279,10 @@
           </div>
           <p v-if="archiveError" class="error-msg">{{ archiveError }}</p>
           <div class="form-actions">
+            <button v-if="auth.isSuperadmin" type="button" @click="exportSchool(archiveSchoolData)" class="btn-secondary" :disabled="exportingSchoolId === archiveSchoolData?.id">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              {{ exportingSchoolId === archiveSchoolData?.id ? 'Exporting...' : 'Export Data' }}
+            </button>
             <button type="button" @click="closeArchive" class="btn-secondary">Cancel</button>
             <button type="button" @click="confirmArchive" class="btn-primary" :class="{ 'btn-danger': archiveAction === 'delete' }" :disabled="archiving || !dependencyPreview">{{ archiving ? (archiveAction === 'delete' ? 'Deleting...' : 'Archiving...') : (archiveAction === 'delete' ? 'Delete Permanently' : 'Archive School') }}</button>
           </div>
@@ -307,6 +317,7 @@ const dependencyPreview = ref(null)
 const archiveReason = ref('')
 const archiveError = ref('')
 const archiving = ref(false)
+const exportingSchoolId = ref('')
 
 onMounted(loadSchools)
 
@@ -504,7 +515,21 @@ async function restore(s) {
   }
 }
 
+async function exportSchool(s) {
+  if (!s?.id || !auth.isSuperadmin || exportingSchoolId.value) return
+  exportingSchoolId.value = s.id
+  try {
+    await auth.exportSchoolData(s.id)
+    notify('School data exported', 'success')
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    exportingSchoolId.value = ''
+  }
+}
+
 function removeSchool(id) {
+  if (!auth.isSuperadmin) return
   const school = schools.value.find(item => item?.id === id)
   if (!school) return
   archiveSchoolData.value = school

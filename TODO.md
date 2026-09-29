@@ -53,7 +53,11 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added reversible archive/restore controls, archived-school access blocking, and account-status restoration metadata in migrations `018_school_archive` and `019_school_archive_account_status`.
 - [x] Add dependency preview before archive or permanent deletion.
   - Superadmin-only scoped dependency counts are displayed in the school management confirmation modal.
-- [ ] Add school data export before permanent deletion.
+- [x] Add school data export before permanent deletion.
+  - Added superadmin-only `GET /api/schools/:id/export` with school-scoped JSON snapshots, safe user fields, archived-school support, download UI, audit logging, and server-side export-before-delete enforcement.
+  - Added `tests/school-export.test.mjs` covering authorization, school isolation, secret exclusion, content headers, audit logging, and archived-school export.
+
+**Next recommended task:** Begin Prisma migration with one route group only after adding model/query compatibility tests; do not migrate all routes in one change.
 
 ## 2. Prisma ORM Incremental Route Migration
 
