@@ -94,8 +94,10 @@ The following capabilities already exist or are substantially implemented:
 - [ ] Add invitation-based account creation for teachers and administrators.
 - [ ] Add password reset through an email provider.
 - [ ] Add email verification for new accounts.
-- [ ] Add account status management: active, invited, disabled, and locked.
-- [ ] Add last-login, password-changed, and failed-login metadata.
+- [x] Add account status management: active, invited, disabled, and locked.
+  - Added migration `015_user_account_lifecycle`, scoped status endpoint, session revocation, UI status display, and automatic five-failure/15-minute lockout.
+- [x] Add last-login, password-changed, and failed-login metadata.
+  - Login timestamps, password-change timestamps, failed-login counts, and lock expiry are persisted without exposing password data.
 - [ ] Add profile photo or avatar support if needed, stored through a configurable file/object storage provider.
 - [ ] Add school profile settings:
   - School name and short name.
@@ -322,7 +324,8 @@ These modules should be added only after attendance and subscription workflows a
 
 ## 6. Recommended Immediate Next Steps
 
-1. Fix password storage and rotate exposed credentials. **Password hashing, server sessions, and rotation preparation completed; provider-side secret replacement and plaintext-account audit remain pending.**
+1. Fix password storage and rotate exposed credentials. **Password hashing, server sessions, account lifecycle controls, and rotation preparation completed; provider-side secret replacement and plaintext-account audit remain pending.**
+2. Complete Phase 1 account lifecycle work. **Initial status, lockout, and login metadata slice completed; invitations, email reset/verification, and school archive workflows remain.**
 2. Add API-level authorization tests for every school-owned route. **Completed for the current users, students, schools, and license authorization boundaries; extend coverage when new school-owned routes are added.**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 3. Implement attendance lock and correction history. **Completed:** migration 010, API enforcement, school cutoff settings, reopen authorization, audit logging, correction history, UI status controls, and regression tests.

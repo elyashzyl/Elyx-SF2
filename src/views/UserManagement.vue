@@ -109,6 +109,7 @@
             <th>Role</th>
             <th v-if="auth.isSuperadmin">School</th>
             <th>Advisory</th>
+            <th>Status</th>
             <th style="text-align: right;">Actions</th>
           </tr>
         </thead>
@@ -129,6 +130,10 @@
             </td>
             <td v-if="auth.isSuperadmin">{{ schoolNameOf(u) }}</td>
             <td>{{ u.grade ? (u.grade + (u.section ? ' - ' + u.section : '')) : '—' }}</td>
+            <td>
+              <span :class="['pill', statusClass(u.account_status)]">{{ statusLabel(u.account_status) }}</span>
+              <div v-if="u.last_login_at" class="cell-sub">Last login: {{ formatDate(u.last_login_at) }}</div>
+            </td>
             <td style="text-align: right;">
               <div class="row-actions">
                 <button @click="editUser(u)" class="icon-btn" title="Edit">
@@ -137,7 +142,11 @@
                 <button @click="impersonateUser(u)" class="icon-btn" title="Impersonate" v-if="auth.isSuperadmin && u.id !== auth.user?.id && u.role !== 'superadmin'" :disabled="impersonatingId === u.id">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
-                <button @click="removeUser(u.id)" class="icon-btn icon-btn--danger" title="Delete" v-if="u.id !== auth.user?.id">
+                <button @click="toggleStatus(u)" class="icon-btn" :title="u.account_status === 'disabled' ? 'Enable account' : 'Disable account'" v-if="u.id !== auth.user?.id && canManageStatus(u)">
+                  <svg v-if="u.account_status === 'disabled'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>
+                  <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                </button>
+                <button @click="removeUser(u.id)" class="icon-btn icon-btn--danger" title="Delete" v-if="u.id !== auth.user?.id && canManageStatus(u)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                 </button>
               </div>
@@ -249,6 +258,24 @@ function schoolNameOf(u) {
   return s ? s.name : u.school_id
 }
 
+function statusLabel(status) {
+  return ({ active: 'Active', invited: 'Invited', disabled: 'Disabled', locked: 'Locked' }[status] || 'Active')
+}
+
+function statusClass(status) {
+  return ({ active: 'pill--green', invited: 'pill--amber', disabled: 'pill--red', locked: 'pill--red' }[status] || 'pill--green')
+}
+
+function formatDate(value) {
+  if (!value) return ''
+  const date = new Date(String(value).replace(' ', 'T') + (String(value).includes('Z') ? '' : 'Z'))
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString()
+}
+
+function canManageStatus(u) {
+  return u.role !== 'superadmin' || auth.isSuperadmin
+}
+
 function resetForm() {
   form.value = { name: '', username: '', password: '', role: 'teacher', grade: '', section: '', schoolId: auth.isSuperadmin ? (activeSchoolId.value || '') : (auth.schoolId || '') }
   editingUser.value = null
@@ -286,6 +313,18 @@ function editUser(u) {
   editingUser.value = u
   form.value = { name: u.name, username: u.username, password: '', role: u.role, grade: u.grade || '', section: u.section || '', schoolId: u.school_id || '' }
   showForm.value = true
+}
+
+async function toggleStatus(u) {
+  const next = u.account_status === 'disabled' ? 'active' : 'disabled'
+  if (!confirm(`${next === 'active' ? 'Enable' : 'Disable'} ${u.name}'s account?`)) return
+  try {
+    await auth.updateUserStatus(u.id, next)
+    await loadUsers()
+    addToast(`Account ${next === 'active' ? 'enabled' : 'disabled'}`, 'success')
+  } catch (e) {
+    addToast(e.message, 'error')
+  }
 }
 
 async function removeUser(id) {

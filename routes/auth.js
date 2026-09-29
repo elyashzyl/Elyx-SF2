@@ -8,6 +8,16 @@ import { asTrimmedString } from '../lib/validation.js'
 
 const router = Router()
 
+function parseDatabaseDate(value) {
+  if (!value) return null
+  const text = String(value)
+  const normalized = /z$/i.test(text) || /[+-]\d{2}:?\d{2}$/.test(text)
+    ? text
+    : `${text.replace(' ', 'T')}Z`
+  const date = new Date(normalized)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
 async function publicUser(row) {
   const { password: _, ...userData } = row
   const school = userData.school_id ? schoolToResponse(await getSchoolById(userData.school_id)) : null
@@ -45,17 +55,47 @@ router.post('/login', async (req, res) => {
     }
     const cleanUsername = usernameValue.value
     const users = await query('SELECT * FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1', [cleanUsername])
-    if (users.length === 0 || !(await verifyPassword(password, users[0].password))) {
+    if (users.length === 0) {
       return res.status(401).json({ error: 'Invalid username or password' })
     }
     const user = users[0]
+    const accountStatus = user.account_status || 'active'
+    const lockedUntil = parseDatabaseDate(user.locked_until)
+
+    // Automatic lockouts expire only when a subsequent login attempt arrives.
+    if (accountStatus === 'locked' && lockedUntil && Number.isFinite(lockedUntil.getTime()) && lockedUntil <= new Date()) {
+      await run("UPDATE users SET account_status = 'active', failed_login_count = 0, locked_until = NULL WHERE id = ?", [user.id])
+      user.account_status = 'active'
+      user.failed_login_count = 0
+      user.locked_until = null
+    }
+
+    if (user.account_status === 'disabled' || user.account_status === 'invited' || user.account_status === 'locked') {
+      return res.status(403).json({ error: 'This account is not available for sign in. Contact your school administrator.' })
+    }
+
+    if (!(await verifyPassword(password, user.password))) {
+      const failedCount = (Number(user.failed_login_count) || 0) + 1
+      if (failedCount >= 5) {
+        const until = new Date(Date.now() + 15 * 60 * 1000)
+        const lockedUntilValue = until.toISOString().slice(0, 19).replace('T', ' ')
+        await run("UPDATE users SET failed_login_count = ?, account_status = 'locked', locked_until = ? WHERE id = ?", [failedCount, lockedUntilValue, user.id])
+      } else {
+        await run('UPDATE users SET failed_login_count = ? WHERE id = ?', [failedCount, user.id])
+      }
+      saveDatabase()
+      return res.status(401).json({ error: 'Invalid username or password' })
+    }
 
     // Migrate legacy plaintext credentials transparently after a successful login.
-    if (!isPasswordHash(user.password)) {
-      user.password = await hashPassword(password)
-      await run('UPDATE users SET password = ? WHERE id = ?', [user.password, user.id])
-      saveDatabase()
-    }
+    const passwordHash = !isPasswordHash(user.password) ? await hashPassword(password) : user.password
+    await run('UPDATE users SET password = ?, failed_login_count = 0, locked_until = NULL, account_status = \'active\', last_login_at = CURRENT_TIMESTAMP, password_changed_at = COALESCE(password_changed_at, CURRENT_TIMESTAMP) WHERE id = ?', [passwordHash, user.id])
+    user.password = passwordHash
+    user.failed_login_count = 0
+    user.locked_until = null
+    user.account_status = 'active'
+    user.last_login_at = new Date().toISOString()
+    saveDatabase()
 
     // License enforcement: check school's license status
     if (user.role !== 'superadmin' && user.school_id) {

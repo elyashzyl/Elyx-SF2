@@ -16,7 +16,12 @@ model User {
   grade    String @default("") @db.Text
   section  String @default("") @db.Text
   period   String @default("") @db.Text
-  schoolId String @default("") @map("school_id") @db.Text
+  schoolId          String    @default("") @map("school_id") @db.Text
+  accountStatus     String    @default("active") @map("account_status") @db.VarChar(32)
+  lastLoginAt       DateTime? @map("last_login_at")
+  passwordChangedAt DateTime? @map("password_changed_at")
+  failedLoginCount  Int       @default(0) @map("failed_login_count")
+  lockedUntil       DateTime? @map("locked_until")
 
   @@map("users")
 }

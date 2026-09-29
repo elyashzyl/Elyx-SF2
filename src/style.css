@@ -595,6 +595,7 @@ svg { display: block; }
 .pill--amber,
 .badge-admin { border-color: color-mix(in srgb, var(--warning) 20%, transparent); background: var(--warning-bg); color: var(--warning); }
 .pill--blue { border-color: color-mix(in srgb, var(--info) 20%, transparent); background: var(--info-bg); color: var(--info); }
+.pill--red { border-color: color-mix(in srgb, var(--destructive) 20%, transparent); background: var(--red-bg); color: var(--destructive); }
 .pill--neutral { background: var(--secondary); color: var(--secondary-foreground); }
 .rate-pill { display: inline-flex; padding: 4px 8px; border-radius: var(--radius-full); font-size: .6rem; font-weight: 800; }
 .rate-pill--high, .rate-pill.rate-good { background: var(--success-bg); color: var(--success); }

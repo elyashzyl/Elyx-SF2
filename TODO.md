@@ -18,6 +18,10 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Remaining operator action: rotate the MySQL credential and any exposed application/deployment secrets in the provider and revoke the old values.
 - [x] **Add server-side sessions and authentication regression coverage**
   - Added `lib/sessions.js`, migration `012_auth_sessions.mjs`, `/api/auth/me`, logout revocation, server-side impersonation state, and `tests/server-authentication.test.mjs`.
+- [x] **Add account status, lockout, and login metadata**
+  - Added migration `015_user_account_lifecycle`, active/invited/disabled/locked status handling, five-failure temporary lockout, login/password timestamps, scoped status management, immediate session revocation, and `tests/user-account-lifecycle.test.mjs`.
+- [ ] **Finish account lifecycle operations**
+  - Add invitation tokens, email delivery, password reset, email verification, and a production-approved account migration before removing plaintext fallback.
 - [x] **Add API authorization regression coverage**
   - Added `tests/api-authorization.test.mjs` covering cross-school reads, cross-school mutations, teacher restrictions, superadmin-only license actions, role spoofing, and unauthenticated requests.
 
@@ -29,7 +33,7 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added migration `013_enrollment_event_order.mjs` and `014_operational_indexes.mjs`.
   - Same-date events now use an explicit per-student sequence instead of random UUID ordering.
 - [ ] **Complete shared request validation for all routes**
-  - Added `lib/validation.js` and applied the boundary pattern to critical authentication/enrollment paths; attendance, billing, school, and export payloads still need migration to the shared helpers.
+  - Added `lib/validation.js` and applied the boundary pattern to critical authentication/enrollment paths; attendance, billing, school, user-status, and export payloads still need migration to the shared helpers.
 
 ## 1. Prisma ORM Incremental Route Migration
 

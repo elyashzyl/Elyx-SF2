@@ -187,6 +187,16 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchJson(`${API}/users/${id}?${params}`, { method: 'DELETE' })
   }
 
+  async function updateUserStatus(id, status, lockedUntil = null) {
+    const data = await fetchJson(`${API}/users/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actorParams({ status, ...(lockedUntil ? { lockedUntil } : {}) }))
+    })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
   async function getSchools() {
     try {
       const params = new URLSearchParams(actorParams())
@@ -269,5 +279,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, updateUser, updateUserStatus, deleteUser, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

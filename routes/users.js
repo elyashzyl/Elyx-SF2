@@ -3,10 +3,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
 import { requireRole, resolveScopeSchool, canManageUser, assertValidClass, audit, getSchoolLicense, isLicenseActive, actingUser } from './_context.js'
 import { hashPassword } from '../lib/passwords.js'
+import { revokeAllUserSessions } from '../lib/sessions.js'
 
 const router = Router()
 
 const VALID_ROLES = ['superadmin', 'admin', 'teacher']
+const VALID_ACCOUNT_STATUSES = ['active', 'invited', 'disabled', 'locked']
 
 // List users. Superadmin may filter by ?schoolId; others see own school only.
 // Teachers are never allowed to list users.
@@ -17,8 +19,8 @@ router.get('/', async (req, res) => {
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
     const users = scope.schoolId
-      ? await query('SELECT id, username, name, role, grade, section, period, school_id FROM users WHERE school_id = ? ORDER BY name', [scope.schoolId])
-      : await query('SELECT id, username, name, role, grade, section, period, school_id FROM users ORDER BY name')
+      ? await query('SELECT id, username, name, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users WHERE school_id = ? ORDER BY name', [scope.schoolId])
+      : await query('SELECT id, username, name, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users ORDER BY name')
     res.json(users)
   } catch (err) {
     console.error('Error listing users:', err.message)
@@ -71,7 +73,7 @@ router.post('/', async (req, res) => {
 
     const id = uuidv4()
     const passwordHash = await hashPassword(String(password))
-    await run('INSERT INTO users (id, username, password, name, role, grade, section, period, school_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    await run('INSERT INTO users (id, username, password, name, role, grade, section, period, school_id, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
       [id, username, passwordHash, name, role, grade || '', section || '', period || '', targetSchoolId || ''])
     await audit(me, 'user.create', { type: 'user', id, name: `${name} (${username})`, schoolId: targetSchoolId || '' }, `Created ${role} "${username}"`)
     res.json({ id, username, name, role })
@@ -125,7 +127,7 @@ router.put('/:id', async (req, res) => {
       const params = [newUsername, newName]
 
       if (password && String(password).trim()) {
-        sets.push('password=?')
+        sets.push('password=?', 'password_changed_at=CURRENT_TIMESTAMP')
         params.push(await hashPassword(String(password).trim()))
       }
 
@@ -206,7 +208,7 @@ router.put('/:id', async (req, res) => {
     const sets = ['username=?', 'name=?', 'role=?', 'grade=?', 'section=?', 'period=?', 'school_id=?']
     const params = [vals.username, vals.name, newRole, vals.grade, vals.section, vals.period, newRole === 'superadmin' ? '' : (newSchoolId || '')]
     if (password && String(password).trim()) {
-      sets.push('password=?')
+      sets.push('password=?', 'password_changed_at=CURRENT_TIMESTAMP')
       params.push(await hashPassword(String(password).trim()))
     }
     params.push(id)
@@ -228,6 +230,44 @@ router.put('/:id', async (req, res) => {
   } catch (err) {
     console.error('Error updating user:', err.message)
     res.status(500).json({ error: 'Failed to update user' })
+  }
+})
+
+// Administrators can change lifecycle status only for accounts in their scope.
+// Status changes revoke existing sessions so disabled or locked accounts lose
+// access immediately rather than waiting for their cookie to expire.
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    if (error) return
+    const id = String(req.params.id || '').trim()
+    const target = (await query('SELECT * FROM users WHERE id = ?', [id]))[0]
+    if (!target) return res.status(404).json({ error: 'User not found' })
+    if (target.id === me.id) return res.status(400).json({ error: 'Cannot change your own account status' })
+    if (!canManageUser(me, target.role, target.school_id)) return res.status(403).json({ error: 'Forbidden' })
+
+    const status = String(req.body?.status || '').trim().toLowerCase()
+    if (!VALID_ACCOUNT_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${VALID_ACCOUNT_STATUSES.join(', ')}` })
+    }
+
+    const lockedUntil = status === 'locked' && req.body?.lockedUntil
+      ? String(req.body.lockedUntil).trim()
+      : null
+    await run(
+      'UPDATE users SET account_status = ?, locked_until = ?, failed_login_count = ? WHERE id = ?',
+      [status, lockedUntil, status === 'active' ? 0 : Number(target.failed_login_count) || 0, id]
+    )
+    if (status !== 'active') await revokeAllUserSessions(id)
+    await audit(me, 'user.status_update', {
+      type: 'user', id, name: `${target.name} (${target.username})`, schoolId: target.school_id || ''
+    }, `Changed account status from ${target.account_status || 'active'} to ${status}`)
+
+    const updated = (await query('SELECT id, username, name, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users WHERE id = ?', [id]))[0]
+    res.json({ success: true, user: updated })
+  } catch (err) {
+    console.error('Error changing user status:', err.message)
+    res.status(500).json({ error: 'Failed to change user status' })
   }
 })
 
