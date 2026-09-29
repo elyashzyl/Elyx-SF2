@@ -47,6 +47,13 @@ npm run db:migrate
 # Check migration status
 npm run db:migrate:status
 
+# Read-only MySQL schema verification; never changes data
+npm run db:verify-schema
+
+# Deployed health and school-isolation smoke check
+# Health and reads are non-destructive; optional login creates a normal session
+PHASE1_BASE_URL=https://your-domain.example npm run db:verify-phase1
+
 # Drop all tables and rerun migrations from scratch
 npm run db:migrate:fresh
 
@@ -72,7 +79,7 @@ npm run passwords:audit
 npm run passwords:migrate -- --confirm
 ```
 
-The seed file must provide its own school and administrator credentials. It may also provide plans, licenses, grade levels, payment methods, teachers, and students. Migrations create schema only; they never insert operational records. Migration `011_student_enrollment_history` backfills one baseline enrollment event for existing students because historical enrollment dates cannot be recovered when they were never recorded.
+The Phase 1 smoke check never changes data. Set `PHASE1_SMOKE_USERNAME` and `PHASE1_SMOKE_PASSWORD` only when you want it to log in with an existing account; for an administrator it verifies that the returned user list belongs only to that administrator's school. The seed file must provide its own school and administrator credentials. It may also provide plans, licenses, grade levels, payment methods, teachers, and students. Migrations create schema only; they never insert operational records. Migration `011_student_enrollment_history` backfills one baseline enrollment event for existing students because historical enrollment dates cannot be recovered when they were never recorded.
 
 ### Legacy password audit and migration
 
@@ -83,6 +90,10 @@ Legacy plaintext login is disabled by default and is always disabled when `NODE_
 ### Backup and restore safety
 
 `npm run db:backup` creates a timestamped SQLite snapshot or MySQL dump and removes backups older than `BACKUP_RETAIN` days. Restore is intentionally a separate, explicit operation and requires `--force`; it never runs during deployment. Before replacing an SQLite database, the restore script creates a `.pre-restore-<timestamp>` safety copy of the active file. Always verify the backup, target environment, and recent backup before restoring production data. Never use `npm run db:migrate:fresh` against the production database: normal startup migration is additive and preserves existing schools, users, students, attendance, licenses, and payment records.
+
+### Phase 1 deployment verification
+
+See [`docs/phase1-verification.md`](docs/phase1-verification.md) for the backup, schema, health, school-isolation, and isolated Prisma test procedure. The repository includes read-only commands for schema and deployment checks; provider credentials and production access must be supplied by the deployment operator.
 
 ### Secret rotation
 

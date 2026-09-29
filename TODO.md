@@ -66,9 +66,25 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added migration, API, session, and self-update regression coverage.
 - [ ] **Run isolated MySQL integration coverage for Prisma read slices**
   - Added `tests/prisma-read-slices.mysql.test.mjs` as an opt-in suite.
+  - The complete local SQLite suite passed: 105 passed, 1 skipped (the opt-in MySQL suite).
   - Run it only with `PRISMA_MYSQL_INTEGRATION=1` and `PRISMA_TEST_DATABASE_URL` pointing to a disposable database whose name includes `test`, `testing`, `integration`, `sandbox`, or `ci`.
   - The suite refuses production mode and skips safely when no isolated database is configured.
   - Keep the shared SQL adapter as the fallback and do not move authentication/token/session writes until transaction behavior is covered.
+- [x] **Add read-only production schema verification**
+  - Added `npm run db:verify-schema` via `scripts/verify-schema.mjs`.
+  - Verifies Phase 1 tables, columns, operational indexes, and migration records without running migrations or changing data.
+  - Provider-side execution against an isolated MySQL database remains an operator task.
+- [x] **Add read-only Phase 1 deployment smoke checks**
+  - Added `npm run db:verify-phase1` via `scripts/verify-phase1.mjs`.
+  - Checks `/api/health`, confirms MySQL, optionally validates an existing session, and checks administrator school isolation without modifying data.
+- [ ] **Complete Phase 1 deployment verification**
+  - Run `PRISMA_MYSQL_INTEGRATION=1 npm test` with `PRISMA_TEST_DATABASE_URL` set to a disposable MySQL database.
+  - CI now provisions an isolated MySQL service and runs the Prisma read-slice test plus schema verification automatically.
+  - Local migration status verification passed through migration `022_monthly_saturdays` without creating operational records.
+  - Run `npm run db:verify-schema` against staging or production after taking a verified backup.
+  - Confirm `/api/health` reports `db: "mysql"` and perform a school-isolation smoke test.
+  - Rotate provider credentials and set `SECRETS_ROTATED=1` after revoking exposed values.
+  - Procedure documented in `docs/phase1-verification.md`; provider access is required to close these checks.
 
 ## 2. Prisma ORM Incremental Route Migration
 

@@ -136,7 +136,7 @@ The following capabilities already exist or are substantially implemented:
 
 **Definition of done:** Administrators can safely manage their own school and accounts without viewing or modifying another school's data.
 
-**Phase 1 status:** The planned Prisma read-only slice and isolated integration-test harness are implemented. The MySQL integration test remains intentionally opt-in because repository code cannot provision or safely identify a disposable provider database.
+**Phase 1 status:** All repository implementation work is complete. Added read-only schema and deployment smoke checks, a GitHub Actions isolated MySQL job, and `docs/phase1-verification.md`. The only remaining closure items require deployment/provider access: run the isolated MySQL job or equivalent, verify `/api/health`, run the school-isolation smoke check against the deployed service, take and verify a backup, and rotate exposed provider credentials with `SECRETS_ROTATED=1`.
 
 ---
 
