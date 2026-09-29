@@ -48,6 +48,10 @@ export async function actingUser(req, res = req.res || null) {
   const rows = await query('SELECT id, username, name, role, grade, section, period, school_id FROM users WHERE id = ?', [userId])
   if (!rows.length) return null
   const u = rows[0]
+  if (u.role !== 'superadmin' && u.school_id) {
+    const school = await getSchoolById(u.school_id)
+    if (school?.archived_at) return null
+  }
   if (userRole && userRole !== u.role) {
     req.user = { ...u, roleMismatch: true }
     return req.user
@@ -169,7 +173,17 @@ export function schoolToResponse(row) {
     school_id: row.school_id,
     address: row.address,
     short: row.short,
-    attendance_lock_cutoff: row.attendance_lock_cutoff || ''
+    attendance_lock_cutoff: row.attendance_lock_cutoff || '',
+    contact_email: row.contact_email || '',
+    contact_phone: row.contact_phone || '',
+    division: row.division || '',
+    district: row.district || '',
+    principal_name: row.principal_name || '',
+    school_year: row.school_year || '',
+    grading_period: row.grading_period || '',
+    archived_at: row.archived_at || null,
+    archived_by: row.archived_by || '',
+    archive_reason: row.archive_reason || ''
   }
 }
 

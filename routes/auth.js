@@ -29,7 +29,7 @@ async function publicUser(row) {
 // Public endpoint to list schools for registration
 router.get('/schools', async (req, res) => {
   try {
-    const schools = await query('SELECT id, name, school_id, address, short FROM schools ORDER BY name ASC')
+    const schools = await query('SELECT id, name, school_id, address, short FROM schools WHERE archived_at IS NULL ORDER BY name ASC')
     res.json(schools.map(schoolToResponse))
   } catch (err) {
     console.error('Failed to fetch public schools:', err.message)
@@ -218,6 +218,12 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' })
     }
     const user = users[0]
+    if (user.role !== 'superadmin' && user.school_id) {
+      const school = await getSchoolById(user.school_id)
+      if (school?.archived_at) {
+        return res.status(403).json({ error: 'This school is archived. Contact the system administrator.' })
+      }
+    }
     const accountStatus = user.account_status || 'active'
     const lockedUntil = parseDatabaseDate(user.locked_until)
 
@@ -288,6 +294,13 @@ router.get('/me', async (req, res) => {
     if (!user) {
       clearSessionCookie(res)
       return res.status(401).json({ error: 'Not authenticated' })
+    }
+    if (user.role !== 'superadmin' && user.school_id) {
+      const school = await getSchoolById(user.school_id)
+      if (school?.archived_at) {
+        await revokeSession(req, res)
+        return res.status(403).json({ error: 'This school is archived. Contact the system administrator.' })
+      }
     }
     res.json({ user: await publicUser(user), expiresAt: session.expiresAt.toISOString() })
   } catch (err) {

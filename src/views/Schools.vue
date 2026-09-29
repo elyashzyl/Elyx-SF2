@@ -64,6 +64,10 @@
           </button>
         </div>
         <div class="table-toolbar-right">
+          <label v-if="auth.isSuperadmin" class="archive-toggle">
+            <input v-model="includeArchived" type="checkbox" @change="loadSchools" />
+            <span>Show archived</span>
+          </label>
           <span class="tbl-search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -80,11 +84,23 @@
                 {{ (s?.short || s?.name || 'S').charAt(0).toUpperCase() }}
               </div>
               <div class="school-card-actions">
-                <button @click="editSchool(s)" class="table-action-btn" title="Edit">
+                <button v-if="!s?.archived_at" @click="editSchool(s)" class="table-action-btn" title="Edit">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
                   </svg>
                   Edit
+                </button>
+                <button v-if="auth.isSuperadmin && !s?.archived_at" @click="openArchive(s)" class="table-action-btn" title="Archive">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
+                  </svg>
+                  Archive
+                </button>
+                <button v-if="auth.isSuperadmin && s?.archived_at" @click="restore(s)" class="table-action-btn" title="Restore">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/>
+                  </svg>
+                  Restore
                 </button>
                 <button @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -95,6 +111,7 @@
             </div>
             <div class="school-card-body">
               <h3 class="school-card-name">{{ s?.name || 'School' }}</h3>
+              <span v-if="s?.archived_at" class="badge badge-warning">Archived</span>
               <div class="school-card-details">
                 <div v-if="s?.school_id" class="school-card-detail">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -228,6 +245,40 @@
         </form>
       </div>
     </div>
+
+    <!-- Archive confirmation and dependency preview -->
+    <div v-if="showArchiveModal" class="modal-overlay" @click.self="closeArchive">
+      <div class="form-card schools-modal">
+        <div class="schools-modal-header">
+          <div>
+            <h2>{{ archiveAction === 'delete' ? 'Delete' : 'Archive' }} {{ archiveSchoolData?.name || 'School' }}</h2>
+            <p v-if="archiveAction === 'delete'">This permanently deletes the school and all of its users, students, attendance, inquiries, licenses, and subscription requests. This cannot be undone.</p>
+            <p v-else>Archiving preserves historical records and disables the school's accounts. It can be restored later.</p>
+          </div>
+          <button @click="closeArchive" class="btn-icon" title="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="schools-modal-body">
+          <div v-if="dependencyPreview" class="form-hint">
+            This school has {{ dependencyPreview.total }} related record(s):
+            {{ Object.entries(dependencyPreview.counts).map(([key, value]) => `${key}: ${value}`).join(', ') }}.
+          </div>
+          <div v-else class="form-hint">Loading dependent record counts...</div>
+          <div class="form-group">
+            <template v-if="archiveAction === 'archive'">
+              <label>Archive reason <span class="optional">(optional)</span></label>
+              <textarea v-model="archiveReason" maxlength="1000" rows="3" placeholder="Reason for archiving"></textarea>
+            </template>
+          </div>
+          <p v-if="archiveError" class="error-msg">{{ archiveError }}</p>
+          <div class="form-actions">
+            <button type="button" @click="closeArchive" class="btn-secondary">Cancel</button>
+            <button type="button" @click="confirmArchive" class="btn-primary" :class="{ 'btn-danger': archiveAction === 'delete' }" :disabled="archiving || !dependencyPreview">{{ archiving ? (archiveAction === 'delete' ? 'Deleting...' : 'Archiving...') : (archiveAction === 'delete' ? 'Delete Permanently' : 'Archive School') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -241,6 +292,7 @@ const auth = useAuthStore()
 const { notify } = useNotifications()
 const savedState = loadPageState(auth.user, 'schools')
 const schools = ref([])
+const includeArchived = ref(false)
 const searchQuery = ref(savedState?.search || '')
 const showForm = ref(false)
 const editingSchool = ref(null)
@@ -248,6 +300,13 @@ const saving = ref(false)
 const formError = ref('')
 const pageSize = ref(Number.isFinite(Number(savedState?.pageSize)) && Number(savedState.pageSize) > 0 ? Number(savedState.pageSize) : 6)
 const form = ref({ name: '', school_id: '', short: '', address: '', adminName: '', adminUsername: '', adminPassword: '' })
+const showArchiveModal = ref(false)
+const archiveSchoolData = ref(null)
+const archiveAction = ref('archive')
+const dependencyPreview = ref(null)
+const archiveReason = ref('')
+const archiveError = ref('')
+const archiving = ref(false)
 
 onMounted(loadSchools)
 
@@ -321,7 +380,7 @@ const schoolsWithAddress = computed(() => (Array.isArray(schools.value) ? school
 
 async function loadSchools() {
   try {
-    const list = await auth.getSchools()
+    const list = await auth.getSchools(includeArchived.value)
     schools.value = Array.isArray(list) ? list.filter(Boolean) : []
   } catch (err) {
     console.error('Failed to load schools:', err)
@@ -384,21 +443,77 @@ async function handleSave() {
 }
 
 function editSchool(s) {
+  if (s?.archived_at) return
   editingSchool.value = s
   form.value = { name: s.name, school_id: s.school_id || '', short: s.short || '', address: s.address || '', adminName: '', adminUsername: '', adminPassword: '' }
   formError.value = ''
   showForm.value = true
 }
 
-async function removeSchool(id) {
-  if (!confirm('Delete this school and all of its users, students, attendance, inquiries, licenses, and subscription requests? This cannot be undone.')) return
+function openArchive(s) {
+  archiveSchoolData.value = s
+  archiveAction.value = 'archive'
+  dependencyPreview.value = null
+  archiveReason.value = ''
+  archiveError.value = ''
+  showArchiveModal.value = true
+  auth.getSchoolDependencyPreview(s.id).then(data => { dependencyPreview.value = data }).catch(error => { archiveError.value = error.message })
+}
+
+function closeArchive() {
+  showArchiveModal.value = false
+  archiveSchoolData.value = null
+  archiveAction.value = 'archive'
+  dependencyPreview.value = null
+  archiveReason.value = ''
+  archiveError.value = ''
+}
+
+async function confirmArchive() {
+  if (!archiveSchoolData.value) return
+  archiving.value = true
+  archiveError.value = ''
   try {
-    await auth.deleteSchool(id)
+    if (archiveAction.value === 'delete') {
+      await auth.deleteSchool(archiveSchoolData.value.id)
+      closeArchive()
+      await loadSchools()
+      notify('School deleted', 'success')
+    } else {
+      await auth.archiveSchool(archiveSchoolData.value.id, archiveReason.value)
+      closeArchive()
+      await loadSchools()
+      notify('School archived', 'success')
+    }
+  } catch (e) {
+    archiveError.value = e.message
+    notify(e.message, 'error')
+  } finally {
+    archiving.value = false
+  }
+}
+
+async function restore(s) {
+  if (!confirm(`Restore ${s?.name || 'this school'}? Accounts that were disabled before archiving will remain disabled.`)) return
+  try {
+    await auth.restoreSchool(s.id)
     await loadSchools()
-    notify('School deleted', 'success')
+    notify('School restored', 'success')
   } catch (e) {
     notify(e.message, 'error')
   }
+}
+
+function removeSchool(id) {
+  const school = schools.value.find(item => item?.id === id)
+  if (!school) return
+  archiveSchoolData.value = school
+  archiveAction.value = 'delete'
+  dependencyPreview.value = null
+  archiveReason.value = ''
+  archiveError.value = ''
+  showArchiveModal.value = true
+  auth.getSchoolDependencyPreview(id).then(data => { dependencyPreview.value = data }).catch(error => { archiveError.value = error.message })
 }
 </script>
 

@@ -255,6 +255,40 @@
             </div>
             <div class="form-row">
               <div class="form-group">
+                <label>Contact Email</label>
+                <input v-model="form.contact_email" :disabled="!canEditSchool" type="email" placeholder="school@example.com" />
+              </div>
+              <div class="form-group">
+                <label>Contact Phone</label>
+                <input v-model="form.contact_phone" :disabled="!canEditSchool" placeholder="School contact number" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Division</label>
+                <input v-model="form.division" :disabled="!canEditSchool" placeholder="Division" />
+              </div>
+              <div class="form-group">
+                <label>District</label>
+                <input v-model="form.district" :disabled="!canEditSchool" placeholder="District" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Principal</label>
+                <input v-model="form.principal_name" :disabled="!canEditSchool" placeholder="Principal name" />
+              </div>
+              <div class="form-group">
+                <label>School Year</label>
+                <input v-model="form.school_year" :disabled="!canEditSchool" placeholder="e.g. 2026-2027" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Current Grading Period</label>
+                <input v-model="form.grading_period" :disabled="!canEditSchool" placeholder="e.g. First Grading" />
+              </div>
+              <div class="form-group">
                 <label>Attendance Lock Cutoff <span class="label-hint">Optional; records on or before this date are locked</span></label>
                 <input v-model="form.attendance_lock_cutoff" :disabled="!canEditSchool" type="date" />
               </div>
@@ -315,6 +349,13 @@ const form = reactive({
   school_id: '',
   school_short: '',
   school_address: '',
+  contact_email: '',
+  contact_phone: '',
+  division: '',
+  district: '',
+  principal_name: '',
+  school_year: '',
+  grading_period: '',
   attendance_lock_cutoff: ''
 })
 const profile = reactive({ name: '', username: '', email: '', password: '' })
@@ -358,6 +399,13 @@ async function onSchoolChange() {
     form.school_id = ''
     form.school_short = ''
     form.school_address = ''
+    form.contact_email = ''
+    form.contact_phone = ''
+    form.division = ''
+    form.district = ''
+    form.principal_name = ''
+    form.school_year = ''
+    form.grading_period = ''
     form.attendance_lock_cutoff = ''
     clearActiveSchool()
     notify('No school selected', 'info')
@@ -384,6 +432,13 @@ async function loadSchool() {
     form.school_id = ''
     form.school_short = ''
     form.school_address = ''
+    form.contact_email = ''
+    form.contact_phone = ''
+    form.division = ''
+    form.district = ''
+    form.principal_name = ''
+    form.school_year = ''
+    form.grading_period = ''
     form.attendance_lock_cutoff = ''
     return
   }
@@ -394,6 +449,13 @@ async function loadSchool() {
     form.school_id = data?.school_id || fallback?.school_id || ''
     form.school_short = data?.school_short || fallback?.short || fallback?.school_short || ''
     form.school_address = data?.school_address || fallback?.address || fallback?.school_address || ''
+    form.contact_email = data?.contact_email || fallback?.contact_email || ''
+    form.contact_phone = data?.contact_phone || fallback?.contact_phone || ''
+    form.division = data?.division || fallback?.division || ''
+    form.district = data?.district || fallback?.district || ''
+    form.principal_name = data?.principal_name || fallback?.principal_name || ''
+    form.school_year = data?.school_year || fallback?.school_year || ''
+    form.grading_period = data?.grading_period || fallback?.grading_period || ''
     form.attendance_lock_cutoff = data?.attendance_lock_cutoff || fallback?.attendance_lock_cutoff || ''
   }
 }

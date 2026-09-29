@@ -105,17 +105,24 @@ The following capabilities already exist or are substantially implemented:
 - [x] Add account email and one-time token storage.
   - Migration `016_account_tokens_and_email` adds email fields and the `account_tokens` table without inserting operational records.
 - [ ] Add profile photo or avatar support if needed, stored through a configurable file/object storage provider.
-- [ ] Add school profile settings:
+- [x] Add school profile settings:
   - School name and short name.
   - Address and contact information.
   - Division, district, school ID, and principal information.
   - School year and current grading period.
-- [ ] Add school archive functionality before permanent deletion.
-- [ ] Add a confirmation and dependency preview before deleting a school.
+  - Added migration `017_school_profile_fields` with non-destructive MySQL/SQLite columns, scoped API support, validation, audit logging, and Settings UI fields.
+- [x] Add school archive functionality before permanent deletion.
+  - Added migration `018_school_archive` for reversible archive metadata and migration `019_school_archive_account_status` to preserve each affected account's prior status.
+  - Superadmins can archive and restore schools; archived schools are excluded from normal lists, blocked at login/session validation, and historical records remain intact.
+- [x] Add a confirmation and dependency preview before deleting a school.
+  - School management now shows scoped dependency counts before archive or permanent deletion and refreshes the list immediately after actions.
+  - Permanent deletion remains explicit and separate from reversible archive.
 - [ ] Add export of a school's data before archive or deletion.
 - [ ] Complete incremental Prisma route migration where it improves maintainability and transaction safety.
 
 **Definition of done:** Administrators can safely manage their own school and accounts without viewing or modifying another school's data.
+
+**Next recommended Phase 1 step:** Add a database-backed school data export/download before permanent deletion.
 
 ---
 

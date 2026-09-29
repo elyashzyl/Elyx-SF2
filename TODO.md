@@ -43,7 +43,19 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added global validation for parsed query, body, and request input structures, including depth, field-count, scalar-length, control-character, and prototype-pollution checks.
   - Added strict JSON parsing, configurable `API_BODY_LIMIT` (10 MB default), and explicit 400/413 parser errors. Existing route handlers retain domain-specific validation.
 
-## 1. Prisma ORM Incremental Route Migration
+## 1. Phase 1 School Administration Follow-ups
+
+- [x] Add database-backed school profile fields for contact, governance, school year, and grading period.
+  - Migration `017_school_profile_fields` is append-only and supports MySQL and SQLite.
+  - School-scoped settings and school APIs expose the fields with validation and audit logging.
+  - Settings UI allows authorized administrators and superadmins to view or edit them.
+- [x] Add school archive functionality before permanent deletion.
+  - Added reversible archive/restore controls, archived-school access blocking, and account-status restoration metadata in migrations `018_school_archive` and `019_school_archive_account_status`.
+- [x] Add dependency preview before archive or permanent deletion.
+  - Superadmin-only scoped dependency counts are displayed in the school management confirmation modal.
+- [ ] Add school data export before permanent deletion.
+
+## 2. Prisma ORM Incremental Route Migration
 
 Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are established and synchronized with the MySQL schema. Currently, Express route handlers in `routes/` still use raw SQL queries via `query()` and `run()` in `db.js`.
 

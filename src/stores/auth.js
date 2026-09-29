@@ -267,9 +267,9 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  async function getSchools() {
+  async function getSchools(includeArchived = false) {
     try {
-      const params = new URLSearchParams(actorParams())
+      const params = new URLSearchParams(actorParams(includeArchived ? { includeArchived: 'true' } : {}))
       const data = await fetchJson(`${API}/schools?${params}`)
       return Array.isArray(data) ? data.filter(Boolean) : []
     } catch {
@@ -300,6 +300,33 @@ export const useAuthStore = defineStore('auth', () => {
   async function deleteSchool(id) {
     const params = new URLSearchParams(actorParams())
     const data = await fetchJson(`${API}/schools/${id}?${params}`, { method: 'DELETE' })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  async function getSchoolDependencyPreview(id) {
+    const params = new URLSearchParams(actorParams())
+    const data = await fetchJson(`${API}/schools/${id}/dependency-preview?${params}`)
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  async function archiveSchool(id, reason = '') {
+    const data = await fetchJson(`${API}/schools/${id}/archive`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actorParams({ archived: true, reason }))
+    })
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  async function restoreSchool(id) {
+    const data = await fetchJson(`${API}/schools/${id}/archive`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actorParams({ archived: false }))
+    })
     if (data?.error) throw new Error(data.error)
     return data
   }
@@ -349,5 +376,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

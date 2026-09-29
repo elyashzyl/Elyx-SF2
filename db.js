@@ -214,7 +214,23 @@ const MYSQL_DDL = [
     school_id TEXT NOT NULL DEFAULT (''),
     address TEXT NOT NULL DEFAULT (''),
     short TEXT NOT NULL DEFAULT ('') ,
-    attendance_lock_cutoff VARCHAR(10) NOT NULL DEFAULT ('')
+    attendance_lock_cutoff VARCHAR(10) NOT NULL DEFAULT (''),
+    contact_email VARCHAR(255) NOT NULL DEFAULT (''),
+    contact_phone VARCHAR(64) NOT NULL DEFAULT (''),
+    division VARCHAR(255) NOT NULL DEFAULT (''),
+    district VARCHAR(255) NOT NULL DEFAULT (''),
+    principal_name VARCHAR(255) NOT NULL DEFAULT (''),
+    school_year VARCHAR(32) NOT NULL DEFAULT (''),
+    grading_period VARCHAR(64) NOT NULL DEFAULT (''),
+    archived_at DATETIME NULL,
+    archived_by VARCHAR(96) NOT NULL DEFAULT (''),
+    archive_reason VARCHAR(1000) NOT NULL DEFAULT ('')
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS school_archive_user_status (
+    user_id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL,
+    prior_status VARCHAR(32) NOT NULL,
+    archived_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS grade_levels (
     id VARCHAR(96) PRIMARY KEY,
@@ -668,7 +684,23 @@ async function initSqlite() {
       school_id TEXT DEFAULT '',
       address TEXT DEFAULT '',
       short TEXT DEFAULT '',
-      attendance_lock_cutoff TEXT DEFAULT ''
+      attendance_lock_cutoff TEXT DEFAULT '',
+      contact_email TEXT DEFAULT '',
+      contact_phone TEXT DEFAULT '',
+      division TEXT DEFAULT '',
+      district TEXT DEFAULT '',
+      principal_name TEXT DEFAULT '',
+      school_year TEXT DEFAULT '',
+      grading_period TEXT DEFAULT '',
+      archived_at TEXT,
+      archived_by TEXT DEFAULT '',
+      archive_reason TEXT DEFAULT ''
+    )`,
+    `CREATE TABLE IF NOT EXISTS school_archive_user_status (
+      user_id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      prior_status TEXT NOT NULL,
+      archived_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS grade_levels (
       id TEXT PRIMARY KEY,
@@ -1115,7 +1147,17 @@ function schoolRowToSettings(row) {
     school_id: row?.school_id || '',
     school_address: row?.address || '',
     school_short: row?.short || '',
-    attendance_lock_cutoff: row?.attendance_lock_cutoff || ''
+    attendance_lock_cutoff: row?.attendance_lock_cutoff || '',
+    contact_email: row?.contact_email || '',
+    contact_phone: row?.contact_phone || '',
+    division: row?.division || '',
+    district: row?.district || '',
+    principal_name: row?.principal_name || '',
+    school_year: row?.school_year || '',
+    grading_period: row?.grading_period || '',
+    archived_at: row?.archived_at || null,
+    archived_by: row?.archived_by || '',
+    archive_reason: row?.archive_reason || ''
   }
 }
 
@@ -1128,7 +1170,14 @@ const DEFAULT_SETTINGS = {
   school_name: '',
   school_id: '',
   school_address: '',
-  school_short: ''
+  school_short: '',
+  contact_email: '',
+  contact_phone: '',
+  division: '',
+  district: '',
+  principal_name: '',
+  school_year: '',
+  grading_period: ''
 }
 
 export function getDb() {
@@ -1173,13 +1222,20 @@ export async function logAudit({ actor_id = '', actor_name = '', actor_role = ''
   }
 }
 
-export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff }) {
+export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff, contact_email, contact_phone, division, district, principal_name, school_year, grading_period }) {
   const sets = []
   const params = []
   if (school_name !== undefined) { sets.push('name = ?'); params.push(String(school_name)) }
   if (school_id !== undefined) { sets.push('school_id = ?'); params.push(String(school_id)) }
   if (school_address !== undefined) { sets.push('address = ?'); params.push(String(school_address)) }
   if (school_short !== undefined) { sets.push('short = ?'); params.push(String(school_short)) }
+  if (contact_email !== undefined) { sets.push('contact_email = ?'); params.push(String(contact_email).trim()) }
+  if (contact_phone !== undefined) { sets.push('contact_phone = ?'); params.push(String(contact_phone).trim()) }
+  if (division !== undefined) { sets.push('division = ?'); params.push(String(division).trim()) }
+  if (district !== undefined) { sets.push('district = ?'); params.push(String(district).trim()) }
+  if (principal_name !== undefined) { sets.push('principal_name = ?'); params.push(String(principal_name).trim()) }
+  if (school_year !== undefined) { sets.push('school_year = ?'); params.push(String(school_year).trim()) }
+  if (grading_period !== undefined) { sets.push('grading_period = ?'); params.push(String(grading_period).trim()) }
   if (attendance_lock_cutoff !== undefined) {
     const cutoff = String(attendance_lock_cutoff || '').trim()
     if (cutoff && !/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) throw new Error('Attendance lock cutoff must be a valid date')

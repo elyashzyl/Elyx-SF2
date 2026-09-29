@@ -66,8 +66,28 @@ model School {
   address              String @default("") @db.Text
   short                String @default("") @db.Text
   attendanceLockCutoff String @default("") @map("attendance_lock_cutoff") @db.VarChar(10)
+  contactEmail         String @default("") @map("contact_email") @db.VarChar(255)
+  contactPhone         String @default("") @map("contact_phone") @db.VarChar(64)
+  division             String @default("") @db.VarChar(255)
+  district             String @default("") @db.VarChar(255)
+  principalName        String @default("") @map("principal_name") @db.VarChar(255)
+  schoolYear           String @default("") @map("school_year") @db.VarChar(32)
+  gradingPeriod        String @default("") @map("grading_period") @db.VarChar(64)
+  archivedAt           DateTime? @map("archived_at")
+  archivedBy           String @default("") @map("archived_by") @db.VarChar(96)
+  archiveReason        String @default("") @map("archive_reason") @db.VarChar(1000)
 
   @@map("schools")
+}
+
+model SchoolArchiveUserStatus {
+  userId      String   @id @map("user_id") @db.VarChar(96)
+  schoolId    String   @map("school_id") @db.VarChar(96)
+  priorStatus String   @map("prior_status") @db.VarChar(32)
+  archivedAt  DateTime @default(now()) @map("archived_at")
+
+  @@index([schoolId])
+  @@map("school_archive_user_status")
 }
 
 model GradeLevel {
