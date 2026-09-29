@@ -29,10 +29,9 @@ FROM node:22-alpine AS app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=5173
-# Use the persistent SQLite database in production when no MySQL is wired up
-# (single-container deployments). Data is stored on the mounted volume at /data.
-ENV ALLOW_PERSISTED_SQLITE=1
-# Points the SQLite file at a mountable volume so data persists across redeploys.
+# Production uses MySQL only. SQLite fallback is disabled by default.
+# DB_PATH remains available for explicitly configured local/test deployments.
+ENV ALLOW_PERSISTED_SQLITE=0
 ENV DB_PATH=/data/attendance.db
 
 WORKDIR /app
