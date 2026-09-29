@@ -12,7 +12,7 @@ Tracking pending engineering tasks, production deployment optimizations, and mig
   - Added `npm run passwords:audit` and the explicit, transactional `npm run passwords:migrate -- --confirm` workflow; output contains aggregate counts only and leaves empty/invalid values for password reset.
   - Production never uses plaintext fallback. Local/test compatibility requires `ALLOW_LEGACY_PASSWORD_LOGIN=1` and is immediately rehashed after successful login.
 - [ ] **Rotate exposed database credentials and application keys**
-  - Added `npm run secrets:verify`; production startup now fails closed until valid database settings are present and `SECRETS_ROTATED=1` is explicitly set.
+  - Added `npm run secrets:verify`; it fails until valid database settings are present and `SECRETS_ROTATED=1` is explicitly set. The application logs a warning rather than crashing when the acknowledgement is missing.
   - Remaining operator action: rotate the MySQL credential and any exposed application/deployment secrets in the provider, revoke the old values, then set `SECRETS_ROTATED=1`.
   - This cannot be completed from repository code because provider secrets are external to the project.
 - [x] **Add server-side sessions and authentication regression coverage**

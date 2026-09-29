@@ -67,7 +67,7 @@ VOLUME ["/data"]
 EXPOSE 5173
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:${PORT:-5173}/api/health || exit 1
+  CMD wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

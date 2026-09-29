@@ -86,7 +86,7 @@ Legacy plaintext login is disabled by default and is always disabled when `NODE_
 
 ### Secret rotation
 
-Treat any database password, application key, or deployment token shared outside the secret manager as compromised. Generate replacement values with `npm run secrets:generate`, rotate the MySQL credential at the provider, update deployment secrets, run `npm run secrets:verify`, set `SECRETS_ROTATED=1`, redeploy, verify `/api/health`, and revoke the old credential. Production startup intentionally fails closed until this rotation acknowledgement is present. See [`docs/secret-rotation.md`](docs/secret-rotation.md) for the complete procedure.
+Treat any database password, application key, or deployment token shared outside the secret manager as compromised. Generate replacement values with `npm run secrets:generate`, rotate the MySQL credential at the provider, update deployment secrets, run `npm run secrets:verify`, set `SECRETS_ROTATED=1`, redeploy, verify `/api/health`, and revoke the old credential. The application logs a warning when the rotation acknowledgement is missing, while `npm run secrets:verify` remains the deployment validation gate. See [`docs/secret-rotation.md`](docs/secret-rotation.md) for the complete procedure.
 
 ### Environment Variables
 

@@ -46,7 +46,7 @@ After the provider password, application key, and any deployment tokens have bee
 SECRETS_ROTATED=1
 ```
 
-The server intentionally refuses to start in production without this acknowledgement or with SQLite configured. Production must use MySQL. The acknowledgement is not a secret; it is an operator-controlled rotation gate.
+Production must use MySQL. The application logs a warning if this acknowledgement is missing, while `npm run secrets:verify` fails until the rotation is confirmed. The acknowledgement is not a secret; it is an operator-controlled deployment check.
 
 ## 5. Deploy and verify
 

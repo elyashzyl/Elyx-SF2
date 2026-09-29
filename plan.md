@@ -62,7 +62,7 @@ The following capabilities already exist or are substantially implemented:
   - Added `npm run passwords:audit` and the explicit transactional `npm run passwords:migrate -- --confirm` command; both avoid printing password values.
   - Production never compares plaintext. Local/test compatibility requires the explicit `ALLOW_LEGACY_PASSWORD_LOGIN=1` flag and immediately rehashes successful compatibility logins.
 - [ ] Rotate all previously exposed database credentials, application keys, and deployment secrets.
-  - Added `npm run secrets:verify`; production startup fails closed until valid database settings are present and `SECRETS_ROTATED=1` is explicitly set.
+  - Added `npm run secrets:verify`; it fails until valid database settings are present and `SECRETS_ROTATED=1` is explicitly set. The application logs a warning rather than crashing when the acknowledgement is missing.
   - Provider-side credential replacement, revocation, and setting `SECRETS_ROTATED=1` still require deployment access.
 - [x] Add secure session or token handling with expiration and revocation.
   - Added `auth_sessions`, HttpOnly/SameSite cookies, sliding expiration, revocation, logout, and server-side impersonation state.
