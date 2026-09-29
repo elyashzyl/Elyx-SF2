@@ -91,29 +91,26 @@
                 </div>
               </div>
               <div class="school-card-actions">
-                <button v-if="!s?.archived_at" @click="editSchool(s)" class="table-action-btn" title="Edit">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button v-if="!s?.archived_at" @click="editSchool(s)" class="table-action-btn" title="Edit" aria-label="Edit school">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
                   </svg>
-                  Edit
                 </button>
-                <button v-if="auth.isSuperadmin && !s?.archived_at" @click="openArchive(s)" class="table-action-btn" title="Archive">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button v-if="auth.isSuperadmin && !s?.archived_at" @click="openArchive(s)" class="table-action-btn" title="Archive" aria-label="Archive school">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
                   </svg>
-                  Archive
                 </button>
-                <button v-if="auth.isSuperadmin && s?.archived_at" @click="restore(s)" class="table-action-btn" title="Restore">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button v-if="auth.isSuperadmin && s?.archived_at" @click="restore(s)" class="table-action-btn" title="Restore" aria-label="Restore school">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/>
                   </svg>
-                  Restore
                 </button>
-                <button v-if="auth.isSuperadmin" @click="exportSchool(s)" class="table-action-btn" title="Export school data" :disabled="exportingSchoolId === s?.id">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button v-if="auth.isSuperadmin" @click="exportSchool(s)" class="table-action-btn" :title="exportingSchoolId === s?.id ? 'Exporting...' : 'Export school data'" :aria-label="exportingSchoolId === s?.id ? 'Exporting school data' : 'Export school data'" :disabled="exportingSchoolId === s?.id">
+                  <span v-if="exportingSchoolId === s?.id" class="spinner" aria-hidden="true"></span>
+                  <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
                   </svg>
-                  {{ exportingSchoolId === s?.id ? 'Exporting...' : 'Export' }}
                 </button>
                 <button v-if="auth.isSuperadmin" @click="removeSchool(s?.id)" class="table-action-btn table-action-btn--danger" title="Delete" aria-label="Delete school">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
