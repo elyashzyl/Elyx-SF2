@@ -2,10 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { validateRequestInput } from '../lib/validation.js'
 
-function runValidation(body, path = '/monthly') {
+function runValidation(body, path = '/monthly', originalUrl = '') {
   let response
   let continued = false
-  const req = { method: 'POST', path, body, query: {}, params: {} }
+  const req = { method: 'POST', path, originalUrl, body, query: {}, params: {} }
   const res = {
     status(code) {
       response = { status: code }
@@ -46,6 +46,17 @@ test('SF2 export payloads can contain the attendance grid', () => {
     days: Object.fromEntries(Array.from({ length: 31 }, (_, day) => [String(day + 1), '']))
   }))
   const result = runValidation({ entries }, '/export/sf2')
+
+  assert.equal(result.continued, true)
+  assert.equal(result.response, undefined)
+})
+
+test('mounted API paths also allow large SF2 payloads', () => {
+  const entries = Array.from({ length: 60 }, (_, studentIndex) => ({
+    studentId: `student-${studentIndex}`,
+    days: Object.fromEntries(Array.from({ length: 31 }, (_, day) => [String(day + 1), '']))
+  }))
+  const result = runValidation({ entries }, '/api/export/sf2', '/api/export/sf2?schoolId=school-1')
 
   assert.equal(result.continued, true)
   assert.equal(result.response, undefined)
