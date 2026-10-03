@@ -1254,17 +1254,17 @@ function printSheet() {
 }
 
 .telemetry-chip--success {
-  background: var(--success-bg, #ecfdf5);
-  border-color: rgba(16, 185, 129, 0.25);
-  color: var(--success, #059669);
+  background: var(--success-bg);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 .telemetry-chip--success .telemetry-label {
-  color: var(--success, #059669);
+  color: var(--success);
 }
 
 .telemetry-chip--warning {
   background: var(--warning-bg);
-  border-color: rgba(182, 131, 56, 0.25);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
   color: var(--warning);
 }
 .telemetry-chip--warning .telemetry-label {
@@ -1272,12 +1272,12 @@ function printSheet() {
 }
 
 .telemetry-chip--danger {
-  background: var(--red-bg, #fef2f2);
-  border-color: rgba(239, 68, 68, 0.25);
-  color: var(--destructive, #dc2626);
+  background: var(--red-bg);
+  border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+  color: var(--destructive);
 }
 .telemetry-chip--danger .telemetry-label {
-  color: var(--destructive, #dc2626);
+  color: var(--destructive);
 }
 
 .telemetry-actions {

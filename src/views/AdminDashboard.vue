@@ -467,7 +467,7 @@
         </div>
 
         <div v-else class="sardo-clean-state">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="sardo-clean-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
           <strong>Zero Critical Retention Flags</strong>
@@ -826,16 +826,18 @@ onMounted(async () => {
   flex-direction: column;
   justify-content: space-between;
   padding: 20px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg, 14px);
   border: 1px solid var(--border);
   background: var(--card);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  overflow: hidden;
   transition: all 0.15s ease;
 }
 
 .kpi-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--primary);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
   box-shadow: var(--shadow-md);
 }
 
@@ -927,7 +929,8 @@ onMounted(async () => {
 .mini-ratio-legend {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   font-size: 0.68rem;
   color: var(--muted-foreground);
 }
@@ -939,7 +942,8 @@ onMounted(async () => {
 .kpi-subtext {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   font-size: 0.72rem;
   color: var(--muted-foreground);
 }
@@ -1089,8 +1093,8 @@ onMounted(async () => {
 
 .trend-summary-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
   margin-top: 16px;
 }
 
@@ -1196,6 +1200,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 10px 14px;
   border-radius: 8px;
   background: var(--secondary);
@@ -1282,6 +1288,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   font-size: 0.72rem;
   color: var(--muted-foreground);
 }
@@ -1402,6 +1410,14 @@ onMounted(async () => {
   background: var(--red-bg);
 }
 
+.sardo-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
 .sardo-item-info strong {
   display: block;
   font-size: 0.8rem;
@@ -1417,6 +1433,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .sardo-absence-pill {
@@ -1445,6 +1464,10 @@ onMounted(async () => {
   text-align: center;
   gap: 8px;
   padding: 32px 20px;
+}
+
+.sardo-clean-icon {
+  color: var(--success);
 }
 
 .sardo-clean-state strong {
@@ -1623,10 +1646,13 @@ onMounted(async () => {
   border-color: var(--primary);
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+@media (max-width: 1100px) {
   .analytics-row-2 {
     grid-template-columns: 1fr;
   }

@@ -1511,7 +1511,7 @@ function handleMobileNav(id) {
 .landing-nav-links {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: clamp(8px, 1.4vw, 22px);
 }
 
 .landing-nav-link {
@@ -4197,13 +4197,19 @@ function handleMobileNav(id) {
   }
 }
 
+@media (max-width: 980px) {
+  .landing-nav-links {
+    display: none;
+  }
+  .mobile-menu-toggle {
+    display: flex;
+  }
+}
+
 @media (max-width: 768px) {
   .landing-nav-inner {
     min-height: 64px;
     padding: 0 18px;
-  }
-  .landing-nav-links {
-    display: none;
   }
   .mobile-menu-toggle {
     display: flex;

@@ -1903,8 +1903,8 @@ onUnmounted(() => {
 
 /* Payment Methods & QR Grid */
 .badge-payment-count {
-  background: rgba(14, 165, 233, 0.12);
-  color: #0284c7;
+  background: var(--primary-bg);
+  color: var(--primary);
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -1936,8 +1936,9 @@ onUnmounted(() => {
 }
 
 .payment-method-card:hover {
-  border-color: #0ea5e9;
-  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.08);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .payment-method-card.payment-inactive {
@@ -2027,7 +2028,7 @@ onUnmounted(() => {
   font-family: monospace;
   font-size: 0.95rem;
   font-weight: 700;
-  color: #0284c7;
+  color: var(--primary);
   background: var(--card);
   padding: 3px 8px;
   border-radius: 4px;
@@ -2035,19 +2036,19 @@ onUnmounted(() => {
 }
 
 .btn-copy-account {
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 700;
   padding: 4px 10px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-copy-account:hover {
-  background: #0284c7;
+  background: var(--primary-hover);
 }
 
 .pm-instructions {
@@ -2085,7 +2086,7 @@ onUnmounted(() => {
 
 .pm-qr-hint {
   font-size: 0.72rem;
-  color: #0ea5e9;
+  color: var(--primary);
   cursor: pointer;
   font-weight: 600;
 }

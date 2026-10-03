@@ -1244,7 +1244,7 @@ onUnmounted(() => {
 }
 
 .reply-input-bar textarea:focus {
-  border-color: #0ea5e9;
+  border-color: var(--primary);
 }
 
 .reply-bar-bottom {
@@ -1544,7 +1544,7 @@ onUnmounted(() => {
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-  border-color: #0ea5e9;
+  border-color: var(--primary);
 }
 
 .form-actions {
@@ -1660,7 +1660,7 @@ onUnmounted(() => {
 .inline-link-btn {
   background: none;
   border: none;
-  color: #0ea5e9;
+  color: var(--primary);
   font-weight: 700;
   text-decoration: underline;
   cursor: pointer;
@@ -1674,18 +1674,18 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px dashed rgba(14, 165, 233, 0.3);
+  background: var(--primary-bg);
+  border: 1px dashed color-mix(in srgb, var(--primary) 30%, transparent);
   border-radius: 8px;
   font-size: 0.76rem;
-  color: #0369a1;
+  color: var(--primary);
   margin-bottom: 4px;
 }
 
 .btn-sm-link {
   background: none;
   border: none;
-  color: #0284c7;
+  color: var(--primary);
   font-weight: 700;
   cursor: pointer;
   font-size: 0.76rem;
@@ -1699,9 +1699,9 @@ onUnmounted(() => {
 }
 
 .btn-thread-pay {
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  color: #0284c7;
+  background: var(--primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--primary);
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 700;
@@ -1711,8 +1711,8 @@ onUnmounted(() => {
 }
 
 .btn-thread-pay:hover {
-  background: rgba(14, 165, 233, 0.2);
-  color: #0369a1;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary-hover);
 }
 
 .list-header-actions {
@@ -1722,9 +1722,9 @@ onUnmounted(() => {
 }
 
 .btn-view-payments {
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  color: #0284c7;
+  background: var(--primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--primary);
   border-radius: 8px;
   padding: 7px 12px;
   font-size: 0.78rem;
@@ -1734,9 +1734,9 @@ onUnmounted(() => {
 }
 
 .btn-view-payments:hover {
-  background: #0ea5e9;
-  color: #ffffff;
-  border-color: #0ea5e9;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 
 .user-payments-view {
@@ -1767,8 +1767,8 @@ onUnmounted(() => {
 }
 
 .chat-payment-card:hover {
-  border-color: #0ea5e9;
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.08);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
 }
 
 .cpc-top {
@@ -1854,28 +1854,28 @@ onUnmounted(() => {
   font-family: monospace;
   font-size: 0.85rem;
   font-weight: 700;
-  background: rgba(14, 165, 233, 0.1);
-  color: #0284c7;
+  background: var(--primary-bg);
+  color: var(--primary);
   padding: 2px 6px;
   border-radius: 4px;
 }
 
 .btn-copy-cpc {
-  background: var(--card, #ffffff);
-  border: 1px solid var(--border, #cbd5e1);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px 8px;
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
-  color: var(--foreground, #334155);
+  color: var(--foreground);
   transition: all 0.15s ease;
 }
 
 .btn-copy-cpc:hover {
-  background: #0ea5e9;
-  color: #ffffff;
-  border-color: #0ea5e9;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 
 .cpc-instructions {
@@ -1901,7 +1901,7 @@ onUnmounted(() => {
 }
 
 .cpc-qr-thumb-box:hover {
-  border-color: #0ea5e9;
+  border-color: var(--primary);
   transform: scale(1.02);
 }
 
@@ -1914,7 +1914,7 @@ onUnmounted(() => {
 
 .cpc-qr-scan-hint {
   font-size: 0.72rem;
-  color: #0ea5e9;
+  color: var(--primary);
   font-weight: 700;
 }
 
@@ -1927,20 +1927,20 @@ onUnmounted(() => {
 
 .btn-paste-ref {
   width: 100%;
-  background: linear-gradient(135deg, #0ea5e9, #0284c7);
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 8px;
   padding: 8px 14px;
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.25);
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px var(--primary-glow);
+  transition: all 0.15s ease;
 }
 
 .btn-paste-ref:hover {
-  background: linear-gradient(135deg, #0284c7, #0369a1);
+  background: var(--primary-hover);
   transform: translateY(-1px);
 }
 
@@ -2024,7 +2024,7 @@ onUnmounted(() => {
   font-family: monospace;
   font-size: 1rem;
   font-weight: 800;
-  color: #0284c7;
+  color: var(--primary);
 }
 
 .chat-qr-meta small {

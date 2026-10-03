@@ -669,16 +669,18 @@ onMounted(loadStats)
   flex-direction: column;
   justify-content: space-between;
   padding: 20px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg, 14px);
   border: 1px solid var(--border);
   background: var(--card);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  overflow: hidden;
   transition: all 0.15s ease;
 }
 
 .kpi-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--primary);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
   box-shadow: var(--shadow-md);
 }
 
@@ -756,7 +758,8 @@ onMounted(loadStats)
 .mini-ratio-legend {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   font-size: 0.68rem;
   color: var(--muted-foreground);
 }
@@ -766,7 +769,8 @@ onMounted(loadStats)
 .kpi-subtext {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   font-size: 0.72rem;
   color: var(--muted-foreground);
 }
@@ -1011,10 +1015,13 @@ onMounted(loadStats)
 /* ==========================================================================
    RESPONSIVE
    ========================================================================== */
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+@media (max-width: 1100px) {
   .analytics-row-2 {
     grid-template-columns: 1fr;
   }

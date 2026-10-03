@@ -2165,14 +2165,14 @@ function triggerPrint() {
   font-size: 0.8rem;
 }
 .consent--granted {
-  border-color: rgba(16, 185, 129, 0.4);
-  background: rgba(16, 185, 129, 0.08);
-  color: #10b981;
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+  background: var(--success-bg);
+  color: var(--success);
 }
 .consent--denied {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.08);
-  color: #ef4444;
+  border-color: color-mix(in srgb, var(--destructive) 35%, var(--border));
+  background: var(--red-bg);
+  color: var(--destructive);
 }
 .consent-pill small {
   color: var(--muted-foreground);
