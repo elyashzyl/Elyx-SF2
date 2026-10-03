@@ -110,7 +110,9 @@ router.put('/school', async (req, res) => {
       district: req.body?.district,
       principal_name: req.body?.principal_name,
       school_year: req.body?.school_year,
-      grading_period: req.body?.grading_period
+      grading_period: req.body?.grading_period,
+      sardo_consecutive_absences: req.body?.sardo_consecutive_absences,
+      sardo_cumulative_absences: req.body?.sardo_cumulative_absences
     })
     await audit(me, 'school.settings', { type: 'school', id: targetId, name: updated?.name || '', schoolId: targetId }, `Updated school info`)
     res.json({ success: true, school: { ...toLegacy(schoolToResponse(updated)), id: updated.id } })

@@ -77,6 +77,8 @@ model School {
   archivedAt           DateTime? @map("archived_at")
   archivedBy           String @default("") @map("archived_by") @db.VarChar(96)
   archiveReason        String @default("") @map("archive_reason") @db.VarChar(1000)
+  sardoConsecutiveAbsences Int @default(3) @map("sardo_consecutive_absences")
+  sardoCumulativeAbsences  Int @default(5) @map("sardo_cumulative_absences")
 
   @@map("schools")
 }
@@ -123,11 +125,59 @@ model Student {
   name     String @db.Text
   grade    String @db.Text
   section  String @db.Text
-  gender           String   @default("") @db.Text
-  schoolId         String   @default("") @map("school_id") @db.Text
-  enrollmentStatus String   @default("active") @map("enrollment_status") @db.VarChar(32)
+  gender                  String   @default("") @db.Text
+  schoolId                String   @default("") @map("school_id") @db.Text
+  enrollmentStatus        String   @default("active") @map("enrollment_status") @db.VarChar(32)
+  lrn                     String   @default("") @db.VarChar(32)
+  birthDate               String   @default("") @map("birth_date") @db.VarChar(10)
+  address                 String?  @db.Text
+  guardianName            String   @default("") @map("guardian_name") @db.VarChar(255)
+  guardianRelationship    String   @default("") @map("guardian_relationship") @db.VarChar(64)
+  guardianContact         String   @default("") @map("guardian_contact") @db.VarChar(64)
+  emergencyContactName    String   @default("") @map("emergency_contact_name") @db.VarChar(255)
+  emergencyContactNumber  String   @default("") @map("emergency_contact_number") @db.VarChar(64)
+  consentDataSharing      Int      @default(1) @map("consent_data_sharing")
+  consentMedicalEmergency Int      @default(1) @map("consent_medical_emergency")
 
   @@map("students")
+}
+
+model StudentIntervention {
+  id                String   @id @default(uuid()) @db.VarChar(96)
+  schoolId          String   @map("school_id") @db.VarChar(96)
+  studentId         String   @map("student_id") @db.VarChar(96)
+  concernType       String   @map("concern_type") @db.VarChar(64)
+  assignedStaffId   String   @default("") @map("assigned_staff_id") @db.VarChar(96)
+  assignedStaffName String   @default("") @map("assigned_staff_name") @db.VarChar(255)
+  actionTaken       String   @map("action_taken") @db.Text
+  followUpDate      String   @default("") @map("follow_up_date") @db.VarChar(10)
+  resolutionStatus  String   @default("open") @map("resolution_status") @db.VarChar(32)
+  notes             String?  @db.Text
+  createdBy         String   @default("") @map("created_by") @db.VarChar(96)
+  createdByName     String   @default("") @map("created_by_name") @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  @@index([schoolId, studentId])
+  @@map("student_interventions")
+}
+
+model StudentGuardianContact {
+  id              String   @id @default(uuid()) @db.VarChar(96)
+  schoolId        String   @map("school_id") @db.VarChar(96)
+  studentId       String   @map("student_id") @db.VarChar(96)
+  contactDate     String   @map("contact_date") @db.VarChar(10)
+  contactMethod   String   @map("contact_method") @db.VarChar(64)
+  guardianName    String   @default("") @map("guardian_name") @db.VarChar(255)
+  guardianContact String   @default("") @map("guardian_contact") @db.VarChar(64)
+  reason          String   @default("") @db.VarChar(255)
+  outcome         String?  @db.Text
+  staffId         String   @default("") @map("staff_id") @db.VarChar(96)
+  staffName       String   @default("") @map("staff_name") @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId])
+  @@map("student_guardian_contacts")
 }
 
 model StudentEnrollmentEvent {
@@ -166,6 +216,7 @@ model AttendanceRecord {
   reopenedAt    DateTime? @map("reopened_at")
   reopenedBy    String @default("") @map("reopened_by") @db.Text
   reopenReason  String @default("") @map("reopen_reason") @db.Text
+  teacherNotes  String? @default("") @map("teacher_notes") @db.Text
 
   @@map("attendance_records")
 }

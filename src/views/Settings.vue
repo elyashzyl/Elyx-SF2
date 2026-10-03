@@ -298,6 +298,16 @@
                 <input v-model="form.attendance_lock_cutoff" :disabled="!canEditSchool" type="date" />
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>SARDO Consecutive Absences Alert <span class="label-hint">Unexcused consecutive days to trigger early warning</span></label>
+                <input v-model.number="form.sardo_consecutive_absences" :disabled="!canEditSchool" type="number" min="1" max="30" placeholder="Default: 3" />
+              </div>
+              <div class="form-group">
+                <label>SARDO Cumulative Absences Alert <span class="label-hint">Total monthly absences to trigger retention alert</span></label>
+                <input v-model.number="form.sardo_cumulative_absences" :disabled="!canEditSchool" type="number" min="1" max="100" placeholder="Default: 5" />
+              </div>
+            </div>
             <div class="form-actions" v-if="canEditSchool">
               <button type="submit" class="btn-primary" :disabled="saving">
                 {{ saving ? 'Saving...' : 'Save School Info' }}
@@ -361,7 +371,9 @@ const form = reactive({
   principal_name: '',
   school_year: '',
   grading_period: '',
-  attendance_lock_cutoff: ''
+  attendance_lock_cutoff: '',
+  sardo_consecutive_absences: 3,
+  sardo_cumulative_absences: 5
 })
 const profile = reactive({ name: '', username: '', email: '', password: '', avatar_url: '' })
 const savingProfile = ref(false)
@@ -413,6 +425,8 @@ async function onSchoolChange() {
     form.school_year = ''
     form.grading_period = ''
     form.attendance_lock_cutoff = ''
+    form.sardo_consecutive_absences = 3
+    form.sardo_cumulative_absences = 5
     clearActiveSchool()
     notify('No school selected', 'info')
     return
@@ -446,6 +460,8 @@ async function loadSchool() {
     form.school_year = ''
     form.grading_period = ''
     form.attendance_lock_cutoff = ''
+    form.sardo_consecutive_absences = 3
+    form.sardo_cumulative_absences = 5
     return
   }
   const data = await auth.getSchoolInfo(auth.isSuperadmin ? selectedSchoolId.value : undefined)
@@ -463,6 +479,8 @@ async function loadSchool() {
     form.school_year = data?.school_year || fallback?.school_year || ''
     form.grading_period = data?.grading_period || fallback?.grading_period || ''
     form.attendance_lock_cutoff = data?.attendance_lock_cutoff || fallback?.attendance_lock_cutoff || ''
+    form.sardo_consecutive_absences = data?.sardo_consecutive_absences ?? fallback?.sardo_consecutive_absences ?? 3
+    form.sardo_cumulative_absences = data?.sardo_cumulative_absences ?? fallback?.sardo_cumulative_absences ?? 5
   }
 }
 

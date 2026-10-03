@@ -172,6 +172,37 @@
         <button @click="handleUnlock" class="btn-sm">Take Ownership</button>
       </div>
 
+      <!-- Offline Status & Sync Queue Banner -->
+      <div v-if="!isOnline || pendingSyncCount > 0" class="offline-sync-banner" :class="{ 'banner--offline': !isOnline, 'banner--pending': isOnline && pendingSyncCount > 0 }">
+        <div class="offline-banner-content">
+          <span class="offline-banner-icon">
+            <svg v-if="!isOnline" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/>
+            </svg>
+          </span>
+          <span v-if="!isOnline">
+            <strong>Offline Mode:</strong> Internet connection unavailable. Roll call entries are saved locally and will auto-sync when online.
+            <span v-if="pendingSyncCount > 0"> ({{ pendingSyncCount }} pending)</span>
+          </span>
+          <span v-else>
+            <strong>Offline Queue Ready:</strong> {{ pendingSyncCount }} queued roll call change{{ pendingSyncCount > 1 ? 's' : '' }} ready to synchronize.
+          </span>
+        </div>
+        <button
+          v-if="isOnline && pendingSyncCount > 0"
+          type="button"
+          class="btn-sync-offline"
+          :disabled="isSyncing"
+          @click="handleManualSync"
+        >
+          <span v-if="isSyncing">Syncing…</span>
+          <span v-else>Sync Queue ({{ pendingSyncCount }})</span>
+        </button>
+      </div>
+
       <!-- Quick Actions & Live Telemetry Strip -->
       <div class="daily-telemetry-bar">
         <div class="telemetry-stats">
@@ -193,12 +224,18 @@
           </div>
         </div>
 
-        <div v-if="canEdit" class="telemetry-actions">
-          <button @click="quickMarkAllPresent" class="btn-sm btn-outline-teal" :disabled="bulkUpdating" title="Mark all enrolled learners as Present (E) for all AM and PM periods">
+        <div class="telemetry-actions">
+          <button v-if="canEdit" @click="quickMarkAllPresent" class="btn-sm btn-outline-teal" :disabled="bulkUpdating" title="Mark all enrolled learners as Present (E) for all AM and PM periods">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
             <span>{{ bulkUpdating ? 'Updating…' : 'Mark All Present (E)' }}</span>
+          </button>
+          <button @click="openSummaryModal" class="btn-sm btn-outline-teal" title="View multi-dimensional attendance summaries and breakdowns">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span>Attendance Summary</span>
           </button>
         </div>
       </div>
@@ -304,11 +341,188 @@
       </div>
       <div v-if="record.created_by_name" class="created-by">Created by: {{ record.created_by_name }}</div>
 
+      <!-- Teacher Notes & Exceptional Cases -->
+      <div class="teacher-notes-card">
+        <div class="teacher-notes-header">
+          <div class="teacher-notes-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+            <strong>Teacher Notes &amp; Exceptional Cases</strong>
+          </div>
+          <span v-if="notesSavedStatus" class="notes-status-badge">{{ notesSavedStatus }}</span>
+        </div>
+        <p class="teacher-notes-desc">
+          Document class-wide notices, weather suspensions, school activities, or individual student attendance explanations for this roll call.
+        </p>
+        <textarea
+          v-model="record.teacher_notes"
+          class="teacher-notes-textarea"
+          rows="3"
+          :disabled="!canEdit"
+          placeholder="e.g., Heavy rain advisory in PM; 3 learners excused for regional science fair; class dismissed at 2:00 PM."
+          @blur="handleSaveTeacherNotes"
+        ></textarea>
+        <div class="teacher-notes-footer">
+          <small class="text-muted">Auto-saves on blur or click Save Notes.</small>
+          <button
+            type="button"
+            class="btn-save-notes"
+            :disabled="savingNotes || !canEdit"
+            @click="handleSaveTeacherNotes"
+          >
+            <span v-if="savingNotes">Saving…</span>
+            <span v-else>Save Notes</span>
+          </button>
+        </div>
+      </div>
+
       <div class="sheet-actions">
         <button @click="printSheet" class="btn-primary">Print</button>
         <button @click="goBack" class="btn-secondary">Back</button>
       </div>
     </div>
+    </div>
+
+    <!-- Multi-Dimensional Attendance Summaries Modal -->
+    <div v-if="showSummaryModal" class="modal-overlay" @click.self="showSummaryModal = false">
+      <div class="form-card schedule-form" style="max-width: 760px;">
+        <div class="modal-header-compact">
+          <h3>Attendance Analytics &amp; Summaries</h3>
+          <p class="modal-subtext">Multi-dimensional roll call metrics filtered by date range, gender, and student enrollment status.</p>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="summary-filters-bar">
+          <div class="filter-col">
+            <label>Start Date</label>
+            <input type="date" v-model="summaryFilters.startDate" @change="loadAttendanceSummaries" />
+          </div>
+          <div class="filter-col">
+            <label>End Date</label>
+            <input type="date" v-model="summaryFilters.endDate" @change="loadAttendanceSummaries" />
+          </div>
+          <div class="filter-col">
+            <label>Gender</label>
+            <select v-model="summaryFilters.gender" @change="loadAttendanceSummaries">
+              <option value="">All Genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+          <div class="filter-col">
+            <label>Status</label>
+            <select v-model="summaryFilters.status" @change="loadAttendanceSummaries">
+              <option value="all">All Learners</option>
+              <option value="active">Active Only</option>
+              <option value="withdrawn">Withdrawn Only</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="summaryLoading" class="empty">Calculating attendance analytics…</div>
+        <div v-else-if="summaryData">
+          <!-- Overview Cards -->
+          <div class="summary-kpi-grid">
+            <div class="summary-kpi-card">
+              <span>Overall Rate</span>
+              <strong :style="{ color: summaryData.summary.attendanceRate >= 95 ? 'var(--success)' : 'var(--warning)' }">
+                {{ summaryData.summary.attendanceRate }}%
+              </strong>
+              <small>{{ summaryData.summary.present }} of {{ summaryData.summary.present + summaryData.summary.absent }} days attended</small>
+            </div>
+            <div class="summary-kpi-card">
+              <span>Sessions</span>
+              <strong>{{ summaryData.summary.totalSessions }}</strong>
+              <small>{{ summaryData.summary.studentsCount }} unique learners</small>
+            </div>
+            <div class="summary-kpi-card">
+              <span>Absences</span>
+              <strong style="color: var(--destructive);">{{ summaryData.summary.absent }}</strong>
+              <small>{{ summaryData.summary.tardy }} tardy records</small>
+            </div>
+          </div>
+
+          <!-- Gender Breakdown -->
+          <div class="summary-breakdown-card">
+            <h4>Gender Attendance Comparison</h4>
+            <div class="gender-split-row">
+              <div class="gender-split-col">
+                <div class="gender-split-head">
+                  <span>Male Learners ({{ summaryData.byGender.male.count }})</span>
+                  <strong>{{ summaryData.byGender.male.rate }}%</strong>
+                </div>
+                <div class="ratio-track"><div class="ratio-bar bar--male" :style="{ width: `${summaryData.byGender.male.rate}%` }"></div></div>
+                <small>{{ summaryData.byGender.male.present }} present · {{ summaryData.byGender.male.absent }} absent</small>
+              </div>
+              <div class="gender-split-col">
+                <div class="gender-split-head">
+                  <span>Female Learners ({{ summaryData.byGender.female.count }})</span>
+                  <strong>{{ summaryData.byGender.female.rate }}%</strong>
+                </div>
+                <div class="ratio-track"><div class="ratio-bar bar--female" :style="{ width: `${summaryData.byGender.female.rate}%` }"></div></div>
+                <small>{{ summaryData.byGender.female.present }} present · {{ summaryData.byGender.female.absent }} absent</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Breakdown (if multiple) -->
+          <div v-if="summaryData.bySection.length > 1" class="summary-breakdown-card">
+            <h4>Section Comparison</h4>
+            <div class="preview-table-wrap">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Adviser</th>
+                    <th>Learners</th>
+                    <th>Sessions</th>
+                    <th>Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="sec in summaryData.bySection" :key="`${sec.grade}-${sec.section}`">
+                    <td><strong>{{ sec.grade }} — {{ sec.section }}</strong></td>
+                    <td>{{ sec.adviser || '—' }}</td>
+                    <td>{{ sec.learnersCount }}</td>
+                    <td>{{ sec.sessionsCount }}</td>
+                    <td><strong>{{ sec.rate }}%</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Daily Trends -->
+          <div v-if="summaryData.dailyTrends.length" class="summary-breakdown-card">
+            <h4>Daily Attendance Timeline</h4>
+            <div class="preview-table-wrap" style="max-height: 180px;">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="d in summaryData.dailyTrends" :key="d.date">
+                    <td>{{ d.date }}</td>
+                    <td>{{ d.present }}</td>
+                    <td>{{ d.absent }}</td>
+                    <td><strong>{{ d.rate }}%</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions" style="margin-top: 16px;">
+          <button type="button" @click="showSummaryModal = false" class="btn-secondary">Close</button>
+        </div>
+      </div>
     </div>
 
     <div v-if="showReopenModal" class="modal-overlay" @click.self="closeReopenModal">
@@ -376,12 +590,21 @@ import { actorQs, actorBody } from '../composables/useActor'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { useActiveSchool } from '../composables/useActiveSchool'
 import { loadPageState, savePageState } from '../composables/usePageState'
+import { useOfflineAttendance } from '../composables/useOfflineAttendance'
 
 const route = useRoute()
 const store = useAttendanceStore()
 const auth = useAuthStore()
 const { notify } = useNotifications()
 const { activeSchool, setActiveSchool } = useActiveSchool()
+const { isOnline, isSyncing, pendingSyncCount, syncQueue } = useOfflineAttendance()
+
+async function handleManualSync() {
+  const result = await syncQueue()
+  if (result.syncedCount > 0) {
+    notify(`Successfully synchronized ${result.syncedCount} offline record${result.syncedCount > 1 ? 's' : ''}!`, 'success')
+  }
+}
 const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
 const schools = ref([])
 const loading = ref(false)
@@ -405,6 +628,50 @@ const canEdit = computed(() => {
   return record.value.grade === auth.user.grade && record.value.section === auth.user.section
 })
 const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+const showSummaryModal = ref(false)
+const summaryLoading = ref(false)
+const summaryData = ref(null)
+const summaryFilters = reactive({
+  startDate: '',
+  endDate: '',
+  gender: '',
+  status: 'all'
+})
+
+async function openSummaryModal() {
+  if (record.value) {
+    const parts = record.value.date.split('-')
+    summaryFilters.startDate = `${parts[0]}-${parts[1]}-01`
+    summaryFilters.endDate = record.value.date
+  } else {
+    const cur = new Date()
+    summaryFilters.startDate = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-01`
+    summaryFilters.endDate = cur.toISOString().split('T')[0]
+  }
+  showSummaryModal.value = true
+  await loadAttendanceSummaries()
+}
+
+async function loadAttendanceSummaries() {
+  summaryLoading.value = true
+  try {
+    const filters = {
+      startDate: summaryFilters.startDate,
+      endDate: summaryFilters.endDate,
+      gender: summaryFilters.gender,
+      status: summaryFilters.status,
+      grade: record.value?.grade || form.grade || undefined,
+      section: record.value?.section || form.section || undefined
+    }
+    const res = await store.fetchAttendanceSummaries(filters, effectiveSchoolId.value)
+    summaryData.value = res
+  } catch (err) {
+    notify(err.message || 'Failed to load attendance summaries', 'error')
+  } finally {
+    summaryLoading.value = false
+  }
+}
 
 function gradeNum(g) {
   return (g || '').replace('Grade ', '')
@@ -856,12 +1123,93 @@ async function saveEntry(entry) {
 }
 
 
+const savingNotes = ref(false)
+const notesSavedStatus = ref('')
+let notesTimeout = null
+
+async function handleSaveTeacherNotes() {
+  if (!record.value?.id || !canEdit.value) return
+  savingNotes.value = true
+  try {
+    const notes = record.value.teacher_notes || ''
+    await store.updateTeacherNotes(record.value.id, notes, auth.user?.id, auth.user?.role, effectiveSchoolId.value)
+    notesSavedStatus.value = 'Notes saved'
+    if (notesTimeout) clearTimeout(notesTimeout)
+    notesTimeout = setTimeout(() => { notesSavedStatus.value = '' }, 3000)
+    if (record.value.reopened_at) await loadCorrectionHistory()
+  } catch (error) {
+    notify(error.message || 'Failed to save notes', 'error')
+  } finally {
+    savingNotes.value = false
+  }
+}
+
 function printSheet() {
   window.print()
 }
 </script>
 
 <style scoped>
+/* Offline & Sync Banner */
+.offline-sync-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md, 10px);
+  margin-bottom: 14px;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+}
+
+.banner--offline {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: rgba(182, 131, 56, 0.35);
+}
+
+.banner--pending {
+  background: var(--info-bg, rgba(85, 126, 155, 0.12));
+  color: var(--info);
+  border-color: rgba(85, 126, 155, 0.35);
+}
+
+.offline-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.offline-banner-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-sync-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-sync-offline:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-sync-offline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .daily-telemetry-bar {
   display: flex;
   align-items: center;
@@ -915,12 +1263,12 @@ function printSheet() {
 }
 
 .telemetry-chip--warning {
-  background: #fffbeb;
-  border-color: rgba(245, 158, 11, 0.25);
-  color: #b45309;
+  background: var(--warning-bg);
+  border-color: rgba(182, 131, 56, 0.25);
+  color: var(--warning);
 }
 .telemetry-chip--warning .telemetry-label {
-  color: #b45309;
+  color: var(--warning);
 }
 
 .telemetry-chip--danger {
@@ -943,8 +1291,8 @@ function printSheet() {
   align-items: center;
   gap: 6px;
   background: transparent;
-  color: var(--primary, #0c5357);
-  border: 1.5px solid var(--primary, #0c5357);
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: var(--radius-md, 7px);
   padding: 6px 14px;
   font-size: 0.82rem;
@@ -954,12 +1302,248 @@ function printSheet() {
 }
 
 .btn-outline-teal:hover:not(:disabled) {
-  background: var(--primary, #0c5357);
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .btn-outline-teal:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Teacher Notes Card */
+.teacher-notes-card {
+  margin-top: 18px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-sm);
+}
+
+.teacher-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.teacher-notes-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 0.95rem;
+}
+
+.notes-status-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(79, 149, 97, 0.25);
+}
+
+.teacher-notes-desc {
+  margin: 0 0 10px 0;
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+
+.teacher-notes-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--input, var(--border));
+  border-radius: var(--radius-sm, 8px);
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+  line-height: 1.45;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.teacher-notes-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.teacher-notes-textarea:disabled {
+  opacity: 0.6;
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
+.teacher-notes-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  gap: 12px;
+}
+
+.btn-save-notes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-save-notes:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-save-notes:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Multi-dimensional Summary Modal Styles */
+.summary-filters-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+  background: var(--secondary);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.filter-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-col label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-col input,
+.filter-col select {
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.78rem;
+  outline: none;
+}
+
+.summary-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.summary-kpi-card {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-kpi-card span {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.summary-kpi-card strong {
+  font-size: 1.3rem;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+}
+
+.summary-kpi-card small {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+
+.summary-breakdown-card {
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.summary-breakdown-card h4 {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.gender-split-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.gender-split-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gender-split-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--foreground);
+}
+
+.ratio-track {
+  width: 100%;
+  height: 6px;
+  background: var(--secondary);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ratio-bar {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.bar--male { background: var(--info, #557e9b); }
+.bar--female { background: var(--accent, #c66a4d); }
+
+.gender-split-col small {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 600px) {
+  .summary-filters-bar { grid-template-columns: 1fr 1fr; }
+  .summary-kpi-grid { grid-template-columns: 1fr; }
+  .gender-split-row { grid-template-columns: 1fr; }
 }
 </style>

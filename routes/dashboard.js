@@ -242,7 +242,19 @@ router.get('/stats', async (req, res) => {
       }
     })
 
-    // 8. Chronic Absenteeism (High Absences Alert)
+    // 8. Chronic Absenteeism (SARDO Early Warning based on school-configurable rules)
+    let sardoConsecutive = 3
+    let sardoCumulative = 5
+    if (sid) {
+      try {
+        const sRows = await query('SELECT sardo_consecutive_absences, sardo_cumulative_absences FROM schools WHERE id = ?', [sid])
+        if (sRows.length) {
+          if (sRows[0].sardo_consecutive_absences) sardoConsecutive = Number(sRows[0].sardo_consecutive_absences)
+          if (sRows[0].sardo_cumulative_absences) sardoCumulative = Number(sRows[0].sardo_cumulative_absences)
+        }
+      } catch {}
+    }
+
     const chronicAbsenteeism = await query(`
       SELECT 
         me.student_id as studentId,
@@ -255,10 +267,76 @@ router.get('/stats', async (req, res) => {
       JOIN monthly_records mr ON mr.id = me.record_id
       ${sid ? 'WHERE mr.school_id = ?' : ''}
       GROUP BY me.student_id, me.student_name, mr.grade, mr.section
-      HAVING totalAbsences >= 3
+      HAVING totalAbsences >= ?
       ORDER BY totalAbsences DESC
-      LIMIT 6
-    `, sid ? [sid] : [])
+      LIMIT 10
+    `, sid ? [sid, sardoCumulative] : [sardoCumulative])
+
+    // 8b. Daily Attendance Roll Call Completion for Today
+    const nowLocal = new Date()
+    const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}-${String(nowLocal.getDate()).padStart(2, '0')}`
+
+    let activeSections = []
+    const gradeLevelRows = await query(
+      `SELECT grade, sections FROM grade_levels ${sid ? 'WHERE school_id = ?' : ''} ORDER BY sort ASC, grade ASC`,
+      sid ? [sid] : []
+    )
+    for (const gl of gradeLevelRows) {
+      let secs = []
+      try { secs = JSON.parse(gl.sections || '[]') } catch {}
+      for (const sec of secs) {
+        const secName = typeof sec === 'string' ? sec : (sec?.name || '')
+        if (secName) {
+          activeSections.push({ grade: gl.grade, section: secName, adviser: typeof sec === 'object' ? (sec.adviser || '') : '' })
+        }
+      }
+    }
+    if (!activeSections.length) {
+      activeSections = await query(
+        `SELECT DISTINCT grade, section FROM students ${sid ? 'WHERE school_id = ?' : ''} ORDER BY grade, section`,
+        sid ? [sid] : []
+      )
+    }
+
+    const todayRecords = await query(
+      `SELECT id, date, grade, section, adviser, created_by_name, locked, reopened_at, teacher_notes FROM attendance_records WHERE date = ? ${sid ? 'AND school_id = ?' : ''}`,
+      sid ? [todayStr, sid] : [todayStr]
+    )
+
+    const todayRecordMap = new Map()
+    for (const r of todayRecords) {
+      todayRecordMap.set(`${r.grade}__${r.section}`, r)
+    }
+
+    const sectionCompletionList = activeSections.map(sec => {
+      const key = `${sec.grade}__${sec.section}`
+      const rec = todayRecordMap.get(key)
+      const adviserName = sec.adviser || adviserMap[key] || ''
+      return {
+        grade: sec.grade,
+        section: sec.section,
+        adviser: adviserName,
+        submitted: !!rec,
+        recordId: rec?.id || null,
+        recordedBy: rec?.created_by_name || adviserName,
+        locked: !!rec?.locked && !rec?.reopened_at,
+        hasNotes: !!(rec?.teacher_notes && rec.teacher_notes.trim())
+      }
+    })
+
+    const totalSectionsCount = sectionCompletionList.length
+    const submittedSectionsCount = sectionCompletionList.filter(s => s.submitted).length
+    const pendingSectionsCount = totalSectionsCount - submittedSectionsCount
+    const rollCallRate = totalSectionsCount > 0 ? Math.round((submittedSectionsCount / totalSectionsCount) * 100) : 0
+
+    const todayAttendanceCompletion = {
+      date: todayStr,
+      totalSections: totalSectionsCount,
+      submittedCount: submittedSectionsCount,
+      pendingCount: pendingSectionsCount,
+      completionRate: rollCallRate,
+      sections: sectionCompletionList
+    }
 
     // 9. Teacher-Specific Class Stats
     let teacherClass = null
@@ -370,10 +448,18 @@ router.get('/stats', async (req, res) => {
           LIMIT 6
         `, [tSchoolId, tGrade, tSection])
 
+        const tTodayRec = todayRecordMap.get(`${tGrade}__${tSection}`)
         teacherClass = {
           hasAdvisory: true,
           grade: tGrade,
           section: tSection,
+          todayAttendance: {
+            date: todayStr,
+            submitted: !!tTodayRec,
+            recordId: tTodayRec?.id || null,
+            locked: !!tTodayRec?.locked && !tTodayRec?.reopened_at,
+            hasNotes: !!(tTodayRec?.teacher_notes && tTodayRec.teacher_notes.trim())
+          },
           students: {
             total: tStudents.total,
             male: tStudents.male || 0,
@@ -424,6 +510,8 @@ router.get('/stats', async (req, res) => {
       monthlyTrends,
       recentRecords,
       chronicAbsenteeism,
+      sardoRules: { consecutive: sardoConsecutive, cumulative: sardoCumulative },
+      todayAttendanceCompletion,
       teacherClass
     })
   } catch (err) {

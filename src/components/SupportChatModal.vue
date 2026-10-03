@@ -913,12 +913,12 @@ onUnmounted(() => {
   gap: 9px;
   padding: 12px 18px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: linear-gradient(135deg, #0ea5e9, #0284c7);
-  color: #ffffff;
+  border: 1px solid var(--border);
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 700;
   font-size: 0.88rem;
-  box-shadow: 0 10px 25px -3px rgba(14, 165, 233, 0.4), 0 4px 6px -2px rgba(14, 165, 233, 0.2);
+  box-shadow: 0 10px 25px -3px var(--primary-glow);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 1050;
@@ -926,14 +926,15 @@ onUnmounted(() => {
 
 .floating-chat-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px -3px rgba(14, 165, 233, 0.5), 0 6px 10px -2px rgba(14, 165, 233, 0.3);
-  filter: brightness(1.06);
+  background: var(--primary-hover);
+  box-shadow: 0 14px 28px -3px var(--primary-glow);
 }
 
 .floating-chat-btn.is-active {
-  background: #0f172a;
-  border-color: #334155;
-  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
 }
 
 .floating-icon-wrap {
@@ -950,13 +951,13 @@ onUnmounted(() => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #ef4444;
-  color: #fff;
+  background: var(--destructive);
+  color: var(--destructive-foreground);
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 800;
   padding: 2px 7px;
-  border: 2px solid #fff;
+  border: 2px solid var(--card);
 }
 
 /* Modal Window */
@@ -1012,8 +1013,8 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(14, 165, 233, 0.12);
-  color: #0ea5e9;
+  background: var(--primary-bg);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1075,7 +1076,7 @@ onUnmounted(() => {
   border: none;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #0ea5e9;
+  color: var(--primary);
   cursor: pointer;
   padding: 4px 8px;
 }
@@ -1090,8 +1091,8 @@ onUnmounted(() => {
 }
 
 .btn-finish {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 6px;
   font-size: 0.78rem;
@@ -1101,13 +1102,13 @@ onUnmounted(() => {
 }
 
 .btn-finish:hover {
-  background: #059669;
+  filter: brightness(0.92);
 }
 
 .btn-reopen {
-  background: #64748b;
-  color: #fff;
-  border: none;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.78rem;
   font-weight: 700;
@@ -1146,19 +1147,19 @@ onUnmounted(() => {
 .resolved-banner {
   margin: 12px 16px 4px;
   padding: 10px 14px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  background: var(--success-bg);
+  border: 1px solid var(--success);
   border-radius: 8px;
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  color: #065f46;
+  color: var(--foreground);
 }
 
 .banner-icon {
   font-size: 1.1rem;
   font-weight: 800;
-  color: #10b981;
+  color: var(--success);
 }
 
 .banner-text strong {
@@ -1169,7 +1170,7 @@ onUnmounted(() => {
 .banner-text p {
   margin: 2px 0 0;
   font-size: 0.76rem;
-  color: #047857;
+  color: var(--muted-foreground);
 }
 
 /* Messages container */
@@ -1195,8 +1196,8 @@ onUnmounted(() => {
 
 .bubble-user {
   align-self: flex-end;
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border-bottom-right-radius: 2px;
 }
 
@@ -1259,8 +1260,8 @@ onUnmounted(() => {
 }
 
 .btn-send {
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 6px;
   font-weight: 700;
@@ -1270,7 +1271,7 @@ onUnmounted(() => {
 }
 
 .btn-send:hover {
-  background: #0284c7;
+  background: var(--primary-hover);
 }
 
 /* Lists */
@@ -1306,8 +1307,8 @@ onUnmounted(() => {
 }
 
 .tab-btn.active {
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .search-box input {
@@ -1340,8 +1341,8 @@ onUnmounted(() => {
 }
 
 .inquiry-card:hover {
-  border-color: #0ea5e9;
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.08);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
@@ -1402,8 +1403,8 @@ onUnmounted(() => {
 }
 
 .btn-new-inquiry {
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 8px;
   padding: 7px 14px;
@@ -1413,44 +1414,44 @@ onUnmounted(() => {
 }
 
 .btn-new-inquiry:hover {
-  background: #0284c7;
+  background: var(--primary-hover);
 }
 
 .payment-hint-strip {
   margin: 10px 16px 0;
   padding: 8px 12px;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px solid rgba(14, 165, 233, 0.2);
+  background: var(--primary-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.76rem;
-  color: #0369a1;
+  color: var(--foreground);
 }
 
 .link-btn {
   background: none;
   border: none;
-  color: #0284c7;
+  color: var(--primary);
   font-weight: 700;
   cursor: pointer;
   text-decoration: underline;
 }
 
 .footer-finished-note {
-  color: #10b981;
+  color: var(--success);
   font-weight: 700;
 }
 
 .footer-open-note {
-  color: #0284c7;
+  color: var(--info);
   font-weight: 600;
 }
 
 .footer-action {
   font-weight: 600;
-  color: #0ea5e9;
+  color: var(--primary);
 }
 
 /* User New View */
@@ -1470,16 +1471,16 @@ onUnmounted(() => {
 .view-badge {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #0ea5e9;
-  background: rgba(14, 165, 233, 0.1);
+  color: var(--primary);
+  background: var(--primary-bg);
   padding: 3px 8px;
   border-radius: 6px;
 }
 
 .payment-callout {
   padding: 12px 14px;
-  background: rgba(14, 165, 233, 0.06);
-  border: 1px solid rgba(14, 165, 233, 0.2);
+  background: var(--primary-bg);
+  border: 1px solid var(--border);
   border-radius: 10px;
   display: flex;
   gap: 10px;
@@ -1493,18 +1494,18 @@ onUnmounted(() => {
 .callout-text strong {
   display: block;
   font-size: 0.82rem;
-  color: var(--foreground, #0f172a);
+  color: var(--foreground);
 }
 
 .callout-text p {
   margin: 3px 0 0;
   font-size: 0.74rem;
   line-height: 1.4;
-  color: var(--muted-foreground, #475569);
+  color: var(--muted-foreground);
 }
 
 .callout-text a {
-  color: #0ea5e9;
+  color: var(--primary);
   font-weight: 700;
   text-decoration: underline;
 }
@@ -1565,8 +1566,8 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 8px;
   padding: 8px 18px;
@@ -1576,7 +1577,7 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover {
-  background: #0284c7;
+  background: var(--primary-hover);
 }
 
 /* Badges */

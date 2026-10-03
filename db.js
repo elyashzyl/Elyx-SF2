@@ -225,7 +225,9 @@ const MYSQL_DDL = [
     grading_period VARCHAR(64) NOT NULL DEFAULT (''),
     archived_at DATETIME NULL,
     archived_by VARCHAR(96) NOT NULL DEFAULT (''),
-    archive_reason VARCHAR(1000) NOT NULL DEFAULT ('')
+    archive_reason VARCHAR(1000) NOT NULL DEFAULT (''),
+    sardo_consecutive_absences INT NOT NULL DEFAULT 3,
+    sardo_cumulative_absences INT NOT NULL DEFAULT 5
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS school_archive_user_status (
     user_id VARCHAR(96) PRIMARY KEY,
@@ -261,7 +263,17 @@ const MYSQL_DDL = [
     section TEXT NOT NULL,
     gender TEXT NOT NULL DEFAULT (''),
     school_id TEXT NOT NULL DEFAULT ('') ,
-    enrollment_status VARCHAR(32) NOT NULL DEFAULT 'active'
+    enrollment_status VARCHAR(32) NOT NULL DEFAULT 'active',
+    lrn VARCHAR(32) NOT NULL DEFAULT (''),
+    birth_date VARCHAR(10) NOT NULL DEFAULT (''),
+    address TEXT NULL,
+    guardian_name VARCHAR(255) NOT NULL DEFAULT (''),
+    guardian_relationship VARCHAR(64) NOT NULL DEFAULT (''),
+    guardian_contact VARCHAR(64) NOT NULL DEFAULT (''),
+    emergency_contact_name VARCHAR(255) NOT NULL DEFAULT (''),
+    emergency_contact_number VARCHAR(64) NOT NULL DEFAULT (''),
+    consent_data_sharing TINYINT NOT NULL DEFAULT 1,
+    consent_medical_emergency TINYINT NOT NULL DEFAULT 1
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS student_enrollment_events (
     id VARCHAR(96) PRIMARY KEY,
@@ -295,7 +307,8 @@ const MYSQL_DDL = [
     locked_by TEXT NOT NULL DEFAULT (''),
     reopened_at DATETIME NULL,
     reopened_by TEXT NOT NULL DEFAULT (''),
-    reopen_reason TEXT NOT NULL DEFAULT ('')
+    reopen_reason TEXT NOT NULL DEFAULT (''),
+    teacher_notes TEXT NULL
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS monthly_records (
     id VARCHAR(96) PRIMARY KEY,
@@ -480,6 +493,36 @@ const MYSQL_DDL = [
     notes TEXT NOT NULL DEFAULT (''),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS student_interventions (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL,
+    student_id VARCHAR(96) NOT NULL,
+    concern_type VARCHAR(64) NOT NULL,
+    assigned_staff_id VARCHAR(96) NOT NULL DEFAULT (''),
+    assigned_staff_name VARCHAR(255) NOT NULL DEFAULT (''),
+    action_taken TEXT NOT NULL,
+    follow_up_date VARCHAR(10) NOT NULL DEFAULT (''),
+    resolution_status VARCHAR(32) NOT NULL DEFAULT ('open'),
+    notes TEXT NULL,
+    created_by VARCHAR(96) NOT NULL DEFAULT (''),
+    created_by_name VARCHAR(255) NOT NULL DEFAULT (''),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS student_guardian_contacts (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL,
+    student_id VARCHAR(96) NOT NULL,
+    contact_date VARCHAR(10) NOT NULL,
+    contact_method VARCHAR(64) NOT NULL,
+    guardian_name VARCHAR(255) NOT NULL DEFAULT (''),
+    guardian_contact VARCHAR(64) NOT NULL DEFAULT (''),
+    reason VARCHAR(255) NOT NULL DEFAULT (''),
+    outcome TEXT NULL,
+    staff_id VARCHAR(96) NOT NULL DEFAULT (''),
+    staff_name VARCHAR(255) NOT NULL DEFAULT (''),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -590,8 +633,21 @@ async function ensureMysqlColumns() {
     ["attendance_records", "reopened_at", "DATETIME NULL"],
     ["attendance_records", "reopened_by", "VARCHAR(96) DEFAULT ''"],
     ["attendance_records", "reopen_reason", "TEXT"],
+    ["attendance_records", "teacher_notes", "TEXT NULL"],
     ["monthly_entries", "late_enrollee", "TINYINT(1) DEFAULT 0"],
-    ["monthly_records", "include_saturdays", "TINYINT(1) NOT NULL DEFAULT 0"]
+    ["monthly_records", "include_saturdays", "TINYINT(1) NOT NULL DEFAULT 0"],
+    ["schools", "sardo_consecutive_absences", "INT NOT NULL DEFAULT 3"],
+    ["schools", "sardo_cumulative_absences", "INT NOT NULL DEFAULT 5"],
+    ["students", "lrn", "VARCHAR(32) NOT NULL DEFAULT ''"],
+    ["students", "birth_date", "VARCHAR(10) NOT NULL DEFAULT ''"],
+    ["students", "address", "TEXT NULL"],
+    ["students", "guardian_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
+    ["students", "guardian_relationship", "VARCHAR(64) NOT NULL DEFAULT ''"],
+    ["students", "guardian_contact", "VARCHAR(64) NOT NULL DEFAULT ''"],
+    ["students", "emergency_contact_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
+    ["students", "emergency_contact_number", "VARCHAR(64) NOT NULL DEFAULT ''"],
+    ["students", "consent_data_sharing", "TINYINT NOT NULL DEFAULT 1"],
+    ["students", "consent_medical_emergency", "TINYINT NOT NULL DEFAULT 1"]
   ]
 
   for (const [tbl, col, def] of alters) {
@@ -704,7 +760,9 @@ async function initSqlite() {
       grading_period TEXT DEFAULT '',
       archived_at TEXT,
       archived_by TEXT DEFAULT '',
-      archive_reason TEXT DEFAULT ''
+      archive_reason TEXT DEFAULT '',
+      sardo_consecutive_absences INTEGER NOT NULL DEFAULT 3,
+      sardo_cumulative_absences INTEGER NOT NULL DEFAULT 5
     )`,
     `CREATE TABLE IF NOT EXISTS school_archive_user_status (
       user_id TEXT PRIMARY KEY,
@@ -740,7 +798,17 @@ async function initSqlite() {
       section TEXT NOT NULL,
       gender TEXT DEFAULT '',
       school_id TEXT DEFAULT '',
-      enrollment_status TEXT NOT NULL DEFAULT 'active'
+      enrollment_status TEXT NOT NULL DEFAULT 'active',
+      lrn TEXT NOT NULL DEFAULT '',
+      birth_date TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      guardian_name TEXT NOT NULL DEFAULT '',
+      guardian_relationship TEXT NOT NULL DEFAULT '',
+      guardian_contact TEXT NOT NULL DEFAULT '',
+      emergency_contact_name TEXT NOT NULL DEFAULT '',
+      emergency_contact_number TEXT NOT NULL DEFAULT '',
+      consent_data_sharing INTEGER NOT NULL DEFAULT 1,
+      consent_medical_emergency INTEGER NOT NULL DEFAULT 1
     )`,
     `CREATE TABLE IF NOT EXISTS student_enrollment_events (
       id TEXT PRIMARY KEY,
@@ -774,7 +842,8 @@ async function initSqlite() {
       locked_by TEXT DEFAULT '',
       reopened_at TEXT,
       reopened_by TEXT DEFAULT '',
-      reopen_reason TEXT DEFAULT ''
+      reopen_reason TEXT DEFAULT '',
+      teacher_notes TEXT DEFAULT ''
     )`,
     `CREATE TABLE IF NOT EXISTS monthly_records (
       id TEXT PRIMARY KEY,
@@ -959,6 +1028,36 @@ async function initSqlite() {
       notes TEXT DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS student_interventions (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      concern_type TEXT NOT NULL,
+      assigned_staff_id TEXT NOT NULL DEFAULT '',
+      assigned_staff_name TEXT NOT NULL DEFAULT '',
+      action_taken TEXT NOT NULL DEFAULT '',
+      follow_up_date TEXT NOT NULL DEFAULT '',
+      resolution_status TEXT NOT NULL DEFAULT 'open',
+      notes TEXT DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_by_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS student_guardian_contacts (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      contact_date TEXT NOT NULL,
+      contact_method TEXT NOT NULL,
+      guardian_name TEXT NOT NULL DEFAULT '',
+      guardian_contact TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      outcome TEXT DEFAULT '',
+      staff_id TEXT NOT NULL DEFAULT '',
+      staff_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
@@ -991,8 +1090,21 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopened_at TEXT") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopened_by TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN reopen_reason TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN teacher_notes TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE monthly_entries ADD COLUMN late_enrollee INTEGER DEFAULT 0") } catch {}
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN include_saturdays INTEGER NOT NULL DEFAULT 0") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN sardo_consecutive_absences INTEGER NOT NULL DEFAULT 3") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN sardo_cumulative_absences INTEGER NOT NULL DEFAULT 5") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN lrn TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN address TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN guardian_name TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN guardian_relationship TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN guardian_contact TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN emergency_contact_name TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN emergency_contact_number TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN consent_data_sharing INTEGER NOT NULL DEFAULT 1") } catch {}
+    try { sqlite.run("ALTER TABLE students ADD COLUMN consent_medical_emergency INTEGER NOT NULL DEFAULT 1") } catch {}
   }
   // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
   const tbl = querySync("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
@@ -1234,7 +1346,7 @@ export async function logAudit({ actor_id = '', actor_name = '', actor_role = ''
   }
 }
 
-export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff, contact_email, contact_phone, division, district, principal_name, school_year, grading_period }) {
+export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, sardo_consecutive_absences, sardo_cumulative_absences }) {
   const sets = []
   const params = []
   if (school_name !== undefined) { sets.push('name = ?'); params.push(String(school_name)) }
@@ -1248,6 +1360,14 @@ export async function updateSchoolRow(schoolId, { school_name, school_id, school
   if (principal_name !== undefined) { sets.push('principal_name = ?'); params.push(String(principal_name).trim()) }
   if (school_year !== undefined) { sets.push('school_year = ?'); params.push(String(school_year).trim()) }
   if (grading_period !== undefined) { sets.push('grading_period = ?'); params.push(String(grading_period).trim()) }
+  if (sardo_consecutive_absences !== undefined) {
+    sets.push('sardo_consecutive_absences = ?')
+    params.push(Math.max(1, parseInt(sardo_consecutive_absences, 10) || 3))
+  }
+  if (sardo_cumulative_absences !== undefined) {
+    sets.push('sardo_cumulative_absences = ?')
+    params.push(Math.max(1, parseInt(sardo_cumulative_absences, 10) || 5))
+  }
   if (attendance_lock_cutoff !== undefined) {
     const cutoff = String(attendance_lock_cutoff || '').trim()
     if (cutoff && !/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) throw new Error('Attendance lock cutoff must be a valid date')

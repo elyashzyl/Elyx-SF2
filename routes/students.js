@@ -218,7 +218,7 @@ router.post('/', async (req, res) => {
     if (!me) return
     const scope = await studentSchoolScope(req, res)
     if (!scope) return
-    const { name, grade, section, gender } = req.body
+    const { name, grade, section, gender, lrn, birth_date, address, guardian_name, guardian_relationship, guardian_contact, emergency_contact_name, emergency_contact_number, consent_data_sharing, consent_medical_emergency } = req.body
     const nameValue = asTrimmedString(name, 'Name', { required: true, max: 255 })
     if (nameValue.error) return res.status(400).json({ error: nameValue.error })
     const trimmed = nameValue.value
@@ -226,6 +226,14 @@ router.post('/', async (req, res) => {
     if (!(await assertValidClass(res, scope.schoolId, grade, section))) return
     const dupes = await duplicateNames([trimmed], scope.schoolId)
     if (dupes.length) return res.status(409).json({ error: 'Student "' + trimmed + '" already exists in this school' })
+
+    const cleanLrn = String(lrn || '').trim()
+    if (cleanLrn) {
+      const lrnDupes = await query('SELECT id, name FROM students WHERE school_id = ? AND lrn = ?', [scope.schoolId, cleanLrn])
+      if (lrnDupes.length) {
+        return res.status(409).json({ error: `Student with LRN "${cleanLrn}" already exists (${lrnDupes[0].name})` })
+      }
+    }
 
     const license = await getSchoolLicense(scope.schoolId)
     if (license && license.max_students > 0) {
@@ -244,9 +252,31 @@ router.post('/', async (req, res) => {
 
     if (req.body.effectiveOn && !validDate(req.body.effectiveOn)) return res.status(400).json({ error: 'effectiveOn must use YYYY-MM-DD format' })
     const id = uuidv4()
-    await run('INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, trimmed, grade, section, gender || '', scope.schoolId])
-    const student = { id, name: trimmed, grade, section, gender: gender || '', school_id: scope.schoolId }
+    const birthDate = String(birth_date || '').trim()
+    const addr = String(address || '').trim()
+    const gName = String(guardian_name || '').trim()
+    const gRel = String(guardian_relationship || '').trim()
+    const gContact = String(guardian_contact || '').trim()
+    const emName = String(emergency_contact_name || '').trim()
+    const emNum = String(emergency_contact_number || '').trim()
+    const cDataSharing = consent_data_sharing !== undefined ? (consent_data_sharing ? 1 : 0) : 1
+    const cMedEmergency = consent_medical_emergency !== undefined ? (consent_medical_emergency ? 1 : 0) : 1
+
+    try {
+      await run(`INSERT INTO students 
+        (id, name, grade, section, gender, school_id, lrn, birth_date, address, guardian_name, guardian_relationship, guardian_contact, emergency_contact_name, emergency_contact_number, consent_data_sharing, consent_medical_emergency)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, trimmed, grade, section, gender || '', scope.schoolId, cleanLrn, birthDate, addr, gName, gRel, gContact, emName, emNum, cDataSharing, cMedEmergency])
+    } catch {
+      await run('INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, trimmed, grade, section, gender || '', scope.schoolId])
+    }
+    const student = {
+      id, name: trimmed, grade, section, gender: gender || '', school_id: scope.schoolId,
+      lrn: cleanLrn, birth_date: birthDate, address: addr, guardian_name: gName, guardian_relationship: gRel,
+      guardian_contact: gContact, emergency_contact_name: emName, emergency_contact_number: emNum,
+      consent_data_sharing: cDataSharing, consent_medical_emergency: cMedEmergency
+    }
     await addEnrollmentEvent({ student, eventType: 'enroll', status: 'active', effectiveOn: effectiveDate(req.body.effectiveOn), grade, section, reason: String(req.body.reason || 'Initial enrollment').trim(), actor: me })
     await audit(me, 'student.create', { type: 'student', id, name: trimmed, schoolId: scope.schoolId }, `Enrolled "${trimmed}" (${grade} - ${section})`)
     res.json({ ...student, enrollment_status: 'active' })
@@ -292,6 +322,557 @@ router.post('/bulk', async (req, res) => {
   } catch (err) {
     console.error('Failed to bulk create students', err.message)
     res.status(500).json({ error: 'Failed to bulk create students' })
+  }
+})
+
+function normalizeGender(val) {
+  const s = String(val || '').trim().toLowerCase()
+  if (['m', 'male', 'boy', 'lalaki'].includes(s)) return 'Male'
+  if (['f', 'female', 'girl', 'babae'].includes(s)) return 'Female'
+  return ''
+}
+
+function formatStudentName(row) {
+  if (row.name && String(row.name).trim()) {
+    return String(row.name).trim()
+  }
+  const last = String(row.lastName || row.last_name || '').trim()
+  const first = String(row.firstName || row.first_name || '').trim()
+  const middle = String(row.middleName || row.middle_name || '').trim()
+  if (last && first) {
+    return `${last}, ${first}${middle ? ' ' + middle : ''}`
+  }
+  return first || last || ''
+}
+
+router.post('/bulk-validate', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const rows = Array.isArray(req.body.rows) ? req.body.rows : []
+    if (!rows.length) return res.status(400).json({ error: 'No student rows provided for validation' })
+
+    const license = await getSchoolLicense(scope.schoolId)
+    let currentStudents = 0
+    try {
+      currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+    } catch {
+      currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [scope.schoolId]))[0]?.cnt || 0
+    }
+
+    const existingRows = await query('SELECT name, grade, section FROM students WHERE school_id = ?', [scope.schoolId])
+    const existingMap = new Set(existingRows.map(r => `${(r.name || '').trim().toLowerCase()}__${(r.grade || '').trim().toLowerCase()}__${(r.section || '').trim().toLowerCase()}`))
+    let existingLrnMap = new Map()
+    try {
+      const existingLrnRows = await query('SELECT lrn, name FROM students WHERE school_id = ? AND lrn != ""', [scope.schoolId])
+      existingLrnMap = new Map(existingLrnRows.map(r => [r.lrn, r.name]))
+    } catch {}
+    const batchLrnSet = new Set()
+
+    const valid = []
+    const duplicates = []
+    const errors = []
+
+    rows.forEach((raw, idx) => {
+      const rowNum = idx + 1
+      const name = formatStudentName(raw)
+      const grade = String(raw.grade || req.body.defaultGrade || '').trim()
+      const section = String(raw.section || req.body.defaultSection || '').trim()
+      const gender = normalizeGender(raw.gender || raw.sex)
+      const lrn = String(raw.lrn || raw.LRN || '').trim()
+      const guardianName = String(raw.guardian_name || raw.guardianName || raw.guardian || '').trim()
+      const guardianContact = String(raw.guardian_contact || raw.guardianContact || raw.contact || '').trim()
+      const emergencyContactName = String(raw.emergency_contact_name || raw.emergencyContactName || '').trim()
+      const emergencyContactNumber = String(raw.emergency_contact_number || raw.emergencyContactNumber || '').trim()
+
+      if (!name) {
+        errors.push({ rowNumber: rowNum, raw, error: 'Learner name is required' })
+        return
+      }
+      if (name.length > 255) {
+        errors.push({ rowNumber: rowNum, raw, error: 'Learner name exceeds 255 characters' })
+        return
+      }
+      if (!grade) {
+        errors.push({ rowNumber: rowNum, raw, error: 'Grade level is required' })
+        return
+      }
+      if (!section) {
+        errors.push({ rowNumber: rowNum, raw, error: 'Section is required' })
+        return
+      }
+
+      const dupKey = `${name.toLowerCase()}__${grade.toLowerCase()}__${section.toLowerCase()}`
+      const studentObj = {
+        rowNumber: rowNum,
+        name,
+        grade,
+        section,
+        gender: gender || 'Male',
+        lrn,
+        guardian_name: guardianName,
+        guardian_contact: guardianContact,
+        emergency_contact_name: emergencyContactName,
+        emergency_contact_number: emergencyContactNumber
+      }
+
+      if (lrn && batchLrnSet.has(lrn)) {
+        duplicates.push({ ...studentObj, warning: `Duplicate LRN "${lrn}" in import file` })
+      } else if (lrn && existingLrnMap.has(lrn)) {
+        duplicates.push({ ...studentObj, warning: `LRN "${lrn}" already assigned to ${existingLrnMap.get(lrn)}` })
+      } else if (existingMap.has(dupKey)) {
+        duplicates.push({ ...studentObj, warning: `Already enrolled in ${grade} - ${section}` })
+      } else {
+        if (lrn) batchLrnSet.add(lrn)
+        valid.push(studentObj)
+      }
+    })
+
+    const maxStudents = license ? license.max_students : 0
+    const wouldExceed = maxStudents > 0 && (currentStudents + valid.length > maxStudents)
+
+    res.json({
+      valid,
+      duplicates,
+      errors,
+      summary: {
+        total: rows.length,
+        validCount: valid.length,
+        duplicateCount: duplicates.length,
+        errorCount: errors.length,
+        currentCount: currentStudents,
+        maxStudents,
+        wouldExceed
+      }
+    })
+  } catch (err) {
+    console.error('Failed to validate student roster:', err.message)
+    res.status(500).json({ error: 'Failed to validate student roster' })
+  }
+})
+
+router.post('/bulk-import', async (req, res) => {
+  try {
+    await ensureEnrollmentStatusColumn()
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const students = Array.isArray(req.body.students) ? req.body.students : []
+    if (!students.length) return res.status(400).json({ error: 'No students provided for import' })
+
+    const license = await getSchoolLicense(scope.schoolId)
+    if (license && license.max_students > 0) {
+      let currentStudents = 0
+      try {
+        currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [scope.schoolId]))[0]?.cnt || 0
+      } catch {
+        currentStudents = (await query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [scope.schoolId]))[0]?.cnt || 0
+      }
+      if (currentStudents + students.length > license.max_students) {
+        return res.status(400).json({
+          error: `Importing ${students.length} students would exceed your school license limit (${currentStudents + students.length}/${license.max_students}).`
+        })
+      }
+    }
+
+    const effectiveOn = effectiveDate(req.body.effectiveOn)
+    const reason = String(req.body.reason || 'Bulk roster import').trim()
+
+    const created = []
+    for (const item of students) {
+      const name = String(item.name || '').trim()
+      const grade = String(item.grade || '').trim()
+      const section = String(item.section || '').trim()
+      const gender = normalizeGender(item.gender || item.sex) || 'Male'
+      const lrn = String(item.lrn || '').trim()
+      const guardianName = String(item.guardian_name || '').trim()
+      const guardianContact = String(item.guardian_contact || '').trim()
+      const emergencyContactName = String(item.emergency_contact_name || '').trim()
+      const emergencyContactNumber = String(item.emergency_contact_number || '').trim()
+      if (!name || !grade || !section) continue
+
+      const id = uuidv4()
+      try {
+        await run(
+          'INSERT INTO students (id, name, grade, section, gender, school_id, lrn, guardian_name, guardian_contact, emergency_contact_name, emergency_contact_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [id, name, grade, section, gender, scope.schoolId, lrn, guardianName, guardianContact, emergencyContactName, emergencyContactNumber]
+        )
+      } catch {
+        await run(
+          'INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, name, grade, section, gender, scope.schoolId]
+        )
+      }
+      const student = {
+        id, name, grade, section, gender, school_id: scope.schoolId,
+        lrn, guardian_name: guardianName, guardian_contact: guardianContact,
+        emergency_contact_name: emergencyContactName, emergency_contact_number: emergencyContactNumber,
+        enrollment_status: 'active'
+      }
+      await addEnrollmentEvent({
+        student,
+        eventType: 'enroll',
+        status: 'active',
+        effectiveOn,
+        grade,
+        section,
+        reason,
+        actor: me
+      })
+      created.push(student)
+    }
+
+    if (created.length) {
+      await audit(
+        me,
+        'student.bulk_import',
+        { type: 'student', id: '', name: `${created.length} learners`, schoolId: scope.schoolId },
+        `Bulk imported roster of ${created.length} learners`
+      )
+    }
+
+    res.json({ success: true, count: created.length, students: created })
+  } catch (err) {
+    console.error('Failed to bulk import students:', err.message)
+    res.status(500).json({ error: 'Failed to bulk import students' })
+  }
+})
+
+router.post('/check-duplicates', async (req, res) => {
+  try {
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+    const { lrn, name, excludeId } = req.body || {}
+    const matches = []
+
+    if (lrn && String(lrn).trim()) {
+      const cleanLrn = String(lrn).trim()
+      let lrnSql = 'SELECT id, name, grade, section, gender, lrn, enrollment_status FROM students WHERE school_id = ? AND lrn = ?'
+      const lrnParams = [scope.schoolId, cleanLrn]
+      if (excludeId) {
+        lrnSql += ' AND id != ?'
+        lrnParams.push(excludeId)
+      }
+      const lrnRows = await query(lrnSql, lrnParams)
+      for (const row of lrnRows) {
+        matches.push({ ...row, matchType: 'lrn_exact', reason: `Exact LRN match (${cleanLrn})` })
+      }
+    }
+
+    if (name && String(name).trim()) {
+      const cleanName = String(name).trim()
+      let nameSql = 'SELECT id, name, grade, section, gender, lrn, enrollment_status FROM students WHERE school_id = ? AND LOWER(name) = LOWER(?)'
+      const nameParams = [scope.schoolId, cleanName]
+      if (excludeId) {
+        nameSql += ' AND id != ?'
+        nameParams.push(excludeId)
+      }
+      const nameRows = await query(nameSql, nameParams)
+      for (const row of nameRows) {
+        if (!matches.some(m => m.id === row.id)) {
+          matches.push({ ...row, matchType: 'name_exact', reason: `Exact name match (${cleanName})` })
+        }
+      }
+    }
+
+    res.json({
+      hasDuplicate: matches.length > 0,
+      matchesCount: matches.length,
+      matches
+    })
+  } catch (err) {
+    console.error('Failed to check duplicates:', err.message)
+    res.status(500).json({ error: 'Failed to check duplicates' })
+  }
+})
+
+router.get('/interventions', async (req, res) => {
+  try {
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+    const { me, schoolId } = scope
+    const { concern_type, resolution_status, assigned_staff_id, student_id } = req.query
+
+    let sql = `
+      SELECT i.*, s.name as student_name, s.grade, s.section, s.gender, s.lrn
+      FROM student_interventions i
+      JOIN students s ON s.id = i.student_id AND s.school_id = i.school_id
+      WHERE i.school_id = ?
+    `
+    const params = [schoolId]
+
+    if (me.role === 'teacher') {
+      if (me.grade && me.section) {
+        sql += ' AND s.grade = ? AND s.section = ?'
+        params.push(me.grade, me.section)
+      } else {
+        return res.json([])
+      }
+    }
+
+    if (concern_type) {
+      sql += ' AND i.concern_type = ?'
+      params.push(concern_type)
+    }
+    if (resolution_status) {
+      sql += ' AND i.resolution_status = ?'
+      params.push(resolution_status)
+    }
+    if (assigned_staff_id) {
+      sql += ' AND i.assigned_staff_id = ?'
+      params.push(assigned_staff_id)
+    }
+    if (student_id) {
+      sql += ' AND i.student_id = ?'
+      params.push(student_id)
+    }
+
+    sql += ' ORDER BY i.created_at DESC'
+    const rows = await query(sql, params)
+    res.json(rows)
+  } catch (err) {
+    console.error('Failed to list interventions:', err.message)
+    res.status(500).json({ error: 'Failed to list interventions' })
+  }
+})
+
+router.get('/:id', async (req, res) => {
+  try {
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+    const students = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!students.length) return res.status(404).json({ error: 'Student not found' })
+    const student = students[0]
+
+    if (scope.me.role === 'teacher' && (student.grade !== scope.me.grade || student.section !== scope.me.section)) {
+      return res.status(403).json({ error: 'Forbidden: outside your advisory class' })
+    }
+
+    let interventions = []
+    try {
+      interventions = await query('SELECT * FROM student_interventions WHERE student_id = ? AND school_id = ? ORDER BY created_at DESC', [student.id, scope.schoolId])
+    } catch {}
+
+    let contactHistory = []
+    try {
+      contactHistory = await query('SELECT * FROM student_guardian_contacts WHERE student_id = ? AND school_id = ? ORDER BY contact_date DESC, created_at DESC', [student.id, scope.schoolId])
+    } catch {}
+
+    let enrollmentHistory = []
+    try {
+      enrollmentHistory = await query('SELECT * FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on DESC, event_sequence DESC LIMIT 10', [student.id, scope.schoolId])
+    } catch {}
+
+    res.json({
+      ...student,
+      interventions,
+      contactHistory,
+      enrollmentHistory
+    })
+  } catch (err) {
+    console.error('Failed to get student:', err.message)
+    res.status(500).json({ error: 'Failed to get student' })
+  }
+})
+
+router.get('/:id/interventions', async (req, res) => {
+  try {
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+    const rows = await query('SELECT * FROM student_interventions WHERE student_id = ? AND school_id = ? ORDER BY created_at DESC', [req.params.id, scope.schoolId])
+    res.json(rows)
+  } catch (err) {
+    console.error('Failed to fetch student interventions:', err.message)
+    res.status(500).json({ error: 'Failed to fetch student interventions' })
+  }
+})
+
+router.post('/:id/interventions', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+    const student = studentRows[0]
+
+    if (me.role === 'teacher' && (student.grade !== me.grade || student.section !== me.section)) {
+      return res.status(403).json({ error: 'Forbidden: you can only add interventions for your advisory students' })
+    }
+
+    const { concern_type, action_taken, follow_up_date, resolution_status, notes, assigned_staff_id, assigned_staff_name } = req.body || {}
+    if (!concern_type || !String(concern_type).trim()) {
+      return res.status(400).json({ error: 'Concern type is required (e.g. attendance, academic, behavioral, health)' })
+    }
+    if (!action_taken || !String(action_taken).trim()) {
+      return res.status(400).json({ error: 'Action taken description is required' })
+    }
+
+    const id = uuidv4()
+    const concernType = String(concern_type).trim().toLowerCase()
+    const actionTaken = String(action_taken).trim()
+    const followUp = follow_up_date && validDate(follow_up_date) ? String(follow_up_date) : ''
+    const status = ['open', 'in_progress', 'resolved', 'escalated'].includes(resolution_status) ? resolution_status : 'open'
+    const staffId = String(assigned_staff_id || me.id).trim()
+    const staffName = String(assigned_staff_name || me.name || '').trim()
+    const noteText = String(notes || '').trim()
+
+    await run(`INSERT INTO student_interventions
+      (id, school_id, student_id, concern_type, assigned_staff_id, assigned_staff_name, action_taken, follow_up_date, resolution_status, notes, created_by, created_by_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, scope.schoolId, student.id, concernType, staffId, staffName, actionTaken, followUp, status, noteText, me.id, me.name || ''])
+
+    await audit(me, 'student.intervention_create', { type: 'student', id: student.id, name: student.name, schoolId: scope.schoolId }, `Added ${concernType} intervention for "${student.name}"`)
+    const rows = await query('SELECT * FROM student_interventions WHERE id = ?', [id])
+    res.status(201).json(rows[0])
+  } catch (err) {
+    console.error('Failed to create intervention:', err.message)
+    res.status(500).json({ error: 'Failed to create intervention' })
+  }
+})
+
+router.put('/:id/interventions/:interventionId', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+
+    const existing = await query('SELECT * FROM student_interventions WHERE id = ? AND student_id = ? AND school_id = ?', [req.params.interventionId, req.params.id, scope.schoolId])
+    if (!existing.length) return res.status(404).json({ error: 'Intervention record not found' })
+
+    const { concern_type, action_taken, follow_up_date, resolution_status, notes, assigned_staff_id, assigned_staff_name } = req.body || {}
+    const sets = []
+    const params = []
+    if (concern_type !== undefined) { sets.push('concern_type = ?'); params.push(String(concern_type).trim().toLowerCase()) }
+    if (action_taken !== undefined) { sets.push('action_taken = ?'); params.push(String(action_taken).trim()) }
+    if (follow_up_date !== undefined) { sets.push('follow_up_date = ?'); params.push(validDate(follow_up_date) ? String(follow_up_date) : '') }
+    if (resolution_status !== undefined && ['open', 'in_progress', 'resolved', 'escalated'].includes(resolution_status)) {
+      sets.push('resolution_status = ?'); params.push(resolution_status)
+    }
+    if (notes !== undefined) { sets.push('notes = ?'); params.push(String(notes).trim()) }
+    if (assigned_staff_id !== undefined) { sets.push('assigned_staff_id = ?'); params.push(String(assigned_staff_id).trim()) }
+    if (assigned_staff_name !== undefined) { sets.push('assigned_staff_name = ?'); params.push(String(assigned_staff_name).trim()) }
+
+    if (!sets.length) return res.status(400).json({ error: 'No fields provided for update' })
+    params.push(req.params.interventionId)
+    await run(`UPDATE student_interventions SET ${sets.join(', ')} WHERE id = ?`, params)
+
+    const updated = (await query('SELECT * FROM student_interventions WHERE id = ?', [req.params.interventionId]))[0]
+    await audit(me, 'student.intervention_update', { type: 'student', id: req.params.id, name: studentRows[0].name, schoolId: scope.schoolId }, `Updated intervention ${req.params.interventionId} for "${studentRows[0].name}"`)
+    res.json(updated)
+  } catch (err) {
+    console.error('Failed to update intervention:', err.message)
+    res.status(500).json({ error: 'Failed to update intervention' })
+  }
+})
+
+router.delete('/:id/interventions/:interventionId', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+
+    const existing = await query('SELECT * FROM student_interventions WHERE id = ? AND student_id = ? AND school_id = ?', [req.params.interventionId, req.params.id, scope.schoolId])
+    if (!existing.length) return res.status(404).json({ error: 'Intervention record not found' })
+
+    await run('DELETE FROM student_interventions WHERE id = ?', [req.params.interventionId])
+    await audit(me, 'student.intervention_delete', { type: 'student', id: req.params.id, name: studentRows[0].name, schoolId: scope.schoolId }, `Deleted intervention ${req.params.interventionId}`)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to delete intervention:', err.message)
+    res.status(500).json({ error: 'Failed to delete intervention' })
+  }
+})
+
+router.get('/:id/guardian-contacts', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+
+    const rows = await query('SELECT * FROM student_guardian_contacts WHERE student_id = ? AND school_id = ? ORDER BY contact_date DESC, created_at DESC', [req.params.id, scope.schoolId])
+    res.json(rows)
+  } catch (err) {
+    console.error('Failed to fetch guardian contacts:', err.message)
+    res.status(500).json({ error: 'Failed to fetch guardian contacts' })
+  }
+})
+
+router.post('/:id/guardian-contacts', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+    const student = studentRows[0]
+
+    const { contact_date, contact_method, guardian_name, guardian_contact, reason, outcome } = req.body || {}
+    if (!contact_method || !String(contact_method).trim()) {
+      return res.status(400).json({ error: 'Contact method is required (e.g. phone, home_visit, in_person, sms, letter)' })
+    }
+    const cDate = contact_date && validDate(contact_date) ? String(contact_date) : effectiveDate(contact_date)
+    const id = uuidv4()
+    const gName = String(guardian_name || student.guardian_name || '').trim()
+    const gContact = String(guardian_contact || student.guardian_contact || '').trim()
+    const rsn = String(reason || 'SARDO / Attendance follow-up').trim()
+    const otc = String(outcome || '').trim()
+
+    await run(`INSERT INTO student_guardian_contacts
+      (id, school_id, student_id, contact_date, contact_method, guardian_name, guardian_contact, reason, outcome, staff_id, staff_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, scope.schoolId, student.id, cDate, String(contact_method).trim().toLowerCase(), gName, gContact, rsn, otc, me.id, me.name || ''])
+
+    await audit(me, 'student.guardian_contact_log', { type: 'student', id: student.id, name: student.name, schoolId: scope.schoolId }, `Logged guardian contact (${contact_method}) for "${student.name}"`)
+    const rows = await query('SELECT * FROM student_guardian_contacts WHERE id = ?', [id])
+    res.status(201).json(rows[0])
+  } catch (err) {
+    console.error('Failed to log guardian contact:', err.message)
+    res.status(500).json({ error: 'Failed to log guardian contact' })
+  }
+})
+
+router.delete('/:id/guardian-contacts/:contactId', async (req, res) => {
+  try {
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+
+    const existing = await query('SELECT * FROM student_guardian_contacts WHERE id = ? AND student_id = ? AND school_id = ?', [req.params.contactId, req.params.id, scope.schoolId])
+    if (!existing.length) return res.status(404).json({ error: 'Contact log not found' })
+
+    await run('DELETE FROM student_guardian_contacts WHERE id = ?', [req.params.contactId])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Failed to delete guardian contact:', err.message)
+    res.status(500).json({ error: 'Failed to delete guardian contact' })
   }
 })
 
@@ -601,14 +1182,46 @@ router.put('/:id', async (req, res) => {
     if (me.role !== 'superadmin' && target.school_id !== me.school_id) {
       return res.status(403).json({ error: 'Forbidden: outside your school' })
     }
-    const { name, grade, section, gender } = req.body
+    const {
+      name, grade, section, gender, lrn, birth_date, address,
+      guardian_name, guardian_relationship, guardian_contact,
+      emergency_contact_name, emergency_contact_number,
+      consent_data_sharing, consent_medical_emergency
+    } = req.body
+
     if (grade !== undefined || section !== undefined) {
       return res.status(400).json({ error: 'Use an enrollment event to change a student grade or section' })
     }
-    await run('UPDATE students SET name=?, gender=? WHERE id=?',
-      [name === undefined ? target.name : String(name).trim(), gender === undefined ? target.gender || '' : gender, req.params.id])
-    await audit(me, 'student.update', { type: 'student', id: req.params.id, name: name || target.name, schoolId: target.school_id || '' }, `Updated student "${target.name}"`)
-    res.json({ success: true })
+
+    if (lrn !== undefined && String(lrn).trim()) {
+      const cleanLrn = String(lrn).trim()
+      const existing = await query('SELECT id, name FROM students WHERE school_id = ? AND lrn = ? AND id != ?', [target.school_id, cleanLrn, target.id])
+      if (existing.length) {
+        return res.status(409).json({ error: `Student with LRN "${cleanLrn}" already exists (${existing[0].name})` })
+      }
+    }
+
+    const sets = []
+    const params = []
+    if (name !== undefined) { sets.push('name = ?'); params.push(String(name).trim()) }
+    if (gender !== undefined) { sets.push('gender = ?'); params.push(gender) }
+    if (lrn !== undefined) { sets.push('lrn = ?'); params.push(String(lrn).trim()) }
+    if (birth_date !== undefined) { sets.push('birth_date = ?'); params.push(String(birth_date).trim()) }
+    if (address !== undefined) { sets.push('address = ?'); params.push(String(address).trim()) }
+    if (guardian_name !== undefined) { sets.push('guardian_name = ?'); params.push(String(guardian_name).trim()) }
+    if (guardian_relationship !== undefined) { sets.push('guardian_relationship = ?'); params.push(String(guardian_relationship).trim()) }
+    if (guardian_contact !== undefined) { sets.push('guardian_contact = ?'); params.push(String(guardian_contact).trim()) }
+    if (emergency_contact_name !== undefined) { sets.push('emergency_contact_name = ?'); params.push(String(emergency_contact_name).trim()) }
+    if (emergency_contact_number !== undefined) { sets.push('emergency_contact_number = ?'); params.push(String(emergency_contact_number).trim()) }
+    if (consent_data_sharing !== undefined) { sets.push('consent_data_sharing = ?'); params.push(consent_data_sharing ? 1 : 0) }
+    if (consent_medical_emergency !== undefined) { sets.push('consent_medical_emergency = ?'); params.push(consent_medical_emergency ? 1 : 0) }
+
+    if (!sets.length) return res.status(400).json({ error: 'No fields provided for update' })
+    params.push(req.params.id)
+    await run(`UPDATE students SET ${sets.join(', ')} WHERE id = ?`, params)
+    await audit(me, 'student.update', { type: 'student', id: req.params.id, name: name || target.name, schoolId: target.school_id || '' }, `Updated student "${name || target.name}"`)
+    const updated = (await query('SELECT * FROM students WHERE id = ?', [req.params.id]))[0]
+    res.json({ success: true, student: updated })
   } catch (err) {
     console.error('Failed to update student', err.message)
     res.status(500).json({ error: 'Failed to update student' })

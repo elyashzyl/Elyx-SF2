@@ -114,8 +114,48 @@
           </svg>
           {{ record.include_saturdays ? 'Saturdays included' : 'Include Saturdays' }}
         </button>
+        <button
+          type="button"
+          class="btn-secondary sync-calendar-btn sheet-setting"
+          :disabled="syncingCalendar"
+          title="Import official school calendar holidays and suspensions into excluded school days"
+          @click="handleSyncCalendar"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+            <path d="M16 21h5v-5"/>
+          </svg>
+          {{ syncingCalendar ? 'Syncing…' : 'Sync Calendar' }}
+        </button>
         <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
         <span>School Head: <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" /></span>
+      </div>
+
+      <!-- School Calendar Events & Suspensions Strip -->
+      <div v-if="record.calendar_events && record.calendar_events.length" class="calendar-events-strip">
+        <div class="calendar-events-strip-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>School Calendar ({{ months[form.month-1] }} {{ form.year }}):</span>
+        </div>
+        <div class="calendar-event-pills">
+          <span
+            v-for="ev in record.calendar_events"
+            :key="ev.id"
+            class="calendar-event-pill"
+            :class="{
+              'pill--holiday': /holiday/i.test(ev.type),
+              'pill--suspension': /suspension/i.test(ev.type),
+              'pill--event': !/holiday|suspension/i.test(ev.type)
+            }"
+            :title="`${ev.type}: ${ev.title}`"
+          >
+            <strong>Day {{ ev.event_date.split('-')[2] }}</strong>: {{ ev.title }} ({{ ev.type }})
+          </span>
+        </div>
       </div>
 
       <div class="table-wrapper">
@@ -991,6 +1031,42 @@ async function toggleExcludeDate(d) {
   }
 }
 
+const syncingCalendar = ref(false)
+
+async function handleSyncCalendar() {
+  if (!record.value?.id) return
+  syncingCalendar.value = true
+  try {
+    const res = await store.syncMonthlyCalendar(
+      record.value.id,
+      auth.user?.id,
+      auth.user?.role,
+      effectiveSchoolId.value || undefined
+    )
+    if (res?.success) {
+      const refreshed = await store.fetchMonthly(
+        form.grade,
+        form.section,
+        form.month,
+        form.year,
+        effectiveSchoolId.value || undefined,
+        { throwOnError: true }
+      )
+      if (refreshed) {
+        for (const entry of refreshed.entries || []) {
+          entry.gender = studentsLookup.value[entry.studentId] || entry.gender || ''
+        }
+        record.value = refreshed
+      }
+      notify(`Calendar events synced (${res.synced_events?.length || 0} holidays/suspensions excluded)`, 'success')
+    }
+  } catch (err) {
+    notify(err.message || 'Failed to sync calendar events', 'error')
+  } finally {
+    syncingCalendar.value = false
+  }
+}
+
 async function updateRemarks(entry) {
   await store.updateMonthlyRemarks(record.value.id, entry.studentId, entry.remarks)
 }
@@ -1004,11 +1080,78 @@ async function updateRemarks(entry) {
 }
 
 .saturday-toggle.active {
-  border-color: var(--primary, #2563eb);
-  color: var(--primary, #2563eb);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .sheet-setting {
   margin: 0;
+}
+
+.sync-calendar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+/* Calendar Events Strip */
+.calendar-events-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 16px;
+  margin: 12px 0 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: var(--shadow-xs);
+}
+
+.calendar-events-strip-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+
+.calendar-event-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendar-event-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.pill--holiday {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: rgba(182, 131, 56, 0.3);
+}
+
+.pill--suspension {
+  background: var(--red-bg, rgba(196, 84, 78, 0.1));
+  color: var(--destructive);
+  border-color: rgba(196, 84, 78, 0.3);
+}
+
+.pill--event {
+  background: var(--info-bg, rgba(85, 126, 155, 0.1));
+  color: var(--info);
+  border-color: rgba(85, 126, 155, 0.3);
 }
 </style>

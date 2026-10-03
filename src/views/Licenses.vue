@@ -1588,8 +1588,8 @@ onUnmounted(() => {
   font-weight: 800;
   padding: 3px 8px;
   border-radius: 999px;
-  background: #e6f3f4;
-  color: #0c5357;
+  background: var(--info-bg);
+  color: var(--info);
   text-transform: uppercase;
 }
 
@@ -1618,10 +1618,10 @@ onUnmounted(() => {
 .status--active .dot { background: var(--success); }
 
 .status--trial {
-  background: #e6f3f4;
-  color: #0c5357;
+  background: var(--info-bg);
+  color: var(--info);
 }
-.status--trial .dot { background: #0c5357; }
+.status--trial .dot { background: var(--info); }
 
 .status--expired {
   background: var(--red-bg);
@@ -1754,8 +1754,8 @@ onUnmounted(() => {
 }
 
 .module-chip.enabled {
-  background: #e6f3f4;
-  color: #0c5357;
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 /* Actions bar */
@@ -1814,9 +1814,9 @@ onUnmounted(() => {
   color: var(--foreground);
 }
 
-.tier--adviser { background: #e6f3f4; color: #0c5357; }
-.tier--campus { background: rgba(12, 83, 87, 0.12); color: #0c5357; }
-.tier--division { background: #080d0c; color: #ffffff; }
+.tier--adviser { background: var(--primary-bg); color: var(--primary); }
+.tier--campus { background: var(--secondary); color: var(--secondary-foreground); }
+.tier--division { background: var(--card); color: var(--foreground); border: 1px solid var(--border); }
 
 /* Modals */
 .modal-overlay {

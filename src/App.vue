@@ -1,113 +1,115 @@
 <template>
-  <div id="app" :data-theme="theme">
-    <nav v-if="auth.user" class="top-nav">
-      <button class="mobile-menu-btn" type="button" aria-label="Open navigation" @click="sidebarOpen = !sidebarOpen">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+  <div id="app" :data-theme="theme" :style="{ '--header-height': `${headerHeight}px` }">
+    <header ref="headerRef" class="app-header" v-if="auth.user">
+      <nav class="top-nav">
+        <button class="mobile-menu-btn" type="button" aria-label="Open navigation" @click="sidebarOpen = !sidebarOpen">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
 
-      <div class="top-nav-brand">
-        <img src="/elytrack-logo.png" alt="ElyTrack Logo" class="top-nav-brand-img" />
-        <span class="top-nav-brand-copy">
-          <strong>ElyTrack</strong>
-          <small>School operations</small>
+        <div class="top-nav-brand">
+          <img src="/elytrack-logo.png" alt="ElyTrack Logo" class="top-nav-brand-img" />
+          <span class="top-nav-brand-copy">
+            <strong>ElyTrack</strong>
+            <small>School operations</small>
+          </span>
+        </div>
+
+        <div class="top-nav-context">
+          <span class="top-nav-context-label">Workspace</span>
+          <strong>{{ currentPageTitle }}</strong>
+        </div>
+
+        <div class="top-nav-spacer"></div>
+
+        <div class="top-nav-school" :title="pillName">
+          <span class="top-nav-school-dot"></span>
+          <span class="top-nav-school-copy">
+            <small>Active school</small>
+            <strong>{{ pillName }}</strong>
+          </span>
+        </div>
+
+        <div class="top-nav-actions">
+          <button
+            @click="showTutorial = true"
+            class="top-nav-btn tutorial-btn"
+            title="Onboarding walkthrough &amp; guide"
+            aria-label="Onboarding walkthrough &amp; guide"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </button>
+
+          <button
+            @click="toggleTheme()"
+            class="top-nav-btn"
+            :title="theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
+            :aria-label="theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
+          >
+            <svg v-if="theme === 'light'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+            <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+          </button>
+
+          <button
+            @click="toggleNotifications"
+            class="top-nav-btn notification-btn"
+            :class="{ 'has-notifications': unreadCount > 0 }"
+            title="Notifications"
+            aria-label="Notifications"
+            :aria-expanded="showNotifications"
+            ref="notifBellRef"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+            </svg>
+            <span v-if="unreadCount > 0" class="notif-badge">{{ unreadCount }}</span>
+          </button>
+
+          <button @click="handleLogout" class="top-nav-logout" title="Sign out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="m16 17 5-5-5-5M21 12H9" />
+            </svg>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </nav>
+
+      <div v-if="auth.isImpersonating" class="impersonate-banner">
+        <span class="impersonate-banner-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+          </svg>
         </span>
+        <span>Viewing as <strong>{{ auth.user.name }}</strong> ({{ auth.user.role }}) · started by {{ auth.impersonatedBy?.name }}</span>
+        <button @click="handleStopImpersonating" class="impersonate-stop" :disabled="stoppingImpersonation">
+          {{ stoppingImpersonation ? 'Returning…' : 'Return to superadmin' }}
+        </button>
       </div>
 
-      <div class="top-nav-context">
-        <span class="top-nav-context-label">Workspace</span>
-        <strong>{{ currentPageTitle }}</strong>
-      </div>
-
-      <div class="top-nav-spacer"></div>
-
-      <div class="top-nav-school" :title="pillName">
-        <span class="top-nav-school-dot"></span>
-        <span class="top-nav-school-copy">
-          <small>Active school</small>
-          <strong>{{ pillName }}</strong>
+      <!-- License Lock Banner for Admins -->
+      <div v-if="licenseLocked && auth.isAdmin" class="license-lock-banner">
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span>Your school's ElyTrack license is currently <strong>{{ licenseStatus.toUpperCase() }}</strong>. Operational modules are locked.</span>
         </span>
+        <router-link to="/licenses" class="lock-action-btn">Manage License &amp; Renew →</router-link>
       </div>
-
-      <div class="top-nav-actions">
-        <button
-          @click="showTutorial = true"
-          class="top-nav-btn tutorial-btn"
-          title="Onboarding walkthrough &amp; guide"
-          aria-label="Onboarding walkthrough &amp; guide"
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        </button>
-
-        <button
-          @click="toggleTheme()"
-          class="top-nav-btn"
-          :title="theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
-          :aria-label="theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
-        >
-          <svg v-if="theme === 'light'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-          </svg>
-          <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-          </svg>
-        </button>
-
-        <button
-          @click="toggleNotifications"
-          class="top-nav-btn notification-btn"
-          :class="{ 'has-notifications': unreadCount > 0 }"
-          title="Notifications"
-          aria-label="Notifications"
-          :aria-expanded="showNotifications"
-          ref="notifBellRef"
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
-          </svg>
-          <span v-if="unreadCount > 0" class="notif-badge">{{ unreadCount }}</span>
-        </button>
-
-        <button @click="handleLogout" class="top-nav-logout" title="Sign out">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <path d="m16 17 5-5-5-5M21 12H9" />
-          </svg>
-          <span>Sign out</span>
-        </button>
-      </div>
-    </nav>
-
-    <div v-if="auth.isImpersonating" class="impersonate-banner">
-      <span class="impersonate-banner-icon">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
-        </svg>
-      </span>
-      <span>Viewing as <strong>{{ auth.user.name }}</strong> ({{ auth.user.role }}) · started by {{ auth.impersonatedBy?.name }}</span>
-      <button @click="handleStopImpersonating" class="impersonate-stop" :disabled="stoppingImpersonation">
-        {{ stoppingImpersonation ? 'Returning…' : 'Return to superadmin' }}
-      </button>
-    </div>
-
-    <!-- License Lock Banner for Admins -->
-    <div v-if="licenseLocked && auth.isAdmin" class="license-lock-banner">
-      <span style="display: inline-flex; align-items: center; gap: 6px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-          <line x1="12" y1="9" x2="12" y2="13"></line>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <span>Your school's ElyTrack license is currently <strong>{{ licenseStatus.toUpperCase() }}</strong>. Operational modules are locked.</span>
-      </span>
-      <router-link to="/licenses" class="lock-action-btn">Manage License &amp; Renew →</router-link>
-    </div>
+    </header>
 
     <!-- Teacher Lockout Screen -->
     <div v-if="licenseLocked && auth.isTeacher" class="license-teacher-lockout">
@@ -356,6 +358,18 @@ const sidebarOpen = ref(false)
 const showNotifications = ref(false)
 const notifPanelRef = ref(null)
 const notifBellRef = ref(null)
+const headerRef = ref(null)
+const headerHeight = ref(70)
+let headerResizeObserver = null
+
+function updateHeaderHeight() {
+  if (headerRef.value) {
+    const rect = headerRef.value.getBoundingClientRect()
+    if (rect.height > 0) {
+      headerHeight.value = Math.round(rect.height)
+    }
+  }
+}
 const stoppingImpersonation = ref(false)
 const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
 
@@ -448,6 +462,13 @@ async function loadSchool() {
 let appLicenseInterval = null
 
 onMounted(() => {
+  updateHeaderHeight()
+  if (headerRef.value && typeof ResizeObserver !== 'undefined') {
+    headerResizeObserver = new ResizeObserver(() => {
+      updateHeaderHeight()
+    })
+    headerResizeObserver.observe(headerRef.value)
+  }
   loadSchool()
   checkLicenseStatus()
   restoreScrollAfterLoad()
@@ -462,7 +483,15 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (headerResizeObserver) {
+    headerResizeObserver.disconnect()
+    headerResizeObserver = null
+  }
   if (appLicenseInterval) clearInterval(appLicenseInterval)
+})
+
+watch(() => [auth.isImpersonating, licenseLocked.value, auth.user], () => {
+  setTimeout(updateHeaderHeight, 50)
 })
 
 watch(() => auth.user?.school_id, () => {

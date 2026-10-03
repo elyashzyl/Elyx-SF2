@@ -183,7 +183,9 @@ export function schoolToResponse(row) {
     grading_period: row.grading_period || '',
     archived_at: row.archived_at || null,
     archived_by: row.archived_by || '',
-    archive_reason: row.archive_reason || ''
+    archive_reason: row.archive_reason || '',
+    sardo_consecutive_absences: Number(row.sardo_consecutive_absences ?? 3),
+    sardo_cumulative_absences: Number(row.sardo_cumulative_absences ?? 5)
   }
 }
 

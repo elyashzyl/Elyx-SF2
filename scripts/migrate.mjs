@@ -173,6 +173,10 @@ async function main() {
   const isMysql = DB_MODE === 'mysql'
 
   if (args.fresh) {
+    if (process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production') {
+      console.error('[db] CRITICAL REFUSAL: --fresh is strictly forbidden in production. Operation aborted to protect production data.')
+      process.exit(1)
+    }
     await dropAllTables(isMysql)
   }
 

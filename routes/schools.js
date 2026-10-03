@@ -25,7 +25,9 @@ function mapPrismaSchool(row) {
     grading_period: row.gradingPeriod,
     archived_at: row.archivedAt,
     archived_by: row.archivedBy,
-    archive_reason: row.archiveReason
+    archive_reason: row.archiveReason,
+    sardo_consecutive_absences: row.sardoConsecutiveAbsences ?? 3,
+    sardo_cumulative_absences: row.sardoCumulativeAbsences ?? 5
   })
 }
 
@@ -179,6 +181,14 @@ router.put('/:id', async (req, res) => {
     }
     for (const [field, value] of Object.entries({ contact_phone, division, district, principal_name, school_year, grading_period })) {
       if (value !== undefined) { sets.push(`${field} = ?`); params.push(String(value).trim()) }
+    }
+    if (req.body?.sardo_consecutive_absences !== undefined) {
+      sets.push('sardo_consecutive_absences = ?')
+      params.push(Math.max(1, parseInt(req.body.sardo_consecutive_absences, 10) || 3))
+    }
+    if (req.body?.sardo_cumulative_absences !== undefined) {
+      sets.push('sardo_cumulative_absences = ?')
+      params.push(Math.max(1, parseInt(req.body.sardo_cumulative_absences, 10) || 5))
     }
     if (!sets.length) return res.status(400).json({ error: 'Nothing to update' })
     params.push(req.params.id)

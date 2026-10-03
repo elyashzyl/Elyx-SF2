@@ -152,21 +152,36 @@ The following capabilities already exist or are substantially implemented:
   - Reopen actions are written to audit logs.
 - [x] Add an attendance correction history showing before and after values.
   - Post-reopen entry and record changes store actor, role, school, reason, and old/new values.
-- [ ] Add teacher notes for exceptional attendance cases.
-- [ ] Add bulk import of student rosters with validation and a preview step.
+- [x] Add teacher notes for exceptional attendance cases.
+  - Database-backed `teacher_notes` column in `attendance_records` across MySQL and SQLite.
+  - Surface notes card on daily attendance sheet with auto-save and blur triggers.
+  - Track changes in post-reopen correction history with reasons and actor metadata.
+- [x] Add bulk import of student rosters with validation and a preview step.
+  - Endpoints `/api/students/bulk-validate` and `/api/students/bulk-import` for Excel (.xlsx/.xls) and CSV rosters.
+  - Client-side parser with live validation preview, duplicate detection, and license capacity limits.
 - [ ] Add bulk attendance import only if it follows DepEd rules and has a clear audit trail.
-- [ ] Add offline-friendly attendance capture with a safe synchronization queue.
-- [ ] Add duplicate-submission protection and idempotent attendance saves.
-- [ ] Add daily attendance completion indicators for each section and teacher.
-- [ ] Add configurable holidays, suspensions, special non-working days, and school events.
-  - Monthly SF2 already supports per-report excluded dates and a database-backed Saturday setting.
-- [ ] Add attendance summaries by:
+- [x] Add offline-friendly attendance capture with a safe synchronization queue.
+  - Composable `useOfflineAttendance` caching rosters locally in `localStorage` and queueing offline roll call saves.
+  - Offline mode banner and manual sync button on `AttendanceSheet.vue`.
+  - Automatic synchronization on window `online` reconnection.
+- [x] Add duplicate-submission protection and idempotent attendance saves.
+  - Server-side `idempotencyStore` caching responses by `Idempotency-Key` or payload fingerprint to prevent duplicate saves and duplicate audit records.
+  - Client-side in-flight deduplication in `src/stores/attendance.js`.
+- [x] Add daily attendance completion indicators for each section and teacher.
+  - Daily roll call completion computation in `/api/dashboard/stats` comparing active sections against today's records.
+  - Visual roll call tracker widget on Admin Dashboard with completion rate, progress bar, and section status pills.
+  - Today's Roll Call Status card on Teacher Dashboard for instant visibility and 1-click attendance taking.
+- [x] Add configurable holidays, suspensions, special non-working days, and school events.
+  - Monthly SF2 integrates with school `calendar_events` table for holidays and suspensions.
+  - 1-click calendar sync endpoint `/api/monthly/:recordId/sync-calendar` recalculating attendance totals and auto-excluding non-working days.
+- [x] Add attendance summaries by:
   - School.
   - Grade and section.
   - Teacher.
   - Date range.
   - Gender.
   - Student status.
+  - Verified via multi-dimensional analytics endpoint `/api/attendance/summaries`, sheet analytics modal, and automated integration suite `tests/phase2-summaries.test.mjs`.
 
 **Definition of done:** A teacher can record attendance quickly, recover from temporary network failures, and every correction is traceable.
 
@@ -176,22 +191,33 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: High**
 
-- [ ] Expand student profiles with guardian contacts and emergency information.
+- [x] Expand student profiles with guardian contacts and emergency information.
+  - Added schema migration `024_student_profiles_and_interventions.mjs` with LRN, birth date, address, guardian contact details, emergency contacts, and DepEd/medical consent tracking.
+  - Full CRUD in `routes/students.js` and expanded edit modal in `src/views/StudentManagement.vue`.
 - [x] Add append-only enrollment history by effective date, grade, and section.
 - [x] Add student transfer, promotion, reenrollment, and withdrawal workflows.
 - [x] Preserve historical attendance entries when a student changes section or grade or is withdrawn.
   - Current roster rows are retained; withdrawal is a status transition instead of destructive deletion.
   - Attendance saves validate student school ownership and historical enrollment class.
-- [ ] Add configurable student risk rules for SARDO instead of fixed thresholds.
-- [ ] Add intervention records:
-  - Concern type.
+- [x] Add configurable student risk rules for SARDO instead of fixed thresholds.
+  - Database-backed `sardo_consecutive_absences` and `sardo_cumulative_absences` on `schools` table.
+  - School settings UI in `src/views/Settings.vue` allows configuring alert thresholds.
+  - Dynamic SARDO retention watchlist calculation in `routes/dashboard.js` and `src/views/AdminDashboard.vue`.
+- [x] Add intervention records:
+  - Concern type (attendance, academic, behavioral, health, other).
   - Assigned staff member.
   - Action taken.
   - Follow-up date.
-  - Resolution status.
-- [ ] Add guardian contact history and consent tracking where required.
-- [ ] Add duplicate student detection using LRN and configurable matching fields.
-- [ ] Add printable student lists, class lists, and enrollment summaries.
+  - Resolution status (open, in_progress, resolved, escalated).
+  - Backed by `student_interventions` table, API endpoints in `routes/students.js`, and interactive management drawer in `src/views/StudentManagement.vue`.
+- [x] Add guardian contact history and consent tracking where required.
+  - `student_guardian_contacts` table logging calls, SMS, home visits, in-person conferences, and letters with dates, guardians, topics, and outcomes.
+- [x] Add duplicate student detection using LRN and configurable matching fields.
+  - `POST /api/students/check-duplicates` and duplicate LRN prevention on create, update, and bulk import.
+- [x] Add printable student lists, class lists, and enrollment summaries.
+  - Print Class Roster with official DepEd Form 2 layout, adviser and principal signatures, and printable CSS.
+  - Print Enrollment Master Summary breakdown by grade, section, and gender.
+  - Verified in `tests/phase3-students.test.mjs`.
 
 **Definition of done:** Schools can follow a learner's enrollment and intervention history without losing historical attendance or exposing records across schools.
 

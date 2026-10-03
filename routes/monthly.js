@@ -62,6 +62,15 @@ router.get('/', async (req, res) => {
     record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
     record.include_saturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     record.schoolHead = record.school_head || ''
+
+    const monthStr = String(record.month).padStart(2, '0')
+    const prefix = `${record.year}-${monthStr}-`
+    const monthEvents = await query(
+      'SELECT id, title, type, event_date, color FROM calendar_events WHERE school_id = ? AND event_date LIKE ? ORDER BY event_date',
+      [scope.schoolId, prefix + '%']
+    )
+    record.calendar_events = monthEvents
+
     res.json(record)
   } catch (err) {
     console.error('Failed to fetch monthly record:', err.message)
@@ -108,9 +117,19 @@ router.post('/', async (req, res) => {
       // Preserve an existing report's Saturday setting when regenerating its entries.
       await run('UPDATE monthly_records SET adviser=?, school_head=? WHERE id=?', [adviserName, '', recordId])
     } else {
+      const monthStr = String(month).padStart(2, '0')
+      const prefix = `${year}-${monthStr}-`
+      const eventHolidays = await query(
+        `SELECT event_date FROM calendar_events WHERE school_id = ? AND event_date LIKE ? AND LOWER(type) IN ('holiday', 'suspension', 'special_non_working', 'special-non-working', 'no_classes')`,
+        [scope.schoolId, prefix + '%']
+      )
+      const autoExcludedDays = Array.isArray(req.body.excluded_dates)
+        ? req.body.excluded_dates
+        : eventHolidays.map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
+
       recordId = uuidv4()
-      await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id, include_saturdays) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [recordId, month, year, cls.grade, cls.section, adviserName, '', me.id, me.name || me.username || '', scope.schoolId, includeSaturdays ? 1 : 0])
+      await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id, include_saturdays, excluded_dates) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [recordId, month, year, cls.grade, cls.section, adviserName, '', me.id, me.name || me.username || '', scope.schoolId, includeSaturdays ? 1 : 0, JSON.stringify(autoExcludedDays)])
     }
     for (const entry of entries) {
       await run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -286,6 +305,54 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
   } catch (err) {
     console.error('Failed to update excluded dates:', err.message)
     res.status(500).json({ error: 'Failed to update excluded dates' })
+  }
+})
+
+router.post('/:recordId/sync-calendar', async (req, res) => {
+  try {
+    const g = await guardRecord(req, res)
+    if (!g) return
+    const { recordId } = req.params
+    const record = g.record
+    const monthStr = String(record.month).padStart(2, '0')
+    const prefix = `${record.year}-${monthStr}-`
+    const events = await query(
+      `SELECT id, title, type, event_date FROM calendar_events WHERE school_id = ? AND event_date LIKE ? ORDER BY event_date`,
+      [record.school_id, prefix + '%']
+    )
+    const holidays = events.filter(e => /holiday|suspension|special_non_working|special-non-working|no_classes/i.test(e.type || ''))
+    const holidayDays = holidays.map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
+
+    const existingExcluded = Array.isArray(record.excluded_dates)
+      ? record.excluded_dates
+      : JSON.parse(record.excluded_dates || '[]')
+    const merged = Array.from(new Set([...existingExcluded, ...holidayDays])).sort((a, b) => a - b)
+
+    await run('UPDATE monthly_records SET excluded_dates=? WHERE id=?', [JSON.stringify(merged), recordId])
+
+    const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [recordId])
+    const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
+    for (const entry of entries) {
+      const days = typeof entry.days === 'string' ? JSON.parse(entry.days || '{}') : (entry.days || {})
+      const totals = calculateMonthlyEntryTotals({
+        year: record.year,
+        month: record.month,
+        days,
+        excludedDates: merged,
+        includeSaturdays
+      })
+      await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
+    }
+    await audit(
+      g.me,
+      'monthly.sync_calendar',
+      { type: 'monthly', id: recordId, name: `${record.grade} - ${record.section}`, schoolId: record.school_id },
+      `Synced ${holidays.length} calendar events into excluded days for ${record.grade} - ${record.section} (${record.month}/${record.year})`
+    )
+    res.json({ success: true, excluded_dates: merged, synced_events: holidays, all_month_events: events })
+  } catch (err) {
+    console.error('Failed to sync calendar events:', err.message)
+    res.status(500).json({ error: 'Failed to sync calendar events' })
   }
 })
 

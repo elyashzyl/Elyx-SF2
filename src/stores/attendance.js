@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
+import { useOfflineAttendance } from '../composables/useOfflineAttendance'
 
 const API = '/api'
 
@@ -64,12 +65,26 @@ export const useAttendanceStore = defineStore('attendance', () => {
   }
 
   async function getStudents(params = {}, schoolId, options = {}) {
+    const extra = { ...params }
+    if (schoolId) extra.schoolId = schoolId
+    const query = new URLSearchParams(actor(extra)).toString()
     try {
-      const extra = { ...params }
-      if (schoolId) extra.schoolId = schoolId
-      const query = new URLSearchParams(actor(extra)).toString()
-      return await fetchJson(`${API}/students?${query}`) || []
+      const students = await fetchJson(`${API}/students?${query}`) || []
+      if (params.grade && params.section && students.length > 0) {
+        try {
+          const { cacheRoster } = useOfflineAttendance()
+          cacheRoster(schoolId, params.grade, params.section, students)
+        } catch {}
+      }
+      return students
     } catch (error) {
+      if (params.grade && params.section) {
+        try {
+          const { getCachedRoster } = useOfflineAttendance()
+          const cached = getCachedRoster(schoolId, params.grade, params.section)
+          if (cached && cached.length > 0) return cached
+        } catch {}
+      }
       if (options.throwOnError) throw error
       return []
     }
@@ -100,6 +115,79 @@ export const useAttendanceStore = defineStore('attendance', () => {
     const extra = { ...data }
     if (schoolId) extra.schoolId = schoolId
     return await fetchJson(`${API}/students/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function getStudentProfile(id, schoolId) {
+    const extra = schoolId ? { schoolId } : {}
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/students/${id}?${query}`)
+  }
+
+  async function getInterventions(params = {}) {
+    const query = new URLSearchParams(actor(params)).toString()
+    return await fetchJson(`${API}/students/interventions?${query}`) || []
+  }
+
+  async function createIntervention(studentId, data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${studentId}/interventions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function updateIntervention(studentId, interventionId, data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${studentId}/interventions/${interventionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function deleteIntervention(studentId, interventionId, schoolId) {
+    const extra = schoolId ? { schoolId } : {}
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/students/${studentId}/interventions/${interventionId}?${query}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async function getGuardianContacts(studentId, schoolId) {
+    const extra = schoolId ? { schoolId } : {}
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/students/${studentId}/guardian-contacts?${query}`) || []
+  }
+
+  async function logGuardianContact(studentId, data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${studentId}/guardian-contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function deleteGuardianContact(studentId, contactId, schoolId) {
+    const extra = schoolId ? { schoolId } : {}
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/students/${studentId}/guardian-contacts/${contactId}?${query}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async function checkDuplicateStudents(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/check-duplicates`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(actor(extra))
@@ -187,18 +275,65 @@ export const useAttendanceStore = defineStore('attendance', () => {
     return await fetchJson(`${API}/attendance?${params}`)
   }
 
+  const inFlightSaves = new Map()
+
+  function generateClientMutationId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    return 'mut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11)
+  }
+
   async function saveRecord(record, user, schoolId) {
+    const saveKey = `${schoolId || ''}__${record.date}__${record.grade}__${record.section}`
+    if (inFlightSaves.has(saveKey)) {
+      return await inFlightSaves.get(saveKey)
+    }
+
+    const idempotencyKey = record.idempotencyKey || generateClientMutationId()
     const extra = {
       ...record,
+      idempotencyKey,
       created_by: user?.id || '',
       created_by_name: user?.name || ''
     }
     if (schoolId) extra.schoolId = schoolId
-    return await fetchJson(`${API}/attendance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(actor(extra))
-    })
+
+    const savePromise = (async () => {
+      try {
+        return await fetchJson(`${API}/attendance`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey
+          },
+          body: JSON.stringify(actor(extra))
+        })
+      } catch (err) {
+        if (typeof navigator !== 'undefined' && (!navigator.onLine || /failed to fetch|cannot connect/i.test(err.message))) {
+          try {
+            const { enqueueRollCall } = useOfflineAttendance()
+            enqueueRollCall({
+              ...extra,
+              userId: user?.id || '',
+              userRole: user?.role || ''
+            })
+            return {
+              id: 'offline_' + idempotencyKey,
+              success: true,
+              isOffline: true,
+              record: { ...extra, id: 'offline_' + idempotencyKey }
+            }
+          } catch {}
+        }
+        throw err
+      } finally {
+        inFlightSaves.delete(saveKey)
+      }
+    })()
+
+    inFlightSaves.set(saveKey, savePromise)
+    return await savePromise
   }
 
   async function getOrCreateRecord(date, grade, section, adviser, user, schoolId) {
@@ -270,6 +405,16 @@ export const useAttendanceStore = defineStore('attendance', () => {
     if (schoolId) extra.schoolId = schoolId
     await fetchJson(`${API}/attendance/${recordId}/entry`, {
       method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function updateTeacherNotes(recordId, notes, userId, userRole, schoolId) {
+    const extra = { teacher_notes: notes, userId, userRole }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/attendance/${recordId}/notes`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(actor(extra))
     })
@@ -354,10 +499,72 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function syncMonthlyCalendar(recordId, userId, userRole, schoolId) {
+    const extra = { userId, userRole }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/monthly/${recordId}/sync-calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function fetchAttendanceSummaries(filters = {}, schoolId) {
+    const extra = { ...filters }
+    if (schoolId) extra.schoolId = schoolId
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/attendance/summaries?${query}`)
+  }
+
+  async function validateBulkAttendanceImport(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/attendance/bulk-import-validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function bulkImportAttendance(data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/attendance/bulk-import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function bulkValidateStudents(rows, defaultGrade, defaultSection, schoolId) {
+    const extra = { rows, defaultGrade, defaultSection }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/bulk-validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function bulkImportStudents(students, effectiveOn, reason, schoolId) {
+    const extra = { students, effectiveOn, reason }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/bulk-import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
   return {
-    getStudents, addStudent, addStudents, updateStudent, getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
+    getStudents, addStudent, addStudents, updateStudent, getStudentProfile,
+    getInterventions, createIntervention, updateIntervention, deleteIntervention,
+    getGuardianContacts, logGuardianContact, deleteGuardianContact, checkDuplicateStudents,
+    getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
+    bulkValidateStudents, bulkImportStudents,
+    fetchAttendanceSummaries, validateBulkAttendanceImport, bulkImportAttendance,
     getRecord, saveRecord, getOrCreateRecord,
-    updateEntry, reopenRecord, getCorrections, getAllRecords, deleteRecord,
-    fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlySettings, updateMonthlyRemarks
+    updateEntry, updateTeacherNotes, reopenRecord, getCorrections, getAllRecords, deleteRecord,
+    fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlySettings, updateMonthlyRemarks, syncMonthlyCalendar
   }
 })

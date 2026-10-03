@@ -158,8 +158,15 @@ Prisma client (`prisma/client.js`) and schema (`prisma/schema.prisma`) are estab
 Remaining attendance follow-ups:
 
 - [x] Add a dedicated administrator reopen modal instead of the current browser prompt.
-- [ ] Add correction reason fields to every bulk-edit workflow.
-- [ ] Add automatic relocking policy after a defined correction window if required by school policy.
+- [x] Add teacher notes for exceptional attendance cases (`attendance_records.teacher_notes`, sheet UI, correction history tracking).
+- [x] Add daily roll call completion tracking on admin and teacher dashboards (`todayAttendanceCompletion`, progress tracker, section pills).
+- [x] Integrate configurable school calendar events, holidays, and suspensions with monthly SF2 calculations (`sync-calendar`, automatic excluded dates).
+- [x] Add duplicate-submission protection and idempotent roll call saves (`Idempotency-Key`, in-flight save deduplication, single audit trail).
+- [x] Add offline-friendly attendance capture and sync queue (`useOfflineAttendance`, local roster caching, auto-sync on reconnect).
+- [x] Add bulk roster import with live validation and preview (`POST /api/students/bulk-validate`, `POST /api/students/bulk-import`, sample Excel template, preview table).
+- [x] Fix UI overlap and theme consistency across sticky header, dynamic sidebar height, and modals using semantic theme tokens.
+- [x] Add correction reason fields to every bulk-edit workflow (`correctionReason` supported across batch roll call, single entries, teacher notes, and bulk actions).
+- [x] Add automatic relocking policy after a defined correction window if required by school policy (48-hour window auto-relocks expired records with `system:window_expired`).
 - [x] Add a database-backed per-report Saturday setting for monthly SF2.
   - Migration `022_monthly_saturdays` defaults existing reports to Monday-Friday; users can enable Saturdays per report and Sunday remains disabled.
   - Monthly totals, entry recalculation, and SF2 export honor the setting without changing the existing workbook layout.
@@ -176,8 +183,8 @@ Remaining attendance follow-ups:
 
 ## 3A. Student Enrollment History Follow-ups
 
-- [ ] Add guardian contacts, emergency information, and consent history.
-- [ ] Add LRN and duplicate-student matching rules.
+- [x] Add guardian contacts, emergency information, and consent history (migration `024_student_profiles_and_interventions`, guardian contact tracking, consent fields, and student profile drawer).
+- [x] Add LRN and duplicate-student matching rules (`POST /api/students/check-duplicates`, duplicate LRN prevention on create/update/import).
 - [x] Add historical/as-of roster support to monthly SF2 generation.
 - [ ] Add cross-school transfer workflow with paired source/destination events.
 - [ ] Add database transaction helpers for atomic roster and enrollment-event writes.
