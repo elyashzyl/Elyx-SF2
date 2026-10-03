@@ -59,17 +59,33 @@ async function ensureMysqlDatabaseExists(databaseUrl) {
     const user = u.username ? decodeURIComponent(u.username) : undefined
     const password = u.password ? decodeURIComponent(u.password) : undefined
 
-    const conn = await mysql.createConnection({
-      host,
-      port,
-      user,
-      password,
-      connectTimeout: 8000
-    })
+    let attempts = 0
+    const maxAttempts = 15
+    while (attempts < maxAttempts) {
+      attempts++
+      try {
+        const conn = await mysql.createConnection({
+          host,
+          port,
+          user,
+          password,
+          connectTimeout: 8000
+        })
 
-    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
-    await conn.end()
-    console.log(`[db] MySQL database "${dbName}" verified / created.`)
+        await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
+        await conn.end()
+        console.log(`[db] MySQL database "${dbName}" verified / created.`)
+        return
+      } catch (err) {
+        if (attempts < maxAttempts && /ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENOTFOUND|connect/i.test(err.message)) {
+          console.log(`[db] Waiting for MySQL server at ${host}:${port} (${attempts}/${maxAttempts})...`)
+          await new Promise(r => setTimeout(r, 2000))
+        } else {
+          console.warn(`[db] Note: Could not pre-verify MySQL database creation (${err.message}). Proceeding with connection pool.`)
+          return
+        }
+      }
+    }
   } catch (err) {
     console.warn(`[db] Note: Could not pre-verify MySQL database creation (${err.message}). Proceeding with connection pool.`)
   }

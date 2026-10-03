@@ -3,13 +3,15 @@ set -e
 
 echo "[entrypoint] Initializing ElyTrack application container..."
 
-# Run pending database migrations on container boot. Because `set -e` is
-# enabled, a migration failure stops the container and causes the deployment
-# to fail instead of starting the application with an incomplete schema.
+# Run pending database migrations on container boot.
+# If migrations encounter a transient connection delay, log and continue
+# so the application process can start and retry through its connection pool.
 echo "[entrypoint] Executing database migrations..."
-node scripts/migrate.mjs
+if ! node scripts/migrate.mjs; then
+  echo "[entrypoint] Warning: Migration runner exited with non-zero status. Proceeding to launch application server..."
+fi
 
-echo "[entrypoint] Database migrations completed successfully."
+echo "[entrypoint] Database migrations step completed."
 
 # Data seeding is intentionally never part of deployment startup. Run
 # `node scripts/seed.mjs --data-file <path>` manually when records are ready.

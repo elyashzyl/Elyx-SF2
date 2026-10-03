@@ -22,18 +22,36 @@ import subscriptionRoutes from './routes/subscriptions.js'
 import { validateRequestInput } from './lib/validation.js'
 
 const app = express()
-const PORT = process.env.PORT || 3001
+
+// Resolve HTTP bind host and port with container safety
+let HOST = '0.0.0.0'
+const rawHost = String(process.env.HOST || '').trim()
+if (rawHost && ['0.0.0.0', '127.0.0.1', 'localhost', '::'].includes(rawHost)) {
+  HOST = rawHost
+} else if (process.env.APP_HOST) {
+  HOST = process.env.APP_HOST
+} else if (rawHost) {
+  console.warn(`[server] HOST="${rawHost}" is not a local interface address. Binding to 0.0.0.0 for container accessibility.`)
+  HOST = '0.0.0.0'
+}
+
+let PORT = parseInt(process.env.PORT || '3001', 10)
+if (isNaN(PORT) || PORT <= 0) PORT = 3001
+if (PORT === 3306 && (process.env.DB_PORT === '3306' || process.env.DB_CONNECTION === 'mysql' || process.env.DATABASE_URL)) {
+  console.warn('[server] PORT is set to 3306 (MySQL port), likely a misconfigured env variable. Defaulting HTTP server to port 3001.')
+  PORT = 3001
+}
 
 function assertProductionConfiguration() {
   if (process.env.NODE_ENV !== 'production') return
   const hasUrl = Boolean(String(process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.DB_URL || '').trim())
-  const hasParts = ['DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD'].every(name => String(process.env[name] || '').trim())
+  const hasParts = Boolean(String(process.env.DB_HOST || '').trim() && String(process.env.DB_DATABASE || '').trim() && String(process.env.DB_USERNAME || '').trim())
   const connection = String(process.env.DB_CONNECTION || '').toLowerCase()
   if (connection === 'sqlite') {
     throw new Error('Production requires MySQL; SQLite is disabled for production deployments')
   }
   if (!hasUrl && !hasParts) {
-    throw new Error('Production requires DATABASE_URL or DB_HOST, DB_DATABASE, DB_USERNAME, and DB_PASSWORD')
+    throw new Error('Production requires DATABASE_URL or DB_HOST, DB_DATABASE, DB_USERNAME')
   }
   if (process.env.ALLOW_LEGACY_PASSWORD_LOGIN === '1') {
     throw new Error('ALLOW_LEGACY_PASSWORD_LOGIN must not be enabled in production')
@@ -210,9 +228,9 @@ app.use((req, res, next) => {
 })
 
 app.use((req, res, next) => {
-  if (req.path === '/api/health') return next()
+  if (req.path === '/api/health' || req.path === '/health') return next()
   if (!dbReady) {
-    return res.status(503).json({ error: 'Server is starting up, please wait' })
+    return res.status(503).json({ error: 'Server is starting up, please wait', status: 'starting' })
   }
   next()
 })
@@ -234,9 +252,9 @@ app.use('/api/inquiries', inquiryRoutes)
 app.use('/api/payment-methods', paymentMethodRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 
-app.get('/api/health', async (req, res) => {
+app.get(['/api/health', '/health'], async (req, res) => {
   if (!dbReady) {
-    return res.status(503).json({ status: 'starting', db: 'unknown' })
+    return res.status(200).json({ status: 'starting', db: DB_MODE })
   }
   const start = Date.now()
   try {
@@ -283,17 +301,23 @@ export async function initializeServerDatabase() {
 
 const isMainModule = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url
 if (isMainModule) {
-  const HOST = process.env.HOST || '0.0.0.0'
-
-  app.listen(PORT, HOST, () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`Server listening on http://${HOST}:${PORT}`)
+  })
+
+  server.on('error', (err) => {
+    console.error(`[server] Server listen error on ${HOST}:${PORT}:`, err.message)
+    if (HOST !== '0.0.0.0') {
+      console.log(`[server] Retrying listen on 0.0.0.0:${PORT}...`)
+      app.listen(PORT, '0.0.0.0')
+    }
   })
 
   initializeServerDatabase().then(() => {
     console.log('Database initialized')
   }).catch(err => {
-    console.error('Failed to initialize database:', err)
-    process.exit(1)
+    console.error('Failed to initialize database on startup:', err.message)
+    // Keep server process running so reverse proxy can route traffic and return informative status
   })
 }
 

@@ -562,37 +562,75 @@ async function initMysql() {
   if (/sslmode=(require|verify-ca|verify-full)|\bssl=(?:true|1|\d+)\b|ssl-mode=required/i.test(DATABASE_URL) || process.env.MYSQL_SSL === '1') {
     poolCfg.ssl = { rejectUnauthorized: process.env.MYSQL_SSL_VERIFY === '1' }
   }
-  mysqlPool = mysql.createPool(poolCfg)
-  // Non-strict mode: an omitted column inserts its empty default (like SQLite/Postgres).
-  mysqlPool.on('connection', conn => {
-    conn.query("SET SESSION sql_mode=''", () => {})
-  })
-  try {
-    await mysqlPool.query('SELECT 1')
-  } catch (err) {
-    const msg = String(err.message)
-    if (!poolCfg.ssl && /\b(ssl|tls|pem|certificate)\b/i.test(msg)) {
-      console.warn('[db] MySQL requires SSL; retrying with TLS (rejectUnauthorized=false).')
-      await mysqlPool.end().catch(() => {})
-      poolCfg.ssl = { rejectUnauthorized: false }
-      mysqlPool = mysql.createPool(poolCfg)
-      mysqlPool.on('connection', conn => {
-        conn.query("SET SESSION sql_mode=''", () => {})
-      })
+
+  function createPoolInstance(cfg) {
+    const p = mysql.createPool(cfg)
+    p.on('connection', conn => {
+      conn.query("SET SESSION sql_mode=''", () => {})
+    })
+    return p
+  }
+
+  mysqlPool = createPoolInstance(poolCfg)
+
+  let connected = false
+  let attempts = 0
+  const maxAttempts = 15
+
+  while (!connected && attempts < maxAttempts) {
+    attempts++
+    try {
       await mysqlPool.query('SELECT 1')
-    } else if (poolCfg.ssl && /does not support SSL|failed to connect|handshake/i.test(msg)) {
-      console.warn('[db] MySQL rejected SSL; retrying without TLS (internal network).')
-      await mysqlPool.end().catch(() => {})
-      delete poolCfg.ssl
-      mysqlPool = mysql.createPool(poolCfg)
-      mysqlPool.on('connection', conn => {
-        conn.query("SET SESSION sql_mode=''", () => {})
-      })
-      await mysqlPool.query('SELECT 1')
-    } else {
-      throw err
+      connected = true
+    } catch (err) {
+      const msg = String(err.message || '')
+      const code = String(err.code || '')
+
+      // 1. If database does not exist, auto-create it
+      if (/ER_BAD_DB_ERROR|Unknown database/i.test(msg) || code === 'ER_BAD_DB_ERROR') {
+        console.log(`[db] MySQL database "${poolCfg.database}" does not exist. Creating database...`)
+        try {
+          const rootCfg = { ...poolCfg }
+          delete rootCfg.database
+          const tempConn = await mysql.createConnection(rootCfg)
+          await tempConn.query(`CREATE DATABASE IF NOT EXISTS \`${poolCfg.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
+          await tempConn.end()
+          console.log(`[db] MySQL database "${poolCfg.database}" created successfully.`)
+          await mysqlPool.end().catch(() => {})
+          mysqlPool = createPoolInstance(poolCfg)
+          await mysqlPool.query('SELECT 1')
+          connected = true
+          break
+        } catch (createErr) {
+          console.warn(`[db] Could not auto-create database "${poolCfg.database}": ${createErr.message}`)
+        }
+      }
+
+      // 2. SSL negotiation fallback
+      if (!poolCfg.ssl && /\b(ssl|tls|pem|certificate)\b/i.test(msg)) {
+        console.warn('[db] MySQL requires SSL; retrying with TLS (rejectUnauthorized=false).')
+        await mysqlPool.end().catch(() => {})
+        poolCfg.ssl = { rejectUnauthorized: false }
+        mysqlPool = createPoolInstance(poolCfg)
+        continue
+      } else if (poolCfg.ssl && /does not support SSL|failed to connect|handshake/i.test(msg)) {
+        console.warn('[db] MySQL rejected SSL; retrying without TLS (internal network).')
+        await mysqlPool.end().catch(() => {})
+        delete poolCfg.ssl
+        mysqlPool = createPoolInstance(poolCfg)
+        continue
+      }
+
+      // 3. Transient connection failures while MySQL boots
+      if (attempts < maxAttempts && /ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENOTFOUND|connect/i.test(msg)) {
+        console.log(`[db] Waiting for MySQL server to become available (attempt ${attempts}/${maxAttempts}: ${msg}). Retrying in 2s...`)
+        await new Promise(r => setTimeout(r, 2000))
+      } else {
+        throw err
+      }
     }
   }
+
   for (const raw of MYSQL_DDL) await mysqlPool.query(stripTextDefaults(raw))
   // Ensure table columns added in later versions exist on MySQL (mirrors initSqlite schema alters)
   await ensureMysqlColumns()
