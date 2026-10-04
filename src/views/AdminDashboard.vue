@@ -46,6 +46,50 @@
       </div>
     </header>
 
+    <!-- Dashboard Date-Range & Telemetry Scope Filter -->
+    <div class="dashboard-filter-bar card-box">
+      <div class="filter-bar-left">
+        <span class="filter-bar-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          <span>Telemetry Scope:</span>
+        </span>
+
+        <select v-model="datePreset" @change="onDatePresetChange" class="filter-select" aria-label="Date Range Preset">
+          <option value="all">All-Time Cumulative</option>
+          <option value="this_month">This Month</option>
+          <option value="last_30">Last 30 Days</option>
+          <option value="q1">Quarter 1 (Aug – Oct)</option>
+          <option value="q2">Quarter 2 (Nov – Jan)</option>
+          <option value="q3">Quarter 3 (Feb – Mar)</option>
+          <option value="q4">Quarter 4 (Apr – May)</option>
+          <option value="custom">Custom Date Range</option>
+        </select>
+
+        <div v-if="datePreset === 'custom'" class="custom-range-inputs">
+          <input type="date" v-model="customStartDate" @change="loadStats" class="range-date-input" aria-label="Start Date" />
+          <span class="range-sep">to</span>
+          <input type="date" v-model="customEndDate" @change="loadStats" class="range-date-input" aria-label="End Date" />
+        </div>
+
+        <span v-if="activeRangeLabel" class="active-range-pill">{{ activeRangeLabel }}</span>
+      </div>
+
+      <div class="filter-bar-right">
+        <button @click="showSaveViewModal = true" class="btn-xs btn-secondary" title="Save this filter as a reusable report view">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          <span>Save View</span>
+        </button>
+
+        <router-link to="/reports" class="btn-xs btn-primary">
+          <span>Reports &amp; Analytics Hub →</span>
+        </router-link>
+      </div>
+    </div>
+
     <!-- Executive KPI Metric Cards -->
     <section class="kpi-grid" aria-label="Key Performance Indicators">
       <!-- Card 1: Total Learners -->
@@ -540,6 +584,24 @@
         </div>
       </section>
     </div>
+
+    <!-- Save View Modal -->
+    <div v-if="showSaveViewModal" class="modal-overlay" @click.self="showSaveViewModal = false">
+      <div class="form-card" style="max-width: 440px;">
+        <h3>Save Dashboard View</h3>
+        <p class="modal-subtext">Save your current date-range filter as a quick-load view in the Reports Hub.</p>
+        <form @submit.prevent="saveCurrentView">
+          <div class="form-group">
+            <label>View Name <span class="required">*</span></label>
+            <input type="text" v-model="newViewName" placeholder="e.g. Quarter 1 Telemetry Scope" required class="text-input" />
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" :disabled="savingView">{{ savingView ? 'Saving…' : 'Save View' }}</button>
+            <button type="button" @click="showSaveViewModal = false" class="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -583,6 +645,91 @@ const recentRecords = ref([])
 const chronicAbsenteeism = ref([])
 const sardoRules = ref({ consecutive: 3, cumulative: 5 })
 const todayCompletion = ref(null)
+
+// Date Range Filtering & Saved Views
+const datePreset = ref('all')
+const customStartDate = ref('')
+const customEndDate = ref('')
+const showSaveViewModal = ref(false)
+const newViewName = ref('')
+const savingView = ref(false)
+
+const activeRangeLabel = computed(() => {
+  if (datePreset.value === 'all') return 'All Time'
+  if (datePreset.value === 'custom' && customStartDate.value && customEndDate.value) {
+    return `${customStartDate.value} to ${customEndDate.value}`
+  }
+  const map = {
+    this_month: 'Current Month',
+    last_30: 'Past 30 Days',
+    q1: 'Quarter 1 (Aug - Oct)',
+    q2: 'Quarter 2 (Nov - Jan)',
+    q3: 'Quarter 3 (Feb - Mar)',
+    q4: 'Quarter 4 (Apr - May)'
+  }
+  return map[datePreset.value] || ''
+})
+
+function onDatePresetChange() {
+  const p = datePreset.value
+  const now = new Date()
+  const y = now.getFullYear()
+
+  if (p === 'this_month') {
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+    customStartDate.value = `${y}-${m}-01`
+    customEndDate.value = `${y}-${m}-${lastDay}`
+  } else if (p === 'last_30') {
+    const past = new Date(Date.now() - 30 * 86400000)
+    customStartDate.value = past.toISOString().slice(0, 10)
+    customEndDate.value = now.toISOString().slice(0, 10)
+  } else if (p === 'q1') {
+    customStartDate.value = `${y}-08-01`
+    customEndDate.value = `${y}-10-31`
+  } else if (p === 'q2') {
+    customStartDate.value = `${y}-11-01`
+    customEndDate.value = `${y + 1}-01-31`
+  } else if (p === 'q3') {
+    customStartDate.value = `${y}-02-01`
+    customEndDate.value = `${y}-03-31`
+  } else if (p === 'q4') {
+    customStartDate.value = `${y}-04-01`
+    customEndDate.value = `${y}-05-31`
+  } else if (p === 'all') {
+    customStartDate.value = ''
+    customEndDate.value = ''
+  }
+  loadStats()
+}
+
+async function saveCurrentView() {
+  if (!newViewName.value.trim()) return
+  savingView.value = true
+  try {
+    const sid = selectedSchoolId.value || auth.schoolId || ''
+    await auth.api('/reports/saved-views', {
+      method: 'POST',
+      body: JSON.stringify({
+        schoolId: sid,
+        name: newViewName.value.trim(),
+        reportType: 'dashboard',
+        filters: {
+          preset: datePreset.value,
+          startDate: customStartDate.value,
+          endDate: customEndDate.value
+        }
+      })
+    })
+    alert('Dashboard view saved successfully')
+    showSaveViewModal.value = false
+    newViewName.value = ''
+  } catch (err) {
+    alert('Failed to save view: ' + err.message)
+  } finally {
+    savingView.value = false
+  }
+}
 
 const currentDateStr = computed(() => {
   const now = new Date()
@@ -646,6 +793,11 @@ async function loadStats() {
       userRole: auth.user?.role || '',
       ...(sid ? { schoolId: sid } : {})
     })
+
+    if (customStartDate.value && customEndDate.value) {
+      params.set('startDate', customStartDate.value)
+      params.set('endDate', customEndDate.value)
+    }
 
     const res = await fetch(`/api/dashboard/stats?${params}`)
     const data = await res.json()
@@ -1668,5 +1820,74 @@ onMounted(async () => {
   .trend-summary-strip {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   DASHBOARD FILTER BAR & SAVED VIEWS
+   ========================================================================== */
+.dashboard-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 12px 18px;
+}
+
+.filter-bar-left, .filter-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+}
+
+.filter-select {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 0.8rem;
+}
+
+.custom-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.range-date-input {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 0.8rem;
+}
+
+.range-sep {
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.active-range-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(12, 83, 87, 0.12);
+  color: var(--primary);
 }
 </style>

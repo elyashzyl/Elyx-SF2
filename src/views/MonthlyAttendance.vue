@@ -326,6 +326,12 @@
       </div>
 
       <div class="sheet-actions">
+        <button @click="runPreExportValidation" class="btn-secondary" :disabled="validatingExport">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          {{ validatingExport ? 'Validating…' : 'Validate Data' }}
+        </button>
         <button @click="exportToSF2" class="btn-primary" :disabled="exporting">
           <span v-if="exporting" class="spinner" style="margin-right: 6px;"></span>
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -339,6 +345,51 @@
           </svg>
           Back to Selection
         </button>
+      </div>
+    </div>
+
+    <!-- SF2 Export Validation Modal -->
+    <div v-if="showValidationModal" class="modal-overlay" @click.self="showValidationModal = false">
+      <div class="form-card" style="max-width: 520px;">
+        <div class="modal-header-compact">
+          <h3>SF2 Export Pre-Check Results</h3>
+          <p class="modal-subtext">{{ record?.grade }} — {{ record?.section }} ({{ months[form.month-1] }} {{ form.year }})</p>
+        </div>
+
+        <div v-if="exportValidationResult" class="val-summary-pane" :class="exportValidationResult.valid ? 'pane-valid' : 'pane-warning'">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <span :style="{ color: exportValidationResult.valid ? '#059669' : '#d97706', fontWeight: 800 }">
+              {{ exportValidationResult.valid ? '✓ Ready for Export' : '⚠ Warnings Found in Dataset' }}
+            </span>
+          </div>
+
+          <div style="font-size: 0.82rem; margin-bottom: 12px; color: var(--muted-foreground);">
+            Learners: <strong>{{ exportValidationResult.summary.totalLearners }}</strong> ({{ exportValidationResult.summary.maleCount }} Male, {{ exportValidationResult.summary.femaleCount }} Female)
+          </div>
+
+          <div v-if="exportValidationResult.errors.length" style="background: rgba(239, 68, 68, 0.1); color: var(--destructive); padding: 10px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 10px;">
+            <strong>Errors:</strong>
+            <ul style="margin: 4px 0 0 16px; padding: 0;">
+              <li v-for="(e, i) in exportValidationResult.errors" :key="i">{{ e }}</li>
+            </ul>
+          </div>
+
+          <div v-if="exportValidationResult.warnings.length" style="background: rgba(245, 158, 11, 0.1); color: #b45309; padding: 10px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 10px;">
+            <strong>Advisories:</strong>
+            <ul style="margin: 4px 0 0 16px; padding: 0;">
+              <li v-for="(w, i) in exportValidationResult.warnings" :key="i">{{ w }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="form-actions" style="margin-top: 18px;">
+          <button @click="showValidationModal = false; exportToSF2()" class="btn-primary" :disabled="exporting">
+            Export SF2 Excel Now
+          </button>
+          <button @click="showValidationModal = false" class="btn-secondary">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -402,6 +453,36 @@ async function onSchoolChange() {
 
 const exporting = ref(false)
 const sheetName = ref('')
+const validatingExport = ref(false)
+const showValidationModal = ref(false)
+const exportValidationResult = ref(null)
+
+async function runPreExportValidation() {
+  if (!record.value?.entries) return
+  validatingExport.value = true
+  try {
+    const res = await fetch('/api/export/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: auth.user?.id || '',
+        userRole: auth.user?.role || '',
+        schoolId: effectiveSchoolId.value || '',
+        grade: form.grade,
+        section: form.section,
+        month: form.month,
+        year: form.year,
+        entries: record.value.entries
+      })
+    })
+    exportValidationResult.value = await res.json()
+    showValidationModal.value = true
+  } catch (err) {
+    alert('Validation error: ' + err.message)
+  } finally {
+    validatingExport.value = false
+  }
+}
 
 onMounted(async () => {
   if (auth.isSuperadmin) {

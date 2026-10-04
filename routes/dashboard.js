@@ -46,16 +46,78 @@ router.get('/stats', async (req, res) => {
     })
 
     // 3. Overall Attendance Aggregates
-    const attendanceSums = (await query(`
-      SELECT 
-        COALESCE(SUM(me.present), 0) as present,
-        COALESCE(SUM(me.absent), 0) as absent,
-        COALESCE(SUM(me.tardy), 0) as tardy,
-        COUNT(DISTINCT me.student_id) as students_tracked
-      FROM monthly_entries me
-      JOIN monthly_records mr ON mr.id = me.record_id
-      ${sid ? 'WHERE mr.school_id = ?' : ''}
-    `, sid ? [sid] : []))[0] || { present: 0, absent: 0, tardy: 0, students_tracked: 0 }
+    const startDate = String(req.query.startDate || '').trim()
+    const endDate = String(req.query.endDate || '').trim()
+    const hasDateRange = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+    const dateRange = { startDate: startDate || null, endDate: endDate || null, isCustom: hasDateRange }
+
+    let attendanceSums = null
+    let gradeAttMap = {}
+    let sectionAttMap = {}
+
+    if (hasDateRange) {
+      const dailyRecs = await query(`
+        SELECT id, grade, section, date FROM attendance_records
+        WHERE date >= ? AND date <= ? ${sid ? 'AND school_id = ?' : ''}
+      `, [startDate, endDate, ...(sid ? [sid] : [])])
+
+      if (dailyRecs.length) {
+        const inPlaceholders = dailyRecs.map(() => '?').join(',')
+        const entries = await query(
+          `SELECT record_id, student_id, am1, am2, am3, am4, am5, am6, pm1, pm2, pm3, pm4 FROM attendance_entries WHERE record_id IN (${inPlaceholders})`,
+          dailyRecs.map(r => r.id)
+        )
+        const recMap = new Map(dailyRecs.map(r => [r.id, r]))
+        let present = 0
+        let absent = 0
+        let tardy = 0
+        const studentsTracked = new Set()
+
+        for (const e of entries) {
+          const r = recMap.get(e.record_id)
+          if (!r) continue
+          studentsTracked.add(e.student_id)
+          const periods = [e.am1, e.am2, e.am3, e.am4, e.am5, e.am6, e.pm1, e.pm2, e.pm3, e.pm4].filter(Boolean)
+          const isAbsent = periods.every(p => p === 'A') || periods.length === 0
+          const isTardy = periods.some(p => p === 'T' || p === 'E/T')
+          if (isAbsent) absent++
+          else present++
+          if (isTardy) tardy++
+
+          const gKey = r.grade
+          const sKey = `${r.grade}__${r.section}`
+          if (!gradeAttMap[gKey]) gradeAttMap[gKey] = { present: 0, absent: 0 }
+          if (!sectionAttMap[sKey]) sectionAttMap[sKey] = { present: 0, absent: 0 }
+          if (isAbsent) {
+            gradeAttMap[gKey].absent++
+            sectionAttMap[sKey].absent++
+          } else {
+            gradeAttMap[gKey].present++
+            sectionAttMap[sKey].present++
+          }
+        }
+
+        attendanceSums = {
+          present,
+          absent,
+          tardy,
+          students_tracked: studentsTracked.size
+        }
+      }
+    }
+
+    if (!attendanceSums) {
+      attendanceSums = (await query(`
+        SELECT
+          COALESCE(SUM(me.present), 0) as present,
+          COALESCE(SUM(me.absent), 0) as absent,
+          COALESCE(SUM(me.tardy), 0) as tardy,
+          COUNT(DISTINCT me.student_id) as students_tracked
+        FROM monthly_entries me
+        JOIN monthly_records mr ON mr.id = me.record_id
+        ${sid ? 'WHERE mr.school_id = ?' : ''}
+      `, sid ? [sid] : []))[0] || { present: 0, absent: 0, tardy: 0, students_tracked: 0 }
+    }
 
     const totalDays = attendanceSums.present + attendanceSums.absent
     const overallRate = totalDays > 0
@@ -86,20 +148,21 @@ router.get('/stats', async (req, res) => {
       ORDER BY s.grade
     `, studentParams)
 
-    const gradeAttendanceRows = await query(`
-      SELECT 
-        mr.grade,
-        COALESCE(SUM(me.present), 0) as present,
-        COALESCE(SUM(me.absent), 0) as absent
-      FROM monthly_entries me
-      JOIN monthly_records mr ON mr.id = me.record_id
-      ${sid ? 'WHERE mr.school_id = ?' : ''}
-      GROUP BY mr.grade
-    `, sid ? [sid] : [])
-    const gradeAttMap = {}
-    gradeAttendanceRows.forEach(g => {
-      gradeAttMap[g.grade] = { present: g.present, absent: g.absent }
-    })
+    if (!hasDateRange || Object.keys(gradeAttMap).length === 0) {
+      const gradeAttendanceRows = await query(`
+        SELECT
+          mr.grade,
+          COALESCE(SUM(me.present), 0) as present,
+          COALESCE(SUM(me.absent), 0) as absent
+        FROM monthly_entries me
+        JOIN monthly_records mr ON mr.id = me.record_id
+        ${sid ? 'WHERE mr.school_id = ?' : ''}
+        GROUP BY mr.grade
+      `, sid ? [sid] : [])
+      gradeAttendanceRows.forEach(g => {
+        gradeAttMap[g.grade] = { present: g.present, absent: g.absent }
+      })
+    }
 
     const sectionCounts = await query(`
       SELECT 
@@ -114,21 +177,22 @@ router.get('/stats', async (req, res) => {
       ORDER BY s.grade, s.section
     `, studentParams)
 
-    const sectionAttRows = await query(`
-      SELECT 
-        mr.grade,
-        mr.section,
-        COALESCE(SUM(me.present), 0) as present,
-        COALESCE(SUM(me.absent), 0) as absent
-      FROM monthly_entries me
-      JOIN monthly_records mr ON mr.id = me.record_id
-      ${sid ? 'WHERE mr.school_id = ?' : ''}
-      GROUP BY mr.grade, mr.section
-    `, sid ? [sid] : [])
-    const sectionAttMap = {}
-    sectionAttRows.forEach(s => {
-      sectionAttMap[`${s.grade}__${s.section}`] = { present: s.present, absent: s.absent }
-    })
+    if (!hasDateRange || Object.keys(sectionAttMap).length === 0) {
+      const sectionAttRows = await query(`
+        SELECT
+          mr.grade,
+          mr.section,
+          COALESCE(SUM(me.present), 0) as present,
+          COALESCE(SUM(me.absent), 0) as absent
+        FROM monthly_entries me
+        JOIN monthly_records mr ON mr.id = me.record_id
+        ${sid ? 'WHERE mr.school_id = ?' : ''}
+        GROUP BY mr.grade, mr.section
+      `, sid ? [sid] : [])
+      sectionAttRows.forEach(s => {
+        sectionAttMap[`${s.grade}__${s.section}`] = { present: s.present, absent: s.absent }
+      })
+    }
 
     const grades = gradeCounts.map(g => {
       const att = gradeAttMap[g.grade] || { present: 0, absent: 0 }
@@ -509,6 +573,7 @@ router.get('/stats', async (req, res) => {
       grades,
       monthlyTrends,
       recentRecords,
+      dateRange,
       chronicAbsenteeism,
       sardoRules: { consecutive: sardoConsecutive, cumulative: sardoCumulative },
       todayAttendanceCompletion,

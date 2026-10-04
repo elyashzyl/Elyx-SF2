@@ -19,6 +19,7 @@ import licenseRoutes from './routes/licenses.js'
 import inquiryRoutes from './routes/inquiries.js'
 import paymentMethodRoutes from './routes/payment_methods.js'
 import subscriptionRoutes from './routes/subscriptions.js'
+import reportRoutes from './routes/reports.js'
 import { validateRequestInput } from './lib/validation.js'
 
 const app = express()
@@ -251,6 +252,7 @@ app.use('/api/licenses', licenseRoutes)
 app.use('/api/inquiries', inquiryRoutes)
 app.use('/api/payment-methods', paymentMethodRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
+app.use('/api/reports', reportRoutes)
 
 app.get(['/api/health', '/health'], async (req, res) => {
   if (!dbReady) {

@@ -591,6 +591,43 @@ const MYSQL_DDL = [
     staff_id VARCHAR(96) NOT NULL DEFAULT (''),
     staff_name VARCHAR(255) NOT NULL DEFAULT (''),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS saved_report_views (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL,
+    user_id VARCHAR(96) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    report_type VARCHAR(64) NOT NULL DEFAULT ('dashboard'),
+    filters_json LONGTEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS report_archives (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL,
+    created_by VARCHAR(96) NOT NULL DEFAULT (''),
+    created_by_name VARCHAR(255) NOT NULL DEFAULT (''),
+    report_type VARCHAR(64) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    parameters_json LONGTEXT NOT NULL,
+    file_format VARCHAR(32) NOT NULL DEFAULT ('csv'),
+    file_size INT NOT NULL DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT ('completed'),
+    content_data LONGTEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS report_jobs (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL,
+    user_id VARCHAR(96) NOT NULL,
+    report_type VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT ('pending'),
+    progress INT NOT NULL DEFAULT 0,
+    parameters_json LONGTEXT NOT NULL,
+    result_archive_id VARCHAR(96) NOT NULL DEFAULT (''),
+    error_message TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -1164,6 +1201,43 @@ async function initSqlite() {
       staff_id TEXT NOT NULL DEFAULT '',
       staff_name TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS saved_report_views (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      report_type TEXT NOT NULL DEFAULT 'dashboard',
+      filters_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS report_archives (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_by_name TEXT NOT NULL DEFAULT '',
+      report_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      parameters_json TEXT NOT NULL,
+      file_format TEXT NOT NULL DEFAULT 'csv',
+      file_size INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'completed',
+      content_data TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS report_jobs (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      report_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      progress INTEGER NOT NULL DEFAULT 0,
+      parameters_json TEXT NOT NULL,
+      result_archive_id TEXT NOT NULL DEFAULT '',
+      error_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)

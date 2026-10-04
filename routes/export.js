@@ -2,6 +2,7 @@ import express from 'express'
 import XLSX from 'xlsx-js-style'
 import path from 'path'
 import fs from 'fs'
+import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { getSettings } from '../db.js'
 import { requireRole, resolveScopeSchool } from './_context.js'
@@ -21,6 +22,127 @@ function resolveTemplate(templatePath) {
   if (fs.existsSync(DEFAULT_TEMPLATE)) return DEFAULT_TEMPLATE
   return null
 }
+
+// Check template version and integrity hash
+router.get('/template/version', (req, res) => {
+  try {
+    const tp = resolveTemplate(req.query.templatePath)
+    if (!tp || !fs.existsSync(tp)) return res.status(404).json({ error: 'SF2 template not found' })
+    const stat = fs.statSync(tp)
+    const fileBuffer = fs.readFileSync(tp)
+    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
+    const wb = XLSX.read(fileBuffer, { type: 'buffer' })
+    const source = tp === PERSISTENT_TEMPLATE ? 'persistent' : (tp === BUNDLED_TEMPLATE ? 'bundled' : 'default')
+    res.json({
+      templateName: path.basename(tp),
+      path: tp,
+      source,
+      version: hash.substring(0, 12),
+      hash,
+      fileSize: stat.size,
+      updatedAt: stat.mtime.toISOString(),
+      sheets: wb.SheetNames,
+      sheetsCount: wb.SheetNames.length,
+      complianceStandard: 'DepEd Order No. 8, s. 2015 (School Form 2)'
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to inspect template: ' + err.message })
+  }
+})
+
+// Validate attendance dataset before generating SF2 Excel sheet
+router.post('/validate', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await resolveScopeSchool(req, res, req.body.schoolId)
+    if (!scope) return
+
+    const { entries, grade, section, month, year } = req.body || {}
+    const errors = []
+    const warnings = []
+
+    if (!grade) errors.push('Grade level is required')
+    if (!section) errors.push('Section name is required')
+    if (!month || month < 1 || month > 12) errors.push('Valid month (1-12) is required')
+    if (!year || year < 2000) errors.push('Valid school year is required')
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+      errors.push('No learner entries provided for validation')
+      return res.json({ valid: false, errors, warnings, summary: { totalLearners: 0 } })
+    }
+
+    const recognizedGlyphs = new Set(['E', 'U', 'T', 'x', 'X', 'P', 'A', '◤', '◢', '0', '1', ''])
+    let maleCount = 0
+    let femaleCount = 0
+    let missingNameCount = 0
+    let invalidLrnCount = 0
+    let invalidGlyphCount = 0
+    const flaggedDates = new Set()
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]
+      const name = String(e.name || '').trim()
+      if (!name) {
+        missingNameCount++
+        errors.push(`Row #${i + 1}: Learner name is missing or empty`)
+      }
+
+      const gender = String(e.gender || '').trim().toLowerCase()
+      if (gender === 'male' || gender === 'm') {
+        maleCount++
+      } else if (gender === 'female' || gender === 'f') {
+        femaleCount++
+      } else {
+        warnings.push(`Learner "${name || 'Row ' + (i + 1)}": Gender is unspecified. Defaulting to Male for DepEd Form 2 row placement.`)
+      }
+
+      const lrn = String(e.lrn || '').trim()
+      if (lrn && !/^\d{12}$/.test(lrn)) {
+        invalidLrnCount++
+        warnings.push(`Learner "${name}": LRN "${lrn}" should be a 12-digit DepEd Learner Reference Number`)
+      }
+
+      const days = e.days || {}
+      for (const [dayStr, code] of Object.entries(days)) {
+        const dayNum = parseInt(dayStr, 10)
+        if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
+          flaggedDates.add(dayStr)
+          warnings.push(`Learner "${name}": Invalid date key "${dayStr}"`)
+        }
+        const cleanCode = String(code || '').trim()
+        if (cleanCode && !recognizedGlyphs.has(cleanCode)) {
+          invalidGlyphCount++
+          warnings.push(`Learner "${name}": Unrecognized attendance mark "${cleanCode}" on day ${dayNum}`)
+        }
+      }
+    }
+
+    if (maleCount === 0 && femaleCount === 0) {
+      warnings.push('All learners have unspecified gender. SF2 requires male and female sections.')
+    }
+
+    const isValid = errors.length === 0
+
+    res.json({
+      valid: isValid,
+      errors,
+      warnings,
+      summary: {
+        totalLearners: entries.length,
+        maleCount,
+        femaleCount,
+        unspecifiedGenderCount: entries.length - (maleCount + femaleCount),
+        missingNameCount,
+        invalidLrnCount,
+        invalidGlyphCount,
+        flaggedDates: Array.from(flaggedDates)
+      }
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Validation failed: ' + err.message })
+  }
+})
 
 // Check if a template is available
 router.get('/template', (req, res) => {

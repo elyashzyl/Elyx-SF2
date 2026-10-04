@@ -229,15 +229,30 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: High**
 
-- [ ] Add dashboard date-range filters and saved report views.
-- [ ] Add attendance trend charts and section comparison reports.
-- [ ] Add monthly and quarterly summary reports.
-- [ ] Add downloadable CSV/PDF reports for operational summaries.
-- [ ] Add report generation status for large exports.
-- [ ] Add a report archive with creator, date, school, and report type.
-- [ ] Add automated regression tests for every SF2 export change.
-- [ ] Add template version tracking while preserving the current SF2 formatting.
-- [ ] Add an export validation page that checks missing students, invalid codes, and incomplete dates before generating the workbook.
+- [x] Add dashboard date-range filters and saved report views.
+  - Added `startDate` and `endDate` query handling to `/api/dashboard/stats`.
+  - Added `saved_report_views` table (migration `025_reports_and_analytics.mjs`), API endpoints in `routes/reports.js`, and quick preset picker in `src/views/AdminDashboard.vue`.
+- [x] Add attendance trend charts and section comparison reports.
+  - Added `GET /api/reports/section-comparison` ranking sections by attendance rate, enrollment, and SARDO risk count.
+  - Interactive Section Comparison tab in `src/views/Reports.vue`.
+- [x] Add monthly and quarterly summary reports.
+  - Added `GET /api/reports/quarterly-summary` calculating official DepEd Form 2 quarterly ADA, enrolment, and attendance percentages across Q1 to Q4.
+  - Quarterly Consolidation tab in `src/views/Reports.vue`.
+- [x] Add downloadable CSV/PDF reports for operational summaries.
+  - Added `GET /api/reports/export/csv` generating formatted CSVs with UTF-8 BOM for section comparisons, quarterly summaries, and operational records.
+- [x] Add report generation status for large exports.
+  - Added `POST /api/reports/jobs` and `GET /api/reports/jobs/:id` for asynchronous export lifecycle tracking (`pending`, `completed`, `failed`).
+- [x] Add a report archive with creator, date, school, and report type.
+  - Added `report_archives` table (migration `025_reports_and_analytics.mjs`), API endpoints `GET/POST /api/reports/archive` and download route `GET /api/reports/archive/:id/download`.
+  - Report Archive tab in `src/views/Reports.vue`.
+- [x] Add automated regression tests for every SF2 export change.
+  - Enhanced `tests/export-regression.test.mjs` verifying template structure, sheet naming, cell glyphs (`◤`, `◢`, `x`), learner rows, and ADA formulas.
+- [x] Add template version tracking while preserving the current SF2 formatting.
+  - Added `GET /api/export/template/version` calculating SHA-256 hash, file size, template source, and sheets count.
+- [x] Add an export validation page that checks missing students, invalid codes, and incomplete dates before generating the workbook.
+  - Added `POST /api/export/validate` verifying required student names, 12-digit LRN syntax, recognized attendance glyphs, unassigned genders, and date continuity.
+  - "SF2 Export Pre-Check" tab in `src/views/Reports.vue` and pre-validation modal in `src/views/MonthlyAttendance.vue`.
+  - Verified in `tests/phase4-reports-and-exports.test.mjs`.
 
 **Definition of done:** Administrators can identify attendance trends and produce validated reports while the existing SF2 workbook remains visually compatible.
 

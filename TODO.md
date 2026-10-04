@@ -216,6 +216,32 @@ Remaining attendance follow-ups:
 
 ---
 
+## 6. Phase 4 Reports, Analytics, and Exports
+
+- [x] **Dashboard Date-Range Filters & Saved Report Views**
+  - Added `startDate` and `endDate` query handling in `routes/dashboard.js` to bound attendance rates and grade/section aggregates.
+  - Added `saved_report_views` table (migration `025_reports_and_analytics.mjs`), API endpoints in `routes/reports.js`, and quick preset picker in `src/views/AdminDashboard.vue`.
+- [x] **Section Comparison & Attendance Trajectory**
+  - Added `GET /api/reports/section-comparison` computing ranking, attendance rates, session totals, and SARDO risk counts.
+  - Interactive Section Comparison tab in `src/views/Reports.vue`.
+- [x] **DepEd Form 2 Quarterly & Monthly Summaries**
+  - Added `GET /api/reports/quarterly-summary` calculating official quarterly ADA, enrolment, and attendance percentages across Q1 to Q4.
+  - Quarterly Consolidation tab in `src/views/Reports.vue`.
+- [x] **Downloadable CSV/PDF Reports**
+  - Added `GET /api/reports/export/csv` generating formatted CSVs with UTF-8 BOM for section comparisons, quarterly summaries, and operational records.
+- [x] **Report Archive & Async Generation Status**
+  - Added `report_archives` table (migration `025_reports_and_analytics.mjs`), API endpoints `GET/POST /api/reports/archive` and download route `GET /api/reports/archive/:id/download`.
+  - Added `POST /api/reports/jobs` and `GET /api/reports/jobs/:id` for asynchronous export lifecycle tracking (`pending`, `completed`, `failed`).
+- [x] **Template Version Tracking & Export Pre-Flight Checker**
+  - Added `GET /api/export/template/version` calculating SHA-256 hash, file size, template source, and sheets count.
+  - Added `POST /api/export/validate` verifying required student names, 12-digit LRN syntax, recognized attendance glyphs, unassigned genders, and date continuity.
+  - "SF2 Export Pre-Check" tab in `src/views/Reports.vue` and pre-validation modal in `src/views/MonthlyAttendance.vue`.
+- [x] **Automated Regression Test Suite**
+  - Added `tests/phase4-reports-and-exports.test.mjs` covering all Phase 4 endpoints.
+  - Enhanced `tests/export-regression.test.mjs` verifying template structure, sheet naming, cell glyphs (`◤`, `◢`, `x`), learner rows, and ADA formulas.
+
+---
+
 ## Completed Milestones (Reference)
 
 - [x] Dynamic database URL resolution supporting Laravel-style `DB_*` variables (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
