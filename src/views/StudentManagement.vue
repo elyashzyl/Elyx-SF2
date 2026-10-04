@@ -1055,10 +1055,13 @@
             <option value="Male">Male</option>
             <option value="Female">Female</option>
           </select>
-          <label class="tbl-check"><input v-model="includeWithdrawn" @change="currentPage = 1; loadStudents()" type="checkbox" /> Include withdrawn</label>
+          <label class="tbl-check" :class="{ 'is-checked': includeWithdrawn }">
+            <input v-model="includeWithdrawn" @change="currentPage = 1; loadStudents()" type="checkbox" />
+            <span>Include withdrawn</span>
+          </label>
         </div>
       </div>
-      <div class="bulk-bar" v-if="selectedIds.size" style="margin: 12px 20px 0;">
+      <div class="bulk-bar student-bulk-bar" v-if="selectedIds.size">
         <div class="bulk-bar-left">
           <span>{{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected</span>
           <span v-if="selectedWithdrawnCount > 0 && selectedActiveCount > 0" class="bulk-bar-sub">
@@ -1069,54 +1072,49 @@
           </span>
         </div>
         <div class="bulk-bar-right">
-          <!-- Re-enroll Selected: always visible when students are selected -->
-          <button @click="openBulkModal('reenroll')" class="btn-sm btn-success">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
-            </svg>
-            Re-enroll Selected
-          </button>
+          <div class="bulk-action-group bulk-action-group--enrollment" aria-label="Enrollment actions">
+            <button @click="openBulkModal('reenroll')" class="btn-sm btn-success">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+              </svg>
+              Re-enroll Selected
+            </button>
+            <button @click="openBulkModal('transfer')" class="btn-sm btn-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+              </svg>
+              Change Class
+            </button>
+            <button @click="openBulkModal('promote')" class="btn-sm btn-secondary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m18 15-6-6-6 6"/>
+              </svg>
+              Promote
+            </button>
+          </div>
 
-          <!-- Change Class / Transfer -->
-          <button @click="openBulkModal('transfer')" class="btn-sm btn-primary">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-            </svg>
-            Change Class
-          </button>
+          <div class="bulk-action-group" aria-label="Roster actions">
+            <button v-if="auth.isSuperadmin" @click="openBulkModal('transfer_school')" class="btn-sm btn-secondary">
+              Transfer School
+            </button>
+            <button @click="openBulkModal('gender')" class="btn-sm btn-secondary">
+              Set Gender
+            </button>
+          </div>
 
-          <!-- Promote -->
-          <button @click="openBulkModal('promote')" class="btn-sm btn-secondary">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m18 15-6-6-6 6"/>
-            </svg>
-            Promote
-          </button>
-
-          <!-- Transfer School (Superadmin) -->
-          <button v-if="auth.isSuperadmin" @click="openBulkModal('transfer_school')" class="btn-sm btn-secondary">
-            Transfer School
-          </button>
-
-          <!-- Assign Gender -->
-          <button @click="openBulkModal('gender')" class="btn-sm btn-secondary">
-            Set Gender
-          </button>
-
-          <!-- Withdraw -->
-          <button @click="openBulkModal('withdraw')" class="btn-sm btn-danger">
-            Withdraw
-          </button>
-
-          <!-- Permanent Delete (admin/superadmin) -->
-          <button v-if="auth.isAdmin" @click="openBulkModal('permanent_delete')" class="btn-sm btn-secondary" style="color: var(--destructive);" title="Permanently delete from database">
-            Delete
-          </button>
+          <div class="bulk-action-group bulk-action-group--danger" aria-label="Destructive actions">
+            <button @click="openBulkModal('withdraw')" class="btn-sm btn-danger">
+              Withdraw
+            </button>
+            <button v-if="auth.isAdmin" @click="openBulkModal('permanent_delete')" class="btn-sm btn-secondary bulk-delete-btn" title="Permanently delete from database">
+              Delete
+            </button>
+          </div>
 
           <button @click="clearSelection" class="btn-sm btn-secondary">Clear</button>
         </div>
       </div>
-      <div style="overflow-x: auto;">
+      <div class="student-table-scroll">
       <table class="data-table" v-if="students.length">
         <thead>
           <tr>
@@ -1131,7 +1129,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(s, i) in pagedStudents" :key="s.id" :class="{ 'row-selected': selectedIds.has(s.id) }">
+          <tr v-for="(s, i) in pagedStudents" :key="s.id" :class="{ 'row-selected': selectedIds.has(s.id), 'row-withdrawn': s.enrollment_status === 'withdrawn' }">
             <td class="col-chk"><input type="checkbox" :checked="selectedIds.has(s.id)" @change="toggleOne(s.id)" /></td>
             <td class="cell-id">#{{ (currentPage - 1) * pageSize + i + 1 }}</td>
             <td>
@@ -1161,8 +1159,8 @@
                 Re-enroll
               </button>
             </td>
-            <td style="text-align: right;">
-              <div class="row-actions">
+            <td class="student-actions-cell">
+              <div class="row-actions student-row-actions">
                 <button @click="viewProfile(s)" class="icon-btn" title="View profile, interventions & contacts">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 19a2 2 0 0 0-2-2h-1"/><path d="M16 11a4 4 0 0 0 1.5-.3"/></svg>
                 </button>
@@ -1172,7 +1170,7 @@
                 <button @click="openEnrollmentModal(s)" class="icon-btn" title="Change enrollment">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>
                 </button>
-                <button @click="openReenrollModal(s)" class="icon-btn" :class="{ 'icon-btn--success': s.enrollment_status === 'withdrawn' }" title="Re-enroll student">
+                <button v-if="s.enrollment_status === 'withdrawn'" @click="openReenrollModal(s)" class="icon-btn icon-btn--success" title="Re-enroll student">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
                 </button>
                 <button @click="editStudent(s)" class="icon-btn" title="Edit details">

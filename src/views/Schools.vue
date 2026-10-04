@@ -567,7 +567,7 @@ function removeSchool(id) {
 
 .search-box:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(108, 21, 36, 0.1);
+  box-shadow: 0 0 0 3px var(--primary-bg);
 }
 
 .search-box svg {
@@ -624,17 +624,17 @@ function removeSchool(id) {
 }
 
 .stat-icon--primary {
-  background: rgba(108, 21, 36, 0.1);
+  background: var(--primary-bg);
   color: var(--primary);
 }
 
 .stat-icon--info {
-  background: rgba(37, 99, 235, 0.1);
+  background: var(--info-bg);
   color: var(--info);
 }
 
 .stat-icon--success {
-  background: rgba(22, 163, 74, 0.1);
+  background: var(--success-bg);
   color: var(--success);
 }
 
@@ -691,8 +691,9 @@ function removeSchool(id) {
 
 .school-card-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 14px;
   padding: 18px 20px 0;
 }
 
@@ -701,6 +702,7 @@ function removeSchool(id) {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .school-card-avatar {
@@ -736,16 +738,21 @@ function removeSchool(id) {
 
 .school-card-actions {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 6px;
+  max-width: 48%;
+  flex: 0 1 auto;
 }
 
 .table-action-btn--danger {
   color: var(--destructive);
-  border-color: rgba(220, 38, 38, 0.25);
+  border-color: color-mix(in srgb, var(--destructive) 28%, var(--border));
 }
 
 .table-action-btn--danger:hover {
-  background: rgba(220, 38, 38, 0.08);
+  background: var(--red-bg);
   color: var(--destructive);
   border-color: var(--destructive);
 }
@@ -813,6 +820,18 @@ function removeSchool(id) {
   font-style: italic;
 }
 
+@media (max-width: 760px) {
+  .school-card-top {
+    flex-direction: column;
+  }
+
+  .school-card-actions {
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 640px) {
   .schools-grid {
     grid-template-columns: 1fr;
@@ -832,19 +851,6 @@ function removeSchool(id) {
     padding: 5px 7px;
     font-size: 0.68rem;
   }
-}
-
-/* Badge variants */
-.badge-info {
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--info);
-  border: 1px solid rgba(37, 99, 235, 0.25);
-}
-
-.badge-success {
-  background: rgba(22, 163, 74, 0.12);
-  color: var(--success);
-  border: 1px solid rgba(22, 163, 74, 0.25);
 }
 
 /* Empty state */
@@ -944,7 +950,7 @@ function removeSchool(id) {
   color: var(--muted-foreground);
   margin-bottom: 20px;
   padding: 10px 14px;
-  background: rgba(37, 99, 235, 0.06);
+  background: var(--info-bg);
   border-radius: var(--radius-md);
   line-height: 1.5;
 }

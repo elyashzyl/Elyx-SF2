@@ -23,6 +23,22 @@
 
         <!-- Navigation Actions -->
         <div class="landing-nav-actions">
+          <button
+            type="button"
+            class="nav-theme-btn"
+            @click="toggleTheme"
+            :title="theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'"
+            :aria-label="theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'"
+          >
+            <svg v-if="theme === 'light'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+          </button>
+
           <router-link to="/login" class="nav-signin-btn">
             <span>Sign In</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -60,9 +76,22 @@
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('calculator')">Time Saved Calculator</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('pricing')">Licensing &amp; Plans</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('faq')">Frequently Asked Questions</button>
+        <button type="button" class="mobile-nav-item mobile-theme-item" @click="toggleTheme">
+          <svg v-if="theme === 'light'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+          <span>{{ theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode' }}</span>
+        </button>
         <router-link to="/login" class="mobile-sign-in-btn" @click="mobileNavOpen = false">
           <span>Sign In to School Workspace</span>
-          <span>→</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
         </router-link>
       </div>
     </header>
@@ -898,11 +927,17 @@
           <div class="sc-actions">
             <router-link to="/login" class="btn-primary btn-primary--light">
               <span>Sign In to School Workspace</span>
-              <span>→</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
             </router-link>
             <a href="mailto:ely.ashzyl@gmail.com" class="btn-secondary btn-secondary--transparent">
               <span>Contact Deployment Team</span>
-              <span>↗</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="7" y1="17" x2="17" y2="7" />
+                <polyline points="7 7 17 7 17 17" />
+              </svg>
             </a>
           </div>
         </div>
@@ -947,6 +982,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useTheme } from '../composables/useTheme'
+
+const { theme, toggleTheme } = useTheme()
 
 const currentYear = new Date().getFullYear()
 const billingCycle = ref('annual')

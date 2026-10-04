@@ -534,7 +534,7 @@
         <div class="card-box-header">
           <div>
             <h3>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #ef4444;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sardo-alert-icon">
                 <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
               <span>SARDO Retention Watchlist</span>
@@ -1062,7 +1062,7 @@ onMounted(async () => {
 }
 
 .announcement-card {
-  background: var(--bg-surface, #ffffff);
+  background: var(--card);
   border: 1px solid var(--border);
   border-left: 4px solid var(--primary);
   border-radius: 8px;
@@ -1073,12 +1073,12 @@ onMounted(async () => {
 }
 
 .announcement-card.ann-priority--urgent {
-  border-left-color: #ef4444;
-  background: color-mix(in srgb, #ef4444 4%, var(--bg-surface, #ffffff));
+  border-left-color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 4%, var(--card));
 }
 
 .announcement-card.ann-priority--important {
-  border-left-color: #f59e0b;
+  border-left-color: var(--warning);
 }
 
 .announcement-card.ann-read {
@@ -1104,14 +1104,14 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
-.pill--normal { background: #e2e8f0; color: #475569; }
-.pill--important { background: #fef3c7; color: #92400e; }
-.pill--urgent { background: #fee2e2; color: #b91c1c; }
+.pill--normal { background: var(--muted); color: var(--muted-foreground); }
+.pill--important { background: var(--warning-bg); color: var(--warning); }
+.pill--urgent { background: var(--red-bg); color: var(--destructive); }
 
 .ann-role-pill {
   font-size: 0.65rem;
   font-weight: 600;
-  background: var(--muted, #f1f5f9);
+  background: var(--muted);
   color: var(--muted-foreground);
   padding: 1px 6px;
   border-radius: 4px;
@@ -1152,7 +1152,7 @@ onMounted(async () => {
 }
 
 .btn-read-sm {
-  background: var(--primary-bg, #f0fdfa);
+  background: var(--primary-bg);
   border: 1px solid var(--border);
   color: var(--primary);
   font-size: 0.7rem;
@@ -1178,7 +1178,7 @@ onMounted(async () => {
 }
 
 .btn-del-sm:hover {
-  color: #ef4444;
+  color: var(--destructive);
 }
 
 .ann-empty-hint {
@@ -1900,6 +1900,10 @@ onMounted(async () => {
 /* ==========================================================================
    SARDO & RECENT SF2 FILINGS
    ========================================================================== */
+.sardo-alert-icon {
+  color: var(--destructive);
+}
+
 .sardo-list {
   display: flex;
   flex-direction: column;
@@ -2035,13 +2039,13 @@ onMounted(async () => {
 .badge--complete {
   background: var(--success-bg);
   color: var(--success);
-  border: 1px solid rgba(79, 149, 97, 0.3);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .badge--progress {
   background: var(--warning-bg);
   color: var(--warning);
-  border: 1px solid rgba(182, 131, 56, 0.3);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 .rollcall-progress-track {
@@ -2211,7 +2215,7 @@ onMounted(async () => {
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--card);
   color: var(--foreground);
   font-size: 0.8rem;
 }
@@ -2227,7 +2231,7 @@ onMounted(async () => {
   padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--card);
   color: var(--foreground);
   font-size: 0.8rem;
 }
@@ -2242,7 +2246,37 @@ onMounted(async () => {
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 9999px;
-  background: rgba(12, 83, 87, 0.12);
+  background: var(--primary-bg);
   color: var(--primary);
+}
+
+@media (max-width: 720px) {
+  .dashboard-filter-bar,
+  .filter-bar-left,
+  .filter-bar-right {
+    align-items: stretch;
+  }
+
+  .filter-bar-left,
+  .filter-bar-right {
+    width: 100%;
+  }
+
+  .filter-bar-left > *,
+  .filter-bar-right > * {
+    max-width: 100%;
+  }
+
+  .filter-select,
+  .range-date-input {
+    flex: 1 1 150px;
+  }
+
+  .announcement-banner-header,
+  .ann-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 </style>
