@@ -60,11 +60,10 @@
                 <div class="thread-actions">
                   <button
                     v-if="activeInquiry.status === 'open'"
-                    class="btn-finish"
+                    class="btn-finish btn-inline-icon"
                     @click="updateStatus(activeInquiry.id, 'finished')"
                     :disabled="statusLoading"
                     type="button"
-                    style="display: inline-flex; align-items: center; gap: 5px;"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     <span>Mark as Finished</span>
@@ -177,7 +176,7 @@
               <!-- Reply Input -->
               <div class="reply-input-bar">
                 <div v-if="replyAttachment" class="reply-attachment-chip">
-                  <span style="display: inline-flex; align-items: center; gap: 5px;">
+                  <span class="inline-icon-content">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                     </svg>
@@ -325,7 +324,7 @@
 
               <div class="form-help-strip">
                 <span>Paying for a license or renewal?</span>
-                <button type="button" class="btn-sm-link" @click="openPaymentMethodsView" style="display: inline-flex; align-items: center; gap: 6px;">
+                <button type="button" class="btn-sm-link inline-icon-content" @click="openPaymentMethodsView">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                     <line x1="1" y1="10" x2="23" y2="10"></line>
@@ -388,7 +387,7 @@
                 <div class="form-group">
                   <label>Attachment (Optional: Screenshot, receipt, or file, max 5MB)</label>
                   <div v-if="newAttachment" class="reply-attachment-chip">
-                    <span style="display: inline-flex; align-items: center; gap: 5px;">
+                    <span class="inline-icon-content">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                       </svg>
@@ -434,11 +433,10 @@
                 </button>
                 <div class="thread-header-right">
                   <button
-                    class="btn-thread-pay"
+                    class="btn-thread-pay btn-inline-icon"
                     @click="openPaymentMethodsView"
                     type="button"
                     title="View official bank accounts and scannable QR codes"
-                    style="display: inline-flex; align-items: center; gap: 5px;"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
@@ -521,7 +519,7 @@
               <!-- Reply Input Bar -->
               <div class="reply-input-bar">
                 <div v-if="replyAttachment" class="reply-attachment-chip">
-                  <span style="display: inline-flex; align-items: center; gap: 5px;">
+                  <span class="inline-icon-content">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                     </svg>
@@ -629,7 +627,7 @@
                   <!-- QR Thumbnail if available -->
                   <div v-if="pm.qr_image_url" class="cpc-qr-thumb-box" @click="openChatQr(pm)">
                     <img :src="pm.qr_image_url" :alt="pm.bank_name + ' QR'" class="cpc-qr-img" />
-                    <small class="cpc-qr-scan-hint" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                    <small class="cpc-qr-scan-hint">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -639,7 +637,7 @@
                   </div>
 
                   <div class="cpc-actions">
-                    <button class="btn-paste-ref" @click="useInReference(pm)" type="button" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <button class="btn-paste-ref btn-inline-icon" @click="useInReference(pm)" type="button">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M12 20h9"></path>
                         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
@@ -659,7 +657,7 @@
                   <small class="list-sub">Direct channel to platform superadmin</small>
                 </div>
                 <div class="list-header-actions">
-                  <button class="btn-view-payments" @click="openPaymentMethodsView" type="button" title="View official bank accounts and QR codes" style="display: inline-flex; align-items: center; gap: 5px;">
+                  <button class="btn-view-payments btn-inline-icon" @click="openPaymentMethodsView" type="button" title="View official bank accounts and QR codes">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                       <line x1="1" y1="10" x2="23" y2="10"></line>
@@ -673,7 +671,7 @@
               </div>
 
               <div class="payment-hint-strip">
-                <span style="display: inline-flex; align-items: center; gap: 6px;">
+                <span class="payment-hint-content">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                     <line x1="1" y1="10" x2="23" y2="10"></line>
@@ -714,7 +712,7 @@
                   </div>
                   <h4 class="inquiry-card-subject">{{ item.subject }}</h4>
                   <div class="inquiry-card-footer">
-                    <span v-if="item.status === 'finished'" class="footer-finished-note" style="display: inline-flex; align-items: center; gap: 4px;">
+                    <span v-if="item.status === 'finished'" class="footer-finished-note">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12"></polyline>
                       </svg>
@@ -1220,25 +1218,42 @@ onUnmounted(() => {
   z-index: 1050;
 }
 
+.support-chat-wrapper button,
+.support-chat-wrapper input,
+.support-chat-wrapper select,
+.support-chat-wrapper textarea {
+  font-family: inherit;
+}
+
+.support-chat-wrapper button:focus-visible,
+.support-chat-wrapper input:focus-visible,
+.support-chat-wrapper select:focus-visible,
+.support-chat-wrapper textarea:focus-visible,
+.support-chat-wrapper a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* Floating Action Button */
 .floating-chat-btn {
   position: fixed;
-  bottom: 24px;
   right: 24px;
-  display: flex;
+  bottom: 24px;
+  z-index: 1050;
+  display: inline-flex;
   align-items: center;
   gap: 9px;
-  padding: 12px 18px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-full);
   background: var(--primary);
   color: var(--primary-foreground);
   font-weight: 700;
   font-size: 0.88rem;
-  box-shadow: 0 10px 25px -3px var(--primary-glow);
+  box-shadow: var(--shadow-lg), 0 10px 25px -3px var(--primary-glow);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 1050;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, box-shadow 0.18s ease;
 }
 
 .floating-chat-btn:hover {
@@ -1252,6 +1267,19 @@ onUnmounted(() => {
   color: var(--foreground);
   border-color: var(--border);
   box-shadow: var(--shadow-lg);
+}
+
+.floating-chat-btn:active {
+  transform: translateY(1px);
+}
+
+.floating-chat-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.floating-chat-btn.is-active:hover {
+  background: var(--secondary);
 }
 
 .floating-icon-wrap {
@@ -1281,27 +1309,30 @@ onUnmounted(() => {
 .chat-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
+  z-index: 1040;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
   padding: 24px;
-  z-index: 1040;
+  background: color-mix(in srgb, var(--sidebar) 48%, transparent);
+  backdrop-filter: blur(4px);
 }
 
 .chat-modal-window {
-  width: 520px;
-  max-width: calc(100vw - 32px);
-  height: 640px;
-  max-height: calc(100vh - 80px);
-  background: var(--card, #ffffff);
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 20px;
+  width: min(520px, 100%);
+  max-width: 100%;
+  height: min(640px, calc(100vh - 48px));
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  color: var(--card-foreground);
+  box-shadow: var(--shadow-xl);
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1312,18 +1343,26 @@ onUnmounted(() => {
 
 /* Header */
 .chat-modal-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border, #e2e8f0);
-  background: var(--card, #ffffff);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  flex: 0 0 auto;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
 }
 
 .chat-header-info {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.chat-header-info > div:last-child {
+  min-width: 0;
 }
 
 .chat-header-avatar {
@@ -1339,37 +1378,53 @@ onUnmounted(() => {
 
 .chat-header-title {
   margin: 0;
+  color: var(--foreground);
   font-size: 1rem;
   font-weight: 700;
-  color: var(--foreground, #0f172a);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .chat-header-subtitle {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
+  color: var(--muted-foreground);
   font-size: 0.75rem;
-  color: var(--muted-foreground, #64748b);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .chat-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   background: transparent;
-  border: none;
+  color: var(--muted-foreground);
   font-size: 1.5rem;
-  color: var(--muted-foreground, #94a3b8);
-  cursor: pointer;
   line-height: 1;
-  padding: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .chat-close-btn:hover {
-  color: var(--foreground, #0f172a);
+  border-color: var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
 }
 
 /* Body */
 .chat-modal-body {
-  flex: 1;
-  overflow: hidden;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Thread View */
@@ -1381,11 +1436,11 @@ onUnmounted(() => {
 
 .thread-header {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border, #e2e8f0);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--muted, #f8fafc);
+  background: var(--muted);
 }
 
 .thread-back-btn {
@@ -1908,34 +1963,37 @@ onUnmounted(() => {
   letter-spacing: 0.03em;
 }
 
-.badge-open {
-  background: #e0f2fe;
-  color: #0369a1;
+.badge-open,
+.badge-medium {
+  background: var(--info-bg);
+  color: var(--info);
 }
 
 .badge-finished {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
-.badge-payment {
-  background: #fef3c7;
-  color: #92400e;
+.badge-payment,
+.badge-high {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
-.badge-technical {
-  background: #f1f5f9;
-  color: #475569;
+.badge-technical,
+.badge-low {
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .badge-license {
-  background: #ede9fe;
-  color: #6d28d9;
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 .badge-general {
-  background: #e2e8f0;
-  color: #334155;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
 }
 
 /* States */
@@ -2072,15 +2130,15 @@ onUnmounted(() => {
 }
 
 .chat-payment-card {
-  background: var(--card, #ffffff);
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chat-payment-card:hover {
@@ -2111,28 +2169,23 @@ onUnmounted(() => {
   letter-spacing: 0.03em;
 }
 
-.type--bank_transfer {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-}
-
+.type--bank_transfer,
 .type--gcash_qr {
-  background: #e0f2fe;
-  color: #0284c7;
-  border: 1px solid #bae6fd;
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid color-mix(in srgb, var(--info) 25%, var(--border));
 }
 
 .type--maya_qr {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, var(--border));
 }
 
 .type--qr_ph {
-  background: #fffbeb;
-  color: #d97706;
-  border: 1px solid #fde68a;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--border));
 }
 
 .cpc-details {
@@ -2265,7 +2318,7 @@ onUnmounted(() => {
 .chat-qr-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: color-mix(in srgb, var(--sidebar) 60%, transparent);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
@@ -2320,9 +2373,9 @@ onUnmounted(() => {
   max-width: 220px;
   max-height: 220px;
   object-fit: contain;
-  border-radius: 8px;
-  border: 1px solid var(--border, #e2e8f0);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
 }
 
 .chat-qr-meta {
@@ -2362,10 +2415,10 @@ onUnmounted(() => {
 }
 
 .btn-paste-ref-sm {
-  background: #10b981;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: 0.76rem;
   font-weight: 700;
@@ -2373,7 +2426,8 @@ onUnmounted(() => {
 }
 
 .btn-paste-ref-sm:hover {
-  background: #059669;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 /* Phase 5: Communication, Attachments, Priority & Staff Assignment */
@@ -2383,24 +2437,9 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.badge-low {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.badge-medium {
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.badge-high {
-  background: #ffedd5;
-  color: #c2410c;
-}
-
 .badge-urgent {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--red-bg);
+  color: var(--destructive);
   animation: pulseUrgent 2s infinite;
 }
 
@@ -2620,11 +2659,505 @@ onUnmounted(() => {
 
 .form-row-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
+/* Responsive and theme refinements */
+.btn-inline-icon,
+.inline-icon-content,
+.payment-hint-content,
+.footer-finished-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-inline-icon {
+  justify-content: center;
+}
+
+.inline-icon-content {
+  min-width: 0;
+}
+
+.reply-attachment-chip {
+  min-width: 0;
+  gap: 8px;
+}
+
+.reply-attachment-chip > .inline-icon-content {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.reply-attachment-chip > .inline-icon-content > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-thread-view,
+.admin-inquiries-list,
+.user-inquiries-list,
+.user-new-view,
+.user-payments-view,
+.messages-container,
+.inquiry-items-scroll,
+.payment-cards-scroll {
+  min-width: 0;
+  min-height: 0;
+}
+
+.thread-header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.thread-back-btn {
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.thread-actions,
+.thread-header-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.thread-actions > button,
+.thread-header-right > button {
+  max-width: 100%;
+}
+
+.meta-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.meta-subject {
+  min-width: 0;
+  flex: 1 1 220px;
+  overflow-wrap: anywhere;
+}
+
+.meta-badge-group {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.meta-details {
+  gap: 6px 12px;
+}
+
+.meta-details > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bubble-header {
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.bubble-sender,
+.bubble-time,
+.bubble-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bubble-time {
+  text-align: right;
+}
+
+.message-bubble {
+  min-width: 0;
+  max-width: min(82%, 100%);
+}
+
+.attachment-file-chip {
+  max-width: 100%;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.attachment-file-chip span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.attachment-thumbnail {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+
+.reply-input-bar {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.reply-input-bar textarea,
+.form-group input,
+.form-group select,
+.form-group textarea,
+.search-box input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.reply-bar-bottom {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.reply-actions-left {
+  min-width: 0;
+  flex: 1 1 200px;
+  flex-wrap: wrap;
+}
+
+.reply-actions-left small {
+  overflow-wrap: anywhere;
+}
+
+.btn-send {
+  min-height: 34px;
+  flex: 0 1 auto;
+}
+
+.btn-finish,
+.btn-reopen,
+.btn-send,
+.btn-primary,
+.btn-cancel,
+.btn-new-inquiry,
+.btn-view-payments,
+.btn-thread-pay,
+.btn-paste-ref,
+.btn-paste-ref-sm,
+.btn-attach {
+  min-height: 34px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+
+.btn-finish:disabled,
+.btn-reopen:disabled,
+.btn-send:disabled,
+.btn-primary:disabled,
+.btn-cancel:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.status-tabs {
+  flex-wrap: wrap;
+}
+
+.list-controls,
+.list-action-header {
+  min-width: 0;
+}
+
+.inquiry-card {
+  min-width: 0;
+}
+
+.inquiry-card-top {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inquiry-card-tags {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.inquiry-time {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.inquiry-card-subject {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.inquiry-card-footer {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.inquiry-card-footer > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.footer-action {
+  margin-left: auto;
+}
+
+.list-action-header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.list-action-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.list-header-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.list-header-actions > button {
+  max-width: 100%;
+}
+
+.payment-hint-strip,
+.form-help-strip {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.form-help-strip > span:first-child {
+  min-width: 0;
+  flex: 1 1 160px;
+  overflow-wrap: anywhere;
+}
+
+.form-help-strip .btn-sm-link {
+  max-width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.payment-hint-content {
+  min-width: 0;
+  flex: 1 1 210px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+.link-btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.view-header-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.view-badge {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.payment-callout,
+.callout-text {
+  min-width: 0;
+}
+
+.callout-icon {
+  flex: 0 0 auto;
+}
+
+.form-group,
+.new-inquiry-form {
+  min-width: 0;
+}
+
+.form-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-actions > button {
+  max-width: 100%;
+}
+
+.chat-payment-card {
+  min-width: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.cpc-top {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.cpc-bank-name {
+  min-width: 0;
+  flex: 1 1 160px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.cpc-details,
+.cpc-instructions {
+  min-width: 0;
+}
+
+.cpc-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.cpc-lbl {
+  flex: 0 1 135px;
+}
+
+.cpc-val {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.cpc-acc-row {
+  min-width: 0;
+  flex: 1 1 150px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cpc-code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cpc-qr-scan-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  text-align: center;
+}
+
+.cpc-actions {
+  min-width: 0;
+}
+
+.btn-paste-ref {
+  min-width: 0;
+}
+
+.chat-qr-overlay {
+  overflow-y: auto;
+}
+
+.chat-qr-modal {
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chat-qr-header {
+  gap: 8px;
+}
+
+.chat-qr-header h4,
+.chat-qr-meta,
+.chat-qr-meta small {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.chat-qr-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-qr-full {
+  width: min(220px, 100%);
+  height: auto;
+  max-width: 100%;
+}
+
+.chat-qr-footer > button {
+  min-width: 0;
+  flex: 1 1 110px;
+}
+
+.thread-meta-controls {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.assign-staff-inline {
+  min-width: 0;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+}
+
+.assign-select {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 150px;
+}
+
+.history-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 600px) {
+  .form-row-2col {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-modal-header {
+    padding: 14px 16px;
+  }
+
+  .chat-header-info {
+    gap: 9px;
+  }
+
+  .chat-header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+  }
+
+  .thread-header,
+  .inquiry-meta-card,
+  .reply-input-bar {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .form-actions > button {
+    flex: 1 1 140px;
+  }
+
+  .chat-qr-footer > button {
+    flex-basis: 100%;
+  }
+
   .chat-modal-window {
     width: 100%;
     height: 100%;

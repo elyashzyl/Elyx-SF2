@@ -2,7 +2,14 @@
   <div id="app" :data-theme="theme" :style="{ '--header-height': `${headerHeight}px` }">
     <header ref="headerRef" class="app-header" v-if="auth.user">
       <nav class="top-nav">
-        <button class="mobile-menu-btn" type="button" aria-label="Open navigation" @click="sidebarOpen = !sidebarOpen">
+        <button
+          class="mobile-menu-btn"
+          type="button"
+          :aria-label="sidebarOpen ? 'Close navigation' : 'Open navigation'"
+          :aria-expanded="sidebarOpen"
+          aria-controls="app-sidebar"
+          @click="sidebarOpen = !sidebarOpen"
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
@@ -33,6 +40,7 @@
 
         <div class="top-nav-actions">
           <button
+            type="button"
             @click="showTutorial = true"
             class="top-nav-btn tutorial-btn"
             title="Onboarding walkthrough &amp; guide"
@@ -46,6 +54,7 @@
           </button>
 
           <button
+            type="button"
             @click="toggleTheme()"
             class="top-nav-btn"
             :title="theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
@@ -61,6 +70,7 @@
           </button>
 
           <button
+            type="button"
             @click="toggleNotifications"
             class="top-nav-btn notification-btn"
             :class="{ 'has-notifications': unreadCount > 0 }"
@@ -75,7 +85,7 @@
             <span v-if="unreadCount > 0" class="notif-badge">{{ unreadCount }}</span>
           </button>
 
-          <button @click="handleLogout" class="top-nav-logout" title="Sign out">
+          <button type="button" @click="handleLogout" class="top-nav-logout" title="Sign out" aria-label="Sign out">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <path d="m16 17 5-5-5-5M21 12H9" />
@@ -92,14 +102,14 @@
           </svg>
         </span>
         <span>Viewing as <strong>{{ auth.user.name }}</strong> ({{ auth.user.role }}) · started by {{ auth.impersonatedBy?.name }}</span>
-        <button @click="handleStopImpersonating" class="impersonate-stop" :disabled="stoppingImpersonation">
+        <button type="button" @click="handleStopImpersonating" class="impersonate-stop" :disabled="stoppingImpersonation">
           {{ stoppingImpersonation ? 'Returning…' : 'Return to superadmin' }}
         </button>
       </div>
 
       <!-- License Lock Banner for Admins -->
       <div v-if="licenseLocked && auth.isAdmin" class="license-lock-banner">
-        <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <span class="license-lock-copy">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
             <line x1="12" y1="9" x2="12" y2="13"></line>
@@ -118,12 +128,12 @@
         <h2>School Workspace Locked</h2>
         <p>Your school's ElyTrack subscription is currently <strong>{{ licenseStatus.toUpperCase() }}</strong>.</p>
         <p class="lockout-sub">Attendance recording and SF2 reporting are locked until your school administrator renews the active campus license.</p>
-        <button @click="handleLogout" class="btn btn-secondary" style="margin-top: 10px;">Sign out</button>
+        <button type="button" @click="handleLogout" class="btn btn-secondary lockout-signout">Sign out</button>
       </div>
     </div>
 
     <div v-if="auth.user" class="app-body">
-      <aside class="sidebar" :class="{ 'is-open': sidebarOpen }">
+      <aside id="app-sidebar" class="sidebar" :class="{ 'is-open': sidebarOpen }">
         <div class="sidebar-scroll">
           <div class="sidebar-section-title">Workspace</div>
           <div class="sidebar-links">
@@ -298,8 +308,8 @@
           <small>Recent workspace activity</small>
         </div>
         <div v-if="notifications.length" class="notif-header-actions">
-          <button v-if="unreadCount" @click="handleMarkAllRead" class="notif-action-btn">Mark read</button>
-          <button @click="clearAll" class="notif-action-btn notif-action--clear">Clear</button>
+          <button type="button" v-if="unreadCount" @click="handleMarkAllRead" class="notif-action-btn">Mark read</button>
+          <button type="button" @click="clearAll" class="notif-action-btn notif-action--clear">Clear</button>
         </div>
       </div>
       <div v-if="notifications.length" class="notif-list">
@@ -314,7 +324,7 @@
             <span class="notif-item-message">{{ n.message }}</span>
             <span class="notif-item-time">{{ formatTimeAgo(n.ts) }}</span>
           </div>
-          <button @click.stop="dismiss(n.id)" class="notif-item-close" title="Dismiss">&times;</button>
+          <button type="button" @click.stop="dismiss(n.id)" class="notif-item-close" title="Dismiss">&times;</button>
         </div>
       </div>
       <div v-else class="notif-empty">
@@ -331,7 +341,7 @@
     <div class="toast-container">
       <div v-for="t in toasts" :key="t.id" :class="['toast', 'toast--' + t.type]">
         <span>{{ t.message }}</span>
-        <button @click="removeToast(t.id)" class="toast-close">&times;</button>
+        <button type="button" @click="removeToast(t.id)" class="toast-close">&times;</button>
       </div>
     </div>
 
@@ -583,3 +593,300 @@ function notifIcon(type) {
   return { success: '✓', error: '×', warning: '!', info: 'i' }[type] || 'i'
 }
 </script>
+
+<style scoped>
+/* Authenticated shell refinements: keep the shared chrome compact and theme-aware. */
+.app-header {
+  isolation: isolate;
+}
+
+.top-nav {
+  min-width: 0;
+  width: 100%;
+  box-shadow: var(--shadow-xs);
+}
+
+.top-nav-brand,
+.top-nav-context,
+.top-nav-school,
+.top-nav-actions,
+.top-nav-brand-copy,
+.top-nav-school-copy {
+  min-width: 0;
+}
+
+.top-nav-brand-copy strong {
+  max-width: 15ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-nav-context {
+  flex: 0 1 220px;
+}
+
+.top-nav-spacer {
+  min-width: 0;
+}
+
+.top-nav-school {
+  flex: 0 1 240px;
+}
+
+.top-nav-school-copy strong {
+  min-width: 0;
+}
+
+.top-nav-btn,
+.top-nav-logout,
+.mobile-menu-btn {
+  border-color: var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+
+.mobile-menu-btn {
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.mobile-menu-btn:hover,
+.mobile-menu-btn[aria-expanded='true'] {
+  border-color: var(--primary);
+  background: var(--secondary);
+  color: var(--primary);
+}
+
+.top-nav-actions {
+  gap: 6px;
+}
+
+.notification-btn.has-notifications::after {
+  background: var(--primary);
+}
+
+.notif-badge {
+  border-color: var(--card);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.impersonate-banner,
+.license-lock-banner {
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.impersonate-banner > span:not(.impersonate-banner-icon) {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.impersonate-stop {
+  flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  color: var(--foreground);
+}
+
+.impersonate-stop:hover {
+  background: var(--warning);
+  color: var(--primary-foreground);
+}
+
+.license-lock-banner {
+  align-items: flex-start;
+}
+
+.license-lock-copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 360px;
+  line-height: 1.45;
+}
+
+.license-lock-copy > span {
+  min-width: 0;
+}
+
+.lock-action-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--destructive);
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.lock-action-btn:hover {
+  opacity: 1;
+  border-color: var(--destructive-hover);
+  background: var(--destructive-hover);
+  color: var(--destructive-foreground);
+  transform: translateY(-1px);
+}
+
+.sidebar {
+  min-height: 0;
+}
+
+.sidebar-scroll {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+.sidebar-links a > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-links a.router-link-active,
+.sidebar-profile-btn.router-link-active {
+  border-color: var(--sidebar-border);
+}
+
+.sidebar-profile-avatar {
+  border-color: var(--sidebar-border);
+  background: var(--sidebar-accent);
+}
+
+.sidebar-profile-avatar-wrap .sidebar-status-dot {
+  background: var(--success);
+}
+
+.sidebar-logout-btn:hover {
+  background: var(--red-bg);
+  border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+  color: var(--destructive);
+}
+
+.main-with-sidebar {
+  min-width: 0;
+}
+
+.notif-panel {
+  top: calc(var(--header-height, 70px) + 9px);
+  right: clamp(12px, 2vw, 24px);
+  max-height: calc(100vh - var(--header-height, 70px) - 18px);
+}
+
+.notif-list {
+  max-height: min(370px, calc(100vh - var(--header-height, 70px) - 110px));
+}
+
+.lockout-signout {
+  margin-top: 10px;
+}
+
+.license-teacher-lockout {
+  overflow-y: auto;
+}
+
+.lockout-card {
+  min-width: 0;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+}
+
+.top-nav-btn:focus-visible,
+.top-nav-logout:focus-visible,
+.mobile-menu-btn:focus-visible,
+.impersonate-stop:focus-visible,
+.lock-action-btn:focus-visible,
+.sidebar-links a:focus-visible,
+.sidebar-profile-btn:focus-visible,
+.sidebar-logout-btn:focus-visible,
+.notif-action-btn:focus-visible,
+.notif-item-close:focus-visible,
+.toast-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 820px) {
+  .top-nav {
+    gap: 10px;
+    padding-inline: 18px;
+  }
+
+  .top-nav-brand-copy {
+    overflow: hidden;
+  }
+
+  .top-nav-btn,
+  .top-nav-logout,
+  .mobile-menu-btn {
+    width: 35px;
+    height: 35px;
+  }
+
+  .top-nav-logout {
+    min-height: 35px;
+  }
+
+  .sidebar {
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (max-width: 600px) {
+  .top-nav {
+    gap: 6px;
+    padding-inline: 12px;
+  }
+
+  .top-nav-brand {
+    gap: 7px;
+  }
+
+  .top-nav-brand-img {
+    width: 31px;
+    height: 31px;
+  }
+
+  .top-nav-brand-copy strong {
+    max-width: 11ch;
+    font-size: .78rem;
+  }
+
+  .top-nav-actions {
+    gap: 4px;
+  }
+
+  .top-nav-btn,
+  .top-nav-logout,
+  .mobile-menu-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .top-nav-logout {
+    min-height: 34px;
+  }
+
+  .impersonate-banner,
+  .license-lock-banner {
+    justify-content: flex-start;
+    padding-inline: 12px;
+    text-align: left;
+  }
+
+  .license-lock-copy {
+    flex-basis: 100%;
+  }
+
+  .lock-action-btn {
+    align-self: flex-start;
+  }
+
+  .notif-panel {
+    top: calc(var(--header-height, 70px) + 9px);
+    right: 12px;
+    width: min(350px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
+}
+</style>

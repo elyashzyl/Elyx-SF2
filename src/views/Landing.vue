@@ -13,7 +13,7 @@
 
         <!-- Desktop Navigation Links -->
         <nav class="landing-nav-links" aria-label="Main Navigation">
-          <button type="button" class="nav-item" @click="scrollToSection('demo')">Live Simulator</button>
+          <button type="button" class="nav-item" @click="scrollToSection('demo')">Product Preview</button>
           <button type="button" class="nav-item" @click="scrollToSection('features')">Platform</button>
           <button type="button" class="nav-item" @click="scrollToSection('sf2')">DepEd SF2</button>
           <button type="button" class="nav-item" @click="scrollToSection('calculator')">Time Saved</button>
@@ -70,7 +70,7 @@
 
       <!-- Mobile Dropdown Navigation -->
       <div v-if="mobileNavOpen" class="mobile-nav-panel">
-        <button type="button" class="mobile-nav-item" @click="handleMobileNav('demo')">Live Simulator</button>
+        <button type="button" class="mobile-nav-item" @click="handleMobileNav('demo')">Product Preview</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('features')">Platform Capabilities</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('sf2')">DepEd SF2 Standard</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('calculator')">Time Saved Calculator</button>
@@ -124,7 +124,7 @@
                 </svg>
               </button>
               <button type="button" class="btn-secondary" @click="scrollToSection('demo')">
-                <span>Explore Live Simulator</span>
+                <span>Explore Product Preview</span>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
@@ -160,8 +160,8 @@
                   <span class="dot dot--yellow"></span>
                   <span class="dot dot--green"></span>
                 </div>
-                <div class="window-title">{{ activeSchool?.name || 'Database school preview' }}</div>
-                <span class="window-badge">Interactive Demo</span>
+                <div class="window-title">ElyTrack product preview</div>
+                <span class="window-badge">Public Preview</span>
               </div>
 
               <!-- Simulator Tabs -->
@@ -209,47 +209,28 @@
               <div v-if="activeDemoTab === 'rollcall'" class="demo-screen">
                 <div class="screen-topline">
                   <div>
-                    <span class="screen-kicker">{{ previewContextLabel }}</span>
+                    <span class="screen-kicker">DATABASE-BACKED AGGREGATE VIEW</span>
                     <h3 class="screen-heading">Advisory Daily Roll Call</h3>
                   </div>
                   <div class="attendance-pill">
                     <span class="pulse-indicator"></span>
-                    <span>Present: <strong>{{ calculatedAttendanceRate }}%</strong></span>
+                    <span>Monthly rate: <strong>{{ landingStats.attendanceRate }}%</strong></span>
                   </div>
                 </div>
 
-                <div v-if="demoStudents.length" class="student-roster">
-                  <div
-                    v-for="(st, idx) in demoStudents"
-                    :key="st.id"
-                    class="roster-row"
-                    :class="{ 'roster-row--absent': st.status === 'Absent' }"
-                  >
-                    <span class="roster-index">#{{ idx + 1 }}</span>
-                    <div class="roster-info">
-                      <strong>{{ st.name }}</strong>
-                      <small>{{ st.gender || 'Learner' }}<span v-if="st.lrn"> · LRN: {{ st.lrn }}</span></small>
-                    </div>
-
-                    <div class="period-slots" title="Morning and Afternoon Sessions">
-                      <span class="slot" :class="'slot--' + st.am1.toLowerCase()">{{ st.am1 }}</span>
-                      <span class="slot" :class="'slot--' + st.am2.toLowerCase()">{{ st.am2 }}</span>
-                      <span class="slot" :class="'slot--' + st.am3.toLowerCase()">{{ st.am3 }}</span>
-                      <span class="slot" :class="'slot--' + st.am4.toLowerCase()">{{ st.am4 }}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      class="status-toggle-btn"
-                      :class="st.status === 'Present' ? 'is-present' : 'is-absent'"
-                      @click="toggleStudentStatus(idx)"
-                      :title="'Toggle ' + st.name + '\'s attendance mark'"
-                    >
-                      <span>{{ st.status }}</span>
-                    </button>
+                <div class="privacy-preview-card">
+                  <div class="privacy-preview-icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="4" y="10" width="16" height="10" rx="2" />
+                      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                    </svg>
                   </div>
+                  <div>
+                    <strong>Individual learner records stay private</strong>
+                    <p>The public preview displays aggregate attendance metrics only. Sign in to view and manage your school roster.</p>
+                  </div>
+                  <router-link to="/login" class="privacy-preview-link">Sign in to view records</router-link>
                 </div>
-                <div v-else class="demo-empty-notice">Learner roster is loaded directly from the database.</div>
 
                 <div class="demo-tip">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -257,7 +238,7 @@
                     <line x1="12" y1="16" x2="12" y2="12" />
                     <line x1="12" y1="8" x2="12.01" y2="8" />
                   </svg>
-                  <span>Click any student status badge above to toggle Present/Absent and see real-time section calculations update.</span>
+                  <span>Use the signed-in workspace to record roll calls and update attendance in real time.</span>
                 </div>
               </div>
 
@@ -297,7 +278,7 @@
                 <div class="sf2-download-preview">
                   <div class="dp-copy">
                     <strong>Standard DepEd Form 2 Excel (.xlsx)</strong>
-                    <p>Pre-populated with student names, 12-digit LRNs, daily session marks, and verified summary totals.</p>
+                    <p>Generate the official workbook from your authorized school workspace with verified summary totals.</p>
                   </div>
                   <router-link to="/login" class="dp-btn">
                     <span>Export Preview</span>
@@ -313,20 +294,22 @@
                     <span class="screen-kicker">DROPOUT PREVENTION RADAR</span>
                     <h3 class="screen-heading">Students At Risk of Dropping Out</h3>
                   </div>
-                  <span class="sardo-count">{{ riskStudents.length }} Learners Flagged</span>
+                  <span class="sardo-count">{{ landingStats.atRiskStudents }} Aggregate Alerts</span>
                 </div>
 
-                <div v-if="riskStudents.length" class="sardo-list">
-                  <div v-for="student in riskStudents" :key="student.id" class="sardo-item">
-                    <div class="sardo-marker" :class="'marker--' + student.risk"></div>
-                    <div class="sardo-meta">
-                      <strong>{{ student.name }}</strong>
-                      <span>{{ student.grade }} - {{ student.section }} · {{ student.detail }}</span>
-                    </div>
-                    <span class="sardo-action-pill">{{ student.action }}</span>
+                <div class="privacy-preview-card privacy-preview-card--stacked">
+                  <div class="privacy-preview-icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="4" y="10" width="16" height="10" rx="2" />
+                      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                    </svg>
                   </div>
+                  <div>
+                    <strong>Retention details are available to authorized staff</strong>
+                    <p>The public page shows the number of aggregate alerts without exposing learner names, grade levels, sections, or attendance histories.</p>
+                  </div>
+                  <router-link to="/login" class="privacy-preview-link">Sign in to review alerts</router-link>
                 </div>
-                <div v-else class="demo-empty-notice">No retention risks currently flagged in the database.</div>
 
                 <div class="sardo-notice">
                   <span>Adviser alert: Automatic notifications trigger at 3 consecutive or 5 cumulative absences in a month to initiate home visitation protocols.</span>
@@ -338,9 +321,8 @@
                 <div class="footer-school-info">
                   <img src="/elytrack-logo.png" alt="Logo" class="fsi-logo" />
                   <div>
-                    <strong>{{ activeSchool?.name || 'Database school workspace' }}</strong>
-                    <small v-if="activeSchool?.school_id">DepEd School ID: {{ activeSchool.school_id }} · Institutional Node</small>
-                    <small v-else>Active School Workspace</small>
+                    <strong>ElyTrack school workspace</strong>
+                    <small>Authorized school data remains private</small>
                   </div>
                 </div>
                 <div class="fsi-status">
@@ -730,16 +712,16 @@
 
             <div class="pricing-card-rate">
               <div class="rate-amount-row">
-                <span class="currency">₱</span>
+                <span class="currency">{{ currencySymbol(plan.currency) }}</span>
                 <span class="amount">
-                  {{ billingCycle === 'annual' ? Number(plan.price_annual_monthly || 0).toLocaleString() : Number(plan.price_monthly || 0).toLocaleString() }}
+                  {{ formatPlanNumber(plan, billingCycle === 'annual' ? plan.price_annual_monthly : plan.price_monthly) }}
                 </span>
                 <span class="interval">/ month</span>
               </div>
               <span class="billing-subtext">
                 {{
                   billingCycle === 'annual'
-                    ? `Billed ₱${Number(plan.billing_annual_total || 0).toLocaleString()} annually${plan.billing_months ? ` (${plan.billing_months}-month academic year)` : ''}`
+                    ? `Billed ${formatPlanAmount(plan, plan.billing_annual_total)} annually${plan.billing_months ? ` (${plan.billing_months}-month academic year)` : ''}`
                     : 'Billed monthly'
                 }}
               </span>
@@ -962,7 +944,7 @@
 
         <div class="footer-nav-col">
           <span class="footer-nav-title">Navigation</span>
-          <button type="button" class="footer-link-btn" @click="scrollToSection('demo')">Live Simulator</button>
+          <button type="button" class="footer-link-btn" @click="scrollToSection('demo')">Product Preview</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('features')">Platform</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('sf2')">DepEd SF2 Standard</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('calculator')">Time Saved Calculator</button>
@@ -994,7 +976,6 @@ const sectionCount = ref(0)
 const activeFaq = ref(0)
 
 const plans = ref([])
-const activeSchool = ref(null)
 const landingStats = ref({
   totalStudents: 0,
   maleStudents: 0,
@@ -1006,15 +987,6 @@ const landingStats = ref({
   retentionLabel: 'No attendance records',
   monthLabel: ''
 })
-const demoStudents = ref([])
-const riskStudents = ref([])
-
-const previewContextLabel = computed(() => {
-  const student = demoStudents.value[0]
-  if (!student?.grade && !student?.section) return 'PHILIPPINE CLASSROOM SIMULATOR'
-  return `${student.grade || 'GRADE'} · ${student.section || 'SECTION'} · ADVISORY CLASS`
-})
-
 onMounted(async () => {
   await loadLandingData()
 })
@@ -1032,9 +1004,6 @@ async function loadLandingData() {
             : (typeof p.features === 'string' ? JSON.parse(p.features || '[]') : [])
         }))
       }
-      if (data.school) {
-        activeSchool.value = data.school
-      }
       if (data.stats) {
         sectionCount.value = Number(data.stats.totalSections || 0)
         landingStats.value = {
@@ -1043,45 +1012,14 @@ async function loadLandingData() {
           monthLabel: data.stats.monthLabel || ''
         }
       }
-      demoStudents.value = Array.isArray(data.previewStudents)
-        ? data.previewStudents.map(st => ({
-            ...st,
-            status: st.status || 'Unmarked',
-            am1: st.am1 || '',
-            am2: st.am2 || '',
-            am3: st.am3 || '',
-            am4: st.am4 || ''
-          }))
-        : []
-      riskStudents.value = Array.isArray(data.riskStudents) ? data.riskStudents : []
+      // The public endpoint intentionally does not return learner records.
+      // Keep the roster empty until an authenticated workspace is opened.
     }
   } catch (err) {
     console.error('Failed to load dynamic landing data:', err)
   }
 }
 
-function toggleStudentStatus(index) {
-  const st = demoStudents.value[index]
-  if (st.status === 'Present') {
-    st.status = 'Absent'
-    st.am1 = 'A'
-    st.am2 = 'A'
-    st.am3 = 'A'
-    st.am4 = 'A'
-  } else {
-    st.status = 'Present'
-    st.am1 = 'E'
-    st.am2 = 'E'
-    st.am3 = 'E'
-    st.am4 = 'E'
-  }
-}
-
-const calculatedAttendanceRate = computed(() => {
-  if (!demoStudents.value.length) return 0
-  const presentCount = demoStudents.value.filter(s => s.status === 'Present').length
-  return Math.round((presentCount / demoStudents.value.length) * 100)
-})
 
 const hoursSavedMonthly = computed(() => {
   return Math.round(sectionCount.value * 17.2)
@@ -1118,9 +1056,45 @@ const annualSavingsLabel = computed(() => {
   return 'Save on annual billing'
 })
 
+function currencyCode(plan) {
+  return String(plan?.currency || 'PHP').trim().toUpperCase() || 'PHP'
+}
+
+function currencySymbol(currency) {
+  const code = String(currency || 'PHP').trim().toUpperCase() || 'PHP'
+  try {
+    return new Intl.NumberFormat('en-PH', { style: 'currency', currency: code })
+      .formatToParts(0)
+      .find(part => part.type === 'currency')?.value || code
+  } catch {
+    return code
+  }
+}
+
+function formatPlanNumber(plan, amount) {
+  const value = Number(amount)
+  return Number.isFinite(value) ? value.toLocaleString('en-PH', { maximumFractionDigits: 0 }) : '—'
+}
+
+function formatPlanAmount(plan, amount) {
+  const value = Number(amount)
+  if (!Number.isFinite(value)) return 'Price configured in database'
+  try {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: currencyCode(plan),
+      maximumFractionDigits: 0
+    }).format(value)
+  } catch {
+    return `${currencyCode(plan)} ${value.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
+  }
+}
+
 function planPriceLabel(plan) {
   const amount = billingCycle.value === 'annual' ? plan.price_annual_monthly : plan.price_monthly
-  return amount ? `₱${Number(amount).toLocaleString()} / mo` : 'Price configured in database'
+  return Number.isFinite(Number(amount)) && Number(amount) > 0
+    ? `${formatPlanAmount(plan, amount)} / mo`
+    : 'Price configured in database'
 }
 
 const faqItems = [
@@ -1145,8 +1119,8 @@ const faqItems = [
     a: 'ElyTrack isolates each school into independent database scopes. Data is encrypted in transit and at rest, and all edits after the 48-hour submission cutoff require administrative justification and audit logging.'
   },
   {
-    q: 'What payment channels are supported for official subscriptions?',
-    a: 'ElyTrack accepts GCash, Maya, QR Ph, and direct Philippine bank transfers (BDO, BPI, Landbank, UnionBank). Account details and instant QR codes are revealed immediately after creating your school workspace.'
+    q: 'How are subscription payments handled?',
+    a: 'After you submit the school onboarding form, the available payment instructions are shown in the controlled subscription flow. Payment references are reviewed before a paid license is activated.'
   }
 ]
 
@@ -1826,6 +1800,81 @@ function handleMobileNav(id) {
 .status-toggle-btn.is-absent {
   background: var(--destructive);
   color: var(--destructive-foreground);
+}
+
+.privacy-preview-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--landing-line-strong);
+  border-radius: 10px;
+  background: var(--landing-teal-light);
+}
+
+.privacy-preview-card--stacked {
+  margin-bottom: 14px;
+}
+
+.privacy-preview-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: var(--landing-card);
+  color: var(--primary);
+  border: 1px solid var(--landing-line-strong);
+}
+
+.privacy-preview-card strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.privacy-preview-card p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.privacy-preview-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid var(--primary);
+  border-radius: 7px;
+  color: var(--primary);
+  background: var(--landing-card);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.privacy-preview-link:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+@media (max-width: 560px) {
+  .privacy-preview-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .privacy-preview-link {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 .demo-tip {

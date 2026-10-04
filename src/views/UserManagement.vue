@@ -7,8 +7,8 @@
       </div>
     </div>
 
-    <div v-if="showForm" class="modal-overlay" @click.self="cancelForm">
-      <div class="form-card">
+    <div v-if="showForm" class="modal-overlay user-modal-overlay" @click.self="cancelForm">
+      <div class="form-card user-form-card">
         <h3>{{ editingUser ? 'Edit User Account' : 'Add New User Account' }}</h3>
         <form @submit.prevent="handleSave">
           <div class="form-group">
@@ -61,9 +61,9 @@
               </div>
             </div>
           </template>
-          <div class="form-actions">
+          <div class="form-actions user-form-actions">
             <button type="submit" class="btn-primary" :disabled="saving">
-              <span v-if="saving" class="spinner" style="margin-right: 6px;"></span>
+              <span v-if="saving" class="spinner user-save-spinner"></span>
               {{ saving ? 'Saving...' : (editingUser ? 'Update Account' : 'Send Invitation') }}
             </button>
             <button type="button" @click="cancelForm" class="btn-secondary">Cancel</button>
@@ -73,9 +73,9 @@
       </div>
     </div>
 
-    <div class="table-card">
-      <div class="table-toolbar">
-        <div class="table-toolbar-left">
+    <div class="table-card user-table-card">
+      <div class="table-toolbar user-management-toolbar">
+        <div class="table-toolbar-left user-toolbar-left">
           <span class="show-wrap">Show
             <select v-model="pageSize" @change="onPageSizeChange" class="show-select">
               <option :value="5">5</option>
@@ -91,7 +91,7 @@
             Add User
           </button>
         </div>
-        <div class="table-toolbar-right">
+        <div class="table-toolbar-right user-toolbar-right">
           <span class="tbl-search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -104,8 +104,8 @@
           </select>
         </div>
       </div>
-      <div style="overflow-x: auto;">
-      <table class="data-table" v-if="filteredUsers.length">
+      <div class="user-table-scroll">
+      <table class="data-table user-table" v-if="filteredUsers.length">
         <thead>
           <tr>
             <th class="cell-id">ID</th>
@@ -114,7 +114,7 @@
             <th v-if="auth.isSuperadmin">School</th>
             <th>Advisory</th>
             <th>Status</th>
-            <th style="text-align: right;">Actions</th>
+            <th class="user-actions-heading">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -123,7 +123,7 @@
             <td>
               <div class="cell-person">
                 <span class="cell-avatar">{{ (u.name || '?').charAt(0).toUpperCase() }}</span>
-                <div style="min-width: 0;">
+                <div class="cell-person-copy">
                   <div class="cell-main">{{ u.name }}</div>
                   <div class="cell-sub">@{{ u.username }}<span v-if="u.email"> · {{ u.email }}</span></div>
                 </div>
@@ -138,8 +138,8 @@
               <span :class="['pill', statusClass(u.account_status)]">{{ statusLabel(u.account_status) }}</span>
               <div v-if="u.last_login_at" class="cell-sub">Last login: {{ formatDate(u.last_login_at) }}</div>
             </td>
-            <td style="text-align: right;">
-              <div class="row-actions">
+            <td class="user-actions-cell">
+              <div class="row-actions user-row-actions">
                 <button @click="editUser(u)" class="icon-btn" title="Edit">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                 </button>
@@ -377,3 +377,132 @@ async function impersonateUser(u) {
   }
 }
 </script>
+
+<style scoped>
+.user-modal-overlay {
+  padding: clamp(12px, 3vw, 20px);
+}
+
+.user-form-card {
+  max-height: min(90vh, 760px);
+}
+
+.user-form-card h3 {
+  margin: 0 0 18px;
+}
+
+.user-form-actions {
+  flex-wrap: wrap;
+}
+
+.user-form-actions > button {
+  flex: 1 1 140px;
+}
+
+.user-save-spinner {
+  margin-right: 6px;
+}
+
+.user-management-toolbar {
+  align-items: center;
+}
+
+.user-toolbar-left,
+.user-toolbar-right {
+  min-width: 0;
+  flex: 1 1 280px;
+}
+
+.user-toolbar-right {
+  justify-content: flex-end;
+}
+
+.user-toolbar-right .tbl-search {
+  min-width: 0;
+  flex: 1 1 230px;
+}
+
+.user-toolbar-right .tbl-search input {
+  width: 100%;
+  max-width: 230px;
+}
+
+.user-toolbar-right .tbl-filter {
+  max-width: 100%;
+}
+
+.user-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.user-table {
+  min-width: 780px;
+}
+
+.user-table td {
+  overflow-wrap: anywhere;
+}
+
+.user-table .cell-person-copy {
+  min-width: 0;
+}
+
+.user-table .cell-sub {
+  overflow-wrap: anywhere;
+}
+
+.user-actions-heading,
+.user-actions-cell {
+  min-width: 190px;
+  text-align: right;
+}
+
+.user-row-actions {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.user-table-card .table-footer {
+  align-items: flex-start;
+}
+
+.user-table-card .pager {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 820px) {
+  .user-management-toolbar {
+    align-items: stretch;
+  }
+
+  .user-toolbar-left,
+  .user-toolbar-right {
+    flex-basis: 100%;
+  }
+
+  .user-toolbar-right {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .user-form-actions > button {
+    flex-basis: 100%;
+  }
+
+  .user-toolbar-right .tbl-search input {
+    max-width: none;
+  }
+
+  .user-table-card .table-footer {
+    align-items: center;
+  }
+
+  .user-table-card .pager {
+    justify-content: center;
+  }
+}
+</style>

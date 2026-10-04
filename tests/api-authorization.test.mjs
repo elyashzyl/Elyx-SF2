@@ -75,6 +75,24 @@ after(async () => {
   await new Promise(resolve => server.close(resolve))
 })
 
+test('public landing data contains aggregates but no learner or payment records', async () => {
+  const landing = await request('/api/licenses/landing-data')
+  assert.equal(landing.response.status, 200)
+  assert.equal(landing.body.school, null)
+  assert.ok(landing.body.publicPreview)
+  assert.equal(landing.body.publicPreview.learnerRecords, false)
+  assert.ok(!Object.hasOwn(landing.body, 'previewStudents'))
+  assert.ok(!Object.hasOwn(landing.body, 'riskStudents'))
+  assert.ok(!Object.hasOwn(landing.body, 'paymentMethods'))
+  assert.ok(!Object.hasOwn(landing.body, 'payment_methods'))
+  for (const plan of landing.body.plans || []) {
+    assert.ok(!Object.hasOwn(plan, 'account_number'))
+    assert.ok(!Object.hasOwn(plan, 'qr_image_url'))
+    assert.ok(!Object.hasOwn(plan, 'internal_notes'))
+  }
+  assert.doesNotMatch(JSON.stringify(landing.body), /account_number|qr_image_url|student_id|lrn/i)
+})
+
 test('school administrators cannot list or inspect another school', async () => {
   const users = await request('/api/users', { headers: actorHeaders(adminA, 'admin') })
   assert.equal(users.response.status, 200)

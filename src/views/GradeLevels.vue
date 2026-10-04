@@ -1,7 +1,7 @@
 <template>
   <div class="management-page">
     <!-- Page Header -->
-    <div class="page-header">
+    <div class="page-header grades-page-header">
       <div class="page-header-text">
         <div class="dashboard-header-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -17,14 +17,14 @@
         </div>
       </div>
       <div class="page-header-actions">
-        <button @click="addRow" type="button" class="btn-primary" :disabled="savingGrades">
+        <button @click="addRow" type="button" class="btn-primary grades-header-action" :disabled="savingGrades">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
           Add Grade Level
         </button>
-        <button @click="saveGrades" type="button" class="btn-secondary" :disabled="savingGrades">
+        <button @click="saveGrades" type="button" class="btn-secondary grades-header-action" :disabled="savingGrades">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
             <polyline points="17 21 17 13 7 13 7 21"/>
@@ -68,7 +68,7 @@
 
     <!-- Superadmin school selector -->
     <div v-if="auth.isSuperadmin" class="form-card grades-toolbar">
-      <div class="form-group" style="margin: 0;">
+      <div class="form-group grades-school-field">
         <label>School</label>
         <select v-model="selectedSchoolId" @change="loadGrades">
           <option v-for="s in schools" :key="s.id" :value="s.id">
@@ -90,7 +90,7 @@
       </div>
       <h3>No grade levels yet</h3>
       <p>Add at least one grade level and section before enrolling students or assigning teachers.</p>
-      <button @click="addRow" type="button" class="btn-primary" style="margin-top: 12px;">
+      <button @click="addRow" type="button" class="btn-primary grades-empty-action">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
@@ -125,7 +125,7 @@
           <button
             type="button"
             @click="removeRow(i)"
-            class="table-action-btn table-action-btn--danger"
+            class="table-action-btn table-action-btn--danger grade-remove-btn"
             title="Remove grade level"
             aria-label="Remove grade level"
           >
@@ -166,7 +166,7 @@
             />
             <button
               type="button"
-              class="btn-sm"
+              class="btn-sm section-add-btn"
               @click="addSection(i)"
               :disabled="!g.newSection || !g.newSection.trim()"
             >
@@ -317,6 +317,30 @@ async function saveGrades() {
 </script>
 
 <style scoped>
+.grades-page-header {
+  align-items: flex-start;
+}
+
+.grades-page-header .page-header-text {
+  min-width: 0;
+}
+
+.grades-page-header .page-header-text > div:last-child {
+  min-width: 0;
+}
+
+.grades-page-header .page-header-text p {
+  overflow-wrap: anywhere;
+}
+
+.grades-page-header .page-header-actions {
+  flex: 0 1 auto;
+}
+
+.grades-header-action {
+  min-width: max-content;
+}
+
 .page-header-text {
   display: flex;
   align-items: flex-start;
@@ -337,17 +361,27 @@ async function saveGrades() {
 
 .grades-toolbar {
   margin-bottom: 24px;
+  padding: 18px 20px;
+}
+
+.grades-school-field {
+  max-width: 420px;
+  margin: 0;
 }
 
 .grades-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   gap: 18px;
 }
 
 .grades-empty {
   text-align: center;
   padding: 48px 20px;
+}
+
+.grades-empty-action {
+  margin-top: 12px;
 }
 
 .grades-empty-icon {
@@ -390,8 +424,13 @@ async function saveGrades() {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
+}
+
+.grade-remove-btn {
+  flex: 0 0 auto;
 }
 
 .grade-card-icon {
@@ -444,6 +483,7 @@ async function saveGrades() {
   color: var(--muted-foreground);
   font-weight: 500;
   padding-left: 6px;
+  overflow-wrap: anywhere;
 }
 
 .grade-card-body {
@@ -479,10 +519,12 @@ async function saveGrades() {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 
 .section-tag {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: 6px;
   padding: 4px 4px 4px 10px;
@@ -523,10 +565,17 @@ async function saveGrades() {
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
+}
+
+.section-add-btn {
+  flex: 0 0 auto;
+  min-height: 36px;
 }
 
 .section-input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 36px;
   padding: 0 12px;
   background: var(--background);
@@ -551,6 +600,47 @@ async function saveGrades() {
 @media (max-width: 720px) {
   .grades-grid {
     grid-template-columns: 1fr;
+  }
+
+  .grades-page-header .page-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .grades-header-action {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 460px) {
+  .grades-page-header .page-header-actions {
+    flex-direction: column;
+  }
+
+  .grades-header-action {
+    width: 100%;
+  }
+
+  .grade-card-header {
+    align-items: flex-start;
+  }
+
+  .grade-card-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .grade-remove-btn {
+    min-width: 31px;
+    padding: 5px;
+  }
+
+  .section-input-row {
+    align-items: stretch;
+  }
+
+  .section-add-btn {
+    min-width: 70px;
   }
 }
 </style>

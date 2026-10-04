@@ -21,16 +21,49 @@ function parseFeatures(featuresStr) {
   }
 }
 
+function parsePlanJson(value, fallback) {
+  if (value === null || value === undefined || value === '') return fallback
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return fallback
+  }
+}
+
+// Keep the public plan contract explicit. Subscription rows may gain internal
+// columns over time, but those columns must not become public accidentally.
+function toPublicPlan(row) {
+  return {
+    id: row.id,
+    tier: row.tier,
+    name: row.name,
+    tag: row.tag,
+    description: row.description,
+    price_monthly: row.price_monthly,
+    price_annual_monthly: row.price_annual_monthly,
+    billing_annual_total: row.billing_annual_total,
+    billing_months: row.billing_months,
+    currency: row.currency,
+    trial_days: row.trial_days,
+    max_teachers: row.max_teachers,
+    max_students: row.max_students,
+    is_featured: row.is_featured,
+    badge: row.badge,
+    cta_text: row.cta_text,
+    cta_url: row.cta_url,
+    features: parsePlanJson(row.features, []),
+    modules: parsePlanJson(row.modules, {}),
+    sort_order: row.sort_order
+  }
+}
+
 // GET /api/licenses/plans
 // Public: Returns all subscription plans stored in the database.
 router.get('/plans', async (req, res) => {
   try {
     const rows = await query('SELECT * FROM subscription_plans ORDER BY sort_order ASC, price_annual_monthly ASC')
-    res.json(rows.map(r => ({
-      ...r,
-      features: typeof r.features === 'string' ? JSON.parse(r.features || '[]') : (r.features || []),
-      modules: typeof r.modules === 'string' ? JSON.parse(r.modules || '{}') : (r.modules || {})
-    })))
+    res.json(rows.map(toPublicPlan))
   } catch (err) {
     console.error('Failed to get subscription plans:', err.message)
     res.status(500).json({ error: 'Failed to retrieve plans' })
@@ -38,33 +71,46 @@ router.get('/plans', async (req, res) => {
 })
 
 // GET /api/licenses/landing-data
-// Public: Dynamic landing data from database (plans, school context, telemetry stats, sample roster)
+// Public: Returns plans and aggregate, non-identifying product metrics only.
+// Learner records must never be exposed to unauthenticated visitors.
 router.get('/landing-data', async (req, res) => {
   try {
     const planRows = await query('SELECT * FROM subscription_plans ORDER BY sort_order ASC')
-    const plans = planRows.map(r => ({
-      ...r,
-      features: typeof r.features === 'string' ? JSON.parse(r.features || '[]') : (r.features || []),
-      modules: typeof r.modules === 'string' ? JSON.parse(r.modules || '{}') : (r.modules || {})
-    }))
+    const plans = planRows.map(toPublicPlan)
 
-    const schoolRow = (await query('SELECT id, name, short, school_id, address FROM schools ORDER BY id ASC LIMIT 1'))[0] || null
-    const schoolFilter = schoolRow ? ' WHERE school_id = ?' : ''
-    const schoolParams = schoolRow ? [schoolRow.id] : []
-    const students = await query(`SELECT id, name, gender, grade, section FROM students${schoolFilter} ORDER BY name ASC`, schoolParams)
-    const studentCount = students.length
-    const teacherCount = (await query(`SELECT COUNT(*) as cnt FROM users WHERE role = "teacher"${schoolRow ? ' AND school_id = ?' : ''}`, schoolParams))[0]?.cnt || 0
-    const sectionKeys = new Set(students.map(student => `${student.grade || ''}__${student.section || ''}`))
-    const monthlyRecordCount = (await query(`SELECT COUNT(*) as cnt FROM monthly_records${schoolRow ? ' WHERE school_id = ?' : ''}`, schoolParams))[0]?.cnt || 0
+    // Use database-wide aggregates instead of exposing one school's identity or
+    // selecting a particular school's learner roster for this public API.
+    const studentAggregate = (await query(`
+      SELECT COUNT(*) AS student_count,
+        COUNT(CASE WHEN LOWER(gender) = 'male' THEN 1 END) AS male_count,
+        COUNT(CASE WHEN LOWER(gender) = 'female' THEN 1 END) AS female_count
+      FROM students
+    `))[0] || {}
+    const sectionAggregate = (await query(`
+      SELECT COUNT(*) AS section_count
+      FROM (SELECT DISTINCT school_id, grade, section FROM students) public_sections
+    `))[0] || {}
+    const studentCount = Number(studentAggregate.student_count || 0)
+    const maleStudents = Number(studentAggregate.male_count || 0)
+    const femaleStudents = Number(studentAggregate.female_count || 0)
+    const sectionCount = Number(sectionAggregate.section_count || 0)
+    const teacherCount = (await query(
+      `SELECT COUNT(*) as cnt FROM users WHERE role = 'teacher'`
+    ))[0]?.cnt || 0
+    const monthlyRecordCount = (await query(
+      `SELECT COUNT(*) as cnt FROM monthly_records`
+    ))[0]?.cnt || 0
 
     const currentMonth = new Date().toISOString().slice(0, 7)
+    // Attendance marks are used only to calculate aggregate metrics on the
+    // server. Do not select student identifiers or return individual marks.
     const attendanceRows = await query(`
-      SELECT ar.date, ae.student_id, ae.am1, ae.am2, ae.am3, ae.am4, ae.am5, ae.am6,
+      SELECT ar.date, ae.am1, ae.am2, ae.am3, ae.am4, ae.am5, ae.am6,
         ae.pm1, ae.pm2, ae.pm3, ae.pm4
       FROM attendance_records ar
       JOIN attendance_entries ae ON ae.record_id = ar.id
-      WHERE ar.date LIKE ?${schoolRow ? ' AND ar.school_id = ?' : ''}
-    `, schoolRow ? [`${currentMonth}%`, schoolRow.id] : [`${currentMonth}%`])
+      WHERE ar.date LIKE ?
+    `, [`${currentMonth}%`])
     const periodFields = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6', 'pm1', 'pm2', 'pm3', 'pm4']
     const presentRows = attendanceRows.filter(row => periodFields.some(field => ['E', 'T'].includes(String(row[field] || '').toUpperCase())))
     const attendanceRate = attendanceRows.length
@@ -72,67 +118,44 @@ router.get('/landing-data', async (req, res) => {
       : 0
     const schoolDays = new Set(attendanceRows.map(row => row.date)).size
 
-    const riskStudents = schoolRow ? await query(`
-      SELECT st.id, st.name, st.grade, st.section,
-        SUM(COALESCE(me.absent, 0)) AS absent_count,
-        SUM(COALESCE(me.tardy, 0)) AS tardy_count
-      FROM students st
-      JOIN monthly_entries me ON me.student_id = st.id
-      JOIN monthly_records mr ON mr.id = me.record_id AND mr.school_id = st.school_id
-      WHERE st.school_id = ?
-      GROUP BY st.id, st.name, st.grade, st.section
-      HAVING SUM(COALESCE(me.absent, 0)) >= 3 OR SUM(COALESCE(me.tardy, 0)) >= 2
-      ORDER BY absent_count DESC, tardy_count DESC, st.name ASC
-      LIMIT 5
-    `, [schoolRow.id]) : []
-
-    // Preview data is always sourced from the selected database school. Empty
-    // tables remain empty instead of being replaced by demo records.
-    const latestMarks = new Map()
-    for (const row of attendanceRows) {
-      if (!latestMarks.has(row.student_id)) latestMarks.set(row.student_id, row)
-    }
-    const previewStudents = students.slice(0, 5).map(student => {
-      const marks = latestMarks.get(student.id) || {}
-      const values = ['am1', 'am2', 'am3', 'am4'].map(field => String(marks[field] || ''))
-      const status = values.includes('A')
-        ? 'Absent'
-        : (values.includes('T') ? 'Tardy' : (values.includes('E') ? 'Present' : 'Unmarked'))
-      return { ...student, lrn: student.lrn || '', am1: values[0], am2: values[1], am3: values[2], am4: values[3], status }
-    })
-    const mappedRiskStudents = riskStudents.map(student => {
-      const absent = Number(student.absent_count || 0)
-      const tardy = Number(student.tardy_count || 0)
-      return {
-        id: student.id,
-        name: student.name,
-        grade: student.grade || '',
-        section: student.section || '',
-        risk: absent >= 5 ? 'high' : 'mid',
-        detail: absent >= 3 ? `${absent} recorded absences` : `${tardy} recorded tardies`,
-        action: absent >= 5 ? 'Review Required' : 'Adviser Follow-up'
-      }
-    })
+    // Count risk records without returning learner names, class details, or
+    // identifiers. The derived table remains inside the database query.
+    const riskCountRow = (await query(`
+      SELECT COUNT(*) AS cnt
+      FROM (
+        SELECT mr.school_id, me.student_id,
+          SUM(COALESCE(me.absent, 0)) AS absent_count,
+          SUM(COALESCE(me.tardy, 0)) AS tardy_count
+        FROM monthly_entries me
+        JOIN monthly_records mr ON mr.id = me.record_id
+        GROUP BY mr.school_id, me.student_id
+        HAVING SUM(COALESCE(me.absent, 0)) >= 3 OR SUM(COALESCE(me.tardy, 0)) >= 2
+      ) public_risk_records
+    `))[0] || {}
+    const atRiskStudents = Number(riskCountRow.cnt || 0)
 
     res.json({
       plans,
-      school: schoolRow,
+      school: null,
+      publicPreview: {
+        scope: 'aggregate',
+        learnerRecords: false,
+        message: 'Individual learner records are available only after sign-in.'
+      },
       stats: {
         totalStudents: studentCount,
         totalTeachers: Number(teacherCount),
-        totalSections: sectionKeys.size,
+        totalSections: sectionCount,
         totalSF2Filed: Number(monthlyRecordCount),
-        maleStudents: students.filter(student => String(student.gender || '').toLowerCase() === 'male').length,
-        femaleStudents: students.filter(student => String(student.gender || '').toLowerCase() === 'female').length,
+        maleStudents,
+        femaleStudents,
         averageDailyAttendance: schoolDays ? Number((presentRows.length / schoolDays).toFixed(1)) : 0,
         attendanceRate,
         schoolDays,
-        atRiskStudents: mappedRiskStudents.length,
-        retentionLabel: mappedRiskStudents.length ? 'Records requiring review' : 'No alerts recorded',
+        atRiskStudents,
+        retentionLabel: atRiskStudents ? 'Records requiring review' : 'No alerts recorded',
         monthLabel: currentMonth
-      },
-      previewStudents,
-      riskStudents: mappedRiskStudents
+      }
     })
   } catch (err) {
     console.error('Failed to get landing data:', err.message)

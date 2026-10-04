@@ -265,7 +265,15 @@ Remaining attendance follow-ups:
   - Added dedicated "Notifications & Alerts" preferences tab in `Settings.vue`.
   - Integrated transactional email alerts via `sendAccountEmail` for urgent announcements and ticket status changes.
 - [x] **Automated Regression Test Suite**
-  - Added `tests/phase5-communication.test.mjs` verifying inquiries, attachments, staff assignment, status history, notification preferences, support email, and targeted announcements.
+  - `tests/phase5-communication.test.mjs` verifying inquiries, attachments, staff assignment, status history, notification preferences, support email, and targeted announcements.
+
+- [x] **Protect public landing data**
+  - Public landing responses expose only database-backed subscription plan fields and aggregate product metrics.
+  - Learner rosters, risk records, school identity, attendance marks, LRNs, payment methods, account numbers, and QR data remain unavailable before sign-in.
+  - Added authorization regression coverage for the privacy contract.
+
+- [x] **Complete shared UI privacy and responsiveness audit**
+  - Updated `App.vue`, `UserManagement.vue`, `GradeLevels.vue`, `ActivityLogs.vue`, `SupportChatModal.vue`, and `Landing.vue` for shared theme tokens, responsive layout, and safe public preview copy.
 
 ---
 

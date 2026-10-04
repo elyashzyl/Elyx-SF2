@@ -29,8 +29,8 @@
           </select>
         </div>
       </div>
-      <div v-if="logs.length" style="overflow-x: auto;">
-      <table class="data-table">
+      <div v-if="logs.length" class="activity-table-scroll">
+      <table class="data-table activity-table">
         <thead>
           <tr>
             <th class="cell-id">ID</th>
@@ -38,7 +38,7 @@
             <th>Action</th>
             <th>Target</th>
             <th>Issued Date</th>
-            <th style="text-align: right;">Details</th>
+            <th class="activity-detail-heading">Details</th>
           </tr>
         </thead>
         <tbody>
@@ -47,16 +47,16 @@
             <td>
               <div class="cell-person">
                 <span class="cell-avatar">{{ (l.actor_name || '?').charAt(0).toUpperCase() }}</span>
-                <div style="min-width: 0;">
+                <div class="activity-person-copy">
                   <div class="cell-main">{{ l.actor_name || '—' }}</div>
                   <div class="cell-sub">{{ l.actor_role || '?' }}</div>
                 </div>
               </div>
             </td>
             <td><span class="pill pill--blue">{{ actionLabel(l.action) }}</span></td>
-            <td>{{ l.target_name || l.target_id || '—' }}</td>
-            <td style="white-space: nowrap;">{{ formatTime(l.created_at) }}</td>
-            <td style="text-align: right;">{{ l.detail || '—' }}</td>
+            <td class="activity-target">{{ l.target_name || l.target_id || '—' }}</td>
+            <td class="activity-date">{{ formatTime(l.created_at) }}</td>
+            <td class="activity-detail">{{ l.detail || '—' }}</td>
           </tr>
         </tbody>
       </table>
@@ -157,3 +157,52 @@ async function loadMore() {
   await loadLogs(logs.value.length)
 }
 </script>
+
+<style scoped>
+.activity-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.activity-table {
+  min-width: 740px;
+}
+
+.activity-person-copy {
+  min-width: 0;
+}
+
+.activity-target,
+.activity-detail {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.activity-target {
+  max-width: 220px;
+}
+
+.activity-detail-heading,
+.activity-detail {
+  text-align: right;
+}
+
+.activity-detail {
+  max-width: 260px;
+}
+
+.activity-date {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .activity-table {
+    min-width: 740px;
+  }
+
+  .activity-detail {
+    max-width: 220px;
+  }
+}
+</style>
