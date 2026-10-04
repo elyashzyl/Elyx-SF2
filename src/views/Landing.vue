@@ -867,7 +867,7 @@
               <button
                 type="button"
                 class="pricing-pay-shortcut"
-                @click="scrollToSection('payments')"
+                @click="scrollToPayments(plan)"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
@@ -1014,129 +1014,297 @@
       <section id="payments" class="landing-payments-section">
         <div class="landing-section">
           <div class="landing-section-heading">
-            <span class="landing-section-kicker">Payment Verification</span>
+            <span class="landing-section-kicker">Payment Verification &amp; Settlement</span>
             <h2>Official Payment Channels &amp; Instant QR Codes</h2>
-            <p>
-              Direct settlement via GCash, Maya, QR Ph, and direct Philippine bank transfer. Scan or copy the credentials below to initiate your school deployment.
+            <p v-if="!paymentAccessUnlocked">
+              Official school settlement channels, account numbers, and dynamic QR codes are restricted to authorized school representatives. Please complete the verification order form below to unlock direct settlement options.
+            </p>
+            <p v-else>
+              Official payment channels unlocked for <strong>{{ paymentOrderForm.school_name || 'your institution' }}</strong>. Settle via GCash, Maya, QR Ph, or direct bank transfer below to initiate deployment.
             </p>
           </div>
 
-          <div class="landing-payment-grid">
-            <div
-              v-for="pm in paymentMethods"
-              :key="pm.id"
-              class="landing-payment-card"
-            >
-              <div class="lpc-header">
-                <div class="lpc-badge-row">
-                  <span class="lpc-type-badge">{{ formatPaymentType(pm.type) }}</span>
-                  <span v-if="pm.qr_image_url" class="lpc-qr-available-tag">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <rect x="3" y="3" width="7" height="7"></rect>
-                      <rect x="14" y="3" width="7" height="7"></rect>
-                      <rect x="14" y="14" width="7" height="7"></rect>
-                      <rect x="3" y="14" width="7" height="7"></rect>
-                    </svg>
-                    QR Ready
-                  </span>
+          <!-- STEP 1: VERIFICATION ORDER FORM (GATED) -->
+          <div v-if="!paymentAccessUnlocked" class="payment-verification-wrap">
+            <div class="payment-verification-card">
+              <div class="pvc-header">
+                <div class="pvc-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
                 </div>
-                <h3 class="lpc-bank-name">{{ pm.bank_name }}</h3>
+                <div>
+                  <h3 class="pvc-title">School Verification &amp; Payment Access Form</h3>
+                  <p class="pvc-desc">
+                    Enter your institution and contact details to unlock official Philippine settlement accounts and receive your verified reference code.
+                  </p>
+                </div>
               </div>
 
-              <div class="lpc-body">
-                <div v-if="pm.qr_image_url" class="lpc-qr-box">
-                  <div class="lpc-qr-thumb-wrap" @click="openQrModal(pm)" title="Click to enlarge QR code">
-                    <img :src="pm.qr_image_url" :alt="pm.bank_name + ' QR'" class="lpc-qr-thumb" />
-                    <div class="lpc-qr-hover-overlay">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <form class="pvc-form" @submit.prevent="submitPaymentVerification">
+                <div class="pvc-grid">
+                  <div class="pvc-field">
+                    <label for="pvc-school">School / Campus Name <span class="pvc-req">*</span></label>
+                    <input
+                      id="pvc-school"
+                      v-model.trim="paymentOrderForm.school_name"
+                      type="text"
+                      required
+                      placeholder="e.g. Baguio Patriotic High School"
+                      class="pvc-input"
+                    />
+                  </div>
+
+                  <div class="pvc-field">
+                    <label for="pvc-school-id">DepEd School ID <small>(Optional)</small></label>
+                    <input
+                      id="pvc-school-id"
+                      v-model.trim="paymentOrderForm.school_id"
+                      type="text"
+                      placeholder="e.g. 406219"
+                      class="pvc-input"
+                    />
+                  </div>
+
+                  <div class="pvc-field">
+                    <label for="pvc-rep">Authorized Representative Name <span class="pvc-req">*</span></label>
+                    <input
+                      id="pvc-rep"
+                      v-model.trim="paymentOrderForm.representative_name"
+                      type="text"
+                      required
+                      placeholder="e.g. Maria Santos (School Head / Registrar)"
+                      class="pvc-input"
+                    />
+                  </div>
+
+                  <div class="pvc-field">
+                    <label for="pvc-email">Official School / DepEd Email <span class="pvc-req">*</span></label>
+                    <input
+                      id="pvc-email"
+                      v-model.trim="paymentOrderForm.contact_email"
+                      type="email"
+                      required
+                      placeholder="e.g. principal@bphs.edu.ph"
+                      class="pvc-input"
+                    />
+                  </div>
+
+                  <div class="pvc-field">
+                    <label for="pvc-phone">Contact / Mobile Number <span class="pvc-req">*</span></label>
+                    <input
+                      id="pvc-phone"
+                      v-model.trim="paymentOrderForm.contact_phone"
+                      type="tel"
+                      required
+                      placeholder="e.g. 0917 123 4567"
+                      class="pvc-input"
+                    />
+                  </div>
+
+                  <div class="pvc-field">
+                    <label for="pvc-tier">Requested License Tier <span class="pvc-req">*</span></label>
+                    <select
+                      id="pvc-tier"
+                      v-model="paymentOrderForm.plan_tier"
+                      class="pvc-select"
+                    >
+                      <option value="adviser">Adviser License — ₱249 / month</option>
+                      <option value="campus">School Campus Pro — ₱1,490 / month (Standard Campus)</option>
+                      <option value="division">Division Enterprise — ₱4,990 / month (Multi-Campus)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="pvc-field pvc-field--full">
+                  <label for="pvc-notes">Special Instructions or Purchase Order # <small>(Optional)</small></label>
+                  <input
+                    id="pvc-notes"
+                    v-model.trim="paymentOrderForm.notes"
+                    type="text"
+                    placeholder="e.g. DepEd MOOE / LGU funding allocation reference"
+                    class="pvc-input"
+                  />
+                </div>
+
+                <div class="pvc-submit-row">
+                  <button
+                    type="submit"
+                    class="pvc-submit-btn"
+                    :disabled="paymentVerificationSubmitting"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                    </svg>
+                    <span>{{ paymentVerificationSubmitting ? 'Verifying Institution...' : 'Submit & Unlock Official Payment Options & QR' }}</span>
+                  </button>
+                  <div class="pvc-security-note">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Restricted to authorized Philippine educational institutions. RA 10173 compliant.</span>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- STEP 2: UNLOCKED OFFICIAL PAYMENT OPTIONS & QR -->
+          <div v-else class="payment-unlocked-section">
+            <div class="payment-unlocked-banner">
+              <div class="pub-left">
+                <span class="pub-badge">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  Official Settlement Channels Unlocked
+                </span>
+                <div class="pub-meta">
+                  <strong>{{ paymentOrderForm.school_name }}</strong>
+                  <span>Reference: <code>{{ paymentAccessRef }}</code> · Plan: {{ paymentOrderForm.plan_tier.toUpperCase() }}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="pub-edit-btn"
+                @click="paymentAccessUnlocked = false"
+                title="Edit school verification details"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span>Edit School Details</span>
+              </button>
+            </div>
+
+            <div v-if="paymentMethods.length === 0" class="landing-payment-empty">
+              <p>Official settlement channels are currently being prepared by the administration desk.</p>
+              <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Direct%20Invoice%20Request" class="lpn-btn">
+                <span>Request Direct Bank Invoice</span>
+              </a>
+            </div>
+
+            <div v-else class="landing-payment-grid">
+              <div
+                v-for="pm in paymentMethods"
+                :key="pm.id"
+                class="landing-payment-card"
+                :class="'lpc--' + pm.type"
+              >
+                <div class="lpc-header">
+                  <div class="lpc-badge-row">
+                    <span class="lpc-type-badge" :class="'lpc-badge--' + pm.type">{{ formatPaymentType(pm.type) }}</span>
+                    <span v-if="pm.qr_image_url" class="lpc-qr-available-tag">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                      </svg>
+                      Instant QR Ph Ready
+                    </span>
+                  </div>
+                  <h3 class="lpc-bank-name">{{ pm.bank_name }}</h3>
+                </div>
+
+                <div class="lpc-body">
+                  <div v-if="pm.qr_image_url" class="lpc-qr-box">
+                    <div class="lpc-qr-thumb-wrap" @click="openQrModal(pm)" title="Click to enlarge QR code">
+                      <img :src="pm.qr_image_url" :alt="pm.bank_name + ' QR'" class="lpc-qr-thumb" />
+                      <div class="lpc-qr-hover-overlay">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                          <line x1="11" y1="8" x2="11" y2="14"></line>
+                          <line x1="8" y1="11" x2="14" y2="11"></line>
+                        </svg>
+                        <span>Enlarge QR</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="lpc-qr-btn"
+                      @click="openQrModal(pm)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         <line x1="11" y1="8" x2="11" y2="14"></line>
                         <line x1="8" y1="11" x2="14" y2="11"></line>
                       </svg>
-                      <span>Enlarge QR</span>
+                      <span>Click to Enlarge &amp; Scan QR</span>
+                    </button>
+                  </div>
+
+                  <div class="lpc-fields">
+                    <div class="lpc-field">
+                      <span class="lpc-field-label">Official Account Name</span>
+                      <strong class="lpc-field-value">{{ pm.account_name || 'Not configured' }}</strong>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    class="lpc-qr-btn"
-                    @click="openQrModal(pm)"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                      <line x1="11" y1="8" x2="11" y2="14"></line>
-                      <line x1="8" y1="11" x2="14" y2="11"></line>
-                    </svg>
-                    <span>Click to Enlarge &amp; Scan QR</span>
-                  </button>
-                </div>
 
-                <div class="lpc-fields">
-                  <div class="lpc-field">
-                    <span class="lpc-field-label">Account Name</span>
-                    <strong class="lpc-field-value">{{ pm.account_name || 'Not configured' }}</strong>
-                  </div>
-
-                  <div class="lpc-field">
-                    <span class="lpc-field-label">Account / Mobile Number</span>
-                    <div class="lpc-acc-row">
-                      <code class="lpc-acc-num">{{ pm.account_number }}</code>
-                      <button
-                        type="button"
-                        class="lpc-copy-btn"
-                        @click="copyLandingAccount(pm)"
-                        :title="'Copy ' + pm.account_number"
-                      >
-                        <svg v-if="copiedPaymentId !== pm.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                        </svg>
-                        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        <span>{{ copiedPaymentId === pm.id ? 'Copied!' : 'Copy' }}</span>
-                      </button>
+                    <div class="lpc-field">
+                      <span class="lpc-field-label">Account / Mobile Number</span>
+                      <div class="lpc-acc-row">
+                        <code class="lpc-acc-num">{{ pm.account_number }}</code>
+                        <button
+                          type="button"
+                          class="lpc-copy-btn"
+                          @click="copyLandingAccount(pm)"
+                          :title="'Copy ' + pm.account_number"
+                        >
+                          <svg v-if="copiedPaymentId !== pm.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                          </svg>
+                          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                          <span>{{ copiedPaymentId === pm.id ? 'Copied!' : 'Copy' }}</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <div v-if="pm.instructions" class="lpc-instructions">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="16" x2="12" y2="12"></line>
-                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
-                    <span>{{ pm.instructions }}</span>
+                    <div v-if="pm.instructions" class="lpc-instructions">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                      </svg>
+                      <span>{{ pm.instructions }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Submission Notice Banner -->
-          <div class="landing-payment-notice">
-            <div class="lpn-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-              </svg>
-            </div>
-            <div class="lpn-content">
-              <h4>Proof of Payment &amp; Instant Provisioning</h4>
-              <p>
-                After completing your payment, send your deposit slip, reference number, or transaction screenshot to
-                <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Payment%20Reference" class="lpn-link">ely.ashzyl@gmail.com</a>
-                or message us via the support chat in the bottom right corner. School licenses are activated immediately upon reference verification.
-              </p>
-            </div>
-            <div class="lpn-action">
-              <a href="mailto:ely.ashzyl@gmail.com?subject=ElyTrack%20Payment%20Reference" class="lpn-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                  <polyline points="22,6 12,13 2,6"></polyline>
+            <!-- Submission Notice Banner -->
+            <div class="landing-payment-notice">
+              <div class="lpn-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
                 </svg>
-                <span>Send Reference via Email</span>
-              </a>
+              </div>
+              <div class="lpn-content">
+                <h4>Proof of Payment &amp; Instant Provisioning</h4>
+                <p>
+                  After completing your payment, send your deposit slip, reference number, or transaction screenshot to
+                  <a :href="'mailto:ely.ashzyl@gmail.com?subject=' + encodeURIComponent('ElyTrack Payment Reference - ' + (paymentOrderForm.school_name || 'School') + ' [' + paymentAccessRef + ']')" class="lpn-link">ely.ashzyl@gmail.com</a>
+                  or message us via the support chat in the bottom right corner. School licenses are activated immediately upon reference verification.
+                </p>
+              </div>
+              <div class="lpn-action">
+                <a :href="'mailto:ely.ashzyl@gmail.com?subject=' + encodeURIComponent('ElyTrack Payment Reference - ' + (paymentOrderForm.school_name || 'School') + ' [' + paymentAccessRef + ']')" class="lpn-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  <span>Send Reference via Email</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -1322,6 +1490,53 @@ const paymentMethods = ref([])
 const copiedPaymentId = ref(null)
 const showQrModal = ref(false)
 const selectedQrMethod = ref(null)
+
+const paymentAccessUnlocked = ref(false)
+const paymentVerificationSubmitting = ref(false)
+const paymentAccessRef = ref('')
+const paymentOrderForm = ref({
+  school_name: '',
+  school_id: '',
+  representative_name: '',
+  contact_email: '',
+  contact_phone: '',
+  plan_tier: 'campus',
+  notes: ''
+})
+
+function scrollToPayments(plan) {
+  if (plan?.tier || plan?.id) {
+    paymentOrderForm.value.plan_tier = plan.tier || plan.id
+  }
+  scrollToSection('payments')
+}
+
+async function submitPaymentVerification() {
+  if (!paymentOrderForm.value.school_name || !paymentOrderForm.value.representative_name || !paymentOrderForm.value.contact_email) {
+    return
+  }
+  paymentVerificationSubmitting.value = true
+  try {
+    const refCode = 'ELY-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+    paymentAccessRef.value = refCode
+
+    await fetch('/api/inquiries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject: `Payment Verification: ${paymentOrderForm.value.school_name} (${paymentOrderForm.value.plan_tier})`,
+        message: `School: ${paymentOrderForm.value.school_name}\nSchool ID: ${paymentOrderForm.value.school_id || 'N/A'}\nRep: ${paymentOrderForm.value.representative_name}\nEmail: ${paymentOrderForm.value.contact_email}\nPhone: ${paymentOrderForm.value.contact_phone}\nPlan: ${paymentOrderForm.value.plan_tier}\nRef: ${refCode}\nNotes: ${paymentOrderForm.value.notes || 'None'}`,
+        category: 'licensing',
+        priority: 'high'
+      })
+    }).catch(() => {})
+
+    paymentAccessUnlocked.value = true
+    scrollToSection('payments')
+  } finally {
+    paymentVerificationSubmitting.value = false
+  }
+}
 
 const plans = ref([])
 const activeSchool = ref(null)
@@ -4078,40 +4293,282 @@ function handleMobileNav(id) {
    OFFICIAL PAYMENT CHANNELS & QR SECTION
    ========================================================================== */
 .landing-payments-section {
-  background: #f7fafb;
-  border-top: 1px solid rgba(12, 83, 87, 0.08);
-  border-bottom: 1px solid rgba(12, 83, 87, 0.08);
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
   padding: 80px 0;
 }
 
+/* Verification Form (Gated View) */
+.payment-verification-wrap {
+  max-width: 820px;
+  margin: 36px auto 0;
+}
+
+.payment-verification-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 20px;
+  padding: 36px;
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.05);
+}
+
+.pvc-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding-bottom: 24px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pvc-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f0fdfa;
+  color: #0d9488;
+  border: 1px solid #ccfbf1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pvc-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+}
+
+.pvc-desc {
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pvc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pvc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.pvc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pvc-field--full {
+  width: 100%;
+}
+
+.pvc-field label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.pvc-req {
+  color: #e11d48;
+}
+
+.pvc-input,
+.pvc-select {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pvc-input:focus,
+.pvc-select:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+.pvc-submit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.pvc-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 24px;
+  border-radius: 10px;
+  border: none;
+  background: #0d9488;
+  color: #ffffff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.3);
+  transition: all 0.15s ease;
+}
+
+.pvc-submit-btn:hover:not(:disabled) {
+  background: #0f766e;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4);
+}
+
+.pvc-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pvc-security-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.74rem;
+  color: #64748b;
+  text-align: center;
+}
+
+/* Unlocked View Elements */
+.payment-unlocked-section {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-top: 32px;
+}
+
+.payment-unlocked-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px;
+  border-radius: 14px;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+}
+
+.pub-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0f766e;
+}
+
+.pub-meta strong {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  color: #0f172a;
+  margin-right: 12px;
+}
+
+.pub-meta span {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.pub-meta code {
+  font-family: monospace;
+  background: #ccfbf1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.pub-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #99f6e4;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.pub-edit-btn:hover {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+}
+
+.landing-payment-empty {
+  text-align: center;
+  padding: 48px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Payment Cards in Unlocked View */
 .landing-payment-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 24px;
-  margin-top: 40px;
 }
 
 .landing-payment-card {
   background: #ffffff;
-  border: 1px solid rgba(12, 83, 87, 0.16);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 18px rgba(8, 13, 12, 0.04);
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .landing-payment-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(12, 83, 87, 0.1);
-  border-color: rgba(12, 83, 87, 0.32);
+  box-shadow: 0 12px 30px rgba(13, 148, 136, 0.12);
+  border-color: #0d9488;
 }
 
 .lpc-header {
   margin-bottom: 18px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(12, 83, 87, 0.1);
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .lpc-badge-row {
@@ -4126,12 +4583,32 @@ function handleMobileNav(id) {
   display: inline-block;
   padding: 4px 10px;
   border-radius: 6px;
-  background: rgba(12, 83, 87, 0.1);
-  color: #0c5357;
+  background: #f1f5f9;
+  color: #475569;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.lpc-badge--gcash_qr {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.lpc-badge--maya_qr {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.lpc-badge--qr_ph {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.lpc-badge--bank_transfer {
+  background: #ede9fe;
+  color: #6d28d9;
 }
 
 .lpc-qr-available-tag {
@@ -4140,16 +4617,18 @@ function handleMobileNav(id) {
   gap: 5px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: #e8f5e9;
-  color: #1b5e20;
+  background: #f0fdfa;
+  color: #0f766e;
   font-size: 0.7rem;
   font-weight: 700;
+  border: 1px solid #ccfbf1;
 }
 
 .lpc-bank-name {
-  font-size: 1.15rem;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.2rem;
   font-weight: 800;
-  color: #080d0c;
+  color: #0f172a;
   margin: 0;
   line-height: 1.3;
 }
@@ -4157,7 +4636,7 @@ function handleMobileNav(id) {
 .lpc-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   flex: 1;
 }
 
@@ -4165,22 +4644,23 @@ function handleMobileNav(id) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 14px;
-  background: #f4f8f8;
-  border-radius: 12px;
-  border: 1px solid rgba(12, 83, 87, 0.1);
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
 }
 
 .lpc-qr-thumb-wrap {
   position: relative;
-  width: 140px;
-  height: 140px;
-  border-radius: 8px;
+  width: 148px;
+  height: 148px;
+  border-radius: 10px;
   background: #ffffff;
-  padding: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   cursor: pointer;
   overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
 
 .lpc-qr-thumb {
@@ -4193,7 +4673,7 @@ function handleMobileNav(id) {
 .lpc-qr-hover-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(12, 83, 87, 0.85);
+  background: rgba(15, 23, 42, 0.85);
   color: #ffffff;
   display: flex;
   flex-direction: column;
@@ -4201,8 +4681,8 @@ function handleMobileNav(id) {
   justify-content: center;
   gap: 6px;
   opacity: 0;
-  transition: opacity 0.2s ease;
-  font-size: 0.72rem;
+  transition: opacity 0.18s ease;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
@@ -4217,7 +4697,7 @@ function handleMobileNav(id) {
   gap: 6px;
   background: transparent;
   border: none;
-  color: #0c5357;
+  color: #0d9488;
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
@@ -4231,7 +4711,7 @@ function handleMobileNav(id) {
 .lpc-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .lpc-field {
@@ -4244,14 +4724,14 @@ function handleMobileNav(id) {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #506160;
+  letter-spacing: 0.05em;
+  color: #64748b;
 }
 
 .lpc-field-value {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #080d0c;
+  color: #0f172a;
 }
 
 .lpc-acc-row {
@@ -4259,17 +4739,17 @@ function handleMobileNav(id) {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: #f4f8f8;
+  background: #f8fafc;
   padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(12, 83, 87, 0.12);
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
 }
 
 .lpc-acc-num {
   font-family: monospace;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  color: #0c5357;
+  color: #0d9488;
   letter-spacing: 0.05em;
   word-break: break-all;
 }
@@ -4278,21 +4758,22 @@ function handleMobileNav(id) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 10px;
+  padding: 5px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(12, 83, 87, 0.2);
+  border: 1px solid #cbd5e1;
   background: #ffffff;
-  color: #0c5357;
+  color: #0f172a;
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   white-space: nowrap;
 }
 
 .lpc-copy-btn:hover {
-  background: #0c5357;
+  background: #0d9488;
   color: #ffffff;
+  border-color: #0d9488;
 }
 
 .lpc-instructions {
@@ -4300,22 +4781,23 @@ function handleMobileNav(id) {
   align-items: flex-start;
   gap: 8px;
   font-size: 0.78rem;
-  color: #506160;
-  line-height: 1.4;
-  padding: 10px;
+  color: #475569;
+  line-height: 1.45;
+  padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(12, 83, 87, 0.04);
+  background: #f1f5f9;
 }
 
 .landing-payment-notice {
   margin-top: 36px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 22px 28px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #0c5357 0%, #156d73 100%);
+  gap: 24px;
+  padding: 24px 30px;
+  border-radius: 16px;
+  background: #0f172a;
   color: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 
 .lpn-icon {
@@ -4323,11 +4805,11 @@ function handleMobileNav(id) {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(13, 148, 136, 0.2);
+  color: #2dd4bf;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
 }
 
 .lpn-content {
@@ -4335,7 +4817,8 @@ function handleMobileNav(id) {
 }
 
 .lpn-content h4 {
-  font-size: 1rem;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
   font-weight: 800;
   margin: 0 0 6px;
   color: #ffffff;
@@ -4344,12 +4827,12 @@ function handleMobileNav(id) {
 .lpn-content p {
   font-size: 0.85rem;
   margin: 0;
-  color: rgba(255, 255, 255, 0.9);
+  color: #94a3b8;
   line-height: 1.5;
 }
 
 .lpn-link {
-  color: #99f6e4;
+  color: #2dd4bf;
   text-decoration: underline;
   font-weight: 700;
 }
@@ -4362,19 +4845,19 @@ function handleMobileNav(id) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
+  padding: 11px 20px;
   border-radius: 9px;
-  background: #ffffff;
-  color: #0c5357;
+  background: #0d9488;
+  color: #ffffff;
   font-size: 0.84rem;
   font-weight: 800;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .lpn-btn:hover {
-  background: #e6f3f4;
+  background: #0f766e;
   transform: translateY(-1px);
 }
 
