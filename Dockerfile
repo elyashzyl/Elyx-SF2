@@ -70,7 +70,7 @@ EXPOSE 3001
 # health-check window on a fresh deployment. Do not restart a healthy process
 # while it is still waiting for the managed database to become reachable.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
-  CMD wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
+  CMD wget -qO- http://127.0.0.1:3001/api/health || wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

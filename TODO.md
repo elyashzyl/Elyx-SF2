@@ -242,6 +242,33 @@ Remaining attendance follow-ups:
 
 ---
 
+## 7. Phase 5 Communication and Notifications
+
+- [x] **Support Inquiries Enhancements & Priority Handling**
+  - Added `priority` ('low', 'medium', 'high', 'urgent') and expanded categories in `inquiries`.
+  - Added attachment upload and validation (image/doc types, 5MB ceiling, dangerous script exclusion) in `inquiry_messages`.
+  - Added anti-spam rate limiting and duplicate-message submission protection.
+- [x] **Staff Assignment & Status Audit History**
+  - Added `inquiry_status_history` table (migration `026_communication_and_notifications.mjs`) tracking every status and assignment transition.
+  - Added `PATCH /api/inquiries/:id/assign` for superadmins to assign staff with notes.
+  - Added `GET /api/inquiries/:id/history` endpoint and interactive audit timeline in `SupportChatModal.vue`.
+- [x] **Targeted Campus Announcements & Read Tracking**
+  - Added `announcements` and `announcement_reads` tables (migration `026_communication_and_notifications.mjs`).
+  - Added `routes/announcements.js` supporting targeting by school, role (`all`, `admin`, `teacher`), grade, and section.
+  - Implemented read state tracking (`POST /api/announcements/:id/read`, `POST /api/announcements/mark-all-read`, `GET /api/announcements/unread-count`).
+  - Added announcement cleanup endpoint `POST /api/announcements/cleanup` for retention management.
+  - Added announcements broadcast banner and post modal in `AdminDashboard.vue` and `TeacherDashboard.vue`.
+  - Connected header notification bell in `App.vue` via `useNotifications.js`.
+- [x] **Configurable Platform Support Email & User Notification Preferences**
+  - Added `support_email` database-backed setting with format validation in `routes/settings.js`.
+  - Added `user_notification_preferences` table with `GET/PUT /api/users/me/notification-preferences`.
+  - Added dedicated "Notifications & Alerts" preferences tab in `Settings.vue`.
+  - Integrated transactional email alerts via `sendAccountEmail` for urgent announcements and ticket status changes.
+- [x] **Automated Regression Test Suite**
+  - Added `tests/phase5-communication.test.mjs` verifying inquiries, attachments, staff assignment, status history, notification preferences, support email, and targeted announcements.
+
+---
+
 ## Completed Milestones (Reference)
 
 - [x] Dynamic database URL resolution supporting Laravel-style `DB_*` variables (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).

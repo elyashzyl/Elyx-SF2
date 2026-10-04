@@ -54,6 +54,16 @@
             <span>School Information</span>
           </button>
           <button
+            class="settings-nav-item"
+            :class="{ active: activeTab === 'notifications' }"
+            @click="activeTab = 'notifications'"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>
+            </svg>
+            <span>Notifications &amp; Alerts</span>
+          </button>
+          <button
             v-if="auth.isSuperadmin && schools.length > 1"
             class="settings-nav-item"
             :class="{ active: activeTab === 'switchschool' }"
@@ -332,6 +342,115 @@
           </div>
         </div>
 
+        <!-- Notifications & Preferences Tab -->
+        <div v-if="activeTab === 'notifications'" class="table-card">
+          <div class="settings-panel-header">
+            <h2>Notifications &amp; Alert Preferences</h2>
+            <p>Configure email delivery and realtime notifications for your account.</p>
+          </div>
+
+          <form @submit.prevent="saveNotificationPreferences" class="settings-form">
+            <div class="pref-group-card">
+              <h3 class="pref-group-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <span>Email Notifications</span>
+              </h3>
+              <p class="pref-group-sub">Choose which activities trigger automated email notifications to your verified email.</p>
+
+              <div class="pref-toggle-row">
+                <div class="pref-toggle-info">
+                  <strong>Inquiry &amp; Support Replies</strong>
+                  <span>Receive an email when support staff replies to your ticket or sends a direct message</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="notificationPrefs.email_on_inquiry_reply" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="pref-toggle-row">
+                <div class="pref-toggle-info">
+                  <strong>Campus &amp; Platform Announcements</strong>
+                  <span>Receive email alerts for priority broadcasts, holiday announcements, and emergency notices</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="notificationPrefs.email_on_announcement" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="pref-toggle-row">
+                <div class="pref-toggle-info">
+                  <strong>Ticket Status Transitions</strong>
+                  <span>Receive an email notification when your support request is resolved, closed, or reopened</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="notificationPrefs.email_on_status_change" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-group-card">
+              <h3 class="pref-group-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>
+                </svg>
+                <span>In-App Telemetry &amp; Topbar Badges</span>
+              </h3>
+              <p class="pref-group-sub">Configure live alert notifications shown inside the workspace.</p>
+
+              <div class="pref-toggle-row">
+                <div class="pref-toggle-info">
+                  <strong>In-App Unread Counter</strong>
+                  <span>Display realtime badges and notification flyout in the header bar</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="notificationPrefs.in_app_notifications" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn-primary" :disabled="savingNotificationPrefs">
+                {{ savingNotificationPrefs ? 'Saving Preferences...' : 'Save Notification Preferences' }}
+              </button>
+            </div>
+          </form>
+
+          <!-- Superadmin Platform Support Email Configuration -->
+          <div v-if="auth.isSuperadmin" class="pref-group-card" style="margin-top: 24px;">
+            <h3 class="pref-group-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Platform Support Inbox Configuration</span>
+            </h3>
+            <p class="pref-group-sub">Official email address where new support tickets and licensing requests are automatically routed.</p>
+
+            <form @submit.prevent="saveSupportEmail" class="settings-form">
+              <div class="form-group" style="max-width: 440px;">
+                <label>Platform Support Email</label>
+                <input
+                  v-model="supportEmail"
+                  type="email"
+                  placeholder="support@elytrack.com"
+                  required
+                />
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn-secondary" :disabled="savingSupportEmail">
+                  {{ savingSupportEmail ? 'Saving Support Email...' : 'Update Platform Support Email' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
       </main>
     </div>
   </div>
@@ -405,10 +524,12 @@ onMounted(async () => {
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
     selectedSchoolId.value = noneSelected.value ? '' : (auth.schoolId || schools.value[0]?.id || '')
+    await loadPlatformSettings()
   } else {
     selectedSchoolId.value = auth.schoolId || ''
   }
   await loadSchool()
+  await loadNotificationPreferences()
 })
 
 async function onSchoolChange() {
@@ -531,4 +652,181 @@ async function save() {
     saving.value = false
   }
 }
+
+const notificationPrefs = reactive({
+  email_on_inquiry_reply: true,
+  email_on_announcement: true,
+  email_on_status_change: true,
+  in_app_notifications: true
+})
+const savingNotificationPrefs = ref(false)
+const supportEmail = ref('')
+const savingSupportEmail = ref(false)
+
+async function loadNotificationPreferences() {
+  try {
+    const res = await fetch('/api/users/me/notification-preferences', {
+      headers: auth.actorHeaders()
+    })
+    if (res.ok) {
+      const data = await res.json()
+      notificationPrefs.email_on_inquiry_reply = Boolean(data.email_on_inquiry_reply)
+      notificationPrefs.email_on_announcement = Boolean(data.email_on_announcement)
+      notificationPrefs.email_on_status_change = Boolean(data.email_on_status_change)
+      notificationPrefs.in_app_notifications = Boolean(data.in_app_notifications)
+    }
+  } catch (err) {
+    console.warn('Could not load notification preferences:', err)
+  }
+}
+
+async function saveNotificationPreferences() {
+  savingNotificationPrefs.value = true
+  try {
+    const res = await fetch('/api/users/me/notification-preferences', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify({
+        ...notificationPrefs,
+        ...auth.actorParams()
+      })
+    })
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.error || 'Failed to save notification preferences')
+    }
+    notify('Notification preferences updated successfully', 'success')
+  } catch (err) {
+    notify(err.message, 'error')
+  } finally {
+    savingNotificationPrefs.value = false
+  }
+}
+
+async function loadPlatformSettings() {
+  if (!auth.isSuperadmin) return
+  try {
+    const res = await fetch('/api/settings', {
+      headers: auth.actorHeaders()
+    })
+    if (res.ok) {
+      const data = await res.json()
+      supportEmail.value = data.support_email || ''
+    }
+  } catch {}
+}
+
+async function saveSupportEmail() {
+  if (!supportEmail.value || !supportEmail.value.includes('@')) {
+    notify('A valid support email is required', 'error')
+    return
+  }
+  savingSupportEmail.value = true
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify({
+        settings: { support_email: supportEmail.value.trim() },
+        ...auth.actorParams()
+      })
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to update support email')
+    }
+    notify('Platform support email updated', 'success')
+  } catch (err) {
+    notify(err.message, 'error')
+  } finally {
+    savingSupportEmail.value = false
+  }
+}
 </script>
+
+<style scoped>
+.pref-group-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.pref-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin: 0 0 4px 0;
+}
+.pref-group-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted, #6b7280);
+  margin: 0 0 16px 0;
+}
+.pref-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-color, #f3f4f6);
+}
+.pref-toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pref-toggle-info strong {
+  font-size: 0.9rem;
+  color: var(--text-primary, #111827);
+}
+.pref-toggle-info span {
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #ccc;
+  transition: .3s;
+  border-radius: 24px;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+input:checked + .toggle-slider {
+  background-color: #0c5357;
+}
+input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+</style>

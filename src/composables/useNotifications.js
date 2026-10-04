@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useToast } from './useToast'
 
 const notifications = ref([])
@@ -55,15 +55,53 @@ export function useNotifications() {
     return id
   }
 
-  function markRead(id) {
+  async function syncAnnouncements(actorHeaders = {}) {
+    try {
+      const res = await fetch('/api/announcements', { headers: actorHeaders })
+      if (!res.ok) return
+      const items = await res.json()
+      if (Array.isArray(items)) {
+        for (const a of items) {
+          const existing = notifications.value.find(n => n.announcementId === a.id)
+          if (existing) {
+            existing.read = a.is_read
+          } else {
+            notifications.value.unshift({
+              id: nextId++,
+              announcementId: a.id,
+              type: a.priority === 'urgent' ? 'error' : a.priority === 'important' ? 'warning' : 'info',
+              message: `${a.title}: ${a.content}`,
+              title: a.title,
+              content: a.content,
+              ts: new Date(a.created_at).getTime(),
+              read: a.is_read,
+              priority: a.priority,
+              author: a.author_name
+            })
+          }
+        }
+        persist()
+      }
+    } catch {}
+  }
+
+  async function markRead(id, actorHeaders = {}) {
     const n = notifications.value.find(n => n.id === id)
     if (n && !n.read) {
       n.read = true
       persist()
+      if (n.announcementId) {
+        try {
+          await fetch(`/api/announcements/${n.announcementId}/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...actorHeaders }
+          })
+        } catch {}
+      }
     }
   }
 
-  function markAllRead() {
+  async function markAllRead(actorHeaders = {}) {
     let changed = false
     for (const n of notifications.value) {
       if (!n.read) {
@@ -72,6 +110,12 @@ export function useNotifications() {
       }
     }
     if (changed) persist()
+    try {
+      await fetch('/api/announcements/mark-all-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...actorHeaders }
+      })
+    } catch {}
   }
 
   function dismiss(id) {
@@ -88,14 +132,11 @@ export function useNotifications() {
 
   const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
-  onMounted(() => {
-    /* hydration point for future live updates */
-  })
-
   return {
     notifications,
     unreadCount,
     notify,
+    syncAnnouncements,
     markRead,
     markAllRead,
     dismiss,

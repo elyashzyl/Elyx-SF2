@@ -298,7 +298,7 @@
           <small>Recent workspace activity</small>
         </div>
         <div v-if="notifications.length" class="notif-header-actions">
-          <button v-if="unreadCount" @click="markAllRead" class="notif-action-btn">Mark read</button>
+          <button v-if="unreadCount" @click="handleMarkAllRead" class="notif-action-btn">Mark read</button>
           <button @click="clearAll" class="notif-action-btn notif-action--clear">Clear</button>
         </div>
       </div>
@@ -358,7 +358,7 @@ import SupportChatModal from './components/SupportChatModal.vue'
 const auth = useAuthStore()
 const router = useRouter()
 const { toasts, removeToast } = useToast()
-const { notifications, unreadCount, markRead, markAllRead, dismiss, clearAll, formatTimeAgo } = useNotifications()
+const { notifications, unreadCount, syncAnnouncements, markRead, markAllRead, dismiss, clearAll, formatTimeAgo } = useNotifications()
 const { theme, toggleTheme } = useTheme()
 const { hasActive, displayName, displayShort, displayAvatar, noneSelected } = useActiveSchool()
 
@@ -483,6 +483,9 @@ onMounted(() => {
 
   // Auto-launch the walkthrough once for each authenticated user.
   maybeShowTutorial()
+  if (auth.user) {
+    syncAnnouncements(auth.actorHeaders())
+  }
 
   // Realtime license validation check every 10 seconds for instant locking on suspension
   appLicenseInterval = setInterval(() => {
@@ -532,10 +535,17 @@ async function handleStopImpersonating() {
 
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
+  if (showNotifications.value && auth.user) {
+    syncAnnouncements(auth.actorHeaders())
+  }
 }
 
 function openNotification(n) {
-  if (!n.read) markRead(n.id)
+  if (!n.read) markRead(n.id, auth.actorHeaders())
+}
+
+function handleMarkAllRead() {
+  markAllRead(auth.actorHeaders())
 }
 
 function onOutsideClick(e) {

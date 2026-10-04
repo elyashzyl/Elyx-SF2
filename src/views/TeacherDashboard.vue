@@ -55,6 +55,40 @@
 
     <!-- If Assigned Advisory Class -->
     <template v-if="teacherClass?.hasAdvisory">
+      <!-- Campus Announcements for Teacher -->
+      <section v-if="announcements.length > 0" class="announcements-bar card-box">
+        <div class="announcement-banner-header">
+          <div class="banner-title-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>
+            </svg>
+            <h3>Faculty &amp; Campus Announcements</h3>
+            <span class="ann-count-badge">{{ announcements.length }}</span>
+          </div>
+        </div>
+
+        <div class="announcements-list-grid">
+          <div
+            v-for="ann in announcements"
+            :key="ann.id"
+            class="announcement-card"
+            :class="['ann-priority--' + ann.priority, { 'ann-read': ann.is_read }]"
+          >
+            <div class="ann-card-top">
+              <span class="ann-priority-pill" :class="'pill--' + ann.priority">{{ ann.priority.toUpperCase() }}</span>
+              <span class="ann-date">{{ formatDate(ann.created_at) }}</span>
+            </div>
+            <h4 class="ann-title">{{ ann.title }}</h4>
+            <p class="ann-content">{{ ann.content }}</p>
+            <div class="ann-footer">
+              <small>Posted by <strong>{{ ann.author_name || 'Administration' }}</strong></small>
+              <button v-if="!ann.is_read" @click="markAnnouncementRead(ann.id)" class="btn-read-sm" type="button">Mark as Read</button>
+              <span v-else class="read-indicator">✓ Read</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- KPI Metric Cards -->
       <section class="kpi-grid" aria-label="Advisory Performance Indicators">
         <!-- Card 1: Class Enrollment -->
@@ -408,6 +442,42 @@ const auth = useAuthStore()
 const loading = ref(false)
 const teacherClass = ref(null)
 const rosterSearch = ref('')
+const announcements = ref([])
+
+function formatDate(val) {
+  if (!val) return ''
+  try {
+    const d = new Date(val)
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch {
+    return val
+  }
+}
+
+async function loadAnnouncements() {
+  try {
+    const params = new URLSearchParams(auth.actorParams())
+    const res = await fetch(`/api/announcements?${params}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) announcements.value = data
+    }
+  } catch (err) {
+    console.warn('Error loading announcements:', err)
+  }
+}
+
+async function markAnnouncementRead(id) {
+  try {
+    await fetch(`/api/announcements/${id}/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth.actorParams())
+    })
+    const item = announcements.value.find(a => a.id === id)
+    if (item) item.is_read = true
+  } catch {}
+}
 
 const todayIso = computed(() => new Date().toISOString().split('T')[0])
 const todayAttendanceUrl = computed(() => {
@@ -473,10 +543,122 @@ async function loadStats() {
   }
 }
 
-onMounted(loadStats)
+onMounted(async () => {
+  await loadStats()
+  await loadAnnouncements()
+})
 </script>
 
 <style scoped>
+/* Announcements */
+.announcements-bar {
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+.announcement-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.banner-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.banner-title-wrap h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.ann-count-badge {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.announcements-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.announcement-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.announcement-card.ann-priority--urgent {
+  border-left-color: #ef4444;
+  background: color-mix(in srgb, #ef4444 4%, var(--bg-surface, #ffffff));
+}
+.announcement-card.ann-priority--important {
+  border-left-color: #f59e0b;
+}
+.announcement-card.ann-read {
+  opacity: 0.75;
+}
+.ann-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ann-priority-pill {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.pill--normal { background: #e2e8f0; color: #475569; }
+.pill--important { background: #fef3c7; color: #92400e; }
+.pill--urgent { background: #fee2e2; color: #b91c1c; }
+.ann-date {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+.ann-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.ann-content {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+.ann-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+.btn-read-sm {
+  background: var(--primary-bg, #f0fdfa);
+  border: 1px solid var(--border);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.read-indicator {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+
 .teacher-overview {
   display: flex;
   flex-direction: column;

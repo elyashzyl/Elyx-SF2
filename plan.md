@@ -262,14 +262,14 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: Medium**
 
-- [ ] Improve support inquiries with categories, priority, attachments, and status history.
-- [ ] Add superadmin assignment of inquiries to support staff.
-- [ ] Add email notifications for new inquiries, replies, and finished requests.
-- [ ] Add in-app notification preferences per user.
-- [ ] Add announcements targeted by school, role, grade, or section.
-- [ ] Add read/unread tracking and notification retention rules.
-- [ ] Add configurable support email address from database-backed platform settings.
-- [ ] Add message spam protection and attachment size/type validation.
+- [x] Improve support inquiries with categories, priority, attachments, and status history.
+- [x] Add superadmin assignment of inquiries to support staff.
+- [x] Add email notifications for new inquiries, replies, and finished requests.
+- [x] Add in-app notification preferences per user.
+- [x] Add announcements targeted by school, role, grade, or section.
+- [x] Add read/unread tracking and notification retention rules.
+- [x] Add configurable support email address from database-backed platform settings.
+- [x] Add message spam protection and attachment size/type validation.
 
 **Definition of done:** Users receive clear, database-backed updates for support cases, approvals, and important school announcements.
 

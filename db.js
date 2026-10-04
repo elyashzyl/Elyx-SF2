@@ -513,6 +513,9 @@ const MYSQL_DDL = [
     user_email VARCHAR(255) NOT NULL DEFAULT (''),
     user_role VARCHAR(32) NOT NULL DEFAULT (''),
     category VARCHAR(64) NOT NULL DEFAULT ('general'),
+    priority VARCHAR(32) NOT NULL DEFAULT ('medium'),
+    assigned_to VARCHAR(96) NOT NULL DEFAULT (''),
+    assigned_to_name VARCHAR(255) NOT NULL DEFAULT (''),
     subject TEXT NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT ('open'),
     user_notified INT NOT NULL DEFAULT 0,
@@ -528,6 +531,10 @@ const MYSQL_DDL = [
     sender_name TEXT NOT NULL,
     sender_role VARCHAR(32) NOT NULL DEFAULT (''),
     message TEXT NOT NULL,
+    attachment_url LONGTEXT NULL,
+    attachment_name VARCHAR(255) NOT NULL DEFAULT (''),
+    attachment_type VARCHAR(64) NOT NULL DEFAULT (''),
+    attachment_size INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS payment_methods (
@@ -627,6 +634,46 @@ const MYSQL_DDL = [
     result_archive_id VARCHAR(96) NOT NULL DEFAULT (''),
     error_message TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS inquiry_status_history (
+    id VARCHAR(96) PRIMARY KEY,
+    inquiry_id VARCHAR(96) NOT NULL,
+    old_status VARCHAR(32) NOT NULL,
+    new_status VARCHAR(32) NOT NULL,
+    changed_by_id VARCHAR(96) NOT NULL DEFAULT (''),
+    changed_by_name VARCHAR(255) NOT NULL DEFAULT (''),
+    note TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS announcements (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL DEFAULT (''),
+    title VARCHAR(255) NOT NULL,
+    content LONGTEXT NOT NULL,
+    target_role VARCHAR(32) NOT NULL DEFAULT ('all'),
+    target_grade VARCHAR(255) NOT NULL DEFAULT (''),
+    target_section VARCHAR(255) NOT NULL DEFAULT (''),
+    priority VARCHAR(32) NOT NULL DEFAULT ('normal'),
+    author_id VARCHAR(96) NOT NULL DEFAULT (''),
+    author_name VARCHAR(255) NOT NULL DEFAULT (''),
+    expires_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS announcement_reads (
+    id VARCHAR(96) PRIMARY KEY,
+    announcement_id VARCHAR(96) NOT NULL,
+    user_id VARCHAR(96) NOT NULL,
+    read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_announcement_user (announcement_id, user_id)
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS user_notification_preferences (
+    user_id VARCHAR(96) PRIMARY KEY,
+    email_on_inquiry_reply TINYINT NOT NULL DEFAULT 1,
+    email_on_announcement TINYINT NOT NULL DEFAULT 1,
+    email_on_status_change TINYINT NOT NULL DEFAULT 1,
+    in_app_notifications TINYINT NOT NULL DEFAULT 1,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
@@ -790,7 +837,14 @@ async function ensureMysqlColumns() {
     ["students", "emergency_contact_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
     ["students", "emergency_contact_number", "VARCHAR(64) NOT NULL DEFAULT ''"],
     ["students", "consent_data_sharing", "TINYINT NOT NULL DEFAULT 1"],
-    ["students", "consent_medical_emergency", "TINYINT NOT NULL DEFAULT 1"]
+    ["students", "consent_medical_emergency", "TINYINT NOT NULL DEFAULT 1"],
+    ["inquiries", "priority", "VARCHAR(32) NOT NULL DEFAULT 'medium'"],
+    ["inquiries", "assigned_to", "VARCHAR(96) NOT NULL DEFAULT ''"],
+    ["inquiries", "assigned_to_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
+    ["inquiry_messages", "attachment_url", "LONGTEXT NULL"],
+    ["inquiry_messages", "attachment_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
+    ["inquiry_messages", "attachment_type", "VARCHAR(64) NOT NULL DEFAULT ''"],
+    ["inquiry_messages", "attachment_size", "INT NOT NULL DEFAULT 0"]
   ]
 
   for (const [tbl, col, def] of alters) {
@@ -1123,6 +1177,9 @@ async function initSqlite() {
       user_email TEXT DEFAULT '',
       user_role TEXT DEFAULT '',
       category TEXT DEFAULT 'general',
+      priority TEXT DEFAULT 'medium',
+      assigned_to TEXT DEFAULT '',
+      assigned_to_name TEXT DEFAULT '',
       subject TEXT NOT NULL,
       status TEXT DEFAULT 'open',
       user_notified INTEGER DEFAULT 0,
@@ -1138,6 +1195,10 @@ async function initSqlite() {
       sender_name TEXT DEFAULT '',
       sender_role TEXT DEFAULT '',
       message TEXT NOT NULL,
+      attachment_url TEXT,
+      attachment_name TEXT DEFAULT '',
+      attachment_type TEXT DEFAULT '',
+      attachment_size INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS payment_methods (
@@ -1238,6 +1299,46 @@ async function initSqlite() {
       error_message TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS inquiry_status_history (
+      id TEXT PRIMARY KEY,
+      inquiry_id TEXT NOT NULL,
+      old_status TEXT NOT NULL,
+      new_status TEXT NOT NULL,
+      changed_by_id TEXT DEFAULT '',
+      changed_by_name TEXT DEFAULT '',
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS announcements (
+      id TEXT PRIMARY KEY,
+      school_id TEXT DEFAULT '',
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      target_role TEXT DEFAULT 'all',
+      target_grade TEXT DEFAULT '',
+      target_section TEXT DEFAULT '',
+      priority TEXT DEFAULT 'normal',
+      author_id TEXT DEFAULT '',
+      author_name TEXT DEFAULT '',
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS announcement_reads (
+      id TEXT PRIMARY KEY,
+      announcement_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      read_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(announcement_id, user_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_notification_preferences (
+      user_id TEXT PRIMARY KEY,
+      email_on_inquiry_reply INTEGER NOT NULL DEFAULT 1,
+      email_on_announcement INTEGER NOT NULL DEFAULT 1,
+      email_on_status_change INTEGER NOT NULL DEFAULT 1,
+      in_app_notifications INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
@@ -1285,6 +1386,13 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE students ADD COLUMN emergency_contact_number TEXT NOT NULL DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN consent_data_sharing INTEGER NOT NULL DEFAULT 1") } catch {}
     try { sqlite.run("ALTER TABLE students ADD COLUMN consent_medical_emergency INTEGER NOT NULL DEFAULT 1") } catch {}
+    try { sqlite.run("ALTER TABLE inquiries ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'") } catch {}
+    try { sqlite.run("ALTER TABLE inquiries ADD COLUMN assigned_to TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE inquiries ADD COLUMN assigned_to_name TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE inquiry_messages ADD COLUMN attachment_url TEXT") } catch {}
+    try { sqlite.run("ALTER TABLE inquiry_messages ADD COLUMN attachment_name TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE inquiry_messages ADD COLUMN attachment_type TEXT NOT NULL DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE inquiry_messages ADD COLUMN attachment_size INTEGER NOT NULL DEFAULT 0") } catch {}
   }
   // Upgrade legacy CHECK(role IN ('admin','teacher')) -> include 'superadmin'
   const tbl = querySync("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")

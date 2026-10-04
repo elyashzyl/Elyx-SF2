@@ -111,6 +111,92 @@ router.get('/', async (req, res) => {
   }
 })
 
+// Notification preferences for current acting user
+router.get('/me/notification-preferences', async (req, res) => {
+  try {
+    const me = await actingUser(req, res)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+
+    const rows = await query(
+      'SELECT email_on_inquiry_reply, email_on_announcement, email_on_status_change, in_app_notifications FROM user_notification_preferences WHERE user_id = ?',
+      [me.id]
+    )
+
+    if (!rows.length) {
+      return res.json({
+        email_on_inquiry_reply: true,
+        email_on_announcement: true,
+        email_on_status_change: true,
+        in_app_notifications: true
+      })
+    }
+
+    res.json({
+      email_on_inquiry_reply: Boolean(rows[0].email_on_inquiry_reply),
+      email_on_announcement: Boolean(rows[0].email_on_announcement),
+      email_on_status_change: Boolean(rows[0].email_on_status_change),
+      in_app_notifications: Boolean(rows[0].in_app_notifications)
+    })
+  } catch (err) {
+    console.error('Error fetching notification preferences:', err.message)
+    res.status(500).json({ error: 'Failed to fetch notification preferences' })
+  }
+})
+
+router.put('/me/notification-preferences', async (req, res) => {
+  try {
+    const me = await actingUser(req, res)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+
+    const {
+      email_on_inquiry_reply = true,
+      email_on_announcement = true,
+      email_on_status_change = true,
+      in_app_notifications = true
+    } = req.body || {}
+
+    const vInquiry = email_on_inquiry_reply ? 1 : 0
+    const vAnnounce = email_on_announcement ? 1 : 0
+    const vStatus = email_on_status_change ? 1 : 0
+    const vInApp = in_app_notifications ? 1 : 0
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 19)
+
+    const existing = await query('SELECT user_id FROM user_notification_preferences WHERE user_id = ?', [me.id])
+    if (existing.length) {
+      await run(
+        `UPDATE user_notification_preferences SET
+          email_on_inquiry_reply = ?,
+          email_on_announcement = ?,
+          email_on_status_change = ?,
+          in_app_notifications = ?,
+          updated_at = ?
+         WHERE user_id = ?`,
+        [vInquiry, vAnnounce, vStatus, vInApp, now, me.id]
+      )
+    } else {
+      await run(
+        `INSERT INTO user_notification_preferences (
+          user_id, email_on_inquiry_reply, email_on_announcement, email_on_status_change, in_app_notifications, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+        [me.id, vInquiry, vAnnounce, vStatus, vInApp, now]
+      )
+    }
+
+    res.json({
+      success: true,
+      preferences: {
+        email_on_inquiry_reply: Boolean(vInquiry),
+        email_on_announcement: Boolean(vAnnounce),
+        email_on_status_change: Boolean(vStatus),
+        in_app_notifications: Boolean(vInApp)
+      }
+    })
+  } catch (err) {
+    console.error('Error updating notification preferences:', err.message)
+    res.status(500).json({ error: 'Failed to update notification preferences' })
+  }
+})
+
 router.post('/invite', async (req, res) => {
   try {
     const { me, error } = await requireRole(req, res, 'superadmin', 'admin')

@@ -85,16 +85,51 @@
               <div class="inquiry-meta-card">
                 <div class="meta-row">
                   <span class="meta-subject">{{ activeInquiry.subject }}</span>
-                  <span class="badge" :class="'badge-' + activeInquiry.status">
-                    {{ activeInquiry.status === 'finished' ? 'Finished' : 'Open' }}
-                  </span>
+                  <div class="meta-badge-group">
+                    <span class="badge" :class="'badge-' + (activeInquiry.priority || 'medium')">
+                      {{ (activeInquiry.priority || 'medium').toUpperCase() }}
+                    </span>
+                    <span class="badge" :class="'badge-' + activeInquiry.status">
+                      {{ activeInquiry.status === 'finished' ? 'Finished' : 'Open' }}
+                    </span>
+                  </div>
                 </div>
                 <div class="meta-details">
                   <span><strong>From:</strong> {{ activeInquiry.user_name }} ({{ activeInquiry.user_role }})</span>
                   <span v-if="activeInquiry.school_name"><strong>School:</strong> {{ activeInquiry.school_name }}</span>
                   <span v-if="activeInquiry.user_email"><strong>Email:</strong> {{ activeInquiry.user_email }}</span>
                   <span><strong>Category:</strong> {{ formatCategory(activeInquiry.category) }}</span>
+                  <span v-if="activeInquiry.assigned_to_name"><strong>Assigned to:</strong> {{ activeInquiry.assigned_to_name }}</span>
                   <span v-if="activeInquiry.resolved_at"><strong>Resolved:</strong> {{ formatDate(activeInquiry.resolved_at) }}</span>
+                </div>
+
+                <!-- Assignment & History Control Bar for Superadmin -->
+                <div class="thread-meta-controls">
+                  <div class="assign-staff-inline">
+                    <label>Staff Assignee:</label>
+                    <select v-model="selectedAssignee" @change="assignInquiry" :disabled="assigningStaff" class="assign-select">
+                      <option value="">Unassigned</option>
+                      <option v-for="staff in staffMembers" :key="staff.id" :value="staff.id">
+                        {{ staff.name }} ({{ staff.role }})
+                      </option>
+                    </select>
+                  </div>
+                  <button type="button" class="btn-history-toggle" @click="toggleHistory">
+                    {{ showHistory ? 'Hide Timeline' : 'Audit Timeline' }}
+                  </button>
+                </div>
+
+                <!-- Status History Timeline Box -->
+                <div v-if="showHistory" class="history-timeline-box">
+                  <div class="history-title">Status &amp; Assignment Audit Trail</div>
+                  <div v-for="h in threadHistory" :key="h.id" class="history-item">
+                    <span class="history-dot"></span>
+                    <div class="history-detail">
+                      <strong>{{ h.changed_by_name || 'System' }}</strong>: {{ h.note }}
+                      <small class="history-time">{{ formatDate(h.created_at) }}</small>
+                    </div>
+                  </div>
+                  <div v-if="threadHistory.length === 0" class="history-empty">No status changes recorded yet.</div>
                 </div>
               </div>
 
@@ -110,13 +145,46 @@
                     <span class="bubble-sender">{{ msg.sender_name }} ({{ msg.sender_role }})</span>
                     <span class="bubble-time">{{ formatDate(msg.created_at) }}</span>
                   </div>
-                  <div class="bubble-content">{{ msg.message }}</div>
+                  <div class="bubble-content">
+                    <div>{{ msg.message }}</div>
+                    <div v-if="msg.attachment_url" class="msg-attachment-wrap">
+                      <img
+                        v-if="msg.attachment_type && msg.attachment_type.startsWith('image/')"
+                        :src="msg.attachment_url"
+                        alt="Attachment preview"
+                        class="attachment-thumbnail"
+                      />
+                      <a
+                        v-else
+                        :href="msg.attachment_url"
+                        :download="msg.attachment_name || 'attachment'"
+                        class="attachment-file-chip"
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        <span>{{ msg.attachment_name || 'Download file' }}</span>
+                        <small v-if="msg.attachment_size">({{ formatFileSize(msg.attachment_size) }})</small>
+                      </a>
+                    </div>
+                  </div>
                 </div>
                 <div v-if="messages.length === 0" class="empty-state">No messages in this inquiry.</div>
               </div>
 
               <!-- Reply Input -->
               <div class="reply-input-bar">
+                <div v-if="replyAttachment" class="reply-attachment-chip">
+                  <span style="display: inline-flex; align-items: center; gap: 5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                    <span>{{ replyAttachment.name }} ({{ formatFileSize(replyAttachment.size) }})</span>
+                  </span>
+                  <button type="button" @click="replyAttachment = null" class="remove-att-btn">&times;</button>
+                </div>
                 <textarea
                   v-model="replyText"
                   placeholder="Type a response to this user or school..."
@@ -124,8 +192,28 @@
                   @keydown.enter.ctrl.prevent="sendReply"
                 ></textarea>
                 <div class="reply-bar-bottom">
-                  <small>Ctrl+Enter to send</small>
-                  <button class="btn-send" @click="sendReply" :disabled="!replyText.trim() || sendingReply" type="button">
+                  <div class="reply-actions-left">
+                    <input
+                      type="file"
+                      ref="replyFileInput"
+                      class="hidden-file-input"
+                      @change="handleReplyFile"
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    />
+                    <button
+                      type="button"
+                      class="btn-attach"
+                      @click="$refs.replyFileInput.click()"
+                      title="Attach screenshot or document (max 5MB)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      <span>Attach</span>
+                    </button>
+                    <small>Ctrl+Enter to send</small>
+                  </div>
+                  <button class="btn-send" @click="sendReply" :disabled="(!replyText.trim() && !replyAttachment) || sendingReply" type="button">
                     {{ sendingReply ? 'Sending...' : 'Send Reply' }}
                   </button>
                 </div>
@@ -186,6 +274,7 @@
                 >
                   <div class="inquiry-card-top">
                     <div class="inquiry-card-tags">
+                      <span class="badge" :class="'badge-' + (item.priority || 'medium')">{{ (item.priority || 'medium').toUpperCase() }}</span>
                       <span class="badge" :class="'badge-' + item.category">{{ formatCategory(item.category) }}</span>
                       <span class="badge" :class="'badge-' + item.status">
                         {{ item.status === 'finished' ? 'Finished' : 'Open' }}
@@ -196,6 +285,7 @@
                   <h4 class="inquiry-card-subject">{{ item.subject }}</h4>
                   <div class="inquiry-card-footer">
                     <span><strong>{{ item.user_name }}</strong> · {{ item.user_role }}</span>
+                    <span v-if="item.assigned_to_name" class="staff-assigned-pill">Assigned: {{ item.assigned_to_name }}</span>
                     <span v-if="item.school_name" class="school-pill">{{ item.school_name }}</span>
                   </div>
                 </div>
@@ -245,14 +335,25 @@
               </div>
 
               <form @submit.prevent="submitNewInquiry" class="new-inquiry-form">
-                <div class="form-group">
-                  <label>Topic / Category</label>
-                  <select v-model="newForm.category" required>
-                    <option value="payment">Payment &amp; Subscription Inquiry</option>
-                    <option value="technical">Technical Support &amp; Bug Report</option>
-                    <option value="license">License Key &amp; Seat Capacity</option>
-                    <option value="general">General Question</option>
-                  </select>
+                <div class="form-row-2col">
+                  <div class="form-group">
+                    <label>Topic / Category</label>
+                    <select v-model="newForm.category" required>
+                      <option value="payment">Payment &amp; Subscription Inquiry</option>
+                      <option value="technical">Technical Support &amp; Bug Report</option>
+                      <option value="license">License Key &amp; Seat Capacity</option>
+                      <option value="general">General Question</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Priority</label>
+                    <select v-model="newForm.priority">
+                      <option value="low">Low (General question)</option>
+                      <option value="medium">Medium (Standard request)</option>
+                      <option value="high">High (Urgent operational issue)</option>
+                      <option value="urgent">Urgent (System blocker / payment)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="form-group">
@@ -282,6 +383,38 @@
                     placeholder="Describe your issue, question, or payment inquiry in detail..."
                     required
                   ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label>Attachment (Optional: Screenshot, receipt, or file, max 5MB)</label>
+                  <div v-if="newAttachment" class="reply-attachment-chip">
+                    <span style="display: inline-flex; align-items: center; gap: 5px;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      <span>{{ newAttachment.name }} ({{ formatFileSize(newAttachment.size) }})</span>
+                    </span>
+                    <button type="button" @click="newAttachment = null" class="remove-att-btn">&times;</button>
+                  </div>
+                  <div v-else>
+                    <input
+                      type="file"
+                      ref="newFileInput"
+                      class="hidden-file-input"
+                      @change="handleNewFile"
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    />
+                    <button
+                      type="button"
+                      class="btn-attach-full"
+                      @click="$refs.newFileInput.click()"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      <span>Choose File or Screenshot</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div class="form-actions">
@@ -357,12 +490,45 @@
                     </span>
                     <span class="bubble-time">{{ formatDate(msg.created_at) }}</span>
                   </div>
-                  <div class="bubble-content">{{ msg.message }}</div>
+                  <div class="bubble-content">
+                    <div>{{ msg.message }}</div>
+                    <div v-if="msg.attachment_url" class="msg-attachment-wrap">
+                      <img
+                        v-if="msg.attachment_type && msg.attachment_type.startsWith('image/')"
+                        :src="msg.attachment_url"
+                        alt="Attachment preview"
+                        class="attachment-thumbnail"
+                      />
+                      <a
+                        v-else
+                        :href="msg.attachment_url"
+                        :download="msg.attachment_name || 'attachment'"
+                        class="attachment-file-chip"
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        <span>{{ msg.attachment_name || 'Download file' }}</span>
+                        <small v-if="msg.attachment_size">({{ formatFileSize(msg.attachment_size) }})</small>
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <!-- Reply Input Bar -->
               <div class="reply-input-bar">
+                <div v-if="replyAttachment" class="reply-attachment-chip">
+                  <span style="display: inline-flex; align-items: center; gap: 5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                    <span>{{ replyAttachment.name }} ({{ formatFileSize(replyAttachment.size) }})</span>
+                  </span>
+                  <button type="button" @click="replyAttachment = null" class="remove-att-btn">&times;</button>
+                </div>
                 <textarea
                   v-model="replyText"
                   placeholder="Type a follow-up message..."
@@ -370,8 +536,28 @@
                   @keydown.enter.ctrl.prevent="sendReply"
                 ></textarea>
                 <div class="reply-bar-bottom">
-                  <small>Ctrl+Enter to send</small>
-                  <button class="btn-send" @click="sendReply" :disabled="!replyText.trim() || sendingReply" type="button">
+                  <div class="reply-actions-left">
+                    <input
+                      type="file"
+                      ref="userReplyFileInput"
+                      class="hidden-file-input"
+                      @change="handleReplyFile"
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    />
+                    <button
+                      type="button"
+                      class="btn-attach"
+                      @click="$refs.userReplyFileInput.click()"
+                      title="Attach screenshot or file (max 5MB)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      <span>Attach</span>
+                    </button>
+                    <small>Ctrl+Enter to send</small>
+                  </div>
+                  <button class="btn-send" @click="sendReply" :disabled="(!replyText.trim() && !replyAttachment) || sendingReply" type="button">
                     {{ sendingReply ? 'Sending...' : 'Send Message' }}
                   </button>
                 </div>
@@ -610,10 +796,131 @@ const copiedPaymentId = ref(null)
 
 const newForm = reactive({
   category: 'payment',
+  priority: 'medium',
   subject: '',
   userEmail: '',
   message: ''
 })
+const newAttachment = ref(null)
+const replyAttachment = ref(null)
+const threadHistory = ref([])
+const showHistory = ref(false)
+const staffMembers = ref([])
+const selectedAssignee = ref('')
+const assigningStaff = ref(false)
+const replyFileInput = ref(null)
+const userReplyFileInput = ref(null)
+const newFileInput = ref(null)
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function processFile(file, callback) {
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) {
+    addToast('File exceeds maximum size of 5 MB', 'error')
+    return
+  }
+  const disallowed = /\.(exe|bat|cmd|sh|php|js|mjs|py|vbs|msi)$/i
+  if (disallowed.test(file.name)) {
+    addToast('Dangerous file types are not allowed', 'error')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    callback({
+      url: reader.result,
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size
+    })
+  }
+  reader.readAsDataURL(file)
+}
+
+function handleNewFile(event) {
+  const file = event.target.files?.[0]
+  if (file) {
+    processFile(file, (data) => {
+      newAttachment.value = data
+      addToast(`Attached ${file.name}`, 'info')
+    })
+  }
+}
+
+function handleReplyFile(event) {
+  const file = event.target.files?.[0]
+  if (file) {
+    processFile(file, (data) => {
+      replyAttachment.value = data
+      addToast(`Attached ${file.name}`, 'info')
+    })
+  }
+}
+
+async function fetchStaffMembers() {
+  if (!auth.isSuperadmin) return
+  try {
+    const params = new URLSearchParams(auth.actorParams())
+    const res = await fetch(`/api/users?${params}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        staffMembers.value = data.filter(u => u.role === 'superadmin' || u.role === 'admin')
+      }
+    }
+  } catch {}
+}
+
+async function fetchHistory(id) {
+  try {
+    const params = new URLSearchParams(auth.actorParams())
+    const res = await fetch(`/api/inquiries/${id}/history?${params}`)
+    if (res.ok) {
+      const data = await res.json()
+      threadHistory.value = data.history || []
+    }
+  } catch {}
+}
+
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  if (showHistory.value && activeInquiry.value) {
+    fetchHistory(activeInquiry.value.id)
+  }
+}
+
+async function assignInquiry() {
+  if (!activeInquiry.value || !auth.isSuperadmin) return
+  assigningStaff.value = true
+  try {
+    const assignee = staffMembers.value.find(s => s.id === selectedAssignee.value)
+    const res = await fetch(`/api/inquiries/${activeInquiry.value.id}/assign`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth.actorParams({
+        assigned_to: selectedAssignee.value,
+        assigned_to_name: assignee ? assignee.name : '',
+        note: assignee ? `Assigned to ${assignee.name}` : 'Unassigned from support staff'
+      }))
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to assign inquiry')
+    addToast(selectedAssignee.value ? `Assigned to ${assignee?.name}!` : 'Inquiry unassigned', 'success')
+    activeInquiry.value.assigned_to = data.inquiry.assigned_to
+    activeInquiry.value.assigned_to_name = data.inquiry.assigned_to_name
+    await fetchHistory(activeInquiry.value.id)
+    await fetchInquiries()
+  } catch (err) {
+    addToast(err.message, 'error')
+  } finally {
+    assigningStaff.value = false
+  }
+}
 
 let pollInterval = null
 let searchTimeout = null
@@ -763,8 +1070,11 @@ async function fetchInquiries() {
 
 async function openInquiry(inquiry) {
   activeInquiry.value = inquiry
+  selectedAssignee.value = inquiry.assigned_to || ''
+  showHistory.value = false
   if (!auth.isSuperadmin) userView.value = 'thread'
   await fetchThread(inquiry.id)
+  await fetchHistory(inquiry.id)
 }
 
 async function fetchThread(id) {
@@ -797,8 +1107,10 @@ async function submitNewInquiry() {
       body: JSON.stringify(auth.actorParams({
         subject: newForm.subject,
         category: newForm.category,
+        priority: newForm.priority,
         message: newForm.message,
-        userEmail: newForm.userEmail
+        userEmail: newForm.userEmail,
+        attachment: newAttachment.value
       }))
     })
     const data = await res.json()
@@ -808,6 +1120,7 @@ async function submitNewInquiry() {
     newForm.subject = ''
     newForm.message = ''
     newForm.userEmail = ''
+    newAttachment.value = null
     userView.value = 'list'
     await fetchInquiries()
     if (data.inquiry) {
@@ -821,20 +1134,23 @@ async function submitNewInquiry() {
 }
 
 async function sendReply() {
-  if (!replyText.value.trim() || !activeInquiry.value) return
+  if ((!replyText.value.trim() && !replyAttachment.value) || !activeInquiry.value) return
   sendingReply.value = true
   try {
     const res = await fetch(`/api/inquiries/${activeInquiry.value.id}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(auth.actorParams({
-        message: replyText.value
+        message: replyText.value || (replyAttachment.value ? `[Attachment: ${replyAttachment.value.name}]` : ''),
+        attachment: replyAttachment.value
       }))
     })
     const data = await res.json()
     if (data.error) throw new Error(data.error)
     replyText.value = ''
+    replyAttachment.value = null
     await fetchThread(activeInquiry.value.id)
+    await fetchHistory(activeInquiry.value.id)
   } catch (err) {
     addToast(err.message || 'Failed to send reply', 'error')
   } finally {
@@ -889,6 +1205,7 @@ async function checkUnreadNotifications() {
 onMounted(() => {
   checkUnreadNotifications()
   fetchPaymentMethods()
+  fetchStaffMembers()
   pollInterval = setInterval(checkUnreadNotifications, 25000)
 })
 
@@ -2057,6 +2374,254 @@ onUnmounted(() => {
 
 .btn-paste-ref-sm:hover {
   background: #059669;
+}
+
+/* Phase 5: Communication, Attachments, Priority & Staff Assignment */
+.meta-badge-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.badge-low {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.badge-medium {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.badge-high {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.badge-urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+  animation: pulseUrgent 2s infinite;
+}
+
+@keyframes pulseUrgent {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.staff-assigned-pill {
+  background: var(--primary-bg, #f0fdfa);
+  color: var(--primary, #0c5357);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.thread-meta-controls {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.assign-staff-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--foreground);
+}
+
+.assign-select {
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  background: var(--background, #fff);
+  color: var(--foreground);
+}
+
+.btn-history-toggle {
+  background: none;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.btn-history-toggle:hover {
+  background: var(--muted, #f8fafc);
+}
+
+.history-timeline-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--muted, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 0.76rem;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.history-title {
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.history-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.history-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.history-time {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+}
+
+.history-empty {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.msg-attachment-wrap {
+  margin-top: 8px;
+}
+
+.attachment-thumbnail {
+  max-width: 200px;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: block;
+}
+
+.attachment-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--muted, #f1f5f9);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  color: var(--foreground);
+  text-decoration: none;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.attachment-file-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.reply-attachment-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: var(--primary-bg, #f0fdfa);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  font-size: 0.74rem;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.remove-att-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+
+.reply-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.btn-attach {
+  background: none;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.btn-attach:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-attach-full {
+  width: 100%;
+  background: var(--muted, #f8fafc);
+  border: 1px dashed var(--border, #cbd5e1);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-attach-full:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-bg, #f0fdfa);
+}
+
+.form-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 @media (max-width: 600px) {

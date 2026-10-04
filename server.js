@@ -20,6 +20,7 @@ import inquiryRoutes from './routes/inquiries.js'
 import paymentMethodRoutes from './routes/payment_methods.js'
 import subscriptionRoutes from './routes/subscriptions.js'
 import reportRoutes from './routes/reports.js'
+import announcementRoutes from './routes/announcements.js'
 import { validateRequestInput } from './lib/validation.js'
 
 const app = express()
@@ -36,11 +37,20 @@ if (rawHost && ['0.0.0.0', '127.0.0.1', 'localhost', '::'].includes(rawHost)) {
   HOST = '0.0.0.0'
 }
 
-let PORT = parseInt(process.env.PORT || '3001', 10)
-if (isNaN(PORT) || PORT <= 0) PORT = 3001
-if (PORT === 3306 && (process.env.DB_PORT === '3306' || process.env.DB_CONNECTION === 'mysql' || process.env.DATABASE_URL)) {
-  console.warn('[server] PORT is set to 3306 (MySQL port), likely a misconfigured env variable. Defaulting HTTP server to port 3001.')
-  PORT = 3001
+let PORT = 3001
+let mirrorPort = null
+const envPort = parseInt(process.env.PORT || '3001', 10)
+if (!isNaN(envPort) && envPort > 0) {
+  if (envPort === 3306 && (process.env.DB_PORT === '3306' || process.env.DB_CONNECTION === 'mysql' || process.env.DATABASE_URL)) {
+    console.warn('[server] PORT is set to 3306 (MySQL port). Binding HTTP server to 3001 and mirroring on 3306 for reverse proxy compatibility.')
+    PORT = 3001
+    mirrorPort = 3306
+  } else {
+    PORT = envPort
+    if (PORT !== 3001) {
+      mirrorPort = 3001
+    }
+  }
 }
 
 function assertProductionConfiguration() {
@@ -253,6 +263,7 @@ app.use('/api/inquiries', inquiryRoutes)
 app.use('/api/payment-methods', paymentMethodRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/reports', reportRoutes)
+app.use('/api/announcements', announcementRoutes)
 
 app.get(['/api/health', '/health'], async (req, res) => {
   if (!dbReady) {
@@ -314,6 +325,19 @@ if (isMainModule) {
       app.listen(PORT, '0.0.0.0')
     }
   })
+
+  if (mirrorPort && mirrorPort !== PORT) {
+    try {
+      const mirrorServer = app.listen(mirrorPort, HOST, () => {
+        console.log(`[server] Reverse-proxy mirror listening on http://${HOST}:${mirrorPort}`)
+      })
+      mirrorServer.on('error', (err) => {
+        console.warn(`[server] Mirror port ${mirrorPort} listen not active:`, err.message)
+      })
+    } catch (err) {
+      console.warn(`[server] Mirror port setup failed:`, err.message)
+    }
+  }
 
   initializeServerDatabase().then(() => {
     console.log('Database initialized')
