@@ -94,7 +94,13 @@ router.post('/', async (req, res) => {
     if (!await assertValidClass(res, scope.schoolId, cls.grade, cls.section)) return
     const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
     for (const entry of entries) {
-      const student = (await query('SELECT id, school_id FROM students WHERE id = ? AND school_id = ?', [entry.studentId, scope.schoolId]))[0]
+      let student = (await query('SELECT id, school_id FROM students WHERE id = ? AND school_id = ?', [entry.studentId, scope.schoolId]))[0]
+      if (!student) {
+        const hadEnrollment = (await query('SELECT student_id FROM student_enrollment_events WHERE student_id = ? AND school_id = ? AND effective_on <= ?', [entry.studentId, scope.schoolId, monthStart]))[0]
+        if (hadEnrollment) {
+          student = (await query('SELECT id, school_id FROM students WHERE id = ?', [entry.studentId]))[0]
+        }
+      }
       if (!student) return res.status(400).json({ error: `Student ${entry.studentId} does not belong to the selected school` })
       const enrollment = (await query(`
         SELECT grade, section, status FROM student_enrollment_events

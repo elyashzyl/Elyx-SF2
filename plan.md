@@ -159,7 +159,9 @@ The following capabilities already exist or are substantially implemented:
 - [x] Add bulk import of student rosters with validation and a preview step.
   - Endpoints `/api/students/bulk-validate` and `/api/students/bulk-import` for Excel (.xlsx/.xls) and CSV rosters.
   - Client-side parser with live validation preview, duplicate detection, and license capacity limits.
-- [ ] Add bulk attendance import only if it follows DepEd rules and has a clear audit trail.
+- [x] Add bulk attendance import only if it follows DepEd rules and has a clear audit trail.
+  - Added endpoints `/api/attendance/bulk-import-validate` and `/api/attendance/bulk-import`.
+  - Enforces cutoff locks, validates learner roster existence, and records `attendance.bulk_import` audit logs.
 - [x] Add offline-friendly attendance capture with a safe synchronization queue.
   - Composable `useOfflineAttendance` caching rosters locally in `localStorage` and queueing offline roll call saves.
   - Offline mode banner and manual sync button on `AttendanceSheet.vue`.

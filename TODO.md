@@ -186,8 +186,8 @@ Remaining attendance follow-ups:
 - [x] Add guardian contacts, emergency information, and consent history (migration `024_student_profiles_and_interventions`, guardian contact tracking, consent fields, and student profile drawer).
 - [x] Add LRN and duplicate-student matching rules (`POST /api/students/check-duplicates`, duplicate LRN prevention on create/update/import).
 - [x] Add historical/as-of roster support to monthly SF2 generation.
-- [ ] Add cross-school transfer workflow with paired source/destination events.
-- [ ] Add database transaction helpers for atomic roster and enrollment-event writes.
+- [x] Add cross-school transfer workflow with paired source/destination events (`transfer_school` action, paired `transfer_out` / `transfer_in` events with shared `transfer_group_id`, historical attendance retention, UI transfer modal, and `tests/cross-school-transfer.test.mjs`).
+- [x] Add database transaction helpers for atomic roster and enrollment-event writes (`withTransaction` in `db.js` supporting both MySQL connection transactions and SQLite transactions).
 
 ---
 

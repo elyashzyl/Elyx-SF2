@@ -164,6 +164,74 @@ export async function run(sql, params = []) {
   return { lastInsertRowid: r.lastInsertRowid ?? null, changes: r.changes ?? 0 }
 }
 
+export async function withTransaction(callback, existingTx = null) {
+  if (existingTx) {
+    return await callback(existingTx)
+  }
+
+  if (USE_MYSQL) {
+    if (!mysqlPool) {
+      throw new Error('MySQL pool is not initialized')
+    }
+    const conn = await mysqlPool.getConnection()
+    await conn.beginTransaction()
+    try {
+      const tx = {
+        async query(sql, params = []) {
+          params = params.map(p => (p === undefined ? null : p))
+          const [res] = await conn.query(sql, params)
+          if (Array.isArray(res)) {
+            return annotateRows(res, { changes: 0, lastInsertRowid: null })
+          }
+          return annotateRows([], { changes: res.affectedRows ?? 0, lastInsertRowid: res.insertId ?? null })
+        },
+        async run(sql, params = []) {
+          params = params.map(p => (p === undefined ? null : p))
+          const [res] = await conn.query(sql, params)
+          if (Array.isArray(res)) {
+            return { lastInsertRowid: null, changes: 0 }
+          }
+          return { lastInsertRowid: res.insertId ?? null, changes: res.affectedRows ?? 0 }
+        }
+      }
+      const result = await callback(tx)
+      await conn.commit()
+      return result
+    } catch (err) {
+      await conn.rollback().catch(() => {})
+      throw err
+    } finally {
+      conn.release()
+    }
+  } else {
+    if (!sqlite) {
+      throw new Error('SQLite database is not initialized')
+    }
+    sqlite.run('BEGIN TRANSACTION')
+    try {
+      const tx = {
+        async query(sql, params = []) {
+          params = params.map(p => (p === undefined ? null : p))
+          const r = sqliteExec(sql, params)
+          return annotateRows(r.rows, r)
+        },
+        async run(sql, params = []) {
+          params = params.map(p => (p === undefined ? null : p))
+          const r = sqliteExec(sql, params)
+          return { lastInsertRowid: r.lastInsertRowid ?? null, changes: r.changes ?? 0 }
+        }
+      }
+      const result = await callback(tx)
+      sqlite.run('COMMIT')
+      saveDatabase()
+      return result
+    } catch (err) {
+      try { sqlite.run('ROLLBACK') } catch {}
+      throw err
+    }
+  }
+}
+
 // MySQL DDL mirrors the SQLite schema (TEXT/VARCHAR strings, INT numbers,
 // DATETIME defaults) so the SQL written for SQLite runs unchanged on MySQL.
 // Route code never uses dialect-specific functions (verified), and the app sets

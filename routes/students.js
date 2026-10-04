@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run, DB_MODE } from '../db.js'
+import { query, run, DB_MODE, withTransaction, isValidClass } from '../db.js'
 import { requireRole, resolveScopeSchool, assertValidClass, audit, getSchoolLicense } from './_context.js'
 import { asTrimmedString } from '../lib/validation.js'
 
@@ -90,10 +90,10 @@ router.get('/', async (req, res) => {
     const historicalDate = asOf && validDate(asOf) ? String(asOf) : ''
     const historical = Boolean(historicalDate)
     let sql = historical
-      ? `SELECT s.id, s.name, e.grade, e.section, s.gender, s.school_id, e.status AS enrollment_status
-         FROM students s
-         JOIN student_enrollment_events e ON e.student_id = s.id AND e.school_id = s.school_id
-         WHERE s.school_id = ? AND e.effective_on <= ?
+      ? `SELECT s.*, e.grade, e.section, e.school_id, e.status AS enrollment_status
+         FROM student_enrollment_events e
+         JOIN students s ON s.id = e.student_id
+         WHERE e.school_id = ? AND e.effective_on <= ?
            AND NOT EXISTS (
              SELECT 1 FROM student_enrollment_events newer
              WHERE newer.student_id = e.student_id AND newer.school_id = e.school_id
@@ -194,15 +194,16 @@ function effectiveDate(value) {
   return validDate(value) ? String(value) : new Date().toISOString().slice(0, 10)
 }
 
-async function addEnrollmentEvent({ student, eventType, status, effectiveOn, grade, section, reason, actor, transferGroupId = '' }) {
+async function addEnrollmentEvent({ student, eventType, status, effectiveOn, grade, section, reason, actor, transferGroupId = '', tx = null }) {
+  const runner = tx || { query, run }
   const id = uuidv4()
-  const sequenceRows = await query(
+  const sequenceRows = await runner.query(
     'SELECT COALESCE(MAX(event_sequence), 0) AS latest_sequence FROM student_enrollment_events WHERE student_id = ? AND school_id = ?',
     [student.id, student.school_id || '']
   )
   const eventSequence = Number(sequenceRows[0]?.latest_sequence || 0) + 1
   const createdAt = new Date().toISOString().replace('T', ' ').replace('Z', '')
-  await run(`INSERT INTO student_enrollment_events
+  await runner.run(`INSERT INTO student_enrollment_events
     (id, student_id, school_id, event_type, status, effective_on, grade, section, reason, actor_id, actor_name, actor_role, transfer_group_id, event_sequence, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
     id, student.id, student.school_id || '', eventType, status, effectiveOn,
@@ -262,22 +263,35 @@ router.post('/', async (req, res) => {
     const cDataSharing = consent_data_sharing !== undefined ? (consent_data_sharing ? 1 : 0) : 1
     const cMedEmergency = consent_medical_emergency !== undefined ? (consent_medical_emergency ? 1 : 0) : 1
 
-    try {
-      await run(`INSERT INTO students 
-        (id, name, grade, section, gender, school_id, lrn, birth_date, address, guardian_name, guardian_relationship, guardian_contact, emergency_contact_name, emergency_contact_number, consent_data_sharing, consent_medical_emergency)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, trimmed, grade, section, gender || '', scope.schoolId, cleanLrn, birthDate, addr, gName, gRel, gContact, emName, emNum, cDataSharing, cMedEmergency])
-    } catch {
-      await run('INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, trimmed, grade, section, gender || '', scope.schoolId])
-    }
-    const student = {
-      id, name: trimmed, grade, section, gender: gender || '', school_id: scope.schoolId,
-      lrn: cleanLrn, birth_date: birthDate, address: addr, guardian_name: gName, guardian_relationship: gRel,
-      guardian_contact: gContact, emergency_contact_name: emName, emergency_contact_number: emNum,
-      consent_data_sharing: cDataSharing, consent_medical_emergency: cMedEmergency
-    }
-    await addEnrollmentEvent({ student, eventType: 'enroll', status: 'active', effectiveOn: effectiveDate(req.body.effectiveOn), grade, section, reason: String(req.body.reason || 'Initial enrollment').trim(), actor: me })
+    let student
+    await withTransaction(async (tx) => {
+      try {
+        await tx.run(`INSERT INTO students
+          (id, name, grade, section, gender, school_id, lrn, birth_date, address, guardian_name, guardian_relationship, guardian_contact, emergency_contact_name, emergency_contact_number, consent_data_sharing, consent_medical_emergency)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, trimmed, grade, section, gender || '', scope.schoolId, cleanLrn, birthDate, addr, gName, gRel, gContact, emName, emNum, cDataSharing, cMedEmergency])
+      } catch {
+        await tx.run('INSERT INTO students (id, name, grade, section, gender, school_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, trimmed, grade, section, gender || '', scope.schoolId])
+      }
+      student = {
+        id, name: trimmed, grade, section, gender: gender || '', school_id: scope.schoolId,
+        lrn: cleanLrn, birth_date: birthDate, address: addr, guardian_name: gName, guardian_relationship: gRel,
+        guardian_contact: gContact, emergency_contact_name: emName, emergency_contact_number: emNum,
+        consent_data_sharing: cDataSharing, consent_medical_emergency: cMedEmergency
+      }
+      await addEnrollmentEvent({
+        student,
+        eventType: 'enroll',
+        status: 'active',
+        effectiveOn: effectiveDate(req.body.effectiveOn),
+        grade,
+        section,
+        reason: String(req.body.reason || 'Initial enrollment').trim(),
+        actor: me,
+        tx
+      })
+    })
     await audit(me, 'student.create', { type: 'student', id, name: trimmed, schoolId: scope.schoolId }, `Enrolled "${trimmed}" (${grade} - ${section})`)
     res.json({ ...student, enrollment_status: 'active' })
   } catch (err) {
@@ -881,16 +895,144 @@ async function scopedStudent(req) {
   return rows[0] || null
 }
 
+async function performCrossSchoolTransfer({ student, targetSchoolId, targetGrade, targetSection, effectiveOn, reason, me, tx = null }) {
+  if (!targetSchoolId) {
+    throw new Error('targetSchoolId is required for cross-school transfer')
+  }
+  if (targetSchoolId === student.school_id) {
+    throw new Error('Target school must be different from current school. For within-school class changes, use class transfer.')
+  }
+  const runner = tx || { query, run }
+  const destSchoolRows = await runner.query('SELECT * FROM schools WHERE id = ?', [targetSchoolId])
+  if (!destSchoolRows.length) {
+    throw new Error('Target school not found')
+  }
+  const destSchool = destSchoolRows[0]
+  if (destSchool.archived_at) {
+    throw new Error('Cannot transfer to an archived school')
+  }
+
+  const srcSchoolRows = await runner.query('SELECT * FROM schools WHERE id = ?', [student.school_id])
+  const srcSchool = srcSchoolRows[0]
+  const srcSchoolName = srcSchool?.name || 'Previous School'
+  const destSchoolName = destSchool?.name || 'New School'
+
+  if (!targetGrade || !targetSection) {
+    throw new Error('Target grade and section are required')
+  }
+
+  const valid = await isValidClass(targetSchoolId, targetGrade, targetSection)
+  if (!valid) {
+    throw new Error(`Grade "${targetGrade}" and Section "${targetSection}" do not exist in target school "${destSchoolName}"`)
+  }
+
+  const license = await getSchoolLicense(targetSchoolId)
+  if (license && license.max_students > 0) {
+    let currentStudents = 0
+    try {
+      currentStudents = (await runner.query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ? AND COALESCE(enrollment_status, 'active') = 'active'", [targetSchoolId]))[0]?.cnt || 0
+    } catch {
+      currentStudents = (await runner.query("SELECT COUNT(*) as cnt FROM students WHERE school_id = ?", [targetSchoolId]))[0]?.cnt || 0
+    }
+    if (currentStudents >= license.max_students) {
+      throw new Error(`Target school has reached maximum student capacity (${currentStudents}/${license.max_students})`)
+    }
+  }
+
+  if (student.enrollment_status === 'withdrawn') {
+    throw new Error('Withdrawn students cannot be transferred across schools. Re-enroll the student first.')
+  }
+
+  const effDate = effectiveDate(effectiveOn)
+  const latestEventRows = await runner.query(`
+    SELECT * FROM student_enrollment_events
+    WHERE student_id = ? AND school_id = ?
+    ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
+    LIMIT 1`, [student.id, student.school_id])
+  const latestEvent = latestEventRows[0]
+  if (latestEvent && effDate < latestEvent.effective_on) {
+    throw new Error(`Transfer effective date (${effDate}) cannot be earlier than the latest enrollment event (${latestEvent.effective_on})`)
+  }
+
+  const transferGroupId = 'xfer-' + uuidv4()
+  const transferReason = String(reason || '').trim()
+
+  return await withTransaction(async (innerTx) => {
+    // 1. Source school: record transfer_out event
+    const sourceEvent = await addEnrollmentEvent({
+      student: { id: student.id, school_id: student.school_id },
+      eventType: 'transfer_out',
+      status: 'withdrawn',
+      effectiveOn: effDate,
+      grade: student.grade,
+      section: student.section,
+      reason: transferReason || `Transferred out to ${destSchoolName}`,
+      actor: me,
+      transferGroupId,
+      tx: innerTx
+    })
+
+    // 2. Destination school: record transfer_in event
+    const destinationEvent = await addEnrollmentEvent({
+      student: { id: student.id, school_id: targetSchoolId },
+      eventType: 'transfer_in',
+      status: 'active',
+      effectiveOn: effDate,
+      grade: targetGrade,
+      section: targetSection,
+      reason: transferReason || `Transferred in from ${srcSchoolName}`,
+      actor: me,
+      transferGroupId,
+      tx: innerTx
+    })
+
+    // 3. Update student row to destination school and new class
+    try {
+      await innerTx.run(
+        'UPDATE students SET school_id = ?, grade = ?, section = ?, enrollment_status = ? WHERE id = ?',
+        [targetSchoolId, targetGrade, targetSection, 'active', student.id]
+      )
+    } catch (err) {
+      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+        await innerTx.run(
+          'UPDATE students SET school_id = ?, grade = ?, section = ? WHERE id = ?',
+          [targetSchoolId, targetGrade, targetSection, student.id]
+        )
+      } else {
+        throw err
+      }
+    }
+
+    const updated = (await innerTx.query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
+
+    return {
+      success: true,
+      student: updated,
+      transferGroupId,
+      sourceEvent,
+      destinationEvent,
+      srcSchoolName,
+      destSchoolName
+    }
+  }, tx)
+}
+
 router.get('/:id/enrollment-history', async (req, res) => {
   try {
     const scope = await studentSchoolScope(req, res)
     if (!scope) return
-    const rows = await query(
-      'SELECT * FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC',
-      [req.params.id, scope.schoolId]
-    )
+    const isSuperadminAll = scope.me.role === 'superadmin' && String(req.query.allSchools || '').toLowerCase() === 'true'
+    const rows = isSuperadminAll
+      ? await query(
+          'SELECT * FROM student_enrollment_events WHERE student_id = ? ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC',
+          [req.params.id]
+        )
+      : await query(
+          'SELECT * FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC',
+          [req.params.id, scope.schoolId]
+        )
     if (!rows.length) {
-      const student = (await query('SELECT id FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId]))[0]
+      const student = (await query('SELECT id FROM students WHERE id = ?', [req.params.id]))[0]
       if (!student) return res.status(404).json({ error: 'Student not found' })
     }
     res.json(rows)
@@ -911,15 +1053,43 @@ router.post('/:id/enrollment-events', async (req, res) => {
     if (!student) return res.status(404).json({ error: 'Student not found' })
 
     const eventType = String(req.body.eventType || '').trim().toLowerCase()
-    const allowed = new Set(['transfer', 'promote', 'withdraw', 'reenroll'])
-    if (!allowed.has(eventType)) return res.status(400).json({ error: 'eventType must be transfer, promote, withdraw, or reenroll' })
+    const allowed = new Set(['transfer', 'promote', 'withdraw', 'reenroll', 'transfer_school', 'cross_school_transfer'])
+    if (!allowed.has(eventType)) return res.status(400).json({ error: 'eventType must be transfer, promote, withdraw, reenroll, or transfer_school' })
     const effectiveOn = effectiveDate(req.body.effectiveOn)
     if (req.body.effectiveOn && !validDate(req.body.effectiveOn)) return res.status(400).json({ error: 'effectiveOn must use YYYY-MM-DD format' })
     const reason = String(req.body.reason || '').trim()
-    if (!reason) return res.status(400).json({ error: 'A reason is required for enrollment changes' })
+    if (!reason && !['transfer_school', 'cross_school_transfer'].includes(eventType)) return res.status(400).json({ error: 'A reason is required for enrollment changes' })
 
     const targetGrade = String(req.body.grade || '').trim()
     const targetSection = String(req.body.section || '').trim()
+
+    if (['transfer_school', 'cross_school_transfer'].includes(eventType)) {
+      const targetSchoolId = String(req.body.targetSchoolId || req.body.destinationSchoolId || req.body.schoolId || '').trim()
+      const result = await performCrossSchoolTransfer({
+        student,
+        targetSchoolId,
+        targetGrade,
+        targetSection,
+        effectiveOn: req.body.effectiveOn,
+        reason,
+        me
+      })
+      await audit(
+        me,
+        'student.transfer_school',
+        { type: 'student', id: student.id, name: student.name, schoolId: targetSchoolId },
+        `Transferred "${student.name}" from ${result.srcSchoolName} to ${result.destSchoolName} (${targetGrade} - ${targetSection}) effective ${result.destinationEvent.effective_on}`
+      )
+      return res.status(201).json({
+        event: result.destinationEvent,
+        student: result.student,
+        currentEnrollment: result.destinationEvent,
+        transferGroupId: result.transferGroupId,
+        sourceEvent: result.sourceEvent,
+        destinationEvent: result.destinationEvent
+      })
+    }
+
     if (['transfer', 'promote', 'reenroll'].includes(eventType)) {
       if (!targetGrade || !targetSection) return res.status(400).json({ error: 'grade and section are required for this enrollment event' })
       if (!(await assertValidClass(res, scope.schoolId, targetGrade, targetSection))) return
@@ -968,32 +1138,90 @@ router.post('/:id/enrollment-events', async (req, res) => {
     const currentGrade = targetGrade || student.grade
     const currentSection = targetSection || student.section
     const status = eventType === 'withdraw' ? 'withdrawn' : 'active'
-    const event = await addEnrollmentEvent({
-      student,
-      eventType,
-      status,
-      effectiveOn: effDate,
-      grade: currentGrade,
-      section: currentSection,
-      reason,
-      actor: me,
-      transferGroupId: String(req.body.transferGroupId || '')
-    })
-    try {
-      await run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?', [currentGrade, currentSection, status, student.id])
-    } catch (err) {
-      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
-        await run('UPDATE students SET grade = ?, section = ? WHERE id = ?', [currentGrade, currentSection, student.id])
-      } else {
-        throw err
+    let event
+    await withTransaction(async (tx) => {
+      event = await addEnrollmentEvent({
+        student,
+        eventType,
+        status,
+        effectiveOn: effDate,
+        grade: currentGrade,
+        section: currentSection,
+        reason,
+        actor: me,
+        transferGroupId: String(req.body.transferGroupId || ''),
+        tx
+      })
+      try {
+        await tx.run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?', [currentGrade, currentSection, status, student.id])
+      } catch (err) {
+        if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+          await tx.run('UPDATE students SET grade = ?, section = ? WHERE id = ?', [currentGrade, currentSection, student.id])
+        } else {
+          throw err
+        }
       }
-    }
+    })
     await audit(me, `student.${eventType}`, { type: 'student', id: student.id, name: student.name, schoolId: student.school_id || '' }, `${eventType} for "${student.name}" effective ${effDate}: ${reason}`)
     const updated = (await query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
     res.status(201).json({ event, student: updated, currentEnrollment: event })
   } catch (err) {
     console.error('Failed to create enrollment event', err.message)
     res.status(500).json({ error: 'Failed to create enrollment event' })
+  }
+})
+
+router.post('/:id/transfer-school', async (req, res) => {
+  try {
+    await ensureEnrollmentStatusColumn()
+    const me = await assertWritable(req, res)
+    if (!me) return
+
+    const studentRows = await query('SELECT * FROM students WHERE id = ?', [req.params.id])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+    const student = studentRows[0]
+
+    if (me.role !== 'superadmin' && student.school_id !== me.school_id) {
+      return res.status(403).json({ error: 'Forbidden: outside your school' })
+    }
+
+    const targetSchoolId = String(req.body.targetSchoolId || req.body.destinationSchoolId || req.body.schoolId || '').trim()
+    const targetGrade = String(req.body.grade || req.body.targetGrade || '').trim()
+    const targetSection = String(req.body.section || req.body.targetSection || '').trim()
+    const effectiveOn = req.body.effectiveOn
+    const reason = req.body.reason
+
+    const result = await performCrossSchoolTransfer({
+      student,
+      targetSchoolId,
+      targetGrade,
+      targetSection,
+      effectiveOn,
+      reason,
+      me
+    })
+
+    await audit(
+      me,
+      'student.transfer_school',
+      { type: 'student', id: student.id, name: student.name, schoolId: targetSchoolId },
+      `Transferred "${student.name}" from ${result.srcSchoolName} to ${result.destSchoolName} (${targetGrade} - ${targetSection}) effective ${result.destinationEvent.effective_on}`
+    )
+
+    res.status(200).json(result)
+  } catch (err) {
+    const msg = String(err.message || '')
+    if (msg.includes('required') || msg.includes('must be different') || msg.includes('do not exist') || msg.includes('archived') || msg.includes('capacity')) {
+      return res.status(400).json({ error: msg })
+    }
+    if (msg.includes('not found')) {
+      return res.status(404).json({ error: msg })
+    }
+    if (msg.includes('earlier than') || msg.includes('Withdrawn students')) {
+      return res.status(409).json({ error: msg })
+    }
+    console.error('Failed cross-school transfer:', err.message)
+    res.status(500).json({ error: 'Failed cross-school transfer' })
   }
 })
 
@@ -1266,7 +1494,7 @@ router.post('/bulk-action', async (req, res) => {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'No student ids provided' })
     }
-    const validActions = ['transfer', 'promote', 'reenroll', 'withdraw', 'gender', 'permanent_delete']
+    const validActions = ['transfer', 'promote', 'reenroll', 'withdraw', 'gender', 'permanent_delete', 'transfer_school']
     if (!validActions.includes(action)) {
       return res.status(400).json({ error: `Action must be one of: ${validActions.join(', ')}` })
     }
@@ -1280,9 +1508,21 @@ router.post('/bulk-action', async (req, res) => {
       transfer: 'Class transfer',
       promote: 'Promoted to next grade level',
       reenroll: 'Re-enrolled after withdrawal',
-      withdraw: 'Withdrawn from active roster'
+      withdraw: 'Withdrawn from active roster',
+      transfer_school: 'Cross-school transfer'
     }
     const reason = String(req.body.reason || defaultReasons[action] || '').trim()
+
+    if (action === 'transfer_school') {
+      const targetSchoolId = String(req.body.targetSchoolId || req.body.destinationSchoolId || '').trim()
+      if (!targetSchoolId) {
+        return res.status(400).json({ error: 'targetSchoolId is required for cross-school transfer' })
+      }
+      if (!targetGrade || !targetSection) {
+        return res.status(400).json({ error: 'Both grade and section are required for destination school' })
+      }
+      if (!(await assertValidClass(res, targetSchoolId, targetGrade, targetSection))) return
+    }
 
     if (['transfer', 'promote'].includes(action)) {
       if (!targetGrade || !targetSection) {
@@ -1347,10 +1587,39 @@ router.post('/bulk-action', async (req, res) => {
       if (action === 'permanent_delete') {
         await run('DELETE FROM attendance_corrections WHERE student_id = ?', [id])
         await run('DELETE FROM student_enrollment_events WHERE student_id = ?', [id])
+        await run('DELETE FROM student_interventions WHERE student_id = ?', [id])
+        await run('DELETE FROM student_guardian_contacts WHERE student_id = ?', [id])
         await run('DELETE FROM attendance_entries WHERE student_id = ?', [id])
         await run('DELETE FROM monthly_entries WHERE student_id = ?', [id])
         await run('DELETE FROM students WHERE id = ?', [id])
         count++
+        continue
+      }
+
+      if (action === 'transfer_school') {
+        const targetSchoolId = String(req.body.targetSchoolId || req.body.destinationSchoolId || '').trim()
+        if (target.school_id === targetSchoolId) {
+          skipped.push({ id, name: target.name, reason: 'Already in target school' })
+          continue
+        }
+        if (target.enrollment_status === 'withdrawn') {
+          skipped.push({ id, name: target.name, reason: 'Withdrawn students must be re-enrolled before cross-school transfer' })
+          continue
+        }
+        try {
+          await performCrossSchoolTransfer({
+            student: target,
+            targetSchoolId,
+            targetGrade,
+            targetSection,
+            effectiveOn,
+            reason: reason || defaultReasons.transfer_school,
+            me
+          })
+          count++
+        } catch (err) {
+          skipped.push({ id, name: target.name, reason: err.message })
+        }
         continue
       }
 
@@ -1453,6 +1722,8 @@ router.post('/bulk-permanent-delete', async (req, res) => {
       if (me.role !== 'superadmin' && target.school_id !== me.school_id) continue
       await run('DELETE FROM attendance_corrections WHERE student_id = ?', [id])
       await run('DELETE FROM student_enrollment_events WHERE student_id = ?', [id])
+      await run('DELETE FROM student_interventions WHERE student_id = ?', [id])
+      await run('DELETE FROM student_guardian_contacts WHERE student_id = ?', [id])
       await run('DELETE FROM attendance_entries WHERE student_id = ?', [id])
       await run('DELETE FROM monthly_entries WHERE student_id = ?', [id])
       await run('DELETE FROM students WHERE id = ?', [id])

@@ -112,13 +112,19 @@ async function validateEntryStudents(entries, schoolId, date, grade, section) {
   const ids = [...new Set(entries.map(entry => String(entry.studentId || '').trim()).filter(Boolean))]
   if (!ids.length) return null
   for (const studentId of ids) {
-    const rows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [studentId, schoolId])
+    let rows = await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [studentId, schoolId])
+    if (!rows.length) {
+      const historical = await query('SELECT 1 FROM student_enrollment_events WHERE student_id = ? AND school_id = ? AND effective_on <= ?', [studentId, schoolId, date])
+      if (historical.length) {
+        rows = await query('SELECT * FROM students WHERE id = ?', [studentId])
+      }
+    }
     if (!rows.length) return `Student ${studentId} does not belong to the selected school`
     const events = await query(`
       SELECT event_type, status, grade, section
       FROM student_enrollment_events
       WHERE student_id = ? AND school_id = ? AND effective_on <= ?
-      ORDER BY effective_on DESC, created_at DESC, id DESC
+      ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
       LIMIT 1`, [studentId, schoolId, date])
     const enrollment = events[0]
     if (enrollment) {

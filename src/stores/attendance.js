@@ -210,6 +210,16 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function transferStudentSchool(id, data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${id}/transfer-school`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
   async function reenrollStudent(id, data = {}, schoolId) {
     const extra = { ...data }
     if (schoolId) extra.schoolId = schoolId
@@ -560,7 +570,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
     getStudents, addStudent, addStudents, updateStudent, getStudentProfile,
     getInterventions, createIntervention, updateIntervention, deleteIntervention,
     getGuardianContacts, logGuardianContact, deleteGuardianContact, checkDuplicateStudents,
-    getEnrollmentHistory, createEnrollmentEvent, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
+    getEnrollmentHistory, createEnrollmentEvent, transferStudentSchool, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
     bulkValidateStudents, bulkImportStudents,
     fetchAttendanceSummaries, validateBulkAttendanceImport, bulkImportAttendance,
     getRecord, saveRecord, getOrCreateRecord,

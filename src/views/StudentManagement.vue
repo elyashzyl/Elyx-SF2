@@ -142,19 +142,27 @@
               <option value="promote">Promote</option>
               <option value="reenroll">Re-enroll</option>
               <option value="withdraw">Withdraw</option>
+              <option v-if="auth.isSuperadmin" value="transfer_school">Transfer to Another School</option>
+            </select>
+          </div>
+          <div class="form-group" v-if="enrollmentForm.eventType === 'transfer_school'">
+            <label>Destination School <span class="required">*</span></label>
+            <select v-model="enrollmentForm.targetSchoolId" @change="onTransferSchoolChange" required>
+              <option value="" disabled>Select target school</option>
+              <option v-for="s in schools.filter(x => x.id !== enrollmentStudent?.school_id)" :key="s.id" :value="s.id">{{ s.name }} ({{ s.short || s.school_id }})</option>
             </select>
           </div>
           <div class="form-row" v-if="enrollmentForm.eventType !== 'withdraw'">
             <div class="form-group">
               <label>Grade Level</label>
-              <select v-model="enrollmentForm.grade" @change="enrollmentForm.section = (sectionsByGrade[enrollmentForm.grade] || [])[0] || ''" required>
-                <option v-for="g in grades" :key="g">{{ g }}</option>
+              <select v-model="enrollmentForm.grade" @change="onEnrollmentGradeChange" required>
+                <option v-for="g in (enrollmentForm.eventType === 'transfer_school' ? targetSchoolGrades : grades)" :key="g">{{ g }}</option>
               </select>
             </div>
             <div class="form-group">
               <label>Section</label>
               <select v-model="enrollmentForm.section" required>
-                <option v-for="s in (sectionsByGrade[enrollmentForm.grade] || [])" :key="s">{{ s }}</option>
+                <option v-for="s in (enrollmentForm.eventType === 'transfer_school' ? (targetSchoolSections[enrollmentForm.grade] || []) : (sectionsByGrade[enrollmentForm.grade] || []))" :key="s">{{ s }}</option>
               </select>
             </div>
           </div>
@@ -380,6 +388,33 @@
         </div>
 
         <form @submit.prevent="submitBulkAction">
+          <!-- Destination School & Class Assignment for Cross-School Transfer -->
+          <template v-if="bulkActionType === 'transfer_school'">
+            <div class="form-group">
+              <label>Destination School <span class="required">*</span></label>
+              <select v-model="bulkForm.targetSchoolId" @change="onBulkTransferSchoolChange" required>
+                <option value="" disabled>Select target school</option>
+                <option v-for="s in schools.filter(x => x.id !== effectiveSchoolId)" :key="s.id" :value="s.id">{{ s.name }} ({{ s.short || s.school_id }})</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Target Grade Level <span class="required">*</span></label>
+                <select v-model="bulkForm.grade" @change="onBulkTransferGradeChange" required>
+                  <option value="" disabled>Select grade</option>
+                  <option v-for="g in targetSchoolGrades" :key="g">{{ g }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Target Section <span class="required">*</span></label>
+                <select v-model="bulkForm.section" required>
+                  <option value="" disabled>Select section</option>
+                  <option v-for="s in (targetSchoolSections[bulkForm.grade] || [])" :key="s">{{ s }}</option>
+                </select>
+              </div>
+            </div>
+          </template>
+
           <!-- Class Assignment for Transfer / Promote -->
           <div v-if="['transfer', 'promote'].includes(bulkActionType)" class="form-row">
             <div class="form-group">
@@ -1058,6 +1093,11 @@
             Promote
           </button>
 
+          <!-- Transfer School (Superadmin) -->
+          <button v-if="auth.isSuperadmin" @click="openBulkModal('transfer_school')" class="btn-sm btn-secondary">
+            Transfer School
+          </button>
+
           <!-- Assign Gender -->
           <button @click="openBulkModal('gender')" class="btn-sm btn-secondary">
             Set Gender
@@ -1197,7 +1237,9 @@ const form = ref({ names: '', name: '', grade: '', section: '', gender: '' })
 const showEnrollmentModal = ref(false)
 const enrollmentStudent = ref(null)
 const enrollmentSaving = ref(false)
-const enrollmentForm = ref({ eventType: 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: '', section: '', reason: '' })
+const enrollmentForm = ref({ eventType: 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: '', section: '', reason: '', targetSchoolId: '' })
+const targetSchoolGrades = ref([])
+const targetSchoolSections = ref({})
 const showBulkModal = ref(false)
 const bulkActionType = ref('transfer')
 const bulkSaving = ref(false)
@@ -1453,8 +1495,72 @@ function editStudent(s) {
 
 function openEnrollmentModal(student) {
   enrollmentStudent.value = student
-  enrollmentForm.value = { eventType: student.enrollment_status === 'withdrawn' ? 'reenroll' : 'transfer', effectiveOn: new Date().toISOString().slice(0, 10), grade: student.grade, section: student.section, reason: '' }
+  enrollmentForm.value = {
+    eventType: student.enrollment_status === 'withdrawn' ? 'reenroll' : 'transfer',
+    effectiveOn: new Date().toISOString().slice(0, 10),
+    grade: student.grade,
+    section: student.section,
+    reason: '',
+    targetSchoolId: ''
+  }
+  targetSchoolGrades.value = []
+  targetSchoolSections.value = {}
   showEnrollmentModal.value = true
+}
+
+async function onTransferSchoolChange() {
+  const sid = enrollmentForm.value.targetSchoolId
+  if (!sid) {
+    targetSchoolGrades.value = []
+    targetSchoolSections.value = {}
+    return
+  }
+  try {
+    const res = await auth.api(`/schools/${sid}/grades`)
+    const levels = res.levels || []
+    targetSchoolGrades.value = levels.map(l => l.grade)
+    const map = {}
+    levels.forEach(l => { map[l.grade] = l.sections || [] })
+    targetSchoolSections.value = map
+    if (targetSchoolGrades.value.length) {
+      enrollmentForm.value.grade = targetSchoolGrades.value[0]
+      enrollmentForm.value.section = (targetSchoolSections.value[enrollmentForm.value.grade] || [])[0] || ''
+    }
+  } catch (err) {
+    addToast('Failed to load target school grade levels: ' + err.message, 'error')
+  }
+}
+
+function onEnrollmentGradeChange() {
+  const map = enrollmentForm.value.eventType === 'transfer_school' ? targetSchoolSections.value : sectionsByGrade.value
+  enrollmentForm.value.section = (map[enrollmentForm.value.grade] || [])[0] || ''
+}
+
+async function onBulkTransferSchoolChange() {
+  const sid = bulkForm.value.targetSchoolId
+  if (!sid) {
+    targetSchoolGrades.value = []
+    targetSchoolSections.value = {}
+    return
+  }
+  try {
+    const res = await auth.api(`/schools/${sid}/grades`)
+    const levels = res.levels || []
+    targetSchoolGrades.value = levels.map(l => l.grade)
+    const map = {}
+    levels.forEach(l => { map[l.grade] = l.sections || [] })
+    targetSchoolSections.value = map
+    if (targetSchoolGrades.value.length) {
+      bulkForm.value.grade = targetSchoolGrades.value[0]
+      bulkForm.value.section = (targetSchoolSections.value[bulkForm.value.grade] || [])[0] || ''
+    }
+  } catch (err) {
+    addToast('Failed to load destination school grade levels: ' + err.message, 'error')
+  }
+}
+
+function onBulkTransferGradeChange() {
+  bulkForm.value.section = (targetSchoolSections.value[bulkForm.value.grade] || [])[0] || ''
 }
 
 function openReenrollModal(student) {
@@ -1490,6 +1596,10 @@ function openBulkModal(action) {
     bulkForm.value.reason = 'Class section transfer'
   } else if (action === 'promote') {
     bulkForm.value.reason = 'Promoted to next grade level'
+  } else if (action === 'transfer_school') {
+    bulkForm.value.reason = 'Transferred to another school'
+    targetSchoolGrades.value = []
+    targetSchoolSections.value = {}
   } else if (action === 'reenroll') {
     bulkForm.value.reason = 'Re-enrolled after withdrawal'
   } else if (action === 'withdraw') {
@@ -1516,6 +1626,8 @@ const bulkModalTitle = computed(() => {
       return `Change Class for ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
     case 'promote':
       return `Promote ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''}`
+    case 'transfer_school':
+      return `Transfer ${selectedActiveCount.value || count} Student${(selectedActiveCount.value || count) > 1 ? 's' : ''} to Another School`
     case 'reenroll':
       return `Re-enroll ${count} Student${count > 1 ? 's' : ''}`
     case 'withdraw':
@@ -1535,6 +1647,8 @@ const bulkModalSubtitle = computed(() => {
       return 'Move selected active learners to another grade level and section. An enrollment transfer event will be recorded.'
     case 'promote':
       return 'Advance selected active learners to their next grade level and section.'
+    case 'transfer_school':
+      return 'Move selected active learners to another school and assign them to a destination class. Paired transfer-out and transfer-in events will be recorded.'
     case 'reenroll':
       return 'Restore selected learners back to active enrollment status and record a re-enrollment event.'
     case 'withdraw':
@@ -1553,6 +1667,7 @@ const bulkSubmitButtonLabel = computed(() => {
   switch (bulkActionType.value) {
     case 'transfer': return 'Apply Class Change'
     case 'promote': return 'Promote Students'
+    case 'transfer_school': return 'Transfer to School'
     case 'reenroll': return 'Re-enroll Students'
     case 'withdraw': return 'Confirm Withdrawal'
     case 'gender': return 'Update Gender'
@@ -1566,7 +1681,7 @@ async function submitBulkAction() {
   if (!allIds.length) return
 
   let targetIds = allIds
-  if (['transfer', 'promote'].includes(bulkActionType.value)) {
+  if (['transfer', 'promote', 'transfer_school'].includes(bulkActionType.value)) {
     const active = selectedStudents.value.filter(s => s.enrollment_status !== 'withdrawn').map(s => s.id)
     if (!active.length) {
       addToast('No active students selected for this action. Please re-enroll withdrawn students first.', 'warning')
@@ -1589,7 +1704,11 @@ async function submitBulkAction() {
     return
   }
 
-  if (['transfer', 'promote'].includes(bulkActionType.value)) {
+  if (['transfer', 'promote', 'transfer_school'].includes(bulkActionType.value)) {
+    if (bulkActionType.value === 'transfer_school' && !bulkForm.value.targetSchoolId) {
+      addToast('Please select a destination school', 'error')
+      return
+    }
     if (!bulkForm.value.grade || !bulkForm.value.section) {
       addToast('Please select both grade and section', 'error')
       return
@@ -1615,6 +1734,10 @@ async function submitBulkAction() {
     if (['transfer', 'promote'].includes(bulkActionType.value)) {
       payload.grade = bulkForm.value.grade
       payload.section = bulkForm.value.section
+    } else if (bulkActionType.value === 'transfer_school') {
+      payload.targetSchoolId = bulkForm.value.targetSchoolId
+      payload.grade = bulkForm.value.grade
+      payload.section = bulkForm.value.section
     } else if (bulkActionType.value === 'reenroll' && bulkForm.value.reenrollMode === 'assign') {
       payload.grade = bulkForm.value.grade
       payload.section = bulkForm.value.section
@@ -1630,6 +1753,7 @@ async function submitBulkAction() {
     const actionLabels = {
       transfer: 'transferred',
       promote: 'promoted',
+      transfer_school: 'transferred across schools',
       reenroll: 're-enrolled',
       withdraw: 'withdrawn',
       gender: 'gender updated for',
@@ -1660,6 +1784,8 @@ async function saveEnrollmentEvent() {
   try {
     if (enrollmentForm.value.eventType === 'reenroll') {
       await store.reenrollStudent(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
+    } else if (enrollmentForm.value.eventType === 'transfer_school') {
+      await store.transferStudentSchool(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
     } else {
       await store.createEnrollmentEvent(enrollmentStudent.value.id, enrollmentForm.value, effectiveSchoolId.value)
     }
