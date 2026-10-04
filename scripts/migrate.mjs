@@ -16,7 +16,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import mysql from 'mysql2/promise'
-import { initDatabase, query, run, saveDatabase, DB_MODE, DATABASE_URL, USE_MYSQL } from '../db.js'
+import { initDatabase, query, run, saveDatabase, closeDatabase, DB_MODE, DATABASE_URL, USE_MYSQL } from '../db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.join(__dirname, '..')
@@ -217,6 +217,7 @@ async function main() {
   const pending = migrations.filter(m => !appliedMap.has(m.id))
   if (pending.length === 0) {
     console.log('[db] Database is already up to date. No pending migrations.')
+    await closeDatabase()
     process.exit(0)
   }
 
@@ -234,9 +235,12 @@ async function main() {
   }
 
   console.log(`\n[db] All migrations applied successfully (${pending.length} applied).`)
+  await closeDatabase()
+  process.exit(0)
 }
 
-main().catch(err => {
+main().catch(async err => {
   console.error('\n[db] Migration failed:', err)
+  await closeDatabase().catch(() => {})
   process.exit(1)
 })

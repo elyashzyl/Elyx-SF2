@@ -1670,6 +1670,18 @@ export async function updateSchoolRow(schoolId, { school_name, school_id, school
 
 export { prisma } from './prisma/client.js'
 
+export async function closeDatabase() {
+  if (mysqlPool) {
+    try {
+      await Promise.race([
+        mysqlPool.end(),
+        new Promise((resolve) => setTimeout(resolve, 1500))
+      ])
+    } catch {}
+    mysqlPool = null
+  }
+}
+
 export function saveDatabase() {
   if (sqlite && !USE_MYSQL) {
     const data = sqlite.export()
