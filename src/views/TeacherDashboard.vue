@@ -282,7 +282,7 @@
           <div class="card-box-header">
             <div>
               <h3>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #ef4444;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--destructive);">
                   <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
                 <span>Class SARDO Alert Watchlist</span>
@@ -309,7 +309,7 @@
           </div>
 
           <div v-else class="sardo-clean-state">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
             </svg>
             <strong>All Learners Attending Regularly</strong>
@@ -369,7 +369,7 @@
                     {{ student.gender?.toLowerCase() === 'male' ? 'M' : 'F' }}
                   </span>
                 </td>
-                <td style="text-align: center; font-weight: 700; color: #0c5357;">
+                <td style="text-align: center; font-weight: 700; color: var(--primary);">
                   {{ student.present }}
                 </td>
                 <td style="text-align: center;">
@@ -586,7 +586,7 @@ onMounted(async () => {
   gap: 12px;
 }
 .announcement-card {
-  background: var(--bg-surface, #ffffff);
+  background: var(--card);
   border: 1px solid var(--border);
   border-left: 4px solid var(--primary);
   border-radius: 8px;
@@ -596,11 +596,11 @@ onMounted(async () => {
   gap: 6px;
 }
 .announcement-card.ann-priority--urgent {
-  border-left-color: #ef4444;
-  background: color-mix(in srgb, #ef4444 4%, var(--bg-surface, #ffffff));
+  border-left-color: var(--destructive);
+  background: var(--red-bg);
 }
 .announcement-card.ann-priority--important {
-  border-left-color: #f59e0b;
+  border-left-color: var(--warning);
 }
 .announcement-card.ann-read {
   opacity: 0.75;
@@ -609,6 +609,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }
 .ann-priority-pill {
   font-size: 0.65rem;
@@ -616,21 +618,24 @@ onMounted(async () => {
   padding: 1px 6px;
   border-radius: 4px;
 }
-.pill--normal { background: #e2e8f0; color: #475569; }
-.pill--important { background: #fef3c7; color: #92400e; }
-.pill--urgent { background: #fee2e2; color: #b91c1c; }
+.pill--normal { background: var(--secondary); color: var(--secondary-foreground); }
+.pill--important { background: var(--warning-bg); color: var(--warning); }
+.pill--urgent { background: var(--red-bg); color: var(--destructive); }
 .ann-date {
   font-size: 0.72rem;
   color: var(--muted-foreground);
 }
 .ann-title {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--foreground);
 }
 .ann-content {
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: 0.78rem;
   color: var(--muted-foreground);
   line-height: 1.4;
@@ -639,12 +644,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   margin-top: 4px;
   font-size: 0.72rem;
   color: var(--muted-foreground);
 }
 .btn-read-sm {
-  background: var(--primary-bg, #f0fdfa);
+  background: var(--primary-bg);
   border: 1px solid var(--border);
   color: var(--primary);
   font-size: 0.7rem;
@@ -851,7 +858,7 @@ onMounted(async () => {
   flex-direction: column;
   justify-content: space-between;
   padding: 20px;
-  border-radius: var(--radius-lg, 14px);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow-sm);
@@ -982,13 +989,19 @@ onMounted(async () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
   margin-bottom: 20px;
+}
+
+.card-box-header > div {
+  min-width: 0;
 }
 
 .card-box-header h3 {
   display: flex;
   align-items: center;
   gap: 8px;
+  overflow-wrap: anywhere;
   font-family: 'Manrope', sans-serif;
   font-size: 1.05rem;
   font-weight: 800;
@@ -1081,8 +1094,10 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
-.gender-pill--male { background: var(--info-bg); color: var(--info); }
-.gender-pill--female { background: var(--warning-bg); color: var(--orange); }
+.gender-pill--male,
+.gender-pill--m { background: var(--info-bg); color: var(--info); }
+.gender-pill--female,
+.gender-pill--f { background: var(--warning-bg); color: var(--orange); }
 
 .gender-dot {
   width: 8px;
@@ -1098,6 +1113,99 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.sardo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sardo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--red-bg);
+}
+
+.sardo-item-info {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sardo-item-info strong {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: 0.8rem;
+}
+
+.sardo-item-info small {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+}
+
+.sardo-badge-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sardo-absence-pill {
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, var(--border));
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--destructive);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.sardo-action-tag {
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.sardo-clean-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.sardo-clean-state strong {
+  color: var(--foreground);
+  font-size: 0.95rem;
+}
+
+.sardo-clean-state small {
+  max-width: 320px;
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+}
+
+.empty-records-state {
+  padding: 32px;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  text-align: center;
 }
 
 .at-risk-item {
@@ -1210,8 +1318,56 @@ onMounted(async () => {
 }
 
 @media (max-width: 680px) {
+  .overview-header-copy,
+  .card-box,
+  .sardo-item {
+    min-width: 0;
+  }
+
+  .overview-header-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .overview-header-actions > * {
+    min-width: 0;
+  }
+
+  .take-attendance-btn,
+  .advisory-badge-chip,
+  .overview-date-chip,
+  .overview-refresh-btn {
+    justify-content: center;
+    flex: 1 1 100%;
+  }
+
   .kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .card-box-header {
+    flex-direction: column;
+  }
+
+  .card-box-header > div,
+  .search-filter-wrap,
+  .section-search-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .search-filter-wrap {
+    display: flex;
+  }
+
+  .sardo-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sardo-badge-group {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>

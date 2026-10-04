@@ -5,7 +5,25 @@
         <img src="/elytrack-logo.png" alt="ElyTrack Logo" />
         <span><strong>ElyTrack</strong><small>School Operations Platform</small></span>
       </router-link>
-      <router-link to="/login" class="subscribe-signin">Already have an account? Sign in</router-link>
+      <div class="subscribe-topbar-actions">
+        <button
+          type="button"
+          class="subscribe-theme-btn"
+          @click="toggleTheme"
+          :title="theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'"
+          :aria-label="theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'"
+          :aria-pressed="theme === 'dark'"
+        >
+          <svg v-if="theme === 'light'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+        </button>
+        <router-link to="/login" class="subscribe-signin">Already have an account? Sign in</router-link>
+      </div>
     </header>
 
     <main class="subscribe-layout" :class="{ 'subscribe-layout--submitted': submitted }">
@@ -139,7 +157,7 @@
                 </div>
                 <div class="sbc-meta-item">
                   <span class="sbc-meta-label">License Reference Code</span>
-                  <code class="sbc-ref-code">{{ licenseOrderRef }}</code>
+                  <code class="sbc-ref-code">{{ licenseOrderRef || 'Pending assignment' }}</code>
                 </div>
               </div>
 
@@ -171,7 +189,7 @@
               <span class="spc-kicker">Official Settlement Channels</span>
               <h3>Official School Payment Options &amp; Instant QR Codes</h3>
               <p>
-                Settle via GCash, Maya, QR Ph, or direct Philippine bank transfer below. Use reference code <code>{{ licenseOrderRef }}</code> when remitting.
+                Settle via GCash, Maya, QR Ph, or direct Philippine bank transfer below. Use reference code <code>{{ licenseOrderRef || 'the assigned license reference' }}</code> when remitting.
               </p>
             </div>
 
@@ -353,10 +371,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useTheme } from '../composables/useTheme'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const { theme, toggleTheme } = useTheme()
 const loading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -396,7 +416,6 @@ const benefits = computed(() => {
 
 onMounted(() => {
   void loadPlans()
-  void loadPaymentMethods()
 })
 
 async function loadPlans() {
@@ -509,9 +528,10 @@ async function submitTrial() {
 
     createdSchool.value = data.school || { name: form.school_name, school_id: form.school_id }
     createdUser.value = data.user
-    licenseOrderRef.value = data.license?.license_key || ('ELY-' + Math.random().toString(36).substring(2, 8).toUpperCase())
+    licenseOrderRef.value = data.license?.license_key || ''
 
     submitted.value = true
+    await loadPaymentMethods()
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (error) {
     errorMessage.value = error.message || 'Unable to start the trial. Please try again.'
@@ -524,8 +544,8 @@ async function submitTrial() {
 <style scoped>
 .subscribe-page {
   min-height: 100vh;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--background);
+  color: var(--foreground);
   font-family: 'DM Sans', sans-serif;
 }
 
@@ -535,9 +555,50 @@ async function submitTrial() {
   justify-content: space-between;
   gap: 20px;
   padding: 16px clamp(20px, 5vw, 72px);
-  border-bottom: 1px solid #e2e8f0;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 95%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.subscribe-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.subscribe-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.subscribe-theme-btn:hover {
+  border-color: var(--ring);
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.subscribe-theme-btn:focus-visible,
+.subscribe-signin:focus-visible,
+.subscribe-submit:focus-visible,
+.sbc-enter-btn:focus-visible,
+.sbc-email-btn:focus-visible,
+.sp-qr-btn:focus-visible,
+.sp-copy-btn:focus-visible,
+.subscribe-qr-close:focus-visible,
+.sqm-copy-btn:focus-visible,
+.sqm-action-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .subscribe-brand {
@@ -568,13 +629,13 @@ async function submitTrial() {
 }
 
 .subscribe-brand small {
-  color: #64748b;
+  color: var(--muted-foreground);
   font-size: 0.72rem;
   font-weight: 600;
 }
 
 .subscribe-signin {
-  color: #0d9488;
+  color: var(--primary);
   font-weight: 700;
   font-size: 0.88rem;
   text-decoration: none;
@@ -582,7 +643,7 @@ async function submitTrial() {
 }
 
 .subscribe-signin:hover {
-  color: #0f766e;
+  color: var(--primary-hover);
   text-decoration: underline;
 }
 
@@ -608,7 +669,7 @@ async function submitTrial() {
 
 .subscribe-kicker,
 .subscribe-card-label {
-  color: #0d9488;
+  color: var(--primary);
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -621,12 +682,12 @@ async function submitTrial() {
   font-size: clamp(2.2rem, 4vw, 3.4rem);
   line-height: 1.1;
   letter-spacing: -0.04em;
-  color: #0f172a;
+  color: var(--foreground);
 }
 
 .subscribe-intro > p {
   max-width: 480px;
-  color: #475569;
+  color: var(--muted-foreground);
   font-size: 0.98rem;
   line-height: 1.65;
 }
@@ -643,7 +704,7 @@ async function submitTrial() {
   align-items: center;
   font-weight: 600;
   font-size: 0.88rem;
-  color: #1e293b;
+  color: var(--foreground);
 }
 
 .benefit-icon {
@@ -653,25 +714,25 @@ async function submitTrial() {
   width: 24px;
   height: 24px;
   flex: 0 0 24px;
-  color: #0d9488;
-  background: #f0fdfa;
-  border: 1px solid #ccfbf1;
+  color: var(--primary);
+  background: var(--primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
   border-radius: 50%;
 }
 
 .subscribe-note {
   font-size: 0.82rem;
-  color: #64748b;
+  color: var(--muted-foreground);
   line-height: 1.5;
 }
 
 /* Card */
 .subscribe-card {
   padding: clamp(24px, 4vw, 38px);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 20px;
-  background: #ffffff;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.05);
+  background: var(--card);
+  box-shadow: var(--shadow-lg);
 }
 
 .subscribe-card-heading {
@@ -687,14 +748,14 @@ async function submitTrial() {
   font-family: 'Manrope', sans-serif;
   font-size: 1.7rem;
   letter-spacing: -0.03em;
-  color: #0f172a;
+  color: var(--card-foreground);
 }
 
 .plan-chip {
   padding: 6px 12px;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
+  color: var(--secondary-foreground);
+  background: var(--primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 800;
@@ -711,15 +772,15 @@ async function submitTrial() {
 }
 
 .subscribe-alert--error {
-  color: #e11d48;
-  background: #ffe4e6;
-  border: 1px solid #fecdd3;
+  color: var(--destructive);
+  background: var(--red-bg);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, var(--border));
 }
 
 .subscribe-alert--success {
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #ccfbf1;
+  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border));
 }
 
 .subscribe-form fieldset {
@@ -734,8 +795,8 @@ async function submitTrial() {
   width: 100%;
   margin: 4px 0;
   padding-bottom: 6px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #0f172a;
+  border-bottom: 1px solid var(--border);
+  color: var(--card-foreground);
   font-family: 'Manrope', sans-serif;
   font-size: 0.9rem;
   font-weight: 800;
@@ -748,36 +809,41 @@ async function submitTrial() {
 .subscribe-form label {
   display: grid;
   gap: 6px;
-  color: #1e293b;
+  color: var(--card-foreground);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .subscribe-form label > span {
-  color: #e11d48;
+  color: var(--destructive);
 }
 
 .subscribe-form input {
   width: 100%;
   padding: 11px 13px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--input);
   border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--card);
+  color: var(--foreground);
   font: inherit;
   font-size: 0.88rem;
   outline: 0;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.subscribe-form input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
 .subscribe-form input:focus {
-  border-color: #0d9488;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
 .subscribe-form label small {
   margin-top: -2px;
-  color: #64748b;
+  color: var(--muted-foreground);
   font-size: 0.72rem;
   font-weight: 500;
 }
@@ -798,18 +864,18 @@ async function submitTrial() {
   padding: 13px 18px;
   border: 0;
   border-radius: 9px;
-  background: #0d9488;
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font: inherit;
   font-size: 0.92rem;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 30%, transparent);
   transition: background 0.15s ease, transform 0.12s ease;
 }
 
 .subscribe-submit:hover:not(:disabled) {
-  background: #0f766e;
+  background: var(--primary-hover);
   transform: translateY(-2px);
 }
 
@@ -829,7 +895,7 @@ async function submitTrial() {
 
 .subscribe-terms {
   margin: 15px 0 0;
-  color: #64748b;
+  color: var(--muted-foreground);
   font-size: 0.74rem;
   line-height: 1.5;
   text-align: center;
@@ -847,11 +913,11 @@ async function submitTrial() {
 }
 
 .success-banner-card {
-  background: #ffffff;
-  border: 1px solid #99f6e4;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
   border-radius: 20px;
   padding: 36px;
-  box-shadow: 0 10px 32px rgba(13, 148, 136, 0.08);
+  box-shadow: 0 10px 32px color-mix(in srgb, var(--primary) 12%, transparent);
   display: flex;
   gap: 24px;
 }
@@ -864,15 +930,16 @@ async function submitTrial() {
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: #0d9488;
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.35);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
 .sbc-body-col {
+  min-width: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -886,9 +953,9 @@ async function submitTrial() {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #ccfbf1;
+  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border));
   padding: 4px 10px;
   border-radius: 6px;
 }
@@ -897,13 +964,13 @@ async function submitTrial() {
   font-family: 'Manrope', sans-serif;
   font-size: 1.7rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--card-foreground);
   letter-spacing: -0.03em;
   margin: 0;
 }
 
 .sbc-body-col p {
-  color: #475569;
+  color: var(--muted-foreground);
   font-size: 0.92rem;
   line-height: 1.6;
   margin: 0;
@@ -914,8 +981,8 @@ async function submitTrial() {
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   padding: 16px 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin-top: 6px;
 }
@@ -931,20 +998,21 @@ async function submitTrial() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
+  color: var(--muted-foreground);
 }
 
 .sbc-meta-item strong {
+  overflow-wrap: anywhere;
   font-size: 0.88rem;
-  color: #0f172a;
+  color: var(--card-foreground);
 }
 
 .sbc-ref-code {
   font-family: monospace;
   font-size: 0.92rem;
   font-weight: 800;
-  color: #0d9488;
-  background: #ccfbf1;
+  color: var(--primary);
+  background: var(--primary-bg);
   padding: 2px 6px;
   border-radius: 4px;
   align-self: flex-start;
@@ -965,20 +1033,20 @@ async function submitTrial() {
   padding: 12px 22px;
   border-radius: 9px;
   border: none;
-  background: #0d9488;
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-family: 'DM Sans', sans-serif;
   font-size: 0.88rem;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 30%, transparent);
   transition: all 0.15s ease;
 }
 
 .sbc-enter-btn:hover {
-  background: #0f766e;
+  background: var(--primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.4);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
 .sbc-email-btn {
@@ -987,9 +1055,9 @@ async function submitTrial() {
   gap: 8px;
   padding: 11px 20px;
   border-radius: 9px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--card-foreground);
   font-family: 'DM Sans', sans-serif;
   font-size: 0.88rem;
   font-weight: 700;
@@ -998,8 +1066,8 @@ async function submitTrial() {
 }
 
 .sbc-email-btn:hover {
-  border-color: #0d9488;
-  color: #0d9488;
+  border-color: var(--primary);
+  color: var(--primary);
   transform: translateY(-1px);
 }
 
@@ -1015,7 +1083,7 @@ async function submitTrial() {
 }
 
 .spc-kicker {
-  color: #0d9488;
+  color: var(--primary);
   font-size: 0.74rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -1026,13 +1094,13 @@ async function submitTrial() {
   font-family: 'Manrope', sans-serif;
   font-size: 1.45rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--foreground);
   letter-spacing: -0.02em;
   margin: 6px 0 6px;
 }
 
 .spc-heading p {
-  color: #64748b;
+  color: var(--muted-foreground);
   font-size: 0.86rem;
   line-height: 1.55;
   margin: 0;
@@ -1040,20 +1108,20 @@ async function submitTrial() {
 
 .spc-heading code {
   font-family: monospace;
-  background: #f1f5f9;
+  background: var(--muted);
   padding: 2px 6px;
   border-radius: 4px;
-  color: #0d9488;
+  color: var(--primary);
   font-weight: 700;
 }
 
 .spc-empty {
   text-align: center;
   padding: 40px;
-  background: #ffffff;
-  border: 1px dashed #cbd5e1;
+  background: var(--card);
+  border: 1px dashed var(--input);
   border-radius: 14px;
-  color: #64748b;
+  color: var(--muted-foreground);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1067,11 +1135,12 @@ async function submitTrial() {
 }
 
 .subscribe-payment-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 22px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1080,8 +1149,8 @@ async function submitTrial() {
 
 .subscribe-payment-card:hover {
   transform: translateY(-3px);
-  border-color: #0d9488;
-  box-shadow: 0 10px 26px rgba(13, 148, 136, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .sp-card-header {
@@ -1089,13 +1158,14 @@ async function submitTrial() {
   flex-direction: column;
   gap: 8px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border);
 }
 
 .sp-badge-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1106,8 +1176,8 @@ async function submitTrial() {
   letter-spacing: 0.04em;
   padding: 3px 8px;
   border-radius: 5px;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .sp-qr-badge {
@@ -1116,18 +1186,19 @@ async function submitTrial() {
   gap: 4px;
   font-size: 0.68rem;
   font-weight: 700;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #ccfbf1;
+  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border));
   padding: 3px 7px;
   border-radius: 999px;
 }
 
 .sp-bank-name {
+  overflow-wrap: anywhere;
   font-family: 'Manrope', sans-serif;
   font-size: 1.12rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--card-foreground);
   margin: 0;
 }
 
@@ -1142,9 +1213,9 @@ async function submitTrial() {
   flex-direction: column;
   align-items: center;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--muted);
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .sp-qr-thumb-wrap {
@@ -1152,12 +1223,12 @@ async function submitTrial() {
   width: 130px;
   height: 130px;
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card);
   padding: 6px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .sp-qr-thumb {
@@ -1170,8 +1241,8 @@ async function submitTrial() {
 .sp-qr-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.85);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--sidebar) 88%, transparent);
+  color: var(--sidebar-foreground);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1191,7 +1262,7 @@ async function submitTrial() {
   margin-top: 8px;
   background: transparent;
   border: none;
-  color: #0d9488;
+  color: var(--primary);
   font-size: 0.76rem;
   font-weight: 700;
   cursor: pointer;
@@ -1219,13 +1290,14 @@ async function submitTrial() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
+  color: var(--muted-foreground);
 }
 
 .sp-field-val {
+  overflow-wrap: anywhere;
   font-size: 0.88rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--card-foreground);
 }
 
 .sp-acc-row {
@@ -1233,17 +1305,17 @@ async function submitTrial() {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: #f8fafc;
+  background: var(--muted);
   padding: 7px 10px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .sp-acc-code {
   font-family: monospace;
   font-size: 0.95rem;
   font-weight: 800;
-  color: #0d9488;
+  color: var(--primary);
   letter-spacing: 0.05em;
   word-break: break-all;
 }
@@ -1254,9 +1326,9 @@ async function submitTrial() {
   gap: 4px;
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--card-foreground);
   font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
@@ -1265,18 +1337,18 @@ async function submitTrial() {
 }
 
 .sp-copy-btn:hover {
-  background: #0d9488;
-  color: #ffffff;
-  border-color: #0d9488;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 
 .sp-instructions {
   font-size: 0.74rem;
-  color: #475569;
+  color: var(--muted-foreground);
   line-height: 1.45;
   padding: 8px 10px;
   border-radius: 7px;
-  background: #f1f5f9;
+  background: var(--muted);
 }
 
 .spc-footer-banner {
@@ -1286,9 +1358,9 @@ async function submitTrial() {
   gap: 20px;
   padding: 22px 28px;
   border-radius: 14px;
-  background: #0f172a;
-  color: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  box-shadow: var(--shadow-lg);
   margin-top: 10px;
 }
 
@@ -1297,12 +1369,12 @@ async function submitTrial() {
   font-family: 'Manrope', sans-serif;
   font-size: 0.98rem;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--sidebar-foreground);
   margin-bottom: 4px;
 }
 
 .spc-footer-banner p {
-  color: #94a3b8;
+  color: color-mix(in srgb, var(--sidebar-foreground) 68%, transparent);
   font-size: 0.82rem;
   margin: 0;
 }
@@ -1312,7 +1384,7 @@ async function submitTrial() {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(15, 23, 42, 0.75);
+  background: color-mix(in srgb, var(--sidebar) 78%, transparent);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -1323,10 +1395,14 @@ async function submitTrial() {
 .subscribe-qr-modal {
   position: relative;
   width: min(100%, 440px);
-  background: #ffffff;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 28px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1339,9 +1415,9 @@ async function submitTrial() {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #475569;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1350,8 +1426,8 @@ async function submitTrial() {
 }
 
 .subscribe-qr-close:hover {
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .sqm-header {
@@ -1367,22 +1443,23 @@ async function submitTrial() {
   letter-spacing: 0.04em;
   padding: 3px 8px;
   border-radius: 5px;
-  background: #f0fdfa;
-  color: #0f766e;
-  border: 1px solid #ccfbf1;
+  background: var(--primary-bg);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
   margin-bottom: 6px;
 }
 
 .sqm-title {
+  overflow-wrap: anywhere;
   font-family: 'Manrope', sans-serif;
   font-size: 1.25rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--popover-foreground);
   margin: 0 0 4px;
 }
 
 .sqm-subtitle {
-  color: #64748b;
+  color: var(--muted-foreground);
   font-size: 0.78rem;
   margin: 0;
 }
@@ -1391,10 +1468,10 @@ async function submitTrial() {
   width: 240px;
   height: 240px;
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--card);
   padding: 10px;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--input);
+  box-shadow: var(--shadow-md);
   margin-bottom: 18px;
 }
 
@@ -1410,13 +1487,14 @@ async function submitTrial() {
   flex-direction: column;
   gap: 8px;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--muted);
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   margin-bottom: 18px;
 }
 
 .sqm-row {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1425,17 +1503,22 @@ async function submitTrial() {
 }
 
 .sqm-label {
-  color: #64748b;
+  color: var(--muted-foreground);
   font-weight: 600;
 }
 
 .sqm-row strong {
-  color: #0f172a;
+  overflow-wrap: anywhere;
+  color: var(--popover-foreground);
+  text-align: right;
 }
 
 .sqm-acc-copy {
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1443,32 +1526,32 @@ async function submitTrial() {
   font-family: monospace;
   font-size: 0.95rem;
   font-weight: 800;
-  color: #0d9488;
+  color: var(--primary);
 }
 
 .sqm-copy-btn {
   padding: 3px 8px;
   border-radius: 5px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--card-foreground);
   font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
 }
 
 .sqm-copy-btn:hover {
-  background: #0d9488;
-  color: #ffffff;
-  border-color: #0d9488;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 
 .sqm-instructions {
   font-size: 0.74rem;
-  color: #64748b;
+  color: var(--muted-foreground);
   margin: 4px 0 0;
   padding-top: 6px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
 }
 
 .sqm-footer {
@@ -1483,8 +1566,8 @@ async function submitTrial() {
   width: 100%;
   padding: 11px 18px;
   border-radius: 9px;
-  background: #0d9488;
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-size: 0.86rem;
   font-weight: 800;
   text-decoration: none;
@@ -1492,7 +1575,7 @@ async function submitTrial() {
 }
 
 .sqm-action-btn:hover {
-  background: #0f766e;
+  background: var(--primary-hover);
 }
 
 @media (max-width: 800px) {
@@ -1520,6 +1603,10 @@ async function submitTrial() {
     align-items: flex-start;
     flex-direction: column;
   }
+  .subscribe-topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
   .subscribe-signin {
     font-size: 0.82rem;
   }
@@ -1537,6 +1624,32 @@ async function submitTrial() {
   }
   .sbc-meta-grid {
     grid-template-columns: 1fr;
+  }
+  .sbc-actions-row > * {
+    width: 100%;
+    justify-content: center;
+  }
+  .spc-footer-banner .sbc-enter-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .sqm-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .sqm-row strong {
+    text-align: left;
+  }
+  .sqm-acc-copy {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .subscribe-qr-modal {
+    padding: 22px;
+  }
+  .sqm-image-box {
+    width: min(240px, 70vw);
+    height: min(240px, 70vw);
   }
 }
 </style>

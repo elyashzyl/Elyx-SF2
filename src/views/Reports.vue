@@ -797,12 +797,12 @@ async function archiveCurrentReport(type) {
 
 .report-tab-btn:hover {
   color: var(--foreground);
-  background: var(--surface-subtle);
+  background: var(--muted);
 }
 
 .report-tab-btn.active {
   color: var(--primary);
-  background: var(--surface);
+  background: var(--card);
   border-color: var(--border);
   box-shadow: var(--shadow-sm);
 }
@@ -842,7 +842,7 @@ async function archiveCurrentReport(type) {
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--card);
   color: var(--foreground);
   font-size: 0.85rem;
 }
@@ -865,19 +865,19 @@ async function archiveCurrentReport(type) {
   border-radius: 50%;
   font-size: 0.8rem;
   font-weight: 700;
-  background: var(--surface-subtle);
+  background: var(--muted);
   color: var(--muted-foreground);
 }
 
-.rank-1 { background: rgba(12, 83, 87, 0.15); color: var(--primary); font-weight: 800; }
-.rank-2 { background: rgba(12, 83, 87, 0.1); color: var(--primary); }
-.rank-3 { background: rgba(12, 83, 87, 0.06); color: var(--primary); }
+.rank-1 { background: var(--primary-bg); color: var(--primary); font-weight: 800; }
+.rank-2 { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
+.rank-3 { background: color-mix(in srgb, var(--primary) 6%, transparent); color: var(--primary); }
 
 .badge-sardo-risk {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 9999px;
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--red-bg);
   color: var(--destructive);
   font-size: 0.75rem;
   font-weight: 600;
@@ -897,13 +897,13 @@ async function archiveCurrentReport(type) {
 }
 
 .compliance-met {
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .compliance-below {
-  background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .quarterly-stats-banner {
@@ -911,7 +911,7 @@ async function archiveCurrentReport(type) {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   padding: 16px 20px;
-  background: var(--surface-subtle);
+  background: var(--muted);
   border-radius: var(--radius-sm);
   margin-top: 14px;
 }
@@ -966,7 +966,7 @@ async function archiveCurrentReport(type) {
 
 .tpl-hash {
   font-size: 0.75rem;
-  background: var(--surface-subtle);
+  background: var(--muted);
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   word-break: break-all;
@@ -990,13 +990,13 @@ async function archiveCurrentReport(type) {
 }
 
 .results--valid {
-  background: rgba(16, 185, 129, 0.04);
-  border-color: rgba(16, 185, 129, 0.25);
+  background: color-mix(in srgb, var(--success) 4%, transparent);
+  border-color: color-mix(in srgb, var(--success) 25%, var(--border));
 }
 
 .results--warning {
-  background: rgba(245, 158, 11, 0.04);
-  border-color: rgba(245, 158, 11, 0.25);
+  background: color-mix(in srgb, var(--warning) 4%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 25%, var(--border));
 }
 
 .validation-status-banner {
@@ -1012,7 +1012,7 @@ async function archiveCurrentReport(type) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface);
+  background: var(--card);
   color: var(--primary);
   flex-shrink: 0;
 }
@@ -1035,13 +1035,13 @@ async function archiveCurrentReport(type) {
 }
 
 .errors-block {
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 
 .warnings-block {
-  background: rgba(245, 158, 11, 0.08);
-  color: #b45309;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .val-issue-block h5 {
@@ -1060,7 +1060,7 @@ async function archiveCurrentReport(type) {
   font-size: 0.75rem;
   padding: 2px 7px;
   border-radius: 4px;
-  background: var(--surface-subtle);
+  background: var(--muted);
   color: var(--foreground);
 }
 
@@ -1069,11 +1069,11 @@ async function archiveCurrentReport(type) {
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
-  background: rgba(12, 83, 87, 0.1);
+  background: var(--primary-bg);
   color: var(--primary);
 }
 
 .text-teal { color: var(--primary); }
-.text-amber { color: #d97706; }
+.text-amber { color: var(--warning); }
 .text-danger { color: var(--destructive); }
 </style>

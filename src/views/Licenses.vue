@@ -190,7 +190,7 @@
                       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
                   </button>
-                  <button class="btn-icon" style="color: var(--destructive);" @click="deletePlan(p)" title="Delete Subscription Plan">
+                  <button class="btn-icon icon-btn--danger" @click="deletePlan(p)" title="Delete Subscription Plan">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
                     </svg>
@@ -318,8 +318,7 @@
               {{ paymentActionId === pm.id ? 'Updating…' : (pm.is_active ? 'Disable' : 'Enable') }}
             </button>
             <button
-              class="btn btn-sm btn-icon"
-              style="color: var(--destructive);"
+              class="btn btn-sm btn-icon icon-btn--danger"
               @click="deletePaymentMethod(pm)"
               :disabled="paymentActionId === pm.id"
               title="Delete"
@@ -355,7 +354,7 @@
               <td><code>{{ request.payment_reference || 'Proof attached' }}</code></td>
               <td><span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span></td>
               <td>{{ formatDate(request.created_at) }}</td>
-              <td v-if="request.status === 'pending'" class="table-actions">
+              <td v-if="request.status === 'pending'" class="table-action-cell">
                 <button class="btn btn-sm btn-success" type="button" @click="reviewSubscriptionRequest(request, 'approved')">Approve</button>
                 <button class="btn btn-sm btn-danger" type="button" @click="reviewSubscriptionRequest(request, 'rejected')">Reject</button>
               </td>
@@ -507,12 +506,12 @@
               </td>
               <td>
                 <div class="table-actions">
-                  <button v-if="lic.status === 'active'" class="btn-icon" style="color: var(--destructive);" @click="suspendLicense(lic.id)" title="Stop / Suspend License">
+                  <button v-if="lic.status === 'active'" class="btn-icon icon-btn--danger" @click="suspendLicense(lic.id)" title="Stop / Suspend License">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
                     </svg>
                   </button>
-                  <button v-else-if="lic.status === 'suspended'" class="btn-icon" style="color: var(--success);" @click="resumeLicense(lic.id)" title="Resume License">
+                  <button v-else-if="lic.status === 'suspended'" class="btn-icon icon-btn--success" @click="resumeLicense(lic.id)" title="Resume License">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polygon points="5 3 19 12 5 21 5 3"/>
                     </svg>
@@ -527,7 +526,7 @@
                       <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                     </svg>
                   </button>
-                  <button class="btn-icon" style="color: var(--destructive);" @click="deleteLicense(lic)" title="Delete License Permanently">
+                  <button class="btn-icon icon-btn--danger" @click="deleteLicense(lic)" title="Delete License Permanently">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
                     </svg>
@@ -1632,6 +1631,7 @@ onUnmounted(() => {
 .license-meta-keys {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   background: var(--secondary);
   border: 1px solid var(--border);
@@ -1645,6 +1645,8 @@ onUnmounted(() => {
 }
 
 .license-key-code {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: monospace;
   font-weight: 700;
   font-size: 0.88rem;
@@ -1802,7 +1804,9 @@ onUnmounted(() => {
 .hero-btns {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .tier-badge {
@@ -1834,11 +1838,13 @@ onUnmounted(() => {
 .modal-card {
   width: 100%;
   max-width: 520px;
+  max-height: 90vh;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .modal-header {
@@ -1962,23 +1968,23 @@ onUnmounted(() => {
 }
 
 .type--gcash_qr {
-  background: #007dfe1f;
-  color: #007dfe;
+  background: var(--info-bg);
+  color: var(--info);
 }
 
 .type--maya_qr {
-  background: #00d6651f;
-  color: #00a84e;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .type--bank_transfer {
-  background: #f59e0b1f;
-  color: #d97706;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .type--qr_ph {
-  background: #8b5cf61f;
-  color: #7c3aed;
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 .pm-bank-name {
@@ -2094,6 +2100,7 @@ onUnmounted(() => {
 .pm-card-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: auto;
   padding-top: 10px;

@@ -358,7 +358,7 @@
 
         <div v-if="exportValidationResult" class="val-summary-pane" :class="exportValidationResult.valid ? 'pane-valid' : 'pane-warning'">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-            <span :style="{ color: exportValidationResult.valid ? '#059669' : '#d97706', fontWeight: 800 }">
+            <span class="validation-status" :class="exportValidationResult.valid ? 'validation-status--valid' : 'validation-status--warning'">
               {{ exportValidationResult.valid ? '✓ Ready for Export' : '⚠ Warnings Found in Dataset' }}
             </span>
           </div>
@@ -367,14 +367,14 @@
             Learners: <strong>{{ exportValidationResult.summary.totalLearners }}</strong> ({{ exportValidationResult.summary.maleCount }} Male, {{ exportValidationResult.summary.femaleCount }} Female)
           </div>
 
-          <div v-if="exportValidationResult.errors.length" style="background: rgba(239, 68, 68, 0.1); color: var(--destructive); padding: 10px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 10px;">
+          <div v-if="exportValidationResult.errors.length" class="validation-message validation-message--error">
             <strong>Errors:</strong>
             <ul style="margin: 4px 0 0 16px; padding: 0;">
               <li v-for="(e, i) in exportValidationResult.errors" :key="i">{{ e }}</li>
             </ul>
           </div>
 
-          <div v-if="exportValidationResult.warnings.length" style="background: rgba(245, 158, 11, 0.1); color: #b45309; padding: 10px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 10px;">
+          <div v-if="exportValidationResult.warnings.length" class="validation-message validation-message--warning">
             <strong>Advisories:</strong>
             <ul style="margin: 4px 0 0 16px; padding: 0;">
               <li v-for="(w, i) in exportValidationResult.warnings" :key="i">{{ w }}</li>
@@ -1186,7 +1186,7 @@ async function updateRemarks(entry) {
   margin: 12px 0 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-xs);
 }
 
@@ -1221,18 +1221,88 @@ async function updateRemarks(entry) {
 .pill--holiday {
   background: var(--warning-bg);
   color: var(--warning);
-  border-color: rgba(182, 131, 56, 0.3);
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
 }
 
 .pill--suspension {
-  background: var(--red-bg, rgba(196, 84, 78, 0.1));
+  background: var(--red-bg);
   color: var(--destructive);
-  border-color: rgba(196, 84, 78, 0.3);
+  border-color: color-mix(in srgb, var(--destructive) 30%, var(--border));
 }
 
 .pill--event {
-  background: var(--info-bg, rgba(85, 126, 155, 0.1));
+  background: var(--info-bg);
   color: var(--info);
-  border-color: rgba(85, 126, 155, 0.3);
+  border-color: color-mix(in srgb, var(--info) 30%, var(--border));
+}
+.validation-status {
+  font-weight: 800;
+}
+
+.validation-status--valid {
+  color: var(--success);
+}
+
+.validation-status--warning {
+  color: var(--warning);
+}
+
+.validation-message {
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.validation-message--error {
+  background: var(--red-bg);
+  color: var(--destructive);
+}
+
+.validation-message--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+@media (max-width: 720px) {
+  .sheet-info {
+    align-items: stretch;
+  }
+
+  .sheet-info > span,
+  .sheet-info > .sheet-setting {
+    max-width: 100%;
+  }
+
+  .sheet-setting,
+  .sync-calendar-btn {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .adviser-input {
+    max-width: 100%;
+  }
+
+  .calendar-events-strip-title,
+  .calendar-event-pills {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-card[style*="max-width"] {
+    max-width: none !important;
+  }
+
+  .sheet-info > span {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .summary-filters-bar {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -364,7 +364,7 @@
           @blur="handleSaveTeacherNotes"
         ></textarea>
         <div class="teacher-notes-footer">
-          <small class="text-muted">Auto-saves on blur or click Save Notes.</small>
+          <small class="notes-autosave-hint">Auto-saves on blur or click Save Notes.</small>
           <button
             type="button"
             class="btn-save-notes"
@@ -1157,7 +1157,7 @@ function printSheet() {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   margin-bottom: 14px;
   font-size: 0.82rem;
   border: 1px solid var(--border);
@@ -1166,19 +1166,26 @@ function printSheet() {
 .banner--offline {
   background: var(--warning-bg);
   color: var(--warning);
-  border-color: rgba(182, 131, 56, 0.35);
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
 }
 
 .banner--pending {
-  background: var(--info-bg, rgba(85, 126, 155, 0.12));
+  background: var(--info-bg);
   color: var(--info);
-  border-color: rgba(85, 126, 155, 0.35);
+  border-color: color-mix(in srgb, var(--info) 35%, var(--border));
 }
 
 .offline-banner-content {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.offline-banner-content > span:not(.offline-banner-icon) {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .offline-banner-icon {
@@ -1189,6 +1196,8 @@ function printSheet() {
 .btn-sync-offline {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   gap: 6px;
   background: var(--primary);
   color: var(--primary-foreground);
@@ -1218,7 +1227,7 @@ function printSheet() {
   gap: 12px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 10px);
+  border-radius: var(--radius-lg);
   padding: 12px 18px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
@@ -1283,6 +1292,8 @@ function printSheet() {
 .telemetry-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -1293,7 +1304,7 @@ function printSheet() {
   background: transparent;
   color: var(--primary);
   border: 1.5px solid var(--primary);
-  border-radius: var(--radius-md, 7px);
+  border-radius: var(--radius-md);
   padding: 6px 14px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -1317,14 +1328,15 @@ function printSheet() {
   padding: 16px 20px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
 
 .teacher-notes-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 6px;
 }
 
@@ -1332,8 +1344,13 @@ function printSheet() {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   color: var(--foreground);
   font-size: 0.95rem;
+}
+
+.teacher-notes-title strong {
+  overflow-wrap: anywhere;
 }
 
 .notes-status-badge {
@@ -1345,7 +1362,7 @@ function printSheet() {
   font-weight: 700;
   padding: 2px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(79, 149, 97, 0.25);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, var(--border));
 }
 
 .teacher-notes-desc {
@@ -1360,8 +1377,8 @@ function printSheet() {
   padding: 10px 12px;
   background: var(--background);
   color: var(--foreground);
-  border: 1px solid var(--input, var(--border));
-  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
   font-family: inherit;
   font-size: 0.85rem;
   resize: vertical;
@@ -1389,6 +1406,12 @@ function printSheet() {
   gap: 12px;
 }
 
+.notes-autosave-hint {
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+}
+
 .btn-save-notes {
   display: inline-flex;
   align-items: center;
@@ -1399,7 +1422,7 @@ function printSheet() {
   padding: 6px 14px;
   font-size: 0.8rem;
   font-weight: 700;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -1533,17 +1556,54 @@ function printSheet() {
   border-radius: 999px;
 }
 
-.bar--male { background: var(--info, #557e9b); }
-.bar--female { background: var(--accent, #c66a4d); }
+.bar--male { background: var(--info); }
+.bar--female { background: var(--accent); }
 
 .gender-split-col small {
   font-size: 0.7rem;
   color: var(--muted-foreground);
 }
 
+@media (max-width: 720px) {
+  .offline-sync-banner {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .offline-banner-content,
+  .btn-sync-offline {
+    width: 100%;
+  }
+
+  .telemetry-stats,
+  .telemetry-actions {
+    width: 100%;
+  }
+
+  .telemetry-actions > * {
+    flex: 1 1 220px;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .teacher-notes-footer {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .notes-autosave-hint,
+  .btn-save-notes {
+    flex: 1 1 220px;
+  }
+}
+
 @media (max-width: 600px) {
-  .summary-filters-bar { grid-template-columns: 1fr 1fr; }
+  .summary-filters-bar { grid-template-columns: 1fr; }
   .summary-kpi-grid { grid-template-columns: 1fr; }
   .gender-split-row { grid-template-columns: 1fr; }
+
+  .teacher-notes-header {
+    flex-wrap: wrap;
+  }
 }
 </style>

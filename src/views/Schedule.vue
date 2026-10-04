@@ -28,7 +28,7 @@
     <div v-if="showTimeEditor" class="modal-overlay" @click.self="cancelTimeEditor">
       <div class="form-card schedule-form time-editor-modal">
         <h3>Period Time Settings</h3>
-        <p style="font-size:.82rem;color:var(--text-sub);margin-bottom:12px">Set the default time range for each period.</p>
+        <p class="period-settings-help">Set the default time range for each period.</p>
         <div class="time-editor-grid">
           <div v-for="p in periodKeys" :key="p" class="time-editor-row">
             <span class="time-editor-label" :style="{ background: periodColor(p) }">{{ p.toUpperCase() }}</span>
@@ -146,7 +146,7 @@
               </td>
             </tr>
             <tr v-if="!quarterlyEvents.length">
-              <td :colspan="isAdmin ? 6 : 5" style="text-align:center;color:var(--text-sub);padding:24px">No important dates set yet.</td>
+              <td :colspan="isAdmin ? 6 : 5" class="quarterly-empty">No important dates set yet.</td>
             </tr>
           </tbody>
         </table>
@@ -303,32 +303,51 @@ const isAdmin = computed(() => auth.isAdmin)
 const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const periodKeys = ['am1', 'am2', 'am3', 'am4', 'am5', 'am6', 'pm1', 'pm2', 'pm3', 'pm4']
 
-const periodColors = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#db2777', '#be123c', '#4f46e5']
+const periodColors = [
+  'var(--destructive)',
+  'var(--orange)',
+  'var(--warning)',
+  'var(--success)',
+  'var(--info)',
+  'var(--primary)',
+  'var(--accent)',
+  'var(--destructive-hover)',
+  'var(--orange)',
+  'var(--primary-hover)'
+]
+const subjectColorPalette = [
+  'var(--primary-bg)',
+  'var(--info-bg)',
+  'var(--success-bg)',
+  'var(--warning-bg)',
+  'var(--red-bg)',
+  'var(--secondary)'
+]
 const subjectColors = {}
 
 const eventTypes = [
-  { key: 'holiday', label: 'Holiday', color: '#ef4444' },
-  { key: 'inset', label: 'Inset', color: '#f59e0b' },
-  { key: 'co-curricular', label: 'Co-curricular', color: '#10b981' },
-  { key: 'home-school', label: 'Home-School Collaboration', color: '#3b82f6' },
-  { key: 'quarterly-exam', label: 'Quarterly Exam', color: '#8b5cf6' }
+  { key: 'holiday', label: 'Holiday', color: 'var(--destructive)' },
+  { key: 'inset', label: 'Inset', color: 'var(--warning)' },
+  { key: 'co-curricular', label: 'Co-curricular', color: 'var(--success)' },
+  { key: 'home-school', label: 'Home-School Collaboration', color: 'var(--info)' },
+  { key: 'quarterly-exam', label: 'Quarterly Exam', color: 'var(--accent)' }
 ]
 
 function eventTypeColor(type) {
   const t = eventTypes.find(e => e.key === type)
-  return t ? t.color : '#6b7280'
+  return t ? t.color : 'var(--muted-foreground)'
 }
 
 function periodColor(p) {
   const idx = periodKeys.indexOf(p)
-  return periodColors[idx] || '#6b7280'
+  return periodColors[idx] || 'var(--muted-foreground)'
 }
 
 function entryColor(entry) {
   const key = entry.subject || 'none'
   if (!subjectColors[key]) {
-    const hue = (Object.keys(subjectColors).length * 47) % 360
-    subjectColors[key] = `hsl(${hue}, 55%, 85%)`
+    const colorIndex = Object.keys(subjectColors).length % subjectColorPalette.length
+    subjectColors[key] = subjectColorPalette[colorIndex]
   }
   return subjectColors[key]
 }
@@ -788,3 +807,151 @@ async function handleDelete() {
   }
 }
 </script>
+
+<style scoped>
+.schedule-page .page-header-text {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.schedule-page .page-header-text h1,
+.schedule-page .page-header-text p {
+  overflow-wrap: anywhere;
+}
+
+.schedule-page .page-header-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.period-settings-help {
+  margin: 0 0 12px;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+}
+
+.quarterly-empty {
+  padding: 24px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.time-editor-row {
+  min-width: 0;
+}
+
+.time-editor-input {
+  min-width: 0;
+  flex: 1 1 120px;
+}
+
+.month-cal-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.month-cal-event {
+  color: var(--primary-foreground);
+}
+
+.cal-event-legend-item {
+  min-width: 0;
+}
+
+.cal-event-legend-item:last-child {
+  overflow-wrap: anywhere;
+}
+
+.cal-entry-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cal-entry-subjects,
+.cal-entry-detail,
+.cal-entry-time {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .schedule-sidebar-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 820px) {
+  .schedule-page .page-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .schedule-page .page-header-actions > * {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+
+  .month-cal {
+    padding: 16px;
+  }
+
+  .month-cal-header {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .month-cal-title {
+    order: -1;
+    width: 100%;
+  }
+
+  .month-cal-nav,
+  .today-btn {
+    flex: 1 1 auto;
+  }
+
+  .month-cal-nav button,
+  .today-btn {
+    flex: 1 1 0;
+  }
+
+  .cal-grid {
+    overflow-x: auto;
+  }
+
+  .cal-header-row,
+  .cal-body-row {
+    min-width: 680px;
+  }
+
+  .quarterly-table {
+    min-width: 700px;
+  }
+}
+
+@media (max-width: 600px) {
+  .schedule-page .page-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .schedule-page .page-header-actions > * {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .time-editor-row {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .time-editor-label {
+    flex: 1 1 100%;
+  }
+
+  .time-editor-sep {
+    align-self: center;
+  }
+}
+</style>

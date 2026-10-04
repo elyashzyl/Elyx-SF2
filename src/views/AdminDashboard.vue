@@ -1643,7 +1643,7 @@ onMounted(async () => {
   justify-content: center;
   font-size: 0.74rem;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--primary-foreground);
 }
 
 .gender-fill--male { background: var(--info); }

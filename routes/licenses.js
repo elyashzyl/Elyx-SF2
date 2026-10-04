@@ -114,13 +114,6 @@ router.get('/landing-data', async (req, res) => {
       }
     })
 
-    let paymentMethods = []
-    try {
-      paymentMethods = await query(
-        'SELECT id, type, bank_name, account_name, account_number, qr_image_url, instructions, sort_order FROM payment_methods WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC'
-      )
-    } catch (_) {}
-
     res.json({
       plans,
       school: schoolRow,
@@ -139,8 +132,7 @@ router.get('/landing-data', async (req, res) => {
         monthLabel: currentMonth
       },
       previewStudents,
-      riskStudents: mappedRiskStudents,
-      paymentMethods
+      riskStudents: mappedRiskStudents
     })
   } catch (err) {
     console.error('Failed to get landing data:', err.message)

@@ -498,9 +498,13 @@
 
           <!-- Permanent Delete Confirmation Checkbox -->
           <div v-if="bulkActionType === 'permanent_delete'" class="form-group" style="margin-top: 10px;">
-            <label class="tbl-check" style="color: var(--destructive); font-weight: 700;">
+            <label class="tbl-check bulk-confirm-check" :class="{ 'is-checked': bulkForm.confirmDelete }">
+              <svg class="toolbar-control-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10.3 2.9 1.8 17.5A2 2 0 0 0 3.5 20.5h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
+              </svg>
+              <span>I understand that this permanently deletes these learners and all attendance history.</span>
               <input v-model="bulkForm.confirmDelete" type="checkbox" required />
-              I understand that this action permanently deletes these learners and all their attendance history.
+              <span class="toolbar-switch" aria-hidden="true"></span>
             </label>
           </div>
 
@@ -682,10 +686,11 @@
                     <small style="color: var(--muted-foreground);">{{ inv.created_at ? inv.created_at.slice(0, 10) : '' }}</small>
                   </div>
                   <div style="display: flex; gap: 6px;">
-                    <button v-if="inv.resolution_status !== 'resolved'" @click="updateInterventionStatus(inv, 'resolved')" class="btn-xs-reenroll" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);" title="Mark as resolved">
-                      ✓ Resolve
+                    <button v-if="inv.resolution_status !== 'resolved'" @click="updateInterventionStatus(inv, 'resolved')" class="btn-xs-status btn-xs-status--success" title="Mark as resolved">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+                      Resolve
                     </button>
-                    <button v-if="inv.resolution_status === 'open'" @click="updateInterventionStatus(inv, 'in_progress')" class="btn-xs-reenroll" title="Mark as in progress">
+                    <button v-if="inv.resolution_status === 'open'" @click="updateInterventionStatus(inv, 'in_progress')" class="btn-xs-status" title="Mark as in progress">
                       In Progress
                     </button>
                     <button @click="removeIntervention(inv)" class="icon-btn icon-btn--danger" style="padding: 2px;" title="Delete record">
@@ -1056,8 +1061,12 @@
             <option value="Female">Female</option>
           </select>
           <label class="tbl-check" :class="{ 'is-checked': includeWithdrawn }">
-            <input v-model="includeWithdrawn" @change="currentPage = 1; loadStudents()" type="checkbox" />
+            <svg class="toolbar-control-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3.87-4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
             <span>Include withdrawn</span>
+            <input v-model="includeWithdrawn" @change="currentPage = 1; loadStudents()" type="checkbox" />
+            <span class="toolbar-switch" aria-hidden="true"></span>
           </label>
         </div>
       </div>
@@ -1150,14 +1159,7 @@
             <td>
               {{ s.section }}
               <span v-if="s.enrollment_status === 'withdrawn'" class="pill pill--red">Withdrawn</span>
-              <button
-                v-if="s.enrollment_status === 'withdrawn'"
-                @click="openReenrollModal(s)"
-                class="btn-xs-reenroll"
-                title="Re-enroll this student"
-              >
-                Re-enroll
-              </button>
+
             </td>
             <td class="student-actions-cell">
               <div class="row-actions student-row-actions">

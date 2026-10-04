@@ -321,7 +321,7 @@ onMounted(async () => {
   padding: 18px 32px;
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(10px);
-  background: rgba(var(--background), 0.85);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
 }
 
 .auth-brand {
@@ -337,7 +337,7 @@ onMounted(async () => {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 4px 14px rgba(12, 83, 87, 0.28);
+  box-shadow: 0 4px 14px var(--primary-glow);
 }
 
 .auth-brand-text {
@@ -382,6 +382,16 @@ onMounted(async () => {
 .auth-theme-btn:hover {
   background: var(--secondary);
   border-color: var(--ring);
+}
+
+.auth-brand:focus-visible,
+.auth-theme-btn:focus-visible,
+.auth-home-link:focus-visible,
+.password-toggle:focus-visible,
+.auth-submit-btn:focus-visible,
+.auth-support-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 35%, transparent);
+  outline-offset: 2px;
 }
 
 .auth-home-link {
@@ -629,8 +639,8 @@ onMounted(async () => {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(48, 75, 57, 0.07);
-  border: 1px solid rgba(48, 75, 57, 0.15);
+  background: var(--primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
 }
 
 .notice-icon {
@@ -712,7 +722,7 @@ onMounted(async () => {
 
 .input-wrap input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(48, 75, 57, 0.12);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .input-wrap input::placeholder {
@@ -752,7 +762,7 @@ onMounted(async () => {
 
 .auth-alert--error {
   background: var(--red-bg);
-  border: 1px solid rgba(196, 84, 78, 0.3);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, var(--border));
   color: var(--destructive);
 }
 
@@ -764,7 +774,7 @@ onMounted(async () => {
   height: 20px;
   border-radius: 50%;
   background: var(--destructive);
-  color: #fff;
+  color: var(--destructive-foreground);
   font-weight: 800;
   font-size: 0.75rem;
   flex-shrink: 0;
@@ -781,19 +791,19 @@ onMounted(async () => {
   border: none;
   border-radius: 10px;
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-foreground);
   font-family: 'DM Sans', sans-serif;
   font-size: 0.92rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 14px rgba(48, 75, 57, 0.25);
+  box-shadow: 0 4px 14px var(--primary-glow);
 }
 
 .auth-submit-btn:hover:not(:disabled) {
   background: var(--primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(48, 75, 57, 0.3);
+  box-shadow: 0 6px 18px var(--primary-glow);
 }
 
 .auth-submit-btn:disabled {
@@ -804,8 +814,8 @@ onMounted(async () => {
 .btn-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in srgb, var(--primary-foreground) 30%, transparent);
+  border-top-color: var(--primary-foreground);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

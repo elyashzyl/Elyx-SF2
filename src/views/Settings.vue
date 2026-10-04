@@ -752,8 +752,8 @@ async function saveSupportEmail() {
 
 <style scoped>
 .pref-group-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 20px;
@@ -764,12 +764,12 @@ async function saveSupportEmail() {
   gap: 8px;
   font-size: 1.05rem;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--foreground);
   margin: 0 0 4px 0;
 }
 .pref-group-sub {
   font-size: 0.85rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted-foreground);
   margin: 0 0 16px 0;
 }
 .pref-toggle-row {
@@ -777,20 +777,21 @@ async function saveSupportEmail() {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-top: 1px solid var(--border-color, #f3f4f6);
+  border-top: 1px solid var(--border);
 }
 .pref-toggle-info {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 2px;
 }
 .pref-toggle-info strong {
   font-size: 0.9rem;
-  color: var(--text-primary, #111827);
+  color: var(--foreground);
 }
 .pref-toggle-info span {
   font-size: 0.8rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted-foreground);
 }
 .toggle-switch {
   position: relative;
@@ -807,8 +808,8 @@ async function saveSupportEmail() {
 .toggle-slider {
   position: absolute;
   cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #ccc;
+  inset: 0;
+  background-color: var(--input);
   transition: .3s;
   border-radius: 24px;
 }
@@ -819,14 +820,28 @@ async function saveSupportEmail() {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--card);
   transition: .3s;
   border-radius: 50%;
 }
 input:checked + .toggle-slider {
-  background-color: #0c5357;
+  background-color: var(--primary);
 }
 input:checked + .toggle-slider:before {
   transform: translateX(20px);
+}
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .pref-toggle-row {
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .pref-toggle-info span {
+    line-height: 1.45;
+  }
 }
 </style>

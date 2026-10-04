@@ -64,9 +64,13 @@
           </button>
         </div>
         <div class="table-toolbar-right">
-          <label v-if="auth.isSuperadmin" class="archive-toggle">
-            <input v-model="includeArchived" type="checkbox" @change="loadSchools" />
+          <label v-if="auth.isSuperadmin" class="archive-toggle" :class="{ 'is-checked': includeArchived }">
+            <svg class="toolbar-control-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
+            </svg>
             <span>Show archived</span>
+            <input v-model="includeArchived" type="checkbox" @change="loadSchools" />
+            <span class="toolbar-switch" aria-hidden="true"></span>
           </label>
           <span class="tbl-search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
