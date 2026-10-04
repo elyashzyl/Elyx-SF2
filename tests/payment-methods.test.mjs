@@ -130,30 +130,33 @@ test('SupportChatModal.vue integrates payment channels and reference pre-fill', 
 })
 
 // ---------------------------------------------------------------------------
-// 5. Frontend: Landing.vue Payment Channels & QR Integration
+// 5. Frontend: Subscribe.vue & Landing.vue Payment Access Flow
 // ---------------------------------------------------------------------------
 
-test('Landing.vue integrates official payment channels and QR codes', () => {
+test('Subscribe.vue reveals official payment channels and QR codes post-submission', () => {
+  const subscribe = read('src/views/Subscribe.vue')
   const landing = read('src/views/Landing.vue')
 
-  // Navigation & Link anchors
-  assert.ok(landing.includes('id="payments"'), 'Landing.vue must include #payments section')
-  assert.ok(landing.includes("scrollToSection('payments')"), 'Landing.vue must include navigation triggers to #payments')
-  assert.ok(landing.includes('Payments &amp; QR') || landing.includes('Payments & QR'), 'Landing nav must include Payments & QR link')
+  // Landing page must NOT expose public payment options shortcut buttons or public payment channels
+  assert.ok(!landing.includes('id="payments"'), 'Landing.vue must not expose public #payments section')
+  assert.ok(!landing.includes('pricing-pay-shortcut'), 'Landing.vue must not expose public payment shortcut buttons')
+  assert.ok(!landing.includes("scrollToSection('payments')"), 'Landing.vue must not navigate to public payment section')
+  assert.ok(landing.includes('getPlanCtaLabel(plan)'), 'Landing.vue must dynamically compute plan CTA button label')
 
-  // Payment method rendering & functionality
-  assert.ok(landing.includes('paymentMethods'), 'Landing.vue must define paymentMethods reactive state')
-  assert.ok(landing.includes('copyLandingAccount'), 'Landing.vue must define copyLandingAccount function')
-  assert.ok(landing.includes('openQrModal'), 'Landing.vue must define openQrModal function')
-  assert.ok(landing.includes('showQrModal'), 'Landing.vue must define showQrModal reactive state')
-  assert.ok(landing.includes('landing-qr-overlay'), 'Landing.vue must render enlarged QR modal')
-  assert.ok(landing.includes('ely.ashzyl@gmail.com'), 'Landing.vue must link payment submissions to ely.ashzyl@gmail.com')
-  assert.ok(landing.includes('const paymentMethods = ref([])'), 'Landing.vue must not hardcode payment methods as a fallback')
-  assert.ok(landing.includes('paymentMethods.value = data.paymentMethods'), 'Landing.vue must assign an empty API result so deleted methods disappear')
-  assert.ok(landing.includes('setInterval(() =>'), 'Landing.vue must refresh payment methods for real-time public updates')
-  assert.ok(landing.includes("cache: 'no-store'"), 'Landing payment refresh must bypass stale browser caches')
+  // Subscribe.vue handles post-registration unlocked settlement options & QR codes
+  assert.ok(subscribe.includes('submitted'), 'Subscribe.vue must track post-registration submission state')
+  assert.ok(subscribe.includes('paymentMethods'), 'Subscribe.vue must define paymentMethods reactive state')
+  assert.ok(subscribe.includes('loadPaymentMethods'), 'Subscribe.vue must load payment methods from API')
+  assert.ok(subscribe.includes('/api/payment-methods'), 'Subscribe.vue must query /api/payment-methods')
+  assert.ok(subscribe.includes('copyPaymentAccount'), 'Subscribe.vue must provide copy account action')
+  assert.ok(subscribe.includes('openQrModal'), 'Subscribe.vue must support enlarged QR modal')
+  assert.ok(subscribe.includes('showQrModal'), 'Subscribe.vue must define showQrModal reactive state')
+  assert.ok(subscribe.includes('subscribe-qr-overlay'), 'Subscribe.vue must render enlarged QR modal')
+  assert.ok(subscribe.includes('ely.ashzyl@gmail.com'), 'Subscribe.vue must link payment receipts to ely.ashzyl@gmail.com')
+  assert.ok(subscribe.includes("cache: 'no-store'"), 'Subscribe.vue must bypass stale browser caches')
 
-  // No emoji characters
+  // No emoji characters in either view
   const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u
   assert.strictEqual(emojiRegex.test(landing), false, 'Landing.vue must not contain emoji characters')
+  assert.strictEqual(emojiRegex.test(subscribe), false, 'Subscribe.vue must not contain emoji characters')
 })
