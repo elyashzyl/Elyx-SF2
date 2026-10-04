@@ -16,10 +16,10 @@
         <nav class="landing-nav-links" aria-label="Main Navigation">
           <button type="button" class="landing-nav-link" @click="scrollToSection('demo')">Demo Console</button>
           <button type="button" class="landing-nav-link" @click="scrollToSection('features')">Platform</button>
+          <button type="button" class="landing-nav-link" @click="scrollToSection('process')">Process &amp; Cadence</button>
           <button type="button" class="landing-nav-link" @click="scrollToSection('sf2')">DepEd SF2</button>
           <button type="button" class="landing-nav-link" @click="scrollToSection('calculator')">Time Saved</button>
-          <button type="button" class="landing-nav-link" @click="scrollToSection('workflow')">Daily Cadence</button>
-          <button type="button" class="landing-nav-link" @click="scrollToSection('pricing')">Pricing</button>
+          <button type="button" class="landing-nav-link" @click="scrollToSection('pricing')">Licensing &amp; Pricing</button>
           <button type="button" class="landing-nav-link" @click="scrollToSection('payments')">Payments &amp; QR</button>
           <button type="button" class="landing-nav-link" @click="scrollToSection('faq')">FAQ</button>
         </nav>
@@ -28,7 +28,10 @@
         <div class="landing-nav-actions">
           <router-link to="/login" class="landing-sign-in">
             <span>Sign In</span>
-            <span class="sign-in-arrow">→</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
           </router-link>
 
           <!-- Mobile Menu Trigger -->
@@ -56,9 +59,9 @@
       <div v-if="mobileNavOpen" class="mobile-nav-panel">
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('demo')">Demo Console</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('features')">Platform Features</button>
+        <button type="button" class="mobile-nav-item" @click="handleMobileNav('process')">Process &amp; Operating Architecture</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('sf2')">DepEd SF2 Standard</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('calculator')">Time Saved Calculator</button>
-        <button type="button" class="mobile-nav-item" @click="handleMobileNav('workflow')">Daily Cadence</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('pricing')">Licensing &amp; Pricing</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('payments')">Official Payment Channels &amp; QR</button>
         <button type="button" class="mobile-nav-item" @click="handleMobileNav('faq')">Frequently Asked Questions</button>
@@ -654,44 +657,126 @@
         </div>
       </section>
 
-      <!-- Daily Rhythm Workflow -->
-      <section id="workflow" class="landing-workflow-section">
-        <div class="landing-section landing-workflow-inner">
-          <div class="landing-workflow-copy">
-            <span class="landing-section-kicker">Operational Cadence</span>
-            <h2>A seamless daily rhythm from first bell to month-end.</h2>
+      <!-- Institutional Process & Operating Architecture -->
+      <section id="process" class="landing-process-section">
+        <span id="workflow" class="anchor-target" aria-hidden="true"></span>
+        <div class="landing-section">
+          <div class="landing-section-heading">
+            <span class="landing-section-kicker">Standardized Architecture</span>
+            <h2>How ElyTrack Works: From Licensing to Division Submission</h2>
             <p>
-              ElyTrack gives your administration and faculty a shared, predictable routine that removes operational friction every single school day.
+              A verified, end-to-end operational framework built specifically for Philippine school heads, registrars, and advisory teachers.
             </p>
-            <router-link to="/login" class="landing-outline-btn">
-              <span>Sign In to Experience Workspace</span>
-              <span>→</span>
-            </router-link>
+
+            <!-- Process Mode Switcher -->
+            <div class="process-tab-switcher">
+              <button
+                type="button"
+                class="process-tab-btn"
+                :class="{ 'is-active': activeProcessTab === 'implementation' }"
+                @click="activeProcessTab = 'implementation'"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>Institutional Implementation Lifecycle</span>
+              </button>
+              <button
+                type="button"
+                class="process-tab-btn"
+                :class="{ 'is-active': activeProcessTab === 'cadence' }"
+                @click="activeProcessTab = 'cadence'"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>Daily Classroom &amp; Reporting Cadence</span>
+              </button>
+            </div>
           </div>
 
-          <div class="landing-steps">
-            <div v-for="(step, index) in steps" :key="step.title" class="landing-step">
-              <div class="step-badge-col">
-                <span class="landing-step-number">0{{ index + 1 }}</span>
-                <span class="step-time-pill">{{ step.time }}</span>
+          <!-- TAB A: Institutional Implementation Lifecycle -->
+          <div v-if="activeProcessTab === 'implementation'" class="process-lifecycle-grid">
+            <div
+              v-for="item in onboardingSteps"
+              :key="item.step"
+              class="process-lifecycle-card"
+            >
+              <div class="plc-header">
+                <span class="plc-step-badge">{{ item.step }}</span>
+                <span class="plc-phase-tag">{{ item.phase }}</span>
               </div>
-              <div class="step-body">
-                <h3>{{ step.title }}</h3>
-                <p>{{ step.desc }}</p>
+              <h3 class="plc-title">{{ item.title }}</h3>
+              <p class="plc-desc">{{ item.desc }}</p>
+              <div class="plc-footer">
+                <span class="plc-indicator-dot"></span>
+                <span class="plc-indicator-text">{{ item.deliverable }}</span>
               </div>
+            </div>
+          </div>
+
+          <!-- TAB B: Daily Classroom & Reporting Cadence -->
+          <div v-else class="process-cadence-timeline">
+            <div
+              v-for="(item, idx) in dailyCadenceSteps"
+              :key="item.time"
+              class="cadence-timeline-item"
+            >
+              <div class="cadence-time-col">
+                <span class="cadence-time-pill">{{ item.time }}</span>
+                <span class="cadence-timeline-line" v-if="idx < dailyCadenceSteps.length - 1"></span>
+              </div>
+              <div class="cadence-card">
+                <div class="cadence-card-head">
+                  <span class="cadence-role-tag">{{ item.role }}</span>
+                  <h4>{{ item.title }}</h4>
+                </div>
+                <p>{{ item.desc }}</p>
+                <div class="cadence-card-highlight">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>{{ item.guarantee }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Process Bottom Action Banner -->
+          <div class="process-cta-banner">
+            <div class="process-cta-text">
+              <strong>Ready to modernize your school attendance infrastructure?</strong>
+              <p>DepEd Order No. 8, s. 2015 certified calculations. Deployed and active in minutes.</p>
+            </div>
+            <div class="process-cta-actions">
+              <router-link to="/login" class="landing-primary-btn">
+                <span>Sign In to School Workspace</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </router-link>
+              <button type="button" class="landing-secondary-btn" @click="scrollToSection('pricing')">
+                <span>View Institutional Plans</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <polyline points="19 12 12 19 5 12" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Pricing Section -->
+      <!-- Formal Institutional Pricing & Licensing Matrix -->
       <section id="pricing" class="landing-pricing-section">
         <div class="landing-section">
           <div class="landing-section-heading landing-pricing-heading">
             <span class="landing-section-kicker">Institutional Investment</span>
-            <h2>Predictable operational plans for every school.</h2>
+            <h2>Predictable, transparent licensing for Philippine schools.</h2>
             <p>
-              Tailored specifically for Philippine public and private schools. Transparent pricing, DepEd Form 2 compliance, and institutional data privacy.
+              Database-backed school licenses with role isolation, DepEd Form 2 certification, and strict RA 10173 data privacy. No hidden setup fees or surprise charges.
             </p>
 
             <!-- Billing Toggle -->
@@ -711,8 +796,8 @@
                   :class="{ 'is-active': billingCycle === 'annual' }"
                   @click="billingCycle = 'annual'"
                 >
-                  <span>Annual Billing</span>
-                  <span class="pricing-save-pill">Database plan term</span>
+                  <span>Annual Institutional Term</span>
+                  <span class="pricing-save-pill">2 Months Free</span>
                 </button>
               </div>
             </div>
@@ -721,7 +806,7 @@
           <!-- Pricing Cards Grid -->
           <div class="pricing-grid">
             <div
-              v-for="plan in plans"
+              v-for="plan in formattedPlans"
               :key="plan.id"
               class="pricing-card"
               :class="{ 'pricing-card--featured': plan.is_featured }"
@@ -731,7 +816,7 @@
               <div class="pricing-card-header">
                 <div class="tier-tag-row">
                   <span class="pricing-tier-tag" :class="{ 'pricing-tier-tag--featured': plan.is_featured }">{{ plan.tag }}</span>
-                  <span v-if="!plan.is_featured && plan.badge" class="trial-tag">{{ plan.badge }}</span>
+                  <span v-if="plan.trial_days" class="trial-tag">{{ plan.trial_days }}-Day Evaluation Available</span>
                 </div>
                 <h3>{{ plan.name }}</h3>
                 <p class="pricing-desc">{{ plan.description }}</p>
@@ -748,7 +833,7 @@
                 <span class="pricing-interval">
                   {{
                     billingCycle === 'annual'
-                      ? `Billed ₱${Number(plan.billing_annual_total || 0).toLocaleString()} per ${plan.billing_months || 'configured'}-month term${plan.trial_days ? ` (${plan.trial_days}-day trial)` : ''}`
+                      ? `Billed ₱${Number(plan.billing_annual_total || 0).toLocaleString()} annually (${plan.billing_months || 10}-month academic term)`
                       : 'Billed monthly'
                   }}
                 </span>
@@ -760,8 +845,11 @@
                 class="pricing-cta-btn"
                 :class="plan.is_featured ? 'pricing-cta--primary' : 'pricing-cta--secondary'"
               >
-                <span>{{ plan.cta_text || 'Inquire for Deployment' }}</span>
-                <span>↗</span>
+                <span>{{ plan.cta_text || 'Inquire for Division SLA' }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="7" y1="17" x2="17" y2="7" />
+                  <polyline points="7 7 17 7 17 17" />
+                </svg>
               </a>
               <router-link
                 v-else
@@ -769,8 +857,11 @@
                 class="pricing-cta-btn"
                 :class="plan.is_featured ? 'pricing-cta--primary' : 'pricing-cta--secondary'"
               >
-                <span>{{ plan.cta_text || (Number(plan.trial_days || 0) > 0 ? 'Start Trial' : 'View Plan') }}</span>
-                <span>→</span>
+                <span>{{ plan.cta_text || (Number(plan.trial_days || 0) > 0 ? 'Evaluate ' + plan.name : 'Request License') }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
               </router-link>
 
               <button
@@ -798,6 +889,66 @@
                   </li>
                 </ul>
               </div>
+            </div>
+          </div>
+
+          <!-- Formal Institutional Capability Comparison Matrix Table -->
+          <div class="pricing-matrix-wrap">
+            <div class="pricing-matrix-header">
+              <span class="landing-section-kicker">Comprehensive Capability Matrix</span>
+              <h3>Compare institutional license tiers side-by-side.</h3>
+              <p>Clear line-by-line comparison of classroom capacity, DepEd Form 2 automation, security controls, and procurement readiness.</p>
+            </div>
+
+            <div class="matrix-table-container">
+              <table class="matrix-table">
+                <thead>
+                  <tr>
+                    <th class="matrix-col-feature">Platform Capability</th>
+                    <th class="matrix-col-tier">Adviser License<br /><small>₱249 / mo</small></th>
+                    <th class="matrix-col-tier matrix-col-tier--featured">School Campus Pro<br /><small>₱1,490 / mo</small></th>
+                    <th class="matrix-col-tier">Division Enterprise<br /><small>₱4,990 / mo</small></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-for="catGroup in matrixCategories" :key="catGroup.category">
+                    <tr class="matrix-category-row">
+                      <td colspan="4">{{ catGroup.category }}</td>
+                    </tr>
+                    <tr
+                      v-for="row in catGroup.items"
+                      :key="row.name"
+                      class="matrix-data-row"
+                    >
+                      <td class="matrix-cell-feature">
+                        <strong>{{ row.name }}</strong>
+                        <small v-if="row.desc">{{ row.desc }}</small>
+                      </td>
+                      <td class="matrix-cell-val">
+                        <span v-if="typeof row.adviser === 'boolean'">
+                          <svg v-if="row.adviser" class="matrix-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <svg v-else class="matrix-dash" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        </span>
+                        <span v-else class="matrix-text-val">{{ row.adviser }}</span>
+                      </td>
+                      <td class="matrix-cell-val matrix-cell-val--featured">
+                        <span v-if="typeof row.campus === 'boolean'">
+                          <svg v-if="row.campus" class="matrix-check matrix-check--teal" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <svg v-else class="matrix-dash" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        </span>
+                        <span v-else class="matrix-text-val matrix-text-val--featured">{{ row.campus }}</span>
+                      </td>
+                      <td class="matrix-cell-val">
+                        <span v-if="typeof row.division === 'boolean'">
+                          <svg v-if="row.division" class="matrix-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <svg v-else class="matrix-dash" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        </span>
+                        <span v-else class="matrix-text-val">{{ row.division }}</span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -843,12 +994,16 @@
             <div class="pricing-trust-item">
               <span class="trust-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
                 </svg>
               </span>
               <div>
-                <strong>Rapid Roll Call</strong>
-                <p>Designed for real classroom rhythms: finish section roll call in under 90 seconds.</p>
+                <strong>Official Receipts &amp; Invoicing</strong>
+                <p>Government procurement ready: official receipts, purchase order documentation, and billing support.</p>
               </div>
             </div>
           </div>
@@ -1052,9 +1207,10 @@
         <div class="footer-links">
           <button type="button" class="footer-link-btn" @click="scrollToSection('demo')">Demo Console</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('features')">Platform</button>
+          <button type="button" class="footer-link-btn" @click="scrollToSection('process')">Process &amp; Cadence</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('sf2')">DepEd SF2</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('calculator')">Time Saved</button>
-          <button type="button" class="footer-link-btn" @click="scrollToSection('pricing')">Pricing</button>
+          <button type="button" class="footer-link-btn" @click="scrollToSection('pricing')">Licensing &amp; Pricing</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('payments')">Payments &amp; QR</button>
           <button type="button" class="footer-link-btn" @click="scrollToSection('faq')">FAQ</button>
           <router-link to="/login">Sign In</router-link>
@@ -1156,6 +1312,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 const currentYear = new Date().getFullYear()
 const billingCycle = ref('annual')
 const activeDemoTab = ref('rollcall')
+const activeProcessTab = ref('implementation')
 const mobileNavOpen = ref(false)
 const sectionCount = ref(0)
 const activeFaq = ref(0)
@@ -1290,6 +1447,192 @@ const hoursSavedMonthly = computed(() => {
   return Math.round(sectionCount.value * 17.2)
 })
 
+const defaultPlans = [
+  {
+    id: 'adviser',
+    tier: 'adviser',
+    name: 'Adviser License',
+    tag: 'Individual Advisory Class',
+    description: 'Designed for single section advisers to record classroom attendance, prevent SARDO risks, and generate certified monthly SF2.',
+    price_monthly: 249,
+    price_annual_monthly: 199,
+    billing_annual_total: 1990,
+    billing_months: 10,
+    trial_days: 14,
+    is_featured: false,
+    badge: '14-Day Free Evaluation Available',
+    features: [
+      '1 Advisory Class (Up to 65 Learners)',
+      'Automated DepEd SF2 (.xlsx) Export',
+      'Period-by-period roll call under 90s',
+      'SARDO absenteeism warning alerts',
+      'Guardian contact & intervention logs',
+      'Desktop and mobile responsive web access'
+    ]
+  },
+  {
+    id: 'campus',
+    tier: 'campus',
+    name: 'School Campus Pro',
+    tag: 'Whole School Campus',
+    description: 'Complete operational attendance management for Elementary, JHS, or SHS campuses with full school head administrative controls.',
+    price_monthly: 1490,
+    price_annual_monthly: 1190,
+    billing_annual_total: 11900,
+    billing_months: 10,
+    trial_days: 14,
+    is_featured: true,
+    badge: 'Official DepEd School Choice',
+    features: [
+      'Unlimited Teachers & Advisory Classes',
+      'Up to 1,500 Enrolled Learners',
+      'Principal Telemetry & Audit Logs',
+      '48-Hour Cutoff Locks & Relock Safeguards',
+      'Bulk Student LRN CSV Import & Validation',
+      'Cross-School Transfer In/Out Tracking',
+      'School Calendar & Holiday Synchronization',
+      'Database License Key with Instant Access Locks'
+    ]
+  },
+  {
+    id: 'division',
+    tier: 'division',
+    name: 'Division & Multi-Campus',
+    tag: 'Multi-School Network',
+    description: 'Tailored for DepEd Schools Division Offices, private school systems, and multi-campus clusters requiring consolidated oversight.',
+    price_monthly: 4990,
+    price_annual_monthly: 3990,
+    billing_annual_total: 39900,
+    billing_months: 10,
+    trial_days: 0,
+    is_featured: false,
+    badge: 'Division & SDO Ready',
+    features: [
+      'Multi-Campus Consolidated Analytics',
+      'Unlimited Campuses, Faculty & Learners',
+      'Cross-School Comparative Section Rankings',
+      'Custom DepEd Division Reporting Templates',
+      'Dedicated Technical Account Manager & SLA',
+      'On-site or Virtual Faculty Onboarding Session'
+    ]
+  }
+]
+
+const formattedPlans = computed(() => {
+  if (plans.value && plans.value.length > 0) {
+    return plans.value
+  }
+  return defaultPlans
+})
+
+const onboardingSteps = [
+  {
+    step: '01',
+    phase: 'Procurement & Settlement',
+    title: 'Select Institutional Plan & Settle via Official Channels',
+    desc: 'Choose Adviser, School Campus, or Division license tier. Complete payment through verified GCash, Maya, Landbank, or submit a DepEd Purchase Order.',
+    deliverable: 'Official Receipt & Verified License Invoice'
+  },
+  {
+    step: '02',
+    phase: 'License Key Issuance',
+    title: 'Cryptographic License Key Provisioned in Database',
+    desc: 'A secure, unique license record is created. Administrative access unlocks instantly with automated expiration tracking and cutoff protection.',
+    deliverable: 'Instant School Head & Registrar Workspace'
+  },
+  {
+    step: '03',
+    phase: 'Cohort Onboarding',
+    title: 'Ingest Student Roster via Bulk DepEd LRN CSV Import',
+    desc: 'School admin uploads the learner masterlist. The system validates 12-digit LRNs, detects duplicates, and assigns learners to grade sections in minutes.',
+    deliverable: 'Validated Learner Roster & Section Calendars'
+  },
+  {
+    step: '04',
+    phase: 'Faculty Activation',
+    title: 'Advisers Sign In to Isolated School Workspace',
+    desc: 'Class advisers receive invitations or credentials directly. No public registration is exposed; only verified, licensed school faculty gain access.',
+    deliverable: 'Sub-90s Daily Roll Call with Cutoff Protection'
+  }
+]
+
+const dailyCadenceSteps = [
+  {
+    time: '07:15 AM',
+    role: 'Class Adviser',
+    title: 'Morning Advisory Roll Call (< 90s)',
+    desc: 'Advisers open their assigned section on any phone or desktop and record attendance with rapid status presets (Entered, Tardy, Absent, NIPU).',
+    guarantee: 'Offline caching ensures roll call never drops'
+  },
+  {
+    time: '11:30 AM',
+    role: 'Automated Engine',
+    title: 'Multi-Period Tardy & Half-Day Aggregation',
+    desc: 'The engine processes period marks in real time, automatically flagging tardiness and half-day absences without any manual calculator work.',
+    guarantee: '100% DepEd mathematical compliance'
+  },
+  {
+    time: '04:30 PM',
+    role: 'Principal & Head',
+    title: 'School Head Telemetry & 48-Hour Auto-Relock',
+    desc: 'Principals monitor live roll call completion rates. Submitted records lock within 48 hours; any subsequent correction requires administrative audit logging.',
+    guarantee: 'Tamper-proof audit history on all changes'
+  },
+  {
+    time: 'Month-End',
+    role: 'Registrar & Head',
+    title: '1-Click DepEd Form 2 Certified Excel Export',
+    desc: 'Generate complete, division-ready DepEd SF2 workbooks with 100% verified mathematical precision matching DepEd Order No. 8, s. 2015.',
+    guarantee: 'Standard DepEd Excel template with SHA-256'
+  }
+]
+
+const matrixCategories = [
+  {
+    category: 'Institutional Scope & Capacity',
+    items: [
+      { name: 'Advisory Class Capacity', desc: 'Number of active grade/section advisory classes', adviser: '1 Section', campus: 'Unlimited Sections', division: 'Unlimited Campuses' },
+      { name: 'Enrolled Learner Capacity', desc: 'Active student attendance tracking limit', adviser: 'Up to 65 Learners', campus: 'Up to 1,500 Learners', division: 'Unlimited Learners' },
+      { name: 'Faculty & Administrative Accounts', desc: 'Role-scoped logins for teachers and school heads', adviser: '1 Adviser Account', campus: 'Unlimited Faculty & Staff', division: 'Unlimited Multi-School' }
+    ]
+  },
+  {
+    category: 'DepEd Form 2 Engine & Analytics',
+    items: [
+      { name: 'Automated SF2 (.xlsx) Export', desc: 'Official DepEd Form 2 workbook generation', adviser: true, campus: true, division: true },
+      { name: 'DepEd Order No. 8, s. 2015 Math', desc: 'ADA, attendance % and monthly aggregation rules', adviser: true, campus: true, division: true },
+      { name: 'Section Comparison & Ranking', desc: 'Comparative attendance rankings across sections', adviser: false, campus: true, division: true },
+      { name: 'Division-Wide Rollup Analytics', desc: 'Consolidated reporting across multiple schools', adviser: false, campus: false, division: true }
+    ]
+  },
+  {
+    category: 'Classroom Operations & Reliability',
+    items: [
+      { name: 'Sub-90s Daily Roll Call', desc: 'Period-by-period marks with rapid status presets', adviser: true, campus: true, division: true },
+      { name: 'Offline Classroom Sync', desc: 'Local caching during classroom Wi-Fi dropouts', adviser: true, campus: true, division: true },
+      { name: '48-Hour Cutoff Auto-Relock', desc: 'Automatic integrity lock with audit trails', adviser: 'Adviser Level', campus: 'School Head Governed', division: 'Division Governed' }
+    ]
+  },
+  {
+    category: 'Student Retention & SARDO Interventions',
+    items: [
+      { name: 'SARDO Early Warning Radar', desc: 'Automatic alerts at 3 consecutive or 5 cumulative absences', adviser: 'Section Alerts', campus: 'Campus Alert Queue', division: 'Division Risk Matrix' },
+      { name: 'Guardian Contact Logs', desc: 'Log phone calls, SMS notifications, and home visits', adviser: true, campus: true, division: true }
+    ]
+  },
+  {
+    category: 'Governance, Security & Procurement',
+    items: [
+      { name: 'Bulk Student LRN CSV Ingestion', desc: 'Bulk import with 12-digit LRN duplicate detection', adviser: false, campus: true, division: true },
+      { name: 'Cross-School Transfer Tracking', desc: 'Paired Transfer-Out and Transfer-In historical records', adviser: false, campus: true, division: true },
+      { name: 'School Head Dashboard & Telemetry', desc: 'Campus-wide roll call completion monitoring', adviser: false, campus: true, division: true },
+      { name: 'Database License Access Control', desc: 'Automatic instant lockout if license is stopped', adviser: true, campus: true, division: true },
+      { name: 'Official Receipts & Invoicing', desc: 'BIR registered receipt, PhilGEPS & PO documentation', adviser: true, campus: true, division: true },
+      { name: 'Technical Support SLA', desc: 'Dedicated technical response and guidance', adviser: 'Standard Inquiries', campus: 'Priority Inquiries', division: 'Dedicated SLA & Manager' }
+    ]
+  }
+]
+
 const steps = [
   {
     time: '07:15 AM',
@@ -1400,11 +1743,9 @@ function toggleFaq(idx) {
 function scrollToSection(id) {
   const el = document.getElementById(id)
   if (!el) return
-  const navHeight = 76
-  const top = el.getBoundingClientRect().top + window.pageYOffset - navHeight
-  window.scrollTo({
-    top,
-    behavior: 'smooth'
+  el.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
   })
 }
 
@@ -1429,13 +1770,14 @@ function handleMobileNav(id) {
    ========================================================================== */
 #demo,
 #features,
+#process,
+#workflow,
 #calculator,
 #sf2,
-#workflow,
 #pricing,
 #payments,
 #faq {
-  scroll-margin-top: 80px;
+  scroll-margin-top: 84px;
 }
 
 /* ==========================================================================
@@ -2916,135 +3258,297 @@ function handleMobileNav(id) {
 }
 
 /* ==========================================================================
-   WORKFLOW SECTION
+   INSTITUTIONAL PROCESS & OPERATING ARCHITECTURE
    ========================================================================== */
-.landing-workflow-section {
-  background: #f4f8f8;
-  border-top: 1px solid rgba(12, 83, 87, 0.12);
-  border-bottom: 1px solid rgba(12, 83, 87, 0.12);
+.landing-process-section {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  position: relative;
 }
 
-.landing-workflow-inner {
-  display: grid;
-  grid-template-columns: 0.88fr 1.12fr;
+.process-tab-switcher {
+  display: inline-flex;
   align-items: center;
-  gap: 80px;
+  background: #ffffff;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  margin-top: 24px;
+  gap: 6px;
 }
 
-.landing-workflow-copy {
-  max-width: 460px;
-}
-
-.landing-workflow-copy h2 {
-  font-family: 'Manrope', sans-serif;
-  font-size: clamp(2rem, 3.2vw, 2.7rem);
-  font-weight: 800;
-  color: #080d0c;
-  line-height: 1.12;
-  margin: 12px 0 14px;
-}
-
-.landing-workflow-copy p {
-  color: #506160;
-  font-size: 0.95rem;
-  line-height: 1.65;
-  margin: 0;
-}
-
-.landing-outline-btn {
-  min-height: 44px;
-  padding: 0 20px;
+.process-tab-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 26px;
-  border: 1px solid rgba(12, 83, 87, 0.25);
-  border-radius: 8px;
-  background: #ffffff;
-  color: #080d0c;
-  font-size: 0.82rem;
+  padding: 9px 20px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.84rem;
   font-weight: 700;
-  text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.1s ease;
+  transition: all 0.15s ease;
 }
 
-.landing-outline-btn:hover {
-  border-color: #080d0c;
-  transform: translateY(-2px);
+.process-tab-btn:hover {
+  color: #0f172a;
 }
 
-.landing-outline-btn:active {
-  transform: scale(0.97) !important;
+.process-tab-btn.is-active {
+  background: #0d9488;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
 }
 
-.landing-steps {
-  display: flex;
-  flex-direction: column;
-}
-
-.landing-step {
+.process-lifecycle-grid {
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 20px;
-  padding: 22px 0;
-  border-bottom: 1px solid rgba(12, 83, 87, 0.12);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-top: 48px;
 }
 
-.landing-step:first-child { padding-top: 0; }
-.landing-step:last-child { border-bottom: 0; padding-bottom: 0; }
-
-.step-badge-col {
+.process-lifecycle-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px 24px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.landing-step-number {
-  color: #0c5357;
+.process-lifecycle-card:hover {
+  transform: translateY(-4px);
+  border-color: #0d9488;
+  box-shadow: 0 14px 32px rgba(13, 148, 136, 0.1);
+}
+
+.plc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plc-step-badge {
   font-family: 'Manrope', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 800;
+  color: #0d9488;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.step-time-pill {
-  font-size: 0.65rem;
+.plc-phase-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 4px 9px;
+  border-radius: 6px;
+}
+
+.plc-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.plc-desc {
+  color: #475569;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.plc-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.plc-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0d9488;
+  box-shadow: 0 0 8px rgba(13, 148, 136, 0.5);
+}
+
+.plc-indicator-text {
+  font-size: 0.72rem;
   font-weight: 700;
-  color: #0c5357;
-  background: #e6f3f4;
-  padding: 3px 7px;
-  border-radius: 4px;
-  align-self: flex-start;
+  color: #0f766e;
 }
 
-.step-body h3 {
+/* Cadence Timeline */
+.process-cadence-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 880px;
+  margin: 48px auto 0;
+}
+
+.cadence-timeline-item {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 28px;
+  position: relative;
+}
+
+.cadence-time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+}
+
+.cadence-time-pill {
   font-family: 'Manrope', sans-serif;
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 800;
-  color: #080d0c;
-  margin: 0 0 5px;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
-.step-body p {
-  color: #506160;
-  font-size: 0.82rem;
+.cadence-timeline-line {
+  position: absolute;
+  top: 36px;
+  left: 45px;
+  bottom: -20px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.cadence-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cadence-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cadence-role-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0f766e;
+  background: #f0fdfa;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.cadence-card-head h4 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.cadence-card p {
+  color: #475569;
+  font-size: 0.84rem;
   line-height: 1.55;
   margin: 0;
 }
 
+.cadence-card-highlight {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #0d9488;
+  padding-top: 6px;
+}
+
+/* Process CTA Banner */
+.process-cta-banner {
+  margin-top: 56px;
+  background: #0f172a;
+  border-radius: 18px;
+  padding: 32px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.15);
+}
+
+.process-cta-text strong {
+  display: block;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.process-cta-text p {
+  color: #94a3b8;
+  font-size: 0.84rem;
+  margin: 0;
+}
+
+.process-cta-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 /* ==========================================================================
-   PRICING SECTION
+   PRICING SECTION & CAPABILITY MATRIX
    ========================================================================== */
 .landing-pricing-section {
   background: #ffffff;
-  border-top: 1px solid rgba(12, 83, 87, 0.12);
+  border-top: 1px solid #e2e8f0;
+  padding-bottom: 100px;
 }
 
 .landing-pricing-heading {
   text-align: center;
   margin: 0 auto 48px;
-  max-width: 680px;
+  max-width: 720px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3059,9 +3563,9 @@ function handleMobileNav(id) {
 .pricing-toggle {
   display: inline-flex;
   align-items: center;
-  padding: 4px;
-  background: #e6f3f4;
-  border: 1px solid rgba(12, 83, 87, 0.18);
+  padding: 5px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
   border-radius: 999px;
   gap: 4px;
 }
@@ -3070,33 +3574,29 @@ function handleMobileNav(id) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 9px 20px;
   border-radius: 999px;
   border: none;
   background: transparent;
-  color: #506160;
+  color: #475569;
   font-family: 'DM Sans', sans-serif;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
-}
-
-.pricing-toggle-btn:active {
-  transform: scale(0.97);
+  transition: all 0.15s ease;
 }
 
 .pricing-toggle-btn.is-active {
   background: #ffffff;
-  color: #080d0c;
-  box-shadow: 0 2px 8px rgba(8, 13, 12, 0.12);
+  color: #0f172a;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
 }
 
 .pricing-save-pill {
   display: inline-block;
-  padding: 2px 7px;
-  background: #0c5357;
+  padding: 2px 8px;
+  background: #0d9488;
   color: #ffffff;
   border-radius: 999px;
   font-size: 0.65rem;
@@ -3108,61 +3608,63 @@ function handleMobileNav(id) {
 .pricing-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  gap: 28px;
   align-items: stretch;
 }
 
 .pricing-card {
   position: relative;
   background: #ffffff;
-  border: 1px solid rgba(12, 83, 87, 0.16);
-  border-radius: 16px;
-  padding: 36px 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 36px 30px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 24px;
-  transition: all 0.25s ease;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .pricing-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 36px rgba(12, 83, 87, 0.08);
+  border-color: #0d9488;
+  box-shadow: 0 16px 40px rgba(13, 148, 136, 0.1);
 }
 
 .pricing-card--featured {
-  border-color: #0c5357;
-  box-shadow: 0 12px 32px rgba(12, 83, 87, 0.15);
+  border: 2px solid #0d9488;
+  box-shadow: 0 14px 36px rgba(13, 148, 136, 0.14);
   transform: scale(1.02);
 }
 
 .pricing-card--featured:hover {
   transform: scale(1.02) translateY(-4px);
-  box-shadow: 0 20px 48px rgba(12, 83, 87, 0.2);
+  box-shadow: 0 22px 52px rgba(13, 148, 136, 0.2);
 }
 
 .featured-ribbon {
   position: absolute;
-  top: -12px;
+  top: -13px;
   left: 50%;
   transform: translateX(-50%);
-  background: #0c5357;
+  background: #0d9488;
   color: #ffffff;
   font-family: 'Manrope', sans-serif;
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 4px 14px;
+  padding: 4px 16px;
   border-radius: 999px;
-  box-shadow: 0 4px 12px rgba(12, 83, 87, 0.25);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
   white-space: nowrap;
 }
 
 .pricing-card-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tier-tag-row {
@@ -3170,6 +3672,7 @@ function handleMobileNav(id) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pricing-tier-tag {
@@ -3177,79 +3680,72 @@ function handleMobileNav(id) {
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #506160;
-  background: #eef5f5;
-  padding: 3px 8px;
-  border-radius: 5px;
+  letter-spacing: 0.06em;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 3px 9px;
+  border-radius: 6px;
 }
 
 .pricing-tier-tag--featured {
-  background: #e6f3f4;
-  color: #0c5357;
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
 }
 
 .trial-tag {
   font-size: 0.68rem;
   font-weight: 700;
-  color: #0c5357;
-  background: #e6f3f4;
-  padding: 3px 8px;
-  border-radius: 5px;
-}
-
-.deped-verified-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #ffffff;
-  background: #080d0c;
-  padding: 3px 8px;
-  border-radius: 5px;
+  color: #0f766e;
+  background: #f0fdfa;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid #99f6e4;
 }
 
 .pricing-card-header h3 {
   font-family: 'Manrope', sans-serif;
   font-size: 1.45rem;
   font-weight: 800;
-  color: #080d0c;
+  color: #0f172a;
   letter-spacing: -0.03em;
   margin: 0;
 }
 
 .pricing-desc {
   font-size: 0.84rem;
-  color: #506160;
-  line-height: 1.45;
+  color: #475569;
+  line-height: 1.5;
   margin: 0;
-  min-height: 42px;
+  min-height: 48px;
 }
 
 .pricing-price-box {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 16px 0;
-  border-top: 1px solid rgba(12, 83, 87, 0.12);
-  border-bottom: 1px solid rgba(12, 83, 87, 0.12);
+  padding: 18px 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .pricing-amount-row {
   display: flex;
   align-items: baseline;
-  gap: 3px;
-  color: #080d0c;
+  gap: 4px;
+  color: #0f172a;
 }
 
 .pricing-currency {
   font-family: 'Manrope', sans-serif;
-  font-size: 1.4rem;
+  font-size: 1.45rem;
   font-weight: 800;
-  color: #0c5357;
+  color: #0d9488;
 }
 
 .pricing-number {
   font-family: 'Manrope', sans-serif;
-  font-size: 2.5rem;
+  font-size: 2.6rem;
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 1;
@@ -3257,14 +3753,14 @@ function handleMobileNav(id) {
 
 .pricing-per-month {
   font-size: 0.88rem;
-  color: #506160;
+  color: #64748b;
   font-weight: 600;
 }
 
 .pricing-interval {
   font-size: 0.74rem;
-  color: #506160;
-  line-height: 1.35;
+  color: #64748b;
+  line-height: 1.4;
 }
 
 .pricing-cta-btn {
@@ -3275,41 +3771,37 @@ function handleMobileNav(id) {
   width: 100%;
   padding: 12px 18px;
   border-radius: 10px;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.1s ease, box-shadow 0.12s ease;
+  transition: all 0.15s ease;
   text-align: center;
 }
 
-.pricing-cta-btn:active {
-  transform: scale(0.97) !important;
-}
-
 .pricing-cta--primary {
-  background: #0c5357;
+  background: #0d9488;
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(12, 83, 87, 0.25);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
 }
 
 .pricing-cta--primary:hover {
-  background: #073a3c;
+  background: #0f766e;
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(12, 83, 87, 0.35);
+  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.4);
 }
 
 .pricing-cta--secondary {
-  background: #e6f3f4;
-  color: #0c5357;
-  border: 1px solid rgba(12, 83, 87, 0.2);
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
 }
 
 .pricing-cta--secondary:hover {
   background: #ffffff;
-  color: #080d0c;
-  border-color: #080d0c;
+  color: #0f172a;
+  border-color: #0f172a;
   transform: translateY(-2px);
 }
 
@@ -3322,18 +3814,17 @@ function handleMobileNav(id) {
   margin-top: 10px;
   padding: 9px 14px;
   border-radius: 9px;
-  border: 1px dashed rgba(12, 83, 87, 0.35);
-  background: rgba(12, 83, 87, 0.04);
-  color: #0c5357;
+  border: 1px dashed #0d9488;
+  background: #f0fdfa;
+  color: #0f766e;
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .pricing-pay-shortcut:hover {
-  background: rgba(12, 83, 87, 0.09);
-  border-color: #0c5357;
+  background: #ccfbf1;
   transform: translateY(-1px);
 }
 
@@ -3348,7 +3839,7 @@ function handleMobileNav(id) {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #080d0c;
+  color: #0f172a;
 }
 
 .pricing-features ul {
@@ -3365,12 +3856,12 @@ function handleMobileNav(id) {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.82rem;
-  color: #506160;
-  line-height: 1.4;
+  color: #475569;
+  line-height: 1.45;
 }
 
 .pricing-features li span:last-child {
-  color: #080d0c;
+  color: #0f172a;
 }
 
 .check-icon {
@@ -3380,17 +3871,164 @@ function handleMobileNav(id) {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #e6f3f4;
-  color: #0c5357;
-  font-size: 0.68rem;
-  font-weight: 800;
+  background: #f0fdfa;
+  color: #0d9488;
   flex-shrink: 0;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .check-icon--featured {
-  background: #e6f3f4;
-  color: #0c5357;
+  background: #0d9488;
+  color: #ffffff;
+}
+
+/* Institutional Capability Comparison Matrix Table */
+.pricing-matrix-wrap {
+  margin-top: 72px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 44px 36px;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
+}
+
+.pricing-matrix-header {
+  text-align: center;
+  max-width: 650px;
+  margin: 0 auto 36px;
+}
+
+.pricing-matrix-header h3 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 8px 0 10px;
+}
+
+.pricing-matrix-header p {
+  color: #475569;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.matrix-table-container {
+  overflow-x: auto;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.matrix-table th {
+  padding: 16px 20px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.matrix-col-feature {
+  width: 40%;
+}
+
+.matrix-col-tier {
+  width: 20%;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.matrix-col-tier small {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.matrix-col-tier--featured {
+  color: #0f766e;
+  background: #f0fdfa;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.matrix-category-row td {
+  padding: 16px 20px 10px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0d9488;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.matrix-data-row {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s ease;
+}
+
+.matrix-data-row:hover {
+  background: #f8fafc;
+}
+
+.matrix-cell-feature {
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matrix-cell-feature strong {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.matrix-cell-feature small {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.matrix-cell-val {
+  padding: 14px 20px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.matrix-cell-val--featured {
+  background: rgba(240, 253, 250, 0.4);
+}
+
+.matrix-check {
+  color: #0d9488;
+  display: inline-block;
+}
+
+.matrix-check--teal {
+  color: #0f766e;
+}
+
+.matrix-dash {
+  color: #94a3b8;
+  display: inline-block;
+}
+
+.matrix-text-val {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.matrix-text-val--featured {
+  color: #0f766e;
 }
 
 /* Trust & Compliance Row */
@@ -3398,34 +4036,41 @@ function handleMobileNav(id) {
   margin-top: 56px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 24px;
   padding-top: 40px;
-  border-top: 1px solid rgba(12, 83, 87, 0.12);
+  border-top: 1px solid #e2e8f0;
 }
 
 .pricing-trust-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 
 .trust-icon {
-  font-size: 1.3rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f0fdfa;
+  color: #0d9488;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .pricing-trust-item strong {
   display: block;
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: #080d0c;
-  margin-bottom: 2px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 3px;
 }
 
 .pricing-trust-item p {
-  font-size: 0.74rem;
-  color: #506160;
-  line-height: 1.45;
+  font-size: 0.75rem;
+  color: #475569;
+  line-height: 1.5;
   margin: 0;
 }
 
@@ -4195,6 +4840,13 @@ function handleMobileNav(id) {
   .pricing-trust-row {
     grid-template-columns: 1fr 1fr;
   }
+  .process-lifecycle-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .process-cta-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 980px) {
@@ -4241,6 +4893,29 @@ function handleMobileNav(id) {
   }
   .pricing-trust-row {
     grid-template-columns: 1fr;
+  }
+  .process-lifecycle-grid {
+    grid-template-columns: 1fr;
+  }
+  .cadence-timeline-item {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .cadence-timeline-line {
+    display: none;
+  }
+  .process-tab-switcher {
+    flex-direction: column;
+    width: 100%;
+    border-radius: 14px;
+    padding: 6px;
+  }
+  .process-tab-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .pricing-matrix-wrap {
+    padding: 24px 16px;
   }
   .landing-payment-grid {
     grid-template-columns: 1fr;
