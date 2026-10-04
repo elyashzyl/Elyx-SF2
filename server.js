@@ -23,6 +23,13 @@ import reportRoutes from './routes/reports.js'
 import announcementRoutes from './routes/announcements.js'
 import { validateRequestInput } from './lib/validation.js'
 
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] uncaughtException:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection:', reason);
+});
+
 const app = express()
 
 // Resolve HTTP bind host and port with container safety
@@ -34,6 +41,10 @@ if (rawHost && ['0.0.0.0', '127.0.0.1', 'localhost', '::'].includes(rawHost)) {
   HOST = process.env.APP_HOST
 } else if (rawHost) {
   console.warn(`[server] HOST="${rawHost}" is not a local interface address. Binding to 0.0.0.0 for container accessibility.`)
+  HOST = '0.0.0.0'
+}
+if (process.env.NODE_ENV === 'production' && (HOST === '127.0.0.1' || HOST === 'localhost')) {
+  console.warn(`[server] HOST is "${HOST}" in production container. Overriding to 0.0.0.0 so reverse proxy can route traffic.`)
   HOST = '0.0.0.0'
 }
 
@@ -312,35 +323,52 @@ export async function initializeServerDatabase() {
   return app
 }
 
-const isMainModule = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url
+const isTestRun = Boolean(
+  process.env.NODE_TEST_CONTEXT ||
+  (process.argv[1] && (process.argv[1].includes('.test.') || process.argv[1].includes('test.mjs')))
+)
+
+const isMainModule = !isTestRun && (
+  !process.argv[1] ||
+  process.argv[1].endsWith('server.js') ||
+  process.argv[1].endsWith('server.mjs') ||
+  (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) ||
+  process.env.NODE_ENV === 'production'
+)
+
 if (isMainModule) {
-  const server = app.listen(PORT, HOST, () => {
-    console.log(`Server listening on http://${HOST}:${PORT}`)
-  })
+  // Bind to configured PORT and also mirror on both 3000 and 3001 so reverse proxies
+  // (Coolify, Traefik, Railway, Docker) route traffic regardless of whether their default
+  // upstream was left at 3000 or set to 3001.
+  const portsToListen = [PORT, 3000, 3001].filter(Boolean)
+  const uniquePorts = [...new Set(portsToListen)]
 
-  server.on('error', (err) => {
-    console.error(`[server] Server listen error on ${HOST}:${PORT}:`, err.message)
-    if (HOST !== '0.0.0.0') {
-      console.log(`[server] Retrying listen on 0.0.0.0:${PORT}...`)
-      app.listen(PORT, '0.0.0.0')
-    }
-  })
-
-  if (mirrorPort && mirrorPort !== PORT) {
+  for (const p of uniquePorts) {
     try {
-      const mirrorServer = app.listen(mirrorPort, HOST, () => {
-        console.log(`[server] Reverse-proxy mirror listening on http://${HOST}:${mirrorPort}`)
+      const s = app.listen(p, HOST, () => {
+        console.log(`[server] Server listening on http://${HOST}:${p}`)
       })
-      mirrorServer.on('error', (err) => {
-        console.warn(`[server] Mirror port ${mirrorPort} listen not active:`, err.message)
+      s.on('error', (err) => {
+        if (p === PORT) {
+          console.error(`[server] Primary port ${p} error on ${HOST}:`, err.message)
+          if (HOST !== '0.0.0.0') {
+            console.log(`[server] Retrying primary listen on 0.0.0.0:${p}...`)
+            app.listen(p, '0.0.0.0')
+          }
+        } else {
+          // Additional/mirror port may be in use or unavailable; log without failing
+          console.warn(`[server] Additional port ${p} mirror not active: ${err.message}`)
+        }
       })
     } catch (err) {
-      console.warn(`[server] Mirror port setup failed:`, err.message)
+      if (p === PORT) {
+        console.error(`[server] Failed to bind primary port ${p}: ${err.message}`)
+      }
     }
   }
 
   initializeServerDatabase().then(() => {
-    console.log('Database initialized')
+    console.log('[server] Database initialized and ready for requests')
   }).catch(err => {
     console.error('Failed to initialize database on startup:', err.message)
     // Keep server process running so reverse proxy can route traffic and return informative status

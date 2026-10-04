@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { v4 as uuidv4 } from 'uuid'
-import { initDatabase, query, run, saveDatabase, DB_MODE } from '../db.js'
+import { initDatabase, query, run, saveDatabase, closeDatabase, DB_MODE } from '../db.js'
 import { hashPassword, isPasswordHash } from '../lib/passwords.js'
 
 function parseArgs(argv) {
@@ -201,9 +201,12 @@ async function main() {
 
   console.log(`[seeder] Imported ${data.teachers?.length || 0} teachers, ${data.students?.length || 0} students, ${(data.plans || []).length} plans.`)
   saveDatabase()
+  await closeDatabase()
+  process.exit(0)
 }
 
-main().catch(error => {
+main().catch(async error => {
   console.error('[seeder] Seeding failed:', error.message)
+  await closeDatabase().catch(() => {})
   process.exit(1)
 })
