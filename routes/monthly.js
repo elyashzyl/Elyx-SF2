@@ -30,11 +30,14 @@ export async function getUnifiedClassRoster(schoolId, grade, section) {
   // 1. Current class students in students table
   try {
     const rows = await query(
-      `SELECT id, name, gender, enrollment_status FROM students WHERE school_id = ? AND grade = ? AND section = ?`,
+      `SELECT id, name, gender, enrollment_status FROM students
+       WHERE (school_id = ? OR school_id = '' OR school_id IS NULL)
+         AND LOWER(TRIM(grade)) = LOWER(TRIM(?))
+         AND LOWER(TRIM(section)) = LOWER(TRIM(?))`,
       [schoolId, grade, section]
     )
     for (const r of rows) {
-      studentMap.set(r.id, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
+      studentMap.set(String(r.id), { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
     }
   } catch {}
 
@@ -44,14 +47,17 @@ export async function getUnifiedClassRoster(schoolId, grade, section) {
       SELECT DISTINCT me.student_id as id, me.student_name as name, COALESCE(s.gender, '') as gender, me.late_enrollee
       FROM monthly_entries me
       JOIN monthly_records mr ON mr.id = me.record_id
-      LEFT JOIN students s ON s.id = me.student_id
-      WHERE mr.school_id = ? AND mr.grade = ? AND mr.section = ?
+      LEFT JOIN students s ON (s.id = me.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(me.student_name)))
+      WHERE (mr.school_id = ? OR mr.school_id = '' OR mr.school_id IS NULL)
+        AND LOWER(TRIM(mr.grade)) = LOWER(TRIM(?))
+        AND LOWER(TRIM(mr.section)) = LOWER(TRIM(?))
     `, [schoolId, grade, section])
     for (const r of rows) {
-      if (!studentMap.has(r.id)) {
-        studentMap.set(r.id, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: Boolean(r.late_enrollee) })
-      } else if (r.gender && !studentMap.get(r.id).gender) {
-        studentMap.get(r.id).gender = r.gender
+      const sid = String(r.id || r.name)
+      if (!studentMap.has(sid)) {
+        studentMap.set(sid, { id: r.id || sid, name: r.name, gender: r.gender || '', late_enrollee: Boolean(r.late_enrollee) })
+      } else if (r.gender && !studentMap.get(sid).gender) {
+        studentMap.get(sid).gender = r.gender
       }
     }
   } catch {}
@@ -62,13 +68,37 @@ export async function getUnifiedClassRoster(schoolId, grade, section) {
       SELECT DISTINCT s.id, s.name, COALESCE(s.gender, '') as gender
       FROM student_enrollment_events e
       JOIN students s ON s.id = e.student_id
-      WHERE e.school_id = ? AND e.grade = ? AND e.section = ?
+      WHERE (e.school_id = ? OR e.school_id = '' OR e.school_id IS NULL)
+        AND LOWER(TRIM(e.grade)) = LOWER(TRIM(?))
+        AND LOWER(TRIM(e.section)) = LOWER(TRIM(?))
     `, [schoolId, grade, section])
     for (const r of rows) {
-      if (!studentMap.has(r.id)) {
-        studentMap.set(r.id, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
-      } else if (r.gender && !studentMap.get(r.id).gender) {
-        studentMap.get(r.id).gender = r.gender
+      const sid = String(r.id)
+      if (!studentMap.has(sid)) {
+        studentMap.set(sid, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
+      } else if (r.gender && !studentMap.get(sid).gender) {
+        studentMap.get(sid).gender = r.gender
+      }
+    }
+  } catch {}
+
+  // 4. Students who appeared in daily attendance records for this class
+  try {
+    const rows = await query(`
+      SELECT DISTINCT ae.student_id as id, ae.name, COALESCE(s.gender, '') as gender
+      FROM attendance_entries ae
+      JOIN attendance_records ar ON ar.id = ae.record_id
+      LEFT JOIN students s ON (s.id = ae.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(ae.name)))
+      WHERE (ar.school_id = ? OR ar.school_id = '' OR ar.school_id IS NULL)
+        AND LOWER(TRIM(ar.grade)) = LOWER(TRIM(?))
+        AND LOWER(TRIM(ar.section)) = LOWER(TRIM(?))
+    `, [schoolId, grade, section])
+    for (const r of rows) {
+      const sid = String(r.id || r.name)
+      if (!studentMap.has(sid)) {
+        studentMap.set(sid, { id: r.id || sid, name: r.name, gender: r.gender || '', late_enrollee: false })
+      } else if (r.gender && !studentMap.get(sid).gender) {
+        studentMap.get(sid).gender = r.gender
       }
     }
   } catch {}
@@ -124,16 +154,19 @@ router.get('/', async (req, res) => {
     const existingEntries = await query(`
       SELECT me.*, COALESCE(s.gender, '') as student_gender 
       FROM monthly_entries me 
-      LEFT JOIN students s ON s.id = me.student_id 
+      LEFT JOIN students s ON (s.id = me.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(me.student_name)))
       WHERE me.record_id = ? 
       ORDER BY me.id
     `, [record.id])
 
-    const existingIds = new Set(existingEntries.map(e => e.student_id))
+    const existingIds = new Set(existingEntries.map(e => String(e.student_id || '')))
+    const existingNames = new Set(existingEntries.map(e => (e.student_name || '').trim().toLowerCase()))
     let newlyInserted = false
 
     for (const s of roster) {
-      if (!existingIds.has(s.id)) {
+      const sId = String(s.id || '')
+      const sName = (s.name || '').trim().toLowerCase()
+      if ((!sId || !existingIds.has(sId)) && (!sName || !existingNames.has(sName))) {
         await run(`
           INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee)
           VALUES (?, ?, ?, '{}', 0, 0, '', 1)
@@ -145,7 +178,7 @@ router.get('/', async (req, res) => {
     const entries = newlyInserted ? await query(`
       SELECT me.*, COALESCE(s.gender, '') as student_gender
       FROM monthly_entries me
-      LEFT JOIN students s ON s.id = me.student_id
+      LEFT JOIN students s ON (s.id = me.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(me.student_name)))
       WHERE me.record_id = ?
       ORDER BY me.id
     `, [record.id]) : existingEntries
@@ -506,14 +539,17 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
 
 router.delete('/:recordId', async (req, res) => {
   try {
-    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
-    if (error) return
+    const g = await guardRecord(req, res)
+    if (!g) return
     const { recordId } = req.params
-    const records = await query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
-    if (records.length === 0) return res.status(404).json({ error: 'Record not found' })
-    if (!scopeRecordCheck(me, records[0])) return res.status(403).json({ error: 'Forbidden: outside your school' })
     await run('DELETE FROM monthly_entries WHERE record_id = ?', [recordId])
     await run('DELETE FROM monthly_records WHERE id = ?', [recordId])
+    await audit(
+      g.me,
+      'monthly.delete',
+      { type: 'monthly', id: recordId, name: `${g.record.grade} - ${g.record.section}`, schoolId: g.record.school_id },
+      `Deleted monthly SF2 record for ${g.record.grade} - ${g.record.section} (${g.record.month}/${g.record.year})`
+    )
     res.json({ success: true })
   } catch (err) {
     console.error('Failed to delete monthly record:', err.message)

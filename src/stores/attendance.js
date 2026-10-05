@@ -528,6 +528,15 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function deleteMonthly(recordId, schoolId) {
+    const extra = {}
+    if (schoolId) extra.schoolId = schoolId
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/monthly/${recordId}?${query}`, {
+      method: 'DELETE'
+    })
+  }
+
   async function syncMonthlyCalendar(recordId, userId, userRole, schoolId) {
     const extra = { userId, userRole }
     if (schoolId) extra.schoolId = schoolId
@@ -605,6 +614,6 @@ export const useAttendanceStore = defineStore('attendance', () => {
     fetchAttendanceSummaries, validateBulkAttendanceImport, bulkImportAttendance,
     getRecord, saveRecord, getOrCreateRecord,
     updateEntry, updateTeacherNotes, reopenRecord, getCorrections, getAllRecords, deleteRecord,
-    fetchMonthly, saveMonthly, updateMonthlyEntry, updateMonthlySettings, updateMonthlyRemarks, syncMonthlyCalendar
+    fetchMonthly, saveMonthly, deleteMonthly, updateMonthlyEntry, updateMonthlySettings, updateMonthlyRemarks, syncMonthlyCalendar
   }
 })

@@ -16,6 +16,7 @@ const section = 'Section Emerald'
 let midMonthStudentId
 let withdrawnStudentId
 let regularStudentId
+let month8RecordId
 let server
 let baseUrl
 
@@ -235,7 +236,7 @@ test('GET /api/monthly/roster returns unified class roster across all enrollment
 
 test('previous month automatically reconciles to include students visible in other/later months', async () => {
   // 1. Create a Month 8 record with only 1 student initially
-  const month8RecordId = `m8-rec-${suffix}`
+  month8RecordId = `m8-rec-${suffix}`
   await run(`
     INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id, include_saturdays, excluded_dates)
     VALUES (?, 8, 2026, ?, ?, 'Visibility Teacher', '', ?, 'Teacher', ?, 0, '[]')
@@ -267,4 +268,26 @@ test('previous month automatically reconciles to include students visible in oth
   const originalStudent = getRes.body.entries.find(e => e.studentId === regularStudentId)
   assert.equal(originalStudent.present, 1)
   assert.deepEqual(originalStudent.days, { '1': 'P' })
+})
+
+test('advisory teachers and school admins can delete/reset a monthly SF2 report', async () => {
+  // Test deletion of month8RecordId by advisory teacher
+  const deleteRes = await request(`/api/monthly/${month8RecordId}?schoolId=${schoolId}`, {
+    method: 'DELETE',
+    headers: headers(teacherId, 'teacher')
+  })
+  assert.equal(deleteRes.response.status, 200)
+
+  // Verify record and entries are completely removed
+  const rec = await query('SELECT * FROM monthly_records WHERE id = ?', [month8RecordId])
+  assert.equal(rec.length, 0)
+  const entries = await query('SELECT * FROM monthly_entries WHERE record_id = ?', [month8RecordId])
+  assert.equal(entries.length, 0)
+
+  // Querying month 8 now returns null, allowing a fresh report to be generated
+  const getNullRes = await request(`/api/monthly?schoolId=${schoolId}&month=8&year=2026&grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`, {
+    headers: headers(teacherId, 'teacher')
+  })
+  assert.equal(getNullRes.response.status, 200)
+  assert.equal(getNullRes.body, null)
 })

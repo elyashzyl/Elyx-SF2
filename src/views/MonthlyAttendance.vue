@@ -129,6 +129,32 @@
           </svg>
           {{ syncingCalendar ? 'Syncing…' : 'Sync Calendar' }}
         </button>
+        <button
+          type="button"
+          class="btn-secondary sync-roster-btn sheet-setting"
+          :disabled="syncingRoster"
+          title="Sync with school roster to automatically add missing learners without losing existing attendance marks"
+          @click="handleSyncRoster"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+          {{ syncingRoster ? 'Syncing…' : 'Sync Students' }}
+        </button>
+        <button
+          type="button"
+          class="btn-secondary delete-report-btn sheet-setting"
+          :disabled="deletingReport"
+          title="Delete this saved monthly SF2 report so you can generate a fresh report"
+          @click="showDeleteConfirmModal = true"
+          style="color: var(--destructive, #ef4444); border-color: rgba(239, 68, 68, 0.4);"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          {{ deletingReport ? 'Deleting…' : 'Delete / Reset Report' }}
+        </button>
         <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
         <span>School Head: <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" /></span>
       </div>
@@ -392,6 +418,27 @@
         </div>
       </div>
     </div>
+
+    <!-- Confirm Delete Monthly Report Modal -->
+    <div v-if="showDeleteConfirmModal" class="modal-overlay" @click.self="showDeleteConfirmModal = false">
+      <div class="form-card" style="max-width: 480px;">
+        <h3 style="color: var(--destructive, #ef4444);">Delete Monthly SF2 Report?</h3>
+        <p class="modal-subtext">
+          Are you sure you want to delete the saved SF2 report for <strong>{{ months[form.month-1] }} {{ form.year }}</strong> ({{ record?.grade }} - {{ record?.section }})?
+        </p>
+        <p style="font-size: 13px; color: var(--muted-foreground); margin: 8px 0 16px;">
+          This will remove the saved report and all its attendance marks for this month so you can generate a fresh report with the latest class roster.
+        </p>
+        <div class="form-actions">
+          <button type="button" @click="handleDeleteReport" class="btn-primary" style="background: var(--destructive, #ef4444); border-color: var(--destructive, #ef4444);" :disabled="deletingReport">
+            {{ deletingReport ? 'Deleting…' : 'Yes, Delete Report' }}
+          </button>
+          <button type="button" @click="showDeleteConfirmModal = false" class="btn-secondary" :disabled="deletingReport">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -401,11 +448,14 @@ import { useRoute } from 'vue-router'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
+import { useToast } from '../composables/useToast'
 import { loadPageState } from '../composables/usePageState'
 
 const route = useRoute()
 const store = useAttendanceStore()
 const auth = useAuthStore()
+const { addToast } = useToast()
+const notify = (msg, type = 'info') => addToast(msg, type)
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
 const savedState = loadPageState(auth.user)
 const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
@@ -830,28 +880,38 @@ async function openMonthly() {
     // Combine rosters: any student belonging to this class across all sources is retained
     const studentMap = new Map()
     for (const s of (unifiedRoster || [])) {
-      if (s?.id) studentMap.set(s.id, s)
+      if (s?.id) studentMap.set(String(s.id), s)
     }
     for (const s of (currentStudents || [])) {
-      if (s?.id && !studentMap.has(s.id)) {
-        studentMap.set(s.id, s)
+      if (s?.id && !studentMap.has(String(s.id))) {
+        studentMap.set(String(s.id), s)
       }
     }
     for (const s of (historicalStudents || [])) {
-      if (s?.id && !studentMap.has(s.id)) {
-        studentMap.set(s.id, s)
+      if (s?.id && !studentMap.has(String(s.id))) {
+        studentMap.set(String(s.id), s)
       }
     }
     const students = Array.from(studentMap.values())
 
-    // Build lookup for gender from all available sources
+    // Build lookup for gender from all available sources (by ID and by Name)
     const lookup = {}
-    for (const s of (unifiedRoster || [])) if (s.gender) lookup[s.id] = s.gender
-    for (const s of (currentStudents || [])) if (s.gender) lookup[s.id] = s.gender
-    for (const s of (historicalStudents || [])) if (s.gender) lookup[s.id] = s.gender
+    const lookupByName = {}
+    for (const s of (unifiedRoster || [])) {
+      if (s.gender) { lookup[s.id] = s.gender; lookupByName[(s.name || '').trim().toLowerCase()] = s.gender }
+    }
+    for (const s of (currentStudents || [])) {
+      if (s.gender) { lookup[s.id] = s.gender; lookupByName[(s.name || '').trim().toLowerCase()] = s.gender }
+    }
+    for (const s of (historicalStudents || [])) {
+      if (s.gender) { lookup[s.id] = s.gender; lookupByName[(s.name || '').trim().toLowerCase()] = s.gender }
+    }
     if (existingData?.entries) {
       for (const e of existingData.entries) {
-        if (e.gender && !lookup[e.studentId]) lookup[e.studentId] = e.gender
+        if (e.gender) {
+          if (!lookup[e.studentId]) lookup[e.studentId] = e.gender
+          lookupByName[(e.name || '').trim().toLowerCase()] = e.gender
+        }
       }
     }
     studentsLookup.value = lookup
@@ -860,15 +920,15 @@ async function openMonthly() {
     if (!data) {
       // Sort new entries: Boys first, then Girls, alphabetically by name
       const sortedStudents = [...students].sort((a, b) => {
-        const gA = normalizeGender(lookup[a.id] || a.gender) === 'female' ? 1 : 0
-        const gB = normalizeGender(lookup[b.id] || b.gender) === 'female' ? 1 : 0
+        const gA = normalizeGender(lookup[a.id] || lookupByName[(a.name || '').trim().toLowerCase()] || a.gender) === 'female' ? 1 : 0
+        const gB = normalizeGender(lookup[b.id] || lookupByName[(b.name || '').trim().toLowerCase()] || b.gender) === 'female' ? 1 : 0
         if (gA !== gB) return gA - gB
         return (a.name || '').localeCompare(b.name || '')
       })
       const entries = sortedStudents.map(s => ({
         studentId: s.id,
         name: s.name,
-        gender: lookup[s.id] || s.gender || '',
+        gender: lookup[s.id] || lookupByName[(s.name || '').trim().toLowerCase()] || s.gender || '',
         days: {},
         present: 0,
         absent: 0,
@@ -889,20 +949,22 @@ async function openMonthly() {
     } else {
       // PRESERVE ALL EXISTING ENTRIES! Never filter or delete saved students!
       for (const e of data.entries) {
-        if (lookup[e.studentId]) {
-          e.gender = lookup[e.studentId]
+        const gen = lookup[e.studentId] || lookupByName[(e.name || '').trim().toLowerCase()]
+        if (gen && !e.gender) {
+          e.gender = gen
         }
       }
 
       // Add missing students from the roster as late enrollees
-      const existingIds = new Set(data.entries.map(e => e.studentId))
-      const missing = students.filter(s => !existingIds.has(s.id))
+      const existingIds = new Set(data.entries.map(e => String(e.studentId || '')))
+      const existingNames = new Set(data.entries.map(e => (e.name || '').trim().toLowerCase()))
+      const missing = students.filter(s => !existingIds.has(String(s.id)) && !existingNames.has((s.name || '').trim().toLowerCase()))
       if (missing.length > 0) {
         for (const s of missing) {
           data.entries.push({
             studentId: s.id,
             name: s.name,
-            gender: lookup[s.id] || s.gender || '',
+            gender: lookup[s.id] || lookupByName[(s.name || '').trim().toLowerCase()] || s.gender || '',
             days: {},
             present: 0,
             absent: 0,
@@ -1200,6 +1262,82 @@ async function handleSyncCalendar() {
     notify(err.message || 'Failed to sync calendar events', 'error')
   } finally {
     syncingCalendar.value = false
+  }
+}
+
+const showDeleteConfirmModal = ref(false)
+const deletingReport = ref(false)
+const syncingRoster = ref(false)
+
+async function handleDeleteReport() {
+  if (!record.value?.id) return
+  deletingReport.value = true
+  try {
+    const sid = effectiveSchoolId.value
+    await store.deleteMonthly(record.value.id, sid || undefined)
+    notify(`Monthly SF2 report for ${months[form.month - 1]} ${form.year} deleted.`, 'success')
+    showDeleteConfirmModal.value = false
+    record.value = null
+    await loadRecord()
+  } catch (err) {
+    notify(err.message || 'Failed to delete monthly report', 'error')
+  } finally {
+    deletingReport.value = false
+  }
+}
+
+async function handleSyncRoster() {
+  if (!record.value?.id) return
+  syncingRoster.value = true
+  try {
+    const sid = effectiveSchoolId.value
+    const lastDay = new Date(form.year, form.month, 0).getDate()
+    const monthEnd = `${form.year}-${String(form.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const [unifiedRoster, currentStudents, historicalStudents] = await Promise.all([
+      store.getClassRoster(form.grade, form.section, sid || undefined).catch(() => []),
+      store.getStudents({ grade: form.grade, section: form.section, includeWithdrawn: 'true' }, sid || undefined).catch(() => []),
+      store.getStudents({ grade: form.grade, section: form.section, includeWithdrawn: 'true', asOf: monthEnd }, sid || undefined).catch(() => [])
+    ])
+
+    const studentMap = new Map()
+    for (const s of (unifiedRoster || [])) if (s?.id) studentMap.set(String(s.id), s)
+    for (const s of (currentStudents || [])) if (s?.id && !studentMap.has(String(s.id))) studentMap.set(String(s.id), s)
+    for (const s of (historicalStudents || [])) if (s?.id && !studentMap.has(String(s.id))) studentMap.set(String(s.id), s)
+
+    const allStudents = Array.from(studentMap.values())
+    const existingIds = new Set((record.value.entries || []).map(e => String(e.studentId || '')))
+    const existingNames = new Set((record.value.entries || []).map(e => (e.name || '').trim().toLowerCase()))
+
+    const missing = allStudents.filter(s => !existingIds.has(String(s.id)) && !existingNames.has((s.name || '').trim().toLowerCase()))
+
+    if (missing.length === 0) {
+      notify('All learners are already included in this report.', 'info')
+      return
+    }
+
+    const lookup = studentsLookup.value || {}
+    for (const s of missing) {
+      record.value.entries.push({
+        studentId: s.id,
+        name: s.name,
+        gender: s.gender || lookup[s.id] || '',
+        days: {},
+        present: 0,
+        absent: 0,
+        remarks: '',
+        late_enrollee: 1
+      })
+    }
+
+    await store.saveMonthly(record.value, auth.user, sid || undefined)
+    const refreshed = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined)
+    if (refreshed) record.value = refreshed
+    notify(`Added ${missing.length} learner${missing.length > 1 ? 's' : ''} to this monthly report.`, 'success')
+  } catch (err) {
+    notify(err.message || 'Failed to sync learners', 'error')
+  } finally {
+    syncingRoster.value = false
   }
 }
 
