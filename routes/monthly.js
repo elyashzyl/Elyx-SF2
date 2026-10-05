@@ -201,7 +201,24 @@ router.get('/', async (req, res) => {
       remarks: e.remarks || '',
       late_enrollee: e.late_enrollee === 1 || e.late_enrollee === true || e.late_enrollee === '1'
     }))
-    record.summary_data = JSON.parse(record.summary_data || '{}')
+
+    const curSummary = JSON.parse(record.summary_data || '{}')
+    const mEntries = record.entries.filter(e => (e.gender || '').toLowerCase() === 'male')
+    const fEntries = record.entries.filter(e => (e.gender || '').toLowerCase() === 'female')
+    curSummary.reg_m = mEntries.length
+    curSummary.reg_f = fEntries.length
+    curSummary.reg_t = mEntries.length + fEntries.length
+    const lateM = record.entries.filter(e => Boolean(e.late_enrollee) && (e.gender || '').toLowerCase() === 'male').length
+    const lateF = record.entries.filter(e => Boolean(e.late_enrollee) && (e.gender || '').toLowerCase() === 'female').length
+    if (newlyInserted || curSummary.late_m === undefined) {
+      curSummary.late_m = lateM
+      curSummary.late_f = lateF
+      curSummary.late_t = lateM + lateF
+    }
+    if (newlyInserted) {
+      await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSummary), record.id])
+    }
+    record.summary_data = curSummary
     record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
     record.include_saturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     record.schoolHead = record.school_head || ''
@@ -302,8 +319,9 @@ router.post('/', async (req, res) => {
       const rec = (await query('SELECT * FROM monthly_records WHERE id = ?', [recordId]))[0]
       if (!scopeRecordCheck(me, rec)) return res.status(403).json({ error: 'Forbidden: outside your school' })
       await run('DELETE FROM monthly_entries WHERE record_id = ?', [recordId])
+      const summaryPayload = req.body.summary_data ? JSON.stringify(req.body.summary_data) : rec.summary_data
       // Preserve an existing report's Saturday setting when regenerating its entries.
-      await run('UPDATE monthly_records SET adviser=?, school_head=? WHERE id=?', [adviserName, '', recordId])
+      await run('UPDATE monthly_records SET adviser=?, school_head=?, summary_data=? WHERE id=?', [adviserName, '', summaryPayload, recordId])
     } else {
       const monthStr = String(month).padStart(2, '0')
       const prefix = `${year}-${monthStr}-`
@@ -330,6 +348,17 @@ router.post('/', async (req, res) => {
       await run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [recordId, entry.studentId, entry.name, JSON.stringify(entry.days || {}), entry.present || 0, entry.absent || 0, entry.remarks || '', entry.late_enrollee ? 1 : 0])
     }
+
+    // Synchronize registered counts in summary_data with the newly saved entries
+    const mSavedCount = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'male').length
+    const fSavedCount = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'female').length
+    const latestRec = (await query('SELECT summary_data FROM monthly_records WHERE id = ?', [recordId]))[0]
+    const curSum = JSON.parse(latestRec?.summary_data || '{}')
+    curSum.reg_m = mSavedCount
+    curSum.reg_f = fSavedCount
+    curSum.reg_t = mSavedCount + fSavedCount
+    await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSum), recordId])
+
     const updated = await query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
     await audit(
       me,

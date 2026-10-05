@@ -473,7 +473,7 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' })
     }
 
-    const { username, password, name, email, avatar_url, avatarUrl, role, grade, section, period } = req.body || {}
+    const { username, password, name, email, avatar_url, avatarUrl, role, grade, section, period, account_status } = req.body || {}
     const newRole = role || target.role
     if (!VALID_ROLES.includes(newRole)) return res.status(400).json({ error: 'Invalid role' })
 
@@ -529,6 +529,15 @@ router.put('/:id', async (req, res) => {
     }
     const sets = ['username=?', 'name=?', 'email=?', 'avatar_url=?', 'role=?', 'grade=?', 'section=?', 'period=?', 'school_id=?']
     const params = [vals.username, vals.name, newEmail, newAvatarUrl, newRole, vals.grade, vals.section, vals.period, newRole === 'superadmin' ? '' : (newSchoolId || '')]
+    if (account_status !== undefined && VALID_ACCOUNT_STATUSES.includes(account_status) && target.id !== me.id) {
+      sets.push('account_status = ?')
+      params.push(account_status)
+      if (account_status === 'active') {
+        sets.push('locked_until = NULL', 'failed_login_count = 0')
+      } else {
+        await revokeAllUserSessions(id)
+      }
+    }
     if (password && String(password).trim()) {
       sets.push('password=?', 'password_changed_at=CURRENT_TIMESTAMP')
       params.push(await hashPassword(String(password).trim()))
@@ -601,6 +610,29 @@ router.patch('/:id/status', async (req, res) => {
   } catch (err) {
     console.error('Error changing user status:', err.message)
     res.status(500).json({ error: 'Failed to change user status' })
+  }
+})
+
+// Unlocks an account, clearing temporary lockout and resetting failed login attempts.
+router.post('/:id/unlock', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    if (error) return
+    const id = String(req.params.id || '').trim()
+    const target = (await query('SELECT * FROM users WHERE id = ?', [id]))[0]
+    if (!target) return res.status(404).json({ error: 'User not found' })
+    if (!canManageUser(me, target.role, target.school_id)) return res.status(403).json({ error: 'Forbidden' })
+
+    await run("UPDATE users SET account_status = 'active', locked_until = NULL, failed_login_count = 0 WHERE id = ?", [id])
+    await audit(me, 'user.unlock', {
+      type: 'user', id, name: `${target.name} (${target.username})`, schoolId: target.school_id || ''
+    }, `Unlocked user "${target.username}" and reset login lockout`)
+
+    const updated = (await query('SELECT id, username, name, email, email_verified_at, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users WHERE id = ?', [id]))[0]
+    res.json({ success: true, user: updated })
+  } catch (err) {
+    console.error('Error unlocking user:', err.message)
+    res.status(500).json({ error: 'Failed to unlock user' })
   }
 })
 

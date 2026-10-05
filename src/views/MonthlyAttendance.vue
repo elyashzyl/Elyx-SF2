@@ -264,7 +264,24 @@
       </div>
 
       <div class="summary-section" v-if="record.entries && record.entries.length">
-        <h3>SUMMARY</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 style="margin: 0;">SUMMARY</h3>
+          <button
+            type="button"
+            @click="recalculateSummary(true)"
+            class="btn-secondary"
+            style="padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;"
+            title="Recalculate summary metrics from current learner roster and daily attendance marks"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              <path d="M16 21h5v-5"/>
+            </svg>
+            Recalculate Summary
+          </button>
+        </div>
         <table class="summary-table">
           <thead>
             <tr>
@@ -990,6 +1007,7 @@ async function openMonthly() {
       }))
     } catch {}
     initSummaryEdits()
+    refreshSummaryFromLive(true)
   } catch (error) {
     record.value = null
     loadError.value = error?.message || 'Unable to generate the monthly SF2 report'
@@ -997,12 +1015,20 @@ async function openMonthly() {
 }
 
 function onSummaryChange(field) {
-  if (field === 'enr') {
+  if (field === 'enr' || field === 'reg') {
     summaryEdits.enr_t = (Number(summaryEdits.enr_m) || 0) + (Number(summaryEdits.enr_f) || 0)
+    summaryEdits.reg_t = (Number(summaryEdits.reg_m) || 0) + (Number(summaryEdits.reg_f) || 0)
+    summaryEdits.pct_enr_m = summaryEdits.enr_m > 0
+      ? Math.round((summaryEdits.reg_m / summaryEdits.enr_m) * 1000) / 10
+      : (summaryEdits.reg_m > 0 ? 100 : 0)
+    summaryEdits.pct_enr_f = summaryEdits.enr_f > 0
+      ? Math.round((summaryEdits.reg_f / summaryEdits.enr_f) * 1000) / 10
+      : (summaryEdits.reg_f > 0 ? 100 : 0)
+    summaryEdits.pct_enr_t = summaryEdits.enr_t > 0
+      ? Math.round((summaryEdits.reg_t / summaryEdits.enr_t) * 1000) / 10
+      : (summaryEdits.reg_t > 0 ? 100 : 0)
   } else if (field === 'late') {
     summaryEdits.late_t = (Number(summaryEdits.late_m) || 0) + (Number(summaryEdits.late_f) || 0)
-  } else if (field === 'reg') {
-    summaryEdits.reg_t = (Number(summaryEdits.reg_m) || 0) + (Number(summaryEdits.reg_f) || 0)
   } else if (field === 'nls') {
     summaryEdits.nls_t = (Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0)
   } else if (field === 'transfer_out') {
@@ -1022,68 +1048,64 @@ function initSummaryEdits() {
   const sd = record.value.summary_data || {}
   const s = summaryData.value || {}
 
-  summaryEdits.enr_m = sd.enr_m ?? s.enrollment?.m ?? 0
-  summaryEdits.enr_f = sd.enr_f ?? s.enrollment?.f ?? 0
-  summaryEdits.enr_t = (sd.enr_t !== undefined && sd.enr_t !== null && sd.enr_t !== 0)
-    ? sd.enr_t
-    : ((Number(summaryEdits.enr_m) || 0) + (Number(summaryEdits.enr_f) || 0))
-
   const entries = record.value.entries || []
+  const mCount = entries.filter(e => normalizeGender(e.gender) === 'male').length
+  const fCount = entries.filter(e => normalizeGender(e.gender) === 'female').length
   const lateM = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'male').length
   const lateF = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'female').length
-  summaryEdits.late_m = sd.late_m ?? lateM
-  summaryEdits.late_f = sd.late_f ?? lateF
-  summaryEdits.late_t = (sd.late_t !== undefined && sd.late_t !== null && sd.late_t !== 0)
-    ? sd.late_t
-    : ((Number(summaryEdits.late_m) || 0) + (Number(summaryEdits.late_f) || 0))
 
-  summaryEdits.reg_m = sd.reg_m ?? s.registeredLearners?.m ?? 0
-  summaryEdits.reg_f = sd.reg_f ?? s.registeredLearners?.f ?? 0
-  summaryEdits.reg_t = (sd.reg_t !== undefined && sd.reg_t !== null && sd.reg_t !== 0)
-    ? sd.reg_t
-    : ((Number(summaryEdits.reg_m) || 0) + (Number(summaryEdits.reg_f) || 0))
+  // Registered learners always matches current class entries count
+  summaryEdits.reg_m = mCount
+  summaryEdits.reg_f = fCount
+  summaryEdits.reg_t = mCount + fCount
 
-  summaryEdits.pct_enr_m = sd.pct_enr_m ?? s.pctEnrolment?.m ?? 0
-  summaryEdits.pct_enr_f = sd.pct_enr_f ?? s.pctEnrolment?.f ?? 0
-  summaryEdits.pct_enr_t = (sd.pct_enr_t !== undefined && sd.pct_enr_t !== null && sd.pct_enr_t !== 0)
-    ? sd.pct_enr_t
-    : (s.pctEnrolment?.total ?? 0)
+  summaryEdits.late_m = Math.max(Number(sd.late_m) || 0, lateM)
+  summaryEdits.late_f = Math.max(Number(sd.late_f) || 0, lateF)
+  summaryEdits.late_t = (Number(summaryEdits.late_m) || 0) + (Number(summaryEdits.late_f) || 0)
 
-  summaryEdits.ada_m = sd.ada_m ?? s.avgDailyAttendance?.m ?? 0
-  summaryEdits.ada_f = sd.ada_f ?? s.avgDailyAttendance?.f ?? 0
-  summaryEdits.ada_t = (sd.ada_t !== undefined && sd.ada_t !== null && sd.ada_t !== 0)
-    ? sd.ada_t
-    : (s.avgDailyAttendance?.total ?? Math.round(((Number(summaryEdits.ada_m) || 0) + (Number(summaryEdits.ada_f) || 0)) * 100) / 100)
+  const defaultEnrM = Math.max(0, mCount - summaryEdits.late_m)
+  const defaultEnrF = Math.max(0, fCount - summaryEdits.late_f)
+  summaryEdits.enr_m = (sd.enr_m !== undefined && sd.enr_m !== null && Number(sd.enr_m) > 0)
+    ? Number(sd.enr_m)
+    : defaultEnrM
+  summaryEdits.enr_f = (sd.enr_f !== undefined && sd.enr_f !== null && Number(sd.enr_f) > 0)
+    ? Number(sd.enr_f)
+    : defaultEnrF
+  summaryEdits.enr_t = (Number(summaryEdits.enr_m) || 0) + (Number(summaryEdits.enr_f) || 0)
 
-  summaryEdits.pct_m = sd.pct_m ?? s.pctAttendance?.m ?? 0
-  summaryEdits.pct_f = sd.pct_f ?? s.pctAttendance?.f ?? 0
-  summaryEdits.pct_t = (sd.pct_t !== undefined && sd.pct_t !== null && sd.pct_t !== 0)
-    ? sd.pct_t
-    : (s.pctAttendance?.total ?? 0)
+  summaryEdits.pct_enr_m = summaryEdits.enr_m > 0
+    ? Math.round((summaryEdits.reg_m / summaryEdits.enr_m) * 1000) / 10
+    : (summaryEdits.reg_m > 0 ? 100 : 0)
+  summaryEdits.pct_enr_f = summaryEdits.enr_f > 0
+    ? Math.round((summaryEdits.reg_f / summaryEdits.enr_f) * 1000) / 10
+    : (summaryEdits.reg_f > 0 ? 100 : 0)
+  summaryEdits.pct_enr_t = summaryEdits.enr_t > 0
+    ? Math.round((summaryEdits.reg_t / summaryEdits.enr_t) * 1000) / 10
+    : (summaryEdits.reg_t > 0 ? 100 : 0)
 
-  summaryEdits.abs5_m = sd.abs5_m ?? s.absent5?.m ?? 0
-  summaryEdits.abs5_f = sd.abs5_f ?? s.absent5?.f ?? 0
-  summaryEdits.abs5_t = (sd.abs5_t !== undefined && sd.abs5_t !== null && sd.abs5_t !== 0)
-    ? sd.abs5_t
-    : ((Number(summaryEdits.abs5_m) || 0) + (Number(summaryEdits.abs5_f) || 0))
+  summaryEdits.ada_m = s.avgDailyAttendance?.m ?? 0
+  summaryEdits.ada_f = s.avgDailyAttendance?.f ?? 0
+  summaryEdits.ada_t = s.avgDailyAttendance?.total ?? Math.round(((Number(summaryEdits.ada_m) || 0) + (Number(summaryEdits.ada_f) || 0)) * 100) / 100
 
-  summaryEdits.nls_m = sd.nls_m ?? 0
-  summaryEdits.nls_f = sd.nls_f ?? 0
-  summaryEdits.nls_t = (sd.nls_t !== undefined && sd.nls_t !== null && sd.nls_t !== 0)
-    ? sd.nls_t
-    : ((Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0))
+  summaryEdits.pct_m = s.pctAttendance?.m ?? 0
+  summaryEdits.pct_f = s.pctAttendance?.f ?? 0
+  summaryEdits.pct_t = s.pctAttendance?.total ?? 0
 
-  summaryEdits.transfer_out_m = sd.transfer_out_m ?? 0
-  summaryEdits.transfer_out_f = sd.transfer_out_f ?? 0
-  summaryEdits.transfer_out_t = (sd.transfer_out_t !== undefined && sd.transfer_out_t !== null && sd.transfer_out_t !== 0)
-    ? sd.transfer_out_t
-    : ((Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0))
+  summaryEdits.abs5_m = s.absent5?.m ?? 0
+  summaryEdits.abs5_f = s.absent5?.f ?? 0
+  summaryEdits.abs5_t = s.absent5?.total ?? ((Number(summaryEdits.abs5_m) || 0) + (Number(summaryEdits.abs5_f) || 0))
 
-  summaryEdits.transfer_in_m = sd.transfer_in_m ?? 0
-  summaryEdits.transfer_in_f = sd.transfer_in_f ?? 0
-  summaryEdits.transfer_in_t = (sd.transfer_in_t !== undefined && sd.transfer_in_t !== null && sd.transfer_in_t !== 0)
-    ? sd.transfer_in_t
-    : ((Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0))
+  summaryEdits.nls_m = Number(sd.nls_m) || 0
+  summaryEdits.nls_f = Number(sd.nls_f) || 0
+  summaryEdits.nls_t = (Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0)
+
+  summaryEdits.transfer_out_m = Number(sd.transfer_out_m) || 0
+  summaryEdits.transfer_out_f = Number(sd.transfer_out_f) || 0
+  summaryEdits.transfer_out_t = (Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0)
+
+  summaryEdits.transfer_in_m = Number(sd.transfer_in_m) || 0
+  summaryEdits.transfer_in_f = Number(sd.transfer_in_f) || 0
+  summaryEdits.transfer_in_t = (Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0)
 }
 
 async function updateIncludeSaturdays(includeSaturdays) {
@@ -1180,16 +1202,36 @@ async function updateDay(entry, day, status) {
   refreshSummaryFromLive()
 }
 
-function refreshSummaryFromLive() {
+function refreshSummaryFromLive(shouldSave = true) {
   const s = summaryData.value
   if (!s) return
+  summaryEdits.reg_m = s.registeredLearners.m
+  summaryEdits.reg_f = s.registeredLearners.f
+  summaryEdits.reg_t = s.registeredLearners.total
+  summaryEdits.late_m = s.lateEnrolment.m
+  summaryEdits.late_f = s.lateEnrolment.f
+  summaryEdits.late_t = s.lateEnrolment.total
+  summaryEdits.pct_enr_m = s.pctEnrolment.m
+  summaryEdits.pct_enr_f = s.pctEnrolment.f
+  summaryEdits.pct_enr_t = s.pctEnrolment.total
   summaryEdits.pct_m = s.pctAttendance.m
   summaryEdits.pct_f = s.pctAttendance.f
   summaryEdits.pct_t = s.pctAttendance.total
   summaryEdits.ada_m = s.avgDailyAttendance.m
   summaryEdits.ada_f = s.avgDailyAttendance.f
   summaryEdits.ada_t = s.avgDailyAttendance.total
-  saveSummary()
+  summaryEdits.abs5_m = s.absent5.m
+  summaryEdits.abs5_f = s.absent5.f
+  summaryEdits.abs5_t = s.absent5.total
+  if (shouldSave) saveSummary()
+}
+
+function recalculateSummary(showToast = false) {
+  initSummaryEdits()
+  refreshSummaryFromLive(true)
+  if (showToast) {
+    notify('Summary table recalculated and updated from class roster.', 'success')
+  }
 }
 
 async function toggleExcludeDate(d) {
@@ -1339,7 +1381,11 @@ async function handleSyncRoster() {
 
     await store.saveMonthly(record.value, auth.user, sid || undefined)
     const refreshed = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined)
-    if (refreshed) record.value = refreshed
+    if (refreshed) {
+      record.value = refreshed
+      initSummaryEdits()
+      refreshSummaryFromLive(true)
+    }
     notify(`Added ${missing.length} learner${missing.length > 1 ? 's' : ''} to this monthly report.`, 'success')
   } catch (err) {
     notify(err.message || 'Failed to sync learners', 'error')

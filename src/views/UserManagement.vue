@@ -10,6 +10,14 @@
     <div v-if="showForm" class="modal-overlay user-modal-overlay" @click.self="cancelForm">
       <div class="form-card user-form-card">
         <h3>{{ editingUser ? 'Edit User Account' : 'Add New User Account' }}</h3>
+        <div v-if="editingUser && (editingUser.account_status === 'locked' || editingUser.locked_until)" style="margin-bottom: 16px; padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+          <div>
+            <strong style="color: var(--destructive, #ef4444);">Account is Locked:</strong> This user cannot sign in due to failed login attempts or security lockout.
+          </div>
+          <button type="button" @click="handleQuickUnlock" class="btn-sm btn-success" style="white-space: nowrap;">
+            Unlock Account Now
+          </button>
+        </div>
         <form @submit.prevent="handleSave">
           <div class="form-group">
             <label>Full Name</label>
@@ -61,6 +69,25 @@
               </div>
             </div>
           </template>
+          <div class="form-group" v-if="editingUser && editingUser.id !== auth.user?.id">
+            <label>Account Status</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select v-model="form.account_status" style="flex: 1;">
+                <option value="active">Active</option>
+                <option value="disabled">Disabled</option>
+                <option value="locked">Locked</option>
+              </select>
+              <button
+                v-if="form.account_status === 'locked' || editingUser.account_status === 'locked'"
+                type="button"
+                @click="handleQuickUnlock"
+                class="btn-secondary"
+                style="white-space: nowrap; color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border));"
+              >
+                Unlock Now
+              </button>
+            </div>
+          </div>
           <div class="form-actions user-form-actions">
             <button type="submit" class="btn-primary" :disabled="saving">
               <span v-if="saving" class="spinner user-save-spinner"></span>
@@ -102,6 +129,13 @@
             <option value="">All Schools</option>
             <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
+          <select v-model="filterStatus" @change="currentPage = 1" class="tbl-filter" title="Filter by account status">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="locked">Locked</option>
+            <option value="disabled">Disabled</option>
+            <option value="invited">Invited</option>
+          </select>
         </div>
       </div>
       <div class="user-table-scroll">
@@ -135,7 +169,19 @@
             <td v-if="auth.isSuperadmin">{{ schoolNameOf(u) }}</td>
             <td>{{ u.grade ? (u.grade + (u.section ? ' - ' + u.section : '')) : '—' }}</td>
             <td>
-              <span :class="['pill', statusClass(u.account_status)]">{{ statusLabel(u.account_status) }}</span>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span :class="['pill', statusClass(u.account_status)]">{{ statusLabel(u.account_status) }}</span>
+                <button
+                  v-if="(u.account_status === 'locked' || u.locked_until) && canManageStatus(u) && u.id !== auth.user?.id"
+                  type="button"
+                  @click="unlockUser(u)"
+                  class="btn-xs-status"
+                  title="Unlock this user immediately"
+                  style="color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border));"
+                >
+                  Unlock
+                </button>
+              </div>
               <div v-if="u.last_login_at" class="cell-sub">Last login: {{ formatDate(u.last_login_at) }}</div>
             </td>
             <td class="user-actions-cell">
@@ -152,8 +198,15 @@
                 <button @click="requestReset(u)" class="icon-btn" title="Send password reset" v-if="u.account_status !== 'invited' && u.email && canManageStatus(u)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </button>
-                <button @click="toggleStatus(u)" class="icon-btn" :title="u.account_status === 'disabled' ? 'Enable account' : 'Disable account'" v-if="u.id !== auth.user?.id && canManageStatus(u)">
+                <button @click="unlockUser(u)" class="icon-btn icon-btn--success" title="Unlock account (restore login access)" v-if="(u.account_status === 'locked' || u.locked_until) && u.id !== auth.user?.id && canManageStatus(u)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                  </svg>
+                </button>
+                <button @click="toggleStatus(u)" class="icon-btn" :title="u.account_status === 'disabled' ? 'Enable account' : (u.account_status === 'locked' ? 'Unlock account' : 'Disable account')" v-if="u.id !== auth.user?.id && canManageStatus(u)">
                   <svg v-if="u.account_status === 'disabled'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>
+                  <svg v-else-if="u.account_status === 'locked'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
                   <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
                 </button>
                 <button @click="removeUser(u.id)" class="icon-btn icon-btn--danger" title="Delete" v-if="u.id !== auth.user?.id && canManageStatus(u)">
@@ -203,14 +256,20 @@ const formError = ref('')
 const users = ref([])
 const schools = ref([])
 const filterSchoolId = ref('')
+const filterStatus = ref('')
 const impersonatingId = ref(null)
 const userSearch = ref('')
 const pageSize = ref(10)
 const currentPage = ref(1)
 const filteredUsers = computed(() => {
   const q = userSearch.value.trim().toLowerCase()
-  if (!q) return users.value
-  return users.value.filter(u => (u.name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q))
+  return users.value.filter(u => {
+    if (filterStatus.value && (u.account_status || 'active') !== filterStatus.value) return false
+    if (!q) return true
+    return (u.name || '').toLowerCase().includes(q) ||
+      (u.username || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q)
+  })
 })
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredUsers.value.length / pageSize.value)))
 const pagedUsers = computed(() => {
@@ -287,7 +346,7 @@ function canManageStatus(u) {
 }
 
 function resetForm() {
-  form.value = { name: '', username: '', email: '', password: '', role: 'teacher', grade: '', section: '', schoolId: auth.isSuperadmin ? (activeSchoolId.value || '') : (auth.schoolId || '') }
+  form.value = { name: '', username: '', email: '', password: '', role: 'teacher', grade: '', section: '', schoolId: auth.isSuperadmin ? (activeSchoolId.value || '') : (auth.schoolId || ''), account_status: 'active' }
   editingUser.value = null
   formError.value = ''
 }
@@ -321,8 +380,43 @@ async function handleSave() {
 
 function editUser(u) {
   editingUser.value = u
-  form.value = { name: u.name, username: u.username, email: u.email || '', password: '', role: u.role, grade: u.grade || '', section: u.section || '', schoolId: u.school_id || '' }
+  form.value = {
+    name: u.name,
+    username: u.username,
+    email: u.email || '',
+    password: '',
+    role: u.role,
+    grade: u.grade || '',
+    section: u.section || '',
+    schoolId: u.school_id || '',
+    account_status: u.account_status || 'active'
+  }
   showForm.value = true
+}
+
+async function handleQuickUnlock() {
+  if (!editingUser.value) return
+  try {
+    await auth.unlockUser(editingUser.value.id)
+    editingUser.value.account_status = 'active'
+    editingUser.value.locked_until = null
+    form.value.account_status = 'active'
+    await loadUsers()
+    addToast(`Account for ${editingUser.value.name} unlocked successfully`, 'success')
+  } catch (e) {
+    addToast(e.message, 'error')
+  }
+}
+
+async function unlockUser(u) {
+  if (!confirm(`Unlock ${u.name}'s account? This will clear lockout and restore sign-in access immediately.`)) return
+  try {
+    await auth.unlockUser(u.id)
+    await loadUsers()
+    addToast(`Account for ${u.name} unlocked successfully`, 'success')
+  } catch (e) {
+    addToast(e.message, 'error')
+  }
 }
 
 function startInvite() {
@@ -341,6 +435,9 @@ async function requestReset(u) {
 }
 
 async function toggleStatus(u) {
+  if (u.account_status === 'locked') {
+    return unlockUser(u)
+  }
   const next = u.account_status === 'disabled' ? 'active' : 'disabled'
   if (!confirm(`${next === 'active' ? 'Enable' : 'Disable'} ${u.name}'s account?`)) return
   try {

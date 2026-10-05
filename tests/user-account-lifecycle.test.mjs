@@ -114,4 +114,29 @@ test('five failed passwords lock an account', async () => {
     body: JSON.stringify({ username: teacherA, password: 'test-password' })
   })
   assert.equal(blocked.response.status, 403)
+
+  // Administrator unlocks the locked account using the unlock endpoint
+  const unlocked = await request(`/api/users/${teacherA}/unlock`, {
+    method: 'POST',
+    headers: actorHeaders(adminA, 'admin'),
+    body: JSON.stringify({})
+  })
+  assert.equal(unlocked.response.status, 200)
+  assert.equal(unlocked.body.user.account_status, 'active')
+  assert.equal(unlocked.body.user.locked_until, null)
+
+  // Verify database record has been cleared
+  const unlockedRow = (await query('SELECT account_status, failed_login_count, locked_until FROM users WHERE id = ?', [teacherA]))[0]
+  assert.equal(unlockedRow.account_status, 'active')
+  assert.equal(Number(unlockedRow.failed_login_count), 0)
+  assert.equal(unlockedRow.locked_until, null)
+
+  // Verify the unlocked user can now successfully log in
+  const loginAfterUnlock = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: teacherA, password: 'test-password' })
+  })
+  assert.equal(loginAfterUnlock.response.status, 200)
+  assert.equal(loginAfterUnlock.body.user.username, teacherA)
 })
