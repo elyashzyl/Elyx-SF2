@@ -751,9 +751,10 @@ function sumAbsent(gender) {
 
 const genderGroups = computed(() => {
   if (!record.value?.entries) return []
-  const boys = record.value.entries.filter(e => normalizeGender(e.gender) === 'male')
-  const girls = record.value.entries.filter(e => normalizeGender(e.gender) === 'female')
-  const unassigned = record.value.entries.filter(e => !normalizeGender(e.gender))
+  const sortAlpha = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+  const boys = [...record.value.entries.filter(e => normalizeGender(e.gender) === 'male')].sort(sortAlpha)
+  const girls = [...record.value.entries.filter(e => normalizeGender(e.gender) === 'female')].sort(sortAlpha)
+  const unassigned = [...record.value.entries.filter(e => !normalizeGender(e.gender))].sort(sortAlpha)
   const groups = []
 
   // Always include BOYS
@@ -1329,6 +1330,12 @@ async function handleSyncRoster() {
         late_enrollee: 1
       })
     }
+
+    const sortAlpha = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    const bList = record.value.entries.filter(e => normalizeGender(e.gender) === 'male').sort(sortAlpha)
+    const gList = record.value.entries.filter(e => normalizeGender(e.gender) === 'female').sort(sortAlpha)
+    const uList = record.value.entries.filter(e => !normalizeGender(e.gender)).sort(sortAlpha)
+    record.value.entries = [...bList, ...gList, ...uList]
 
     await store.saveMonthly(record.value, auth.user, sid || undefined)
     const refreshed = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined)

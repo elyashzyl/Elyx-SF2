@@ -175,13 +175,20 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const entries = newlyInserted ? await query(`
+    const rawEntries = newlyInserted ? await query(`
       SELECT me.*, COALESCE(s.gender, '') as student_gender
       FROM monthly_entries me
       LEFT JOIN students s ON (s.id = me.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(me.student_name)))
       WHERE me.record_id = ?
       ORDER BY me.id
     `, [record.id]) : existingEntries
+
+    // Strictly sort alphabetically: Boys first alphabetically, Girls alphabetically, then unassigned alphabetically
+    const sortAlpha = (a, b) => (a.student_name || '').localeCompare(b.student_name || '', undefined, { sensitivity: 'base' })
+    const boysList = rawEntries.filter(e => (e.student_gender || '').toLowerCase() === 'male').sort(sortAlpha)
+    const girlsList = rawEntries.filter(e => (e.student_gender || '').toLowerCase() === 'female').sort(sortAlpha)
+    const otherList = rawEntries.filter(e => !['male', 'female'].includes((e.student_gender || '').toLowerCase())).sort(sortAlpha)
+    const entries = [...boysList, ...girlsList, ...otherList]
 
     record.entries = entries.map(e => ({
       id: e.id,
@@ -312,7 +319,14 @@ router.post('/', async (req, res) => {
       await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id, include_saturdays, excluded_dates) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [recordId, month, year, cls.grade, cls.section, adviserName, '', me.id, me.name || me.username || '', scope.schoolId, includeSaturdays ? 1 : 0, JSON.stringify(autoExcludedDays)])
     }
-    for (const entry of entries) {
+    // Sort entries before inserting so database records are strictly alphabetical: Boys, Girls, Unassigned
+    const sortAlpha = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    const bEntries = entries.filter(e => (e.gender || '').toLowerCase() === 'male').sort(sortAlpha)
+    const gEntries = entries.filter(e => (e.gender || '').toLowerCase() === 'female').sort(sortAlpha)
+    const uEntries = entries.filter(e => !['male', 'female'].includes((e.gender || '').toLowerCase())).sort(sortAlpha)
+    const sortedEntriesToSave = [...bEntries, ...gEntries, ...uEntries]
+
+    for (const entry of sortedEntriesToSave) {
       await run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [recordId, entry.studentId, entry.name, JSON.stringify(entry.days || {}), entry.present || 0, entry.absent || 0, entry.remarks || '', entry.late_enrollee ? 1 : 0])
     }

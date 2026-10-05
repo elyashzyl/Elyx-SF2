@@ -481,9 +481,10 @@ router.post('/sf2', async (req, res) => {
       applyStyle(newWs, DATE_ABBR_ROW, c, { font: { name: 'Trebuchet MS', sz: 10 }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: b, fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' } })
     }
 
-    // ── Count genders ──
-    const maleEntriesAll = entries.filter(e => (e.gender || '').toLowerCase() !== 'female')
-    const femaleEntriesAll = entries.filter(e => (e.gender || '').toLowerCase() === 'female')
+    // ── Count genders (sorted strictly alphabetically by name) ──
+    const sortAlpha = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    const maleEntriesAll = [...entries.filter(e => (e.gender || '').toLowerCase() !== 'female')].sort(sortAlpha)
+    const femaleEntriesAll = [...entries.filter(e => (e.gender || '').toLowerCase() === 'female')].sort(sortAlpha)
     const maleCount = maleEntriesAll.length
     const femaleCount = femaleEntriesAll.length
 

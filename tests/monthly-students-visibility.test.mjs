@@ -291,3 +291,54 @@ test('advisory teachers and school admins can delete/reset a monthly SF2 report'
   assert.equal(getNullRes.response.status, 200)
   assert.equal(getNullRes.body, null)
 })
+
+test('monthly SF2 entries are strictly arranged alphabetically by learner name within gender', async () => {
+  const abadId = `student-abad-${suffix}`
+  const zunigaId = `student-zuniga-${suffix}`
+
+  await run(
+    'INSERT INTO students (id, name, grade, section, gender, school_id, enrollment_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [abadId, 'Abad, Aaron', grade, section, 'Male', schoolId, 'active']
+  )
+  await run(
+    'INSERT INTO students (id, name, grade, section, gender, school_id, enrollment_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [zunigaId, 'Zuniga, Zoe', grade, section, 'Male', schoolId, 'active']
+  )
+
+  // Create monthly record with arbitrary unsorted order: Zuniga, Regular, Abad
+  const saveRes = await request('/api/monthly', {
+    method: 'POST',
+    headers: headers(teacherId, 'teacher'),
+    body: JSON.stringify({
+      schoolId,
+      month: 9,
+      year: 2026,
+      grade,
+      section,
+      entries: [
+        { studentId: zunigaId, name: 'Zuniga, Zoe', gender: 'Male', days: {}, present: 0, absent: 0 },
+        { studentId: regularStudentId, name: 'Regular, Ryan', gender: 'Male', days: {}, present: 0, absent: 0 },
+        { studentId: abadId, name: 'Abad, Aaron', gender: 'Male', days: {}, present: 0, absent: 0 }
+      ]
+    })
+  })
+  assert.equal(saveRes.response.status, 200)
+
+  // Fetch record via GET /api/monthly
+  const getRes = await request(`/api/monthly?schoolId=${schoolId}&month=9&year=2026&grade=${encodeURIComponent(grade)}&section=${encodeURIComponent(section)}`, {
+    headers: headers(teacherId, 'teacher')
+  })
+  assert.equal(getRes.response.status, 200)
+  const maleNames = getRes.body.entries.filter(e => e.gender.toLowerCase() === 'male').map(e => e.name)
+
+  // Verify Abad is first, then Regular, then Zuniga
+  assert.equal(maleNames[0], 'Abad, Aaron', 'Abad must be arranged at the top alphabetically')
+  assert.equal(maleNames[maleNames.length - 1], 'Zuniga, Zoe', 'Zuniga must be arranged at the bottom alphabetically')
+
+  // Clean up added test students
+  await run('DELETE FROM students WHERE id IN (?, ?)', [abadId, zunigaId])
+  if (saveRes.body.id) {
+    await run('DELETE FROM monthly_entries WHERE record_id = ?', [saveRes.body.id])
+    await run('DELETE FROM monthly_records WHERE id = ?', [saveRes.body.id])
+  }
+})
