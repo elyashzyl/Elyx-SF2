@@ -222,6 +222,32 @@ function effectiveDate(value) {
   return validDate(value) ? String(value) : new Date().toISOString().slice(0, 10)
 }
 
+export async function resequenceEnrollmentEvents(studentId, schoolId, tx = null) {
+  const runner = tx || { query, run }
+  const events = await runner.query(
+    'SELECT id FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC',
+    [studentId, schoolId]
+  )
+  for (let i = 0; i < events.length; i++) {
+    await runner.run('UPDATE student_enrollment_events SET event_sequence = ? WHERE id = ?', [i + 1, events[i].id])
+  }
+  const latest = (await runner.query(`
+    SELECT grade, section, status FROM student_enrollment_events
+    WHERE student_id = ? AND school_id = ?
+    ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
+    LIMIT 1`, [studentId, schoolId]))[0]
+  if (latest) {
+    try {
+      await runner.run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?',
+        [latest.grade, latest.section, latest.status, studentId])
+    } catch (err) {
+      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
+        await runner.run('UPDATE students SET grade = ?, section = ? WHERE id = ?', [latest.grade, latest.section, studentId])
+      }
+    }
+  }
+}
+
 async function addEnrollmentEvent({ student, eventType, status, effectiveOn, grade, section, reason, actor, transferGroupId = '', tx = null }) {
   const runner = tx || { query, run }
   const id = uuidv4()
@@ -237,6 +263,7 @@ async function addEnrollmentEvent({ student, eventType, status, effectiveOn, gra
     id, student.id, student.school_id || '', eventType, status, effectiveOn,
     grade || '', section || '', reason || '', actor?.id || '', actor?.name || '', actor?.role || '', transferGroupId, eventSequence, createdAt
   ])
+  await resequenceEnrollmentEvents(student.id, student.school_id || '', tx)
   return { id, student_id: student.id, school_id: student.school_id || '', event_type: eventType, status, effective_on: effectiveOn, grade: grade || '', section: section || '', reason: reason || '', actor_id: actor?.id || '', actor_name: actor?.name || '', actor_role: actor?.role || '', transfer_group_id: transferGroupId, event_sequence: eventSequence }
 }
 
@@ -972,15 +999,6 @@ async function performCrossSchoolTransfer({ student, targetSchoolId, targetGrade
   }
 
   const effDate = effectiveDate(effectiveOn)
-  const latestEventRows = await runner.query(`
-    SELECT * FROM student_enrollment_events
-    WHERE student_id = ? AND school_id = ?
-    ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
-    LIMIT 1`, [student.id, student.school_id])
-  const latestEvent = latestEventRows[0]
-  if (latestEvent && effDate < latestEvent.effective_on) {
-    throw new Error(`Transfer effective date (${effDate}) cannot be earlier than the latest enrollment event (${latestEvent.effective_on})`)
-  }
 
   const transferGroupId = 'xfer-' + uuidv4()
   const transferReason = String(reason || '').trim()
@@ -1080,7 +1098,8 @@ router.post('/:id/enrollment-events', async (req, res) => {
     const student = (await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId]))[0]
     if (!student) return res.status(404).json({ error: 'Student not found' })
 
-    const eventType = String(req.body.eventType || '').trim().toLowerCase()
+    let eventType = String(req.body.eventType || '').trim().toLowerCase()
+    if (eventType === 'section_change') eventType = 'transfer'
     const allowed = new Set(['transfer', 'promote', 'withdraw', 'reenroll', 'transfer_school', 'cross_school_transfer'])
     if (!allowed.has(eventType)) return res.status(400).json({ error: 'eventType must be transfer, promote, withdraw, reenroll, or transfer_school' })
     const effectiveOn = effectiveDate(req.body.effectiveOn)
@@ -1127,26 +1146,30 @@ router.post('/:id/enrollment-events', async (req, res) => {
       WHERE student_id = ? AND school_id = ?
       ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
       LIMIT 1`, [student.id, student.school_id]))[0]
-    let effDate = effectiveOn
-    if (eventType === 'reenroll') {
-      if (latestEvent && effDate < latestEvent.effective_on) {
-        effDate = latestEvent.effective_on
-      }
-    } else if (latestEvent && effDate < latestEvent.effective_on) {
-      return res.status(409).json({ error: 'Enrollment changes must be effective on or after the latest enrollment event' })
-    }
+    let effDate = effectiveDate(effectiveOn)
     if (latestEvent && effDate === latestEvent.effective_on && latestEvent.event_type === eventType && latestEvent.grade === (targetGrade || student.grade) && latestEvent.section === (targetSection || student.section)) {
       if (eventType !== 'reenroll') {
         return res.status(409).json({ error: 'An identical enrollment event already exists for this date' })
       }
     }
-    if (eventType === 'withdraw' && student.enrollment_status === 'withdrawn') {
+    const eventAtDate = (await query(`
+      SELECT * FROM student_enrollment_events
+      WHERE student_id = ? AND school_id = ? AND effective_on <= ?
+      ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
+      LIMIT 1`, [student.id, student.school_id, effDate]))[0]
+
+    const statusAtDate = eventAtDate ? eventAtDate.status : (student.enrollment_status || 'active')
+
+    if (eventType === 'withdraw' && statusAtDate === 'withdrawn') {
       return res.status(409).json({ error: 'Student is already withdrawn' })
     }
-    if (eventType !== 'withdraw' && student.enrollment_status !== 'active' && eventType !== 'reenroll') {
+    if (eventType !== 'withdraw' && eventType !== 'reenroll' && statusAtDate !== 'active') {
       return res.status(409).json({ error: 'Withdrawn students must be reenrolled before changing class' })
     }
-    if (eventType === 'reenroll' && student.enrollment_status === 'withdrawn') {
+    if (eventType === 'reenroll' && statusAtDate === 'active') {
+      return res.status(409).json({ error: 'Student is already enrolled' })
+    }
+    if (eventType === 'reenroll') {
       const license = await getSchoolLicense(scope.schoolId)
       if (license && license.max_students > 0) {
         let currentStudents = 0
@@ -1180,15 +1203,6 @@ router.post('/:id/enrollment-events', async (req, res) => {
         transferGroupId: String(req.body.transferGroupId || ''),
         tx
       })
-      try {
-        await tx.run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?', [currentGrade, currentSection, status, student.id])
-      } catch (err) {
-        if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
-          await tx.run('UPDATE students SET grade = ?, section = ? WHERE id = ?', [currentGrade, currentSection, student.id])
-        } else {
-          throw err
-        }
-      }
     })
     await audit(me, `student.${eventType}`, { type: 'student', id: student.id, name: student.name, schoolId: student.school_id || '' }, `${eventType} for "${student.name}" effective ${effDate}: ${reason}`)
     const updated = (await query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
@@ -1196,6 +1210,105 @@ router.post('/:id/enrollment-events', async (req, res) => {
   } catch (err) {
     console.error('Failed to create enrollment event', err.message)
     res.status(500).json({ error: 'Failed to create enrollment event' })
+  }
+})
+
+const handleUpdateEnrollmentEvent = async (req, res) => {
+  try {
+    await ensureEnrollmentStatusColumn()
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const student = (await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId]))[0]
+    if (!student) return res.status(404).json({ error: 'Student not found' })
+
+    const eventRows = await query(
+      'SELECT * FROM student_enrollment_events WHERE id = ? AND student_id = ? AND school_id = ?',
+      [req.params.eventId, student.id, scope.schoolId]
+    )
+    if (!eventRows.length) return res.status(404).json({ error: 'Enrollment event not found' })
+    const existingEvent = eventRows[0]
+
+    const newEffectiveOn = req.body.effectiveOn ? effectiveDate(req.body.effectiveOn) : existingEvent.effective_on
+    const newReason = req.body.reason !== undefined ? String(req.body.reason || '').trim() : existingEvent.reason
+    const newGrade = req.body.grade ? String(req.body.grade).trim() : existingEvent.grade
+    const newSection = req.body.section ? String(req.body.section).trim() : existingEvent.section
+
+    if (newGrade && newSection) {
+      if (!(await assertValidClass(res, scope.schoolId, newGrade, newSection))) return
+    }
+
+    await withTransaction(async (tx) => {
+      await tx.run(
+        `UPDATE student_enrollment_events
+         SET effective_on = ?, reason = ?, grade = ?, section = ?
+         WHERE id = ?`,
+        [newEffectiveOn, newReason, newGrade, newSection, existingEvent.id]
+      )
+      await resequenceEnrollmentEvents(student.id, scope.schoolId, tx)
+    })
+
+    await audit(
+      me,
+      'student.enrollment_event_update',
+      { type: 'student', id: student.id, name: student.name, schoolId: scope.schoolId, eventId: existingEvent.id },
+      `Updated enrollment event (${existingEvent.event_type}) for "${student.name}" effective date to ${newEffectiveOn}`
+    )
+
+    const updatedEvent = (await query('SELECT * FROM student_enrollment_events WHERE id = ?', [existingEvent.id]))[0]
+    const updatedStudent = (await query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
+    res.json({ success: true, event: updatedEvent, student: updatedStudent })
+  } catch (err) {
+    console.error('Failed to update enrollment event:', err.message)
+    res.status(500).json({ error: 'Failed to update enrollment event' })
+  }
+}
+
+router.patch('/:id/enrollment-events/:eventId', handleUpdateEnrollmentEvent)
+router.put('/:id/enrollment-events/:eventId', handleUpdateEnrollmentEvent)
+
+router.delete('/:id/enrollment-events/:eventId', async (req, res) => {
+  try {
+    await ensureEnrollmentStatusColumn()
+    const me = await assertWritable(req, res)
+    if (!me) return
+    const scope = await studentSchoolScope(req, res)
+    if (!scope) return
+
+    const student = (await query('SELECT * FROM students WHERE id = ? AND school_id = ?', [req.params.id, scope.schoolId]))[0]
+    if (!student) return res.status(404).json({ error: 'Student not found' })
+
+    const countRows = await query('SELECT COUNT(*) as cnt FROM student_enrollment_events WHERE student_id = ? AND school_id = ?', [student.id, scope.schoolId])
+    if ((countRows[0]?.cnt || 0) <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the only enrollment event for this student' })
+    }
+
+    const eventRows = await query(
+      'SELECT * FROM student_enrollment_events WHERE id = ? AND student_id = ? AND school_id = ?',
+      [req.params.eventId, student.id, scope.schoolId]
+    )
+    if (!eventRows.length) return res.status(404).json({ error: 'Enrollment event not found' })
+    const toDelete = eventRows[0]
+
+    await withTransaction(async (tx) => {
+      await tx.run('DELETE FROM student_enrollment_events WHERE id = ?', [toDelete.id])
+      await resequenceEnrollmentEvents(student.id, scope.schoolId, tx)
+    })
+
+    await audit(
+      me,
+      'student.enrollment_event_delete',
+      { type: 'student', id: student.id, name: student.name, schoolId: scope.schoolId, eventId: toDelete.id },
+      `Deleted enrollment event (${toDelete.event_type}) for "${student.name}" dated ${toDelete.effective_on}`
+    )
+
+    const updatedStudent = (await query('SELECT * FROM students WHERE id = ?', [student.id]))[0]
+    res.json({ success: true, student: updatedStudent })
+  } catch (err) {
+    console.error('Failed to delete enrollment event:', err.message)
+    res.status(500).json({ error: 'Failed to delete enrollment event' })
   }
 })
 
@@ -1271,16 +1384,6 @@ router.post('/:id/reenroll', async (req, res) => {
     if (req.body.effectiveOn && !validDate(req.body.effectiveOn)) return res.status(400).json({ error: 'effectiveOn must use YYYY-MM-DD format' })
     let effectiveOn = effectiveDate(req.body.effectiveOn)
     const reason = String(req.body.reason || (target.enrollment_status === 'withdrawn' ? 'Re-enrolled after withdrawal' : 'Re-enrolled')).trim()
-    if (!reason) return res.status(400).json({ error: 'A reason is required for re-enrollment' })
-
-    const latestEvent = (await query(`
-      SELECT * FROM student_enrollment_events
-      WHERE student_id = ? AND school_id = ?
-      ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
-      LIMIT 1`, [target.id, target.school_id]))[0]
-    if (latestEvent && effectiveOn < latestEvent.effective_on) {
-      effectiveOn = latestEvent.effective_on
-    }
 
     if (target.enrollment_status === 'withdrawn') {
       const license = await getSchoolLicense(target.school_id)
@@ -1309,15 +1412,6 @@ router.post('/:id/reenroll', async (req, res) => {
       reason,
       actor: me
     })
-    try {
-      await run("UPDATE students SET grade = ?, section = ?, enrollment_status = 'active' WHERE id = ?", [targetGrade, targetSection, target.id])
-    } catch (err) {
-      if (/unknown column 'enrollment_status'/i.test(String(err.message || ''))) {
-        await run("UPDATE students SET grade = ?, section = ? WHERE id = ?", [targetGrade, targetSection, target.id])
-      } else {
-        throw err
-      }
-    }
     await audit(me, 'student.reenroll', { type: 'student', id: target.id, name: target.name, schoolId: target.school_id || '' }, `Re-enrolled "${target.name}" (${targetGrade} - ${targetSection}) effective ${effectiveOn}: ${reason}`)
     const updated = (await query('SELECT * FROM students WHERE id = ?', [target.id]))[0]
     res.json({ success: true, event, student: updated })
@@ -1692,9 +1786,6 @@ router.post('/bulk-action', async (req, res) => {
         if (latestEvent && itemEffectiveOn < latestEvent.effective_on) {
           itemEffectiveOn = latestEvent.effective_on
         }
-      } else if (latestEvent && effectiveOn < latestEvent.effective_on) {
-        skipped.push({ id, name: target.name, reason: `Effective date before last event (${latestEvent.effective_on})` })
-        continue
       }
 
       if (['transfer', 'promote'].includes(action) && target.enrollment_status === 'withdrawn') {

@@ -210,6 +210,25 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function updateEnrollmentEvent(studentId, eventId, data, schoolId) {
+    const extra = { ...data }
+    if (schoolId) extra.schoolId = schoolId
+    return await fetchJson(`${API}/students/${studentId}/enrollment-events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(actor(extra))
+    })
+  }
+
+  async function deleteEnrollmentEvent(studentId, eventId, schoolId) {
+    const extra = {}
+    if (schoolId) extra.schoolId = schoolId
+    const query = new URLSearchParams(actor(extra)).toString()
+    return await fetchJson(`${API}/students/${studentId}/enrollment-events/${eventId}?${query}`, {
+      method: 'DELETE'
+    })
+  }
+
   async function transferStudentSchool(id, data, schoolId) {
     const extra = { ...data }
     if (schoolId) extra.schoolId = schoolId
@@ -581,7 +600,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
     getStudents, getClassRoster, addStudent, addStudents, updateStudent, getStudentProfile,
     getInterventions, createIntervention, updateIntervention, deleteIntervention,
     getGuardianContacts, logGuardianContact, deleteGuardianContact, checkDuplicateStudents,
-    getEnrollmentHistory, createEnrollmentEvent, transferStudentSchool, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
+    getEnrollmentHistory, createEnrollmentEvent, updateEnrollmentEvent, deleteEnrollmentEvent, transferStudentSchool, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
     bulkValidateStudents, bulkImportStudents,
     fetchAttendanceSummaries, validateBulkAttendanceImport, bulkImportAttendance,
     getRecord, saveRecord, getOrCreateRecord,

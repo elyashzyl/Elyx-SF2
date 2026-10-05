@@ -183,18 +183,61 @@
     </div>
 
     <div v-if="showHistoryModal" class="modal-overlay" @click.self="showHistoryModal = false">
-      <div class="form-card">
+      <div class="form-card" style="max-width: 620px;">
         <h3>{{ historyStudent?.name }} — Enrollment History</h3>
         <div v-if="historyLoading" class="empty">Loading history...</div>
         <div v-else-if="!history.length" class="empty">No enrollment history found.</div>
         <div v-else class="activity-list">
-          <div v-for="item in history" :key="item.id" class="activity-item">
-            <strong>{{ item.event_type }}</strong>
-            <span>{{ item.effective_on }} · {{ item.grade }} · {{ item.section }}</span>
-            <small>{{ item.reason }}</small>
+          <div v-for="item in history" :key="item.id" class="activity-item" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+            <div style="flex: 1;">
+              <strong>{{ item.event_type.toUpperCase() }}</strong>
+              <span>{{ item.effective_on }} · {{ item.grade }} · {{ item.section }}</span>
+              <small v-if="item.reason">{{ item.reason }}</small>
+            </div>
+            <button type="button" @click="openEditEventModal(item, historyStudent?.id)" class="btn-secondary" style="padding: 4px 10px; font-size: 12px; white-space: nowrap;">
+              Edit Date
+            </button>
           </div>
         </div>
         <div class="form-actions"><button type="button" @click="showHistoryModal = false" class="btn-secondary">Close</button></div>
+      </div>
+    </div>
+
+    <!-- Edit Enrollment Event Modal -->
+    <div v-if="showEditEventModal" class="modal-overlay" @click.self="showEditEventModal = false">
+      <div class="form-card" style="max-width: 500px;">
+        <h3>Edit Enrollment Date</h3>
+        <p class="modal-subtext">Change the effective date or details for this {{ editingEvent?.event_type }} event.</p>
+        <form @submit.prevent="saveEventEdit">
+          <div class="form-group">
+            <label>Effective Date <span class="required">*</span></label>
+            <input v-model="editEventForm.effectiveOn" type="date" required />
+          </div>
+          <div class="form-row" v-if="editingEvent?.grade">
+            <div class="form-group">
+              <label>Grade Level</label>
+              <select v-model="editEventForm.grade" @change="editEventForm.section = (sectionsByGrade[editEventForm.grade] || [])[0] || ''">
+                <option v-for="g in grades" :key="g">{{ g }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Section</label>
+              <select v-model="editEventForm.section">
+                <option v-for="s in (sectionsByGrade[editEventForm.grade] || [])" :key="s">{{ s }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Reason / Notes</label>
+            <textarea v-model="editEventForm.reason" rows="2" placeholder="Reason for date adjustment or enrollment change"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" :disabled="editEventSaving">
+              {{ editEventSaving ? 'Saving...' : 'Save Date' }}
+            </button>
+            <button type="button" @click="showEditEventModal = false" class="btn-secondary">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -808,9 +851,14 @@
               <div v-for="event in profileDetails.enrollmentHistory" :key="event.id" class="timeline-item">
                 <div class="timeline-dot" :class="event.status === 'withdrawn' ? 'timeline-dot--danger' : 'timeline-dot--success'"></div>
                 <div class="timeline-content">
-                  <div class="timeline-header">
-                    <span class="timeline-badge" :class="event.event_type">{{ event.event_type.toUpperCase() }}</span>
-                    <span class="timeline-date">{{ event.effective_on }}</span>
+                  <div class="timeline-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="timeline-badge" :class="event.event_type">{{ event.event_type.toUpperCase() }}</span>
+                      <span class="timeline-date">{{ event.effective_on }}</span>
+                    </div>
+                    <button type="button" @click="openEditEventModal(event, profileStudent?.id || profileDetails?.id)" class="btn-secondary" style="padding: 2px 8px; font-size: 11px; line-height: 1.4;">
+                      Edit Date
+                    </button>
                   </div>
                   <p class="timeline-class">{{ event.grade }} &middot; {{ event.section }}</p>
                   <p v-if="event.reason" class="timeline-reason">{{ event.reason }}</p>
@@ -1257,6 +1305,63 @@ const showHistoryModal = ref(false)
 const historyStudent = ref(null)
 const history = ref([])
 const historyLoading = ref(false)
+
+const showEditEventModal = ref(false)
+const editingEvent = ref(null)
+const editingEventStudentId = ref('')
+const editEventSaving = ref(false)
+const editEventForm = reactive({
+  effectiveOn: '',
+  grade: '',
+  section: '',
+  reason: ''
+})
+
+function openEditEventModal(event, studentId = null) {
+  editingEvent.value = event
+  editingEventStudentId.value = studentId || historyStudent.value?.id || profileStudent.value?.id || profileDetails.value?.id || ''
+  editEventForm.effectiveOn = event.effective_on || ''
+  editEventForm.grade = event.grade || ''
+  editEventForm.section = event.section || ''
+  editEventForm.reason = event.reason || ''
+  showEditEventModal.value = true
+}
+
+async function saveEventEdit() {
+  if (!editEventForm.effectiveOn) {
+    addToast('Effective date is required', 'error')
+    return
+  }
+  editEventSaving.value = true
+  try {
+    await store.updateEnrollmentEvent(
+      editingEventStudentId.value,
+      editingEvent.value.id,
+      {
+        effectiveOn: editEventForm.effectiveOn,
+        grade: editEventForm.grade,
+        section: editEventForm.section,
+        reason: editEventForm.reason
+      },
+      effectiveSchoolId.value
+    )
+    addToast('Enrollment date updated', 'success')
+    showEditEventModal.value = false
+
+    if (historyStudent.value?.id === editingEventStudentId.value) {
+      history.value = await store.getEnrollmentHistory(editingEventStudentId.value, effectiveSchoolId.value)
+    }
+    if ((profileStudent.value?.id || profileDetails.value?.id) === editingEventStudentId.value) {
+      const data = await store.getStudentProfile(editingEventStudentId.value, effectiveSchoolId.value)
+      profileDetails.value = data
+    }
+    await loadStudents()
+  } catch (err) {
+    addToast(err.message || 'Failed to update enrollment event', 'error')
+  } finally {
+    editEventSaving.value = false
+  }
+}
 const selectedIds = ref(new Set())
 const pageSize = ref(10)
 const currentPage = ref(1)

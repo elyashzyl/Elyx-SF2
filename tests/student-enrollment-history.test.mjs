@@ -179,3 +179,73 @@ test('enrollment history is school-scoped and historical attendance accepts the 
   await run('DELETE FROM attendance_entries WHERE record_id = ?', [historicalRecordId])
   await run('DELETE FROM attendance_records WHERE id = ?', [historicalRecordId])
 })
+
+test('enrollment events allow backdated additions, date editing via PATCH, and event deletion with resequencing', async () => {
+  // Currently student has events:
+  // 1: 2025-01-01 enroll Grade 1 / Section A
+  // 2: 2025-06-01 promote Grade 2 / Section B
+  // 3: 2025-07-01 withdraw
+  // Let's add a backdated event at 2025-04-01 (before 2025-06-01 and 2025-07-01) - previously this failed with 409
+  const backdated = await request(`/api/students/${studentId}/enrollment-events`, {
+    method: 'POST',
+    headers: headers(adminA, 'admin'),
+    body: JSON.stringify({
+      userId: adminA,
+      userRole: 'admin',
+      schoolId: schoolA,
+      eventType: 'section_change',
+      effectiveOn: '2025-04-01',
+      grade: 'Grade 1',
+      section: 'Section B',
+      reason: 'Mid-year section rebalance'
+    })
+  })
+  assert.equal(backdated.response.status, 201)
+
+  // Verify events are sorted and resequenced properly
+  let events = await query('SELECT * FROM student_enrollment_events WHERE student_id = ? ORDER BY event_sequence ASC', [studentId])
+  assert.equal(events.length, 4)
+  assert.equal(events[0].effective_on, '2025-01-01')
+  assert.equal(events[0].event_sequence, 1)
+  assert.equal(events[1].effective_on, '2025-04-01')
+  assert.equal(events[1].event_sequence, 2)
+  assert.equal(events[2].effective_on, '2025-06-01')
+  assert.equal(events[2].event_sequence, 3)
+  assert.equal(events[3].effective_on, '2025-07-01')
+  assert.equal(events[3].event_sequence, 4)
+
+  // Test PATCH: Edit the withdrawal event's effective date to 2025-08-15
+  const withdrawEvent = events.find(e => e.event_type === 'withdraw')
+  assert.ok(withdrawEvent)
+  const patchRes = await request(`/api/students/${studentId}/enrollment-events/${withdrawEvent.id}`, {
+    method: 'PATCH',
+    headers: headers(adminA, 'admin'),
+    body: JSON.stringify({
+      userId: adminA,
+      userRole: 'admin',
+      schoolId: schoolA,
+      effectiveOn: '2025-08-15',
+      reason: 'Updated withdrawal date by admin'
+    })
+  })
+  assert.equal(patchRes.response.status, 200)
+  assert.equal(patchRes.body.event.effective_on, '2025-08-15')
+  assert.equal(patchRes.body.event.reason, 'Updated withdrawal date by admin')
+
+  // Test DELETE: Delete the backdated event (2025-04-01)
+  const backdatedEvent = events.find(e => e.effective_on === '2025-04-01')
+  assert.ok(backdatedEvent)
+  const deleteRes = await request(`/api/students/${studentId}/enrollment-events/${backdatedEvent.id}?userId=${adminA}&userRole=admin&schoolId=${schoolA}`, {
+    method: 'DELETE',
+    headers: headers(adminA, 'admin')
+  })
+  assert.equal(deleteRes.response.status, 200)
+
+  // Confirm event is gone and remaining events are resequenced 1..3
+  events = await query('SELECT * FROM student_enrollment_events WHERE student_id = ? ORDER BY event_sequence ASC', [studentId])
+  assert.equal(events.length, 3)
+  assert.deepEqual(events.map(e => e.event_sequence), [1, 2, 3])
+  assert.equal(events[0].effective_on, '2025-01-01')
+  assert.equal(events[1].effective_on, '2025-06-01')
+  assert.equal(events[2].effective_on, '2025-08-15')
+})

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { query, run } from '../db.js'
+import { query, run, DB_MODE } from '../db.js'
 import { requireRole, actingUser, audit } from './_context.js'
 import { sendAccountEmail } from '../lib/mailer.js'
 
@@ -8,6 +8,18 @@ const router = Router()
 
 const VALID_TARGET_ROLES = ['all', 'admin', 'teacher']
 const VALID_PRIORITIES = ['normal', 'important', 'urgent']
+
+function notExpiredCondition(alias = 'a') {
+  return DB_MODE === 'mysql'
+    ? `(${alias}.expires_at IS NULL OR ${alias}.expires_at > ?)`
+    : `(${alias}.expires_at IS NULL OR ${alias}.expires_at = '' OR ${alias}.expires_at > ?)`
+}
+
+function expiredCondition() {
+  return DB_MODE === 'mysql'
+    ? 'expires_at IS NOT NULL AND expires_at < ?'
+    : "expires_at IS NOT NULL AND expires_at != '' AND expires_at < ?"
+}
 
 // List announcements visible to the current user
 router.get('/', async (req, res) => {
@@ -27,7 +39,7 @@ router.get('/', async (req, res) => {
     const conditions = []
 
     // Expiration check: expires_at is NULL or in future
-    conditions.push("(a.expires_at IS NULL OR a.expires_at = '' OR a.expires_at > ?)")
+    conditions.push(notExpiredCondition('a'))
     params.push(now)
 
     // Role and school targeting
@@ -96,7 +108,7 @@ router.get('/unread-count', async (req, res) => {
       FROM announcements a
       LEFT JOIN announcement_reads ar ON ar.announcement_id = a.id AND ar.user_id = ?
       WHERE ar.id IS NULL
-        AND (a.expires_at IS NULL OR a.expires_at = '' OR a.expires_at > ?)
+        AND ${notExpiredCondition('a')}
     `
     const params = [me.id, now]
 
@@ -293,7 +305,7 @@ router.post('/mark-all-read', async (req, res) => {
       SELECT a.id FROM announcements a
       LEFT JOIN announcement_reads ar ON ar.announcement_id = a.id AND ar.user_id = ?
       WHERE ar.id IS NULL
-        AND (a.expires_at IS NULL OR a.expires_at = '' OR a.expires_at > ?)
+        AND ${notExpiredCondition('a')}
     `
     const params = [me.id, now]
     if (me.role !== 'superadmin') {
@@ -383,7 +395,7 @@ router.post('/cleanup', async (req, res) => {
 
     // Select IDs to purge
     const expired = await query(
-      "SELECT id FROM announcements WHERE expires_at IS NOT NULL AND expires_at != '' AND expires_at < ?",
+      `SELECT id FROM announcements WHERE ${expiredCondition()}`,
       [cutoffDate]
     )
 
