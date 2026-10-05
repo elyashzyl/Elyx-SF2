@@ -190,7 +190,7 @@
         <div v-else class="activity-list">
           <div v-for="item in history" :key="item.id" class="activity-item" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
             <div style="flex: 1;">
-              <strong>{{ item.event_type.toUpperCase() }}</strong>
+              <strong>{{ (item.event_type || '').toUpperCase() }}</strong>
               <span>{{ item.effective_on }} · {{ item.grade }} · {{ item.section }}</span>
               <small v-if="item.reason">{{ item.reason }}</small>
             </div>
@@ -1256,24 +1256,26 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { useGradeLevels } from '../composables/useGradeLevels'
+import { useActiveSchool } from '../composables/useActiveSchool'
 
 const store = useAttendanceStore()
 const auth = useAuthStore()
 const { addToast } = useToast()
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
+const { activeSchool, setActiveSchool } = useActiveSchool()
 const availableSections = computed(() => sectionsByGrade.value[form.value.grade] || [])
 const filterSections = computed(() => filterGrade.value ? (sectionsByGrade.value[filterGrade.value] || []) : [])
 const showForm = ref(false)
 const editingStudent = ref(null)
 const saving = ref(false)
 const schools = ref([])
-const filterSchoolId = ref('')
+const filterSchoolId = ref(activeSchool.value?.id || '')
 const effectiveSchoolId = computed(() => auth.isSuperadmin ? (filterSchoolId.value || '') : (auth.schoolId || ''))
 const filterGrade = ref('')
 const filterSection = ref('')
@@ -1434,11 +1436,23 @@ async function bulkWithdraw() {
 
 onMounted(async () => {
   if (auth.isSuperadmin) {
-    try { schools.value = await auth.getSchools() } catch {}
+    try {
+      schools.value = await auth.getSchools()
+      if (!filterSchoolId.value && schools.value.length > 0) {
+        filterSchoolId.value = activeSchool.value?.id || schools.value[0].id
+      }
+    } catch {}
   }
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   applyGradeDefaults()
   await loadStudents()
+})
+
+watch(activeSchool, (newSchool) => {
+  if (auth.isSuperadmin && newSchool?.id && filterSchoolId.value !== newSchool.id) {
+    filterSchoolId.value = newSchool.id
+    onSchoolChange()
+  }
 })
 
 async function onSchoolChange() {
@@ -1446,6 +1460,12 @@ async function onSchoolChange() {
   filterSection.value = ''
   selectedIds.value = new Set()
   currentPage.value = 1
+  if (filterSchoolId.value) {
+    const selected = schools.value.find(s => s.id === filterSchoolId.value)
+    if (selected && (!activeSchool.value || activeSchool.value.id !== selected.id)) {
+      setActiveSchool(selected)
+    }
+  }
   await loadGradeLevels(filterSchoolId.value || undefined)
   applyGradeDefaults()
   await loadStudents()

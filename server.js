@@ -127,13 +127,34 @@ function requestOrigin(req) {
   return normalizeOrigin(`${protocol}://${host}`)
 }
 
+function getHost(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  try {
+    const url = new URL(text.includes('://') ? text : `http://${text}`)
+    return (url.host || '').toLowerCase()
+  } catch {
+    return text.toLowerCase()
+  }
+}
+
 function originAllowed(req, origin) {
   const normalized = normalizeOrigin(origin)
   if (!normalized) return false
   // Same-origin requests must continue to work even when the reverse proxy's
   // internal host differs from the public host seen by the browser.
-  if (normalized === requestOrigin(req)) return true
+  const reqOrig = requestOrigin(req)
+  if (normalized === reqOrig) return true
   if (configuredOrigins.includes(normalized)) return true
+
+  // Allow requests from the same host when protocol differs (e.g. reverse proxy SSL termination)
+  const originHost = getHost(normalized)
+  const reqHost = getHost(reqOrig) || getHost(req.get('x-forwarded-host') || req.get('host'))
+  if (originHost && reqHost && originHost === reqHost) return true
+
+  // Check if configuredOrigins matches the origin's host
+  if (originHost && configuredOrigins.some(c => getHost(c) === originHost)) return true
+
   return !isProduction && configuredOrigins.length === 0
 }
 
