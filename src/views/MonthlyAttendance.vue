@@ -56,23 +56,35 @@
             </select>
           </div>
         </div>
-        <button
-          type="button"
-          class="btn-secondary saturday-toggle"
-          :class="{ active: form.includeSaturdays }"
-          :aria-pressed="form.includeSaturdays"
-          @click="form.includeSaturdays = !form.includeSaturdays"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="17" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-            <path d="m8 15 2 2 5-5"/>
-          </svg>
-          {{ form.includeSaturdays ? 'Saturdays included' : 'Include Saturdays' }}
-        </button>
-        <p class="form-help">Sunday remains disabled. Existing reports keep their current setting.</p>
+        <div class="calendar-config-card">
+          <div class="calendar-config-row">
+            <div class="calendar-config-info">
+              <span class="calendar-config-title">Reporting Schedule</span>
+              <span class="calendar-config-desc">Include Saturday columns if weekend sessions or make-up classes were held.</span>
+            </div>
+            <button
+              type="button"
+              class="btn-secondary saturday-toggle"
+              :class="{ active: form.includeSaturdays }"
+              :aria-pressed="form.includeSaturdays"
+              @click="form.includeSaturdays = !form.includeSaturdays"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="17" rx="2"/>
+                <path d="m9 12 2 2 4-4"/>
+              </svg>
+              <span>{{ form.includeSaturdays ? 'Saturdays included' : 'Include Saturdays' }}</span>
+            </button>
+          </div>
+          <div class="calendar-note-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>Sunday remains disabled. Existing reports keep their current setting.</span>
+          </div>
+        </div>
         <div class="form-actions">
           <button @click="openMonthly" class="btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -157,6 +169,20 @@
         </button>
         <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
         <span>School Head: <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" /></span>
+      </div>
+
+      <!-- Schedule Settings Note Card -->
+      <div class="sheet-settings-note-card">
+        <div class="settings-note-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+        </div>
+        <div class="settings-note-text">
+          <span>Sunday remains disabled. Existing reports keep their current setting.</span>
+        </div>
       </div>
 
       <!-- School Calendar Events & Suspensions Strip -->
@@ -1400,6 +1426,79 @@ async function updateRemarks(entry) {
 </script>
 
 <style scoped>
+.calendar-config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 10px 0 16px;
+}
+
+.calendar-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.calendar-config-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calendar-config-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.calendar-config-desc {
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.calendar-note-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xs, 4px);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.calendar-note-box svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.sheet-settings-note-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin: 8px 0 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  box-shadow: var(--shadow-xs);
+}
+
+.settings-note-icon {
+  display: flex;
+  align-items: center;
+  color: var(--primary);
+}
+
 .saturday-toggle {
   display: inline-flex;
   align-items: center;

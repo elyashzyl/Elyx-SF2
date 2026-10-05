@@ -123,6 +123,14 @@
         </div>
 
         <div class="toolbar-right">
+          <button @click="saveCurrentView('section_comparison')" class="btn-sm btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Save View</span>
+          </button>
           <button @click="downloadCsv('section_comparison')" class="btn-sm btn-primary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -252,6 +260,14 @@
         </div>
 
         <div class="toolbar-right">
+          <button @click="saveCurrentView('quarterly_summary')" class="btn-sm btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Save View</span>
+          </button>
           <button @click="downloadCsv('quarterly_summary')" class="btn-sm btn-primary">
             Export DepEd CSV
           </button>
@@ -377,7 +393,7 @@
         <div class="validator-controls">
           <div class="filter-group">
             <label>Grade Level</label>
-            <select v-model="validatorGrade">
+            <select v-model="validatorGrade" @change="onValidatorGradeChange">
               <option v-for="g in availableGrades" :key="g" :value="g">{{ g }}</option>
             </select>
           </div>
@@ -471,6 +487,9 @@
                 <td style="text-align: right;">
                   <button @click="downloadArchive(a)" class="btn-xs btn-primary">
                     Download
+                  </button>
+                  <button @click="deleteArchive(a.id)" class="btn-xs btn-secondary" style="color: var(--destructive, #ef4444); margin-left: 6px;">
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -579,7 +598,12 @@ const savedViews = ref([])
 
 onMounted(async () => {
   if (auth.isSuperadmin) {
-    try { schoolsList.value = await auth.getSchools() } catch {}
+    try {
+      schoolsList.value = await auth.getSchools()
+      if (schoolsList.value.length && !selectedSchoolId.value) {
+        selectedSchoolId.value = schoolsList.value[0].id
+      }
+    } catch {}
   }
   await loadGradeLevels()
   await loadSectionComparison()
@@ -599,19 +623,31 @@ function loadActiveTab() {
 }
 
 async function loadGradeLevels() {
-  const sid = effectiveSchoolId.value
+  const sid = effectiveSchoolId.value || auth.schoolId
+  if (!sid) return
   try {
-    const res = await auth.api(`/schools/${sid || auth.schoolId}/grades`)
-    const levels = res.levels || []
+    const res = await auth.api(`/schools/${sid}/grades`)
+    const levels = Array.isArray(res) ? res : (res?.levels || [])
     availableGrades.value = levels.map(l => l.grade)
     const map = {}
     levels.forEach(l => { map[l.grade] = l.sections || [] })
     sectionsByGrade.value = map
-    if (availableGrades.value.length && !validatorGrade.value) {
-      validatorGrade.value = availableGrades.value[0]
-      validatorSection.value = (sectionsByGrade.value[validatorGrade.value] || [])[0] || ''
+    if (availableGrades.value.length) {
+      if (!validatorGrade.value || !availableGrades.value.includes(validatorGrade.value)) {
+        validatorGrade.value = availableGrades.value[0]
+      }
+      onValidatorGradeChange()
     }
-  } catch {}
+  } catch (err) {
+    console.error('Failed to load grade levels:', err)
+  }
+}
+
+function onValidatorGradeChange() {
+  const sects = sectionsByGrade.value[validatorGrade.value] || []
+  if (!validatorSection.value || !sects.includes(validatorSection.value)) {
+    validatorSection.value = sects[0] || ''
+  }
 }
 
 function onComparisonPresetChange() {
@@ -666,17 +702,54 @@ async function loadQuarterlySummary() {
 async function inspectTemplateVersion() {
   try {
     templateVersion.value = await auth.api('/export/template/version')
-  } catch {}
+  } catch (err) {
+    console.error('Failed to inspect template:', err)
+  }
 }
 
 async function runValidationCheck() {
+  if (!validatorGrade.value || !validatorSection.value) return
   validating.value = true
+  validationResult.value = null
   try {
-    // Fetch month entries for selected class
     const sid = effectiveSchoolId.value || auth.schoolId
-    const res = await auth.api(`/attendance/summaries?schoolId=${sid}&grade=${encodeURIComponent(validatorGrade.value)}&section=${encodeURIComponent(validatorSection.value)}`)
-    const entries = res.bySection?.[0]?.students || []
-    
+    const year = new Date().getFullYear()
+    let entries = []
+
+    // Fetch existing monthly sheet entries first
+    try {
+      const mRes = await auth.api(`/monthly?schoolId=${sid}&grade=${encodeURIComponent(validatorGrade.value)}&section=${encodeURIComponent(validatorSection.value)}&month=${validatorMonth.value}&year=${year}`)
+      if (mRes && Array.isArray(mRes.entries) && mRes.entries.length > 0) {
+        entries = mRes.entries
+      }
+    } catch {}
+
+    // Fall back to class roster if no monthly sheet generated yet
+    if (!entries.length) {
+      try {
+        const rosterRes = await auth.api(`/monthly/roster?schoolId=${sid}&grade=${encodeURIComponent(validatorGrade.value)}&section=${encodeURIComponent(validatorSection.value)}`)
+        if (Array.isArray(rosterRes) && rosterRes.length > 0) {
+          entries = rosterRes.map(s => ({
+            student_id: s.id,
+            name: s.name,
+            gender: s.gender,
+            lrn: s.lrn,
+            days: {}
+          }))
+        }
+      } catch {}
+    }
+
+    if (!entries.length) {
+      validationResult.value = {
+        valid: false,
+        errors: ['No learners enrolled or found in this section. Please enroll students first.'],
+        warnings: [],
+        summary: { totalLearners: 0, maleCount: 0, femaleCount: 0 }
+      }
+      return
+    }
+
     validationResult.value = await auth.api('/export/validate', {
       method: 'POST',
       body: JSON.stringify({
@@ -684,12 +757,18 @@ async function runValidationCheck() {
         grade: validatorGrade.value,
         section: validatorSection.value,
         month: validatorMonth.value,
-        year: new Date().getFullYear(),
+        year,
         entries
       })
     })
   } catch (err) {
-    console.error(err)
+    console.error('Validation error:', err)
+    validationResult.value = {
+      valid: false,
+      errors: [err.message || 'Validation request failed'],
+      warnings: [],
+      summary: { totalLearners: 0, maleCount: 0, femaleCount: 0 }
+    }
   } finally {
     validating.value = false
   }
@@ -703,7 +782,37 @@ async function loadArchives() {
 }
 
 async function downloadArchive(a) {
-  window.open(`${auth.apiUrl || '/api'}/reports/archive/${a.id}/download?schoolId=${effectiveSchoolId.value || auth.schoolId}`, '_blank')
+  try {
+    const sid = effectiveSchoolId.value || auth.schoolId
+    const res = await fetch(`/api/reports/archive/${a.id}/download?schoolId=${sid}`)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to download report archive')
+    }
+    const blob = await res.blob()
+    const filename = `${a.title.replace(/[^a-zA-Z0-9_\-]/g, '_')}.${a.file_format || 'csv'}`
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    alert(err.message || 'Download failed')
+  }
+}
+
+async function deleteArchive(id) {
+  if (!confirm('Are you sure you want to delete this archived report?')) return
+  try {
+    const sid = effectiveSchoolId.value || auth.schoolId
+    await auth.api(`/reports/archive/${id}?schoolId=${sid}`, { method: 'DELETE' })
+    await loadArchives()
+  } catch (err) {
+    alert(err.message || 'Failed to delete report archive')
+  }
 }
 
 async function loadSavedViews() {
@@ -721,24 +830,84 @@ async function deleteSavedView(id) {
   } catch {}
 }
 
+async function saveCurrentView(type) {
+  const defaultName = type === 'section_comparison'
+    ? `Comparison — ${filterGrade.value || 'All Grades'} (${comparisonPreset.value})`
+    : `Quarter ${selectedQuarter.value} (${selectedSchoolYear.value})`
+  const name = prompt('Enter a name for this saved view:', defaultName)
+  if (!name) return
+  try {
+    const sid = effectiveSchoolId.value || auth.schoolId
+    const filters = type === 'section_comparison'
+      ? { grade: filterGrade.value, startDate: startDate.value, endDate: endDate.value, preset: comparisonPreset.value }
+      : { quarter: selectedQuarter.value, schoolYear: selectedSchoolYear.value }
+    await auth.api('/reports/saved-views', {
+      method: 'POST',
+      body: JSON.stringify({
+        schoolId: sid,
+        name,
+        reportType: type,
+        filters
+      })
+    })
+    alert(`Saved view "${name}" stored successfully`)
+    if (activeTab.value === 'views') await loadSavedViews()
+  } catch (err) {
+    alert(err.message || 'Failed to save view')
+  }
+}
+
 function applySavedView(v) {
   if (v.reportType === 'section_comparison') {
     activeTab.value = 'comparison'
-    if (v.filters?.grade) filterGrade.value = v.filters.grade
-    if (v.filters?.startDate) startDate.value = v.filters.startDate
-    if (v.filters?.endDate) endDate.value = v.filters.endDate
+    if (v.filters?.grade !== undefined) filterGrade.value = v.filters.grade
+    if (v.filters?.startDate !== undefined) startDate.value = v.filters.startDate
+    if (v.filters?.endDate !== undefined) endDate.value = v.filters.endDate
+    if (v.filters?.preset) comparisonPreset.value = v.filters.preset
     loadSectionComparison()
   } else if (v.reportType === 'quarterly_summary') {
     activeTab.value = 'quarterly'
     if (v.filters?.quarter) selectedQuarter.value = v.filters.quarter
+    if (v.filters?.schoolYear) selectedSchoolYear.value = v.filters.schoolYear
     loadQuarterlySummary()
   }
 }
 
-function downloadCsv(type) {
-  const sid = effectiveSchoolId.value || auth.schoolId
-  const url = `${auth.apiUrl || '/api'}/reports/export/csv?type=${type}&schoolId=${sid}&quarter=${selectedQuarter.value}&grade=${encodeURIComponent(filterGrade.value)}`
-  window.open(url, '_blank')
+async function downloadCsv(type) {
+  try {
+    const sid = effectiveSchoolId.value || auth.schoolId
+    const params = new URLSearchParams({
+      type,
+      schoolId: sid,
+      quarter: selectedQuarter.value,
+      schoolYear: selectedSchoolYear.value,
+      grade: filterGrade.value || '',
+      startDate: startDate.value || '',
+      endDate: endDate.value || ''
+    })
+    const res = await fetch(`/api/reports/export/csv?${params.toString()}`)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to export CSV')
+    }
+    const blob = await res.blob()
+    const contentDisposition = res.headers.get('Content-Disposition')
+    let filename = `${type}-${new Date().toISOString().slice(0, 10)}.csv`
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^";]+)"?/)
+      if (match && match[1]) filename = match[1]
+    }
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    alert(err.message || 'CSV download failed')
+  }
 }
 
 async function archiveCurrentReport(type) {
@@ -746,6 +915,26 @@ async function archiveCurrentReport(type) {
   if (!title) return
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
+    let contentData = ''
+
+    if (type === 'section_comparison' && comparisonData.value) {
+      const headers = ['Rank', 'Grade', 'Section', 'Adviser', 'Total Enrolled', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'Status']
+      const rows = (comparisonData.value.sections || []).map(s => [
+        s.rank, `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.enrolled, s.male, s.female, s.present, s.absent, `"${s.attendanceRate}%"`, s.sardoAlerts, `"${s.attendanceRate >= 95 ? 'Compliant' : 'Below Target'}"`
+      ])
+      const summaryRow = ['Total', '""', '""', `"${comparisonData.value.summary.totalSections} sections"`, comparisonData.value.summary.totalEnrolled, '', '', comparisonData.value.summary.totalPresent, comparisonData.value.summary.totalAbsent, `"${comparisonData.value.summary.overallAttendanceRate}%"`, '', `"${comparisonData.value.summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'}"`]
+      contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), summaryRow.join(',')].join('\r\n')
+    } else if (type === 'quarterly_summary' && quarterlyData.value) {
+      const headers = ['Grade Level', 'Section', 'Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Total Enrolled', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
+      const rows = (quarterlyData.value.sections || []).map(s => [
+        `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.schoolDays, s.enrolment.male, s.enrolment.female, s.enrolment.total, s.ada.male, s.ada.female, s.ada.total, `"${s.attendanceRate.male}%"`, `"${s.attendanceRate.female}%"`, `"${s.attendanceRate.total}%"`
+      ])
+      const grandTotalRow = ['"Grand Total"', '""', '""', quarterlyData.value.grandTotal.schoolDays, quarterlyData.value.grandTotal.maleEnrolled, quarterlyData.value.grandTotal.femaleEnrolled, quarterlyData.value.grandTotal.totalEnrolled, quarterlyData.value.grandTotal.ada.male, quarterlyData.value.grandTotal.ada.female, quarterlyData.value.grandTotal.ada.total, '', '', `"${quarterlyData.value.grandTotal.attendanceRate}%"`]
+      contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), grandTotalRow.join(',')].join('\r\n')
+    } else {
+      contentData = `Report: ${title}\nGenerated on: ${new Date().toISOString()}`
+    }
+
     await auth.api('/reports/archive', {
       method: 'POST',
       body: JSON.stringify({
@@ -754,12 +943,13 @@ async function archiveCurrentReport(type) {
         title,
         parameters: { quarter: selectedQuarter.value, grade: filterGrade.value },
         fileFormat: 'csv',
-        contentData: 'Report: ' + title
+        contentData
       })
     })
     alert('Report archived successfully')
+    if (activeTab.value === 'archive') await loadArchives()
   } catch (err) {
-    alert(err.message)
+    alert(err.message || 'Archiving failed')
   }
 }
 </script>
