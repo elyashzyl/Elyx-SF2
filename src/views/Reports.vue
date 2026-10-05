@@ -98,28 +98,94 @@
     <div v-if="activeTab === 'comparison'" class="tab-content-pane">
       <div class="filter-action-toolbar card-box">
         <div class="toolbar-left">
+          <!-- Search box -->
+          <div class="filter-group">
+            <label>Search Class</label>
+            <div class="search-input-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input 
+                type="text" 
+                v-model="searchQuery" 
+                placeholder="Section or adviser..." 
+                class="search-input"
+              />
+            </div>
+          </div>
+
+          <!-- Grade Level Filter -->
           <div class="filter-group">
             <label>Grade Level</label>
-            <select v-model="filterGrade" @change="loadSectionComparison">
+            <select v-model="filterGrade" @change="onFilterGradeChange">
               <option value="">All Grade Levels</option>
               <option v-for="g in availableGrades" :key="g" :value="g">{{ g }}</option>
             </select>
           </div>
 
+          <!-- Section Filter -->
+          <div class="filter-group" v-if="filterGrade && (sectionsByGrade[filterGrade] || []).length">
+            <label>Section</label>
+            <select v-model="filterSection">
+              <option value="">All Sections</option>
+              <option v-for="s in (sectionsByGrade[filterGrade] || [])" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+
+          <!-- DepEd DO 8 Compliance Filter -->
+          <div class="filter-group">
+            <label>Compliance</label>
+            <select v-model="complianceFilter">
+              <option value="all">All Statuses</option>
+              <option value="compliant">Compliant (≥95%)</option>
+              <option value="below">Below Target (&lt;95%)</option>
+              <option value="risk">SARDO Risk Alert (&gt;0)</option>
+            </select>
+          </div>
+
+          <!-- Date Preset -->
           <div class="filter-group">
             <label>Date Filter</label>
             <select v-model="comparisonPreset" @change="onComparisonPresetChange">
               <option value="all">All Time / Cumulative</option>
+              <option value="this_week">This Week</option>
               <option value="this_month">This Month</option>
+              <option value="last_month">Last Month</option>
               <option value="custom">Custom Date Range</option>
             </select>
           </div>
 
+          <!-- Custom Date Range -->
           <div v-if="comparisonPreset === 'custom'" class="filter-group-range">
             <input type="date" v-model="startDate" @change="loadSectionComparison" class="date-input" />
             <span>to</span>
             <input type="date" v-model="endDate" @change="loadSectionComparison" class="date-input" />
           </div>
+
+          <!-- Sort Order -->
+          <div class="filter-group">
+            <label>Sort By</label>
+            <select v-model="sortBy">
+              <option value="rank">DepEd Rank (#1 to last)</option>
+              <option value="rate_desc">Attendance % (High → Low)</option>
+              <option value="rate_asc">Attendance % (Low → High)</option>
+              <option value="enrolled_desc">Learners Count</option>
+              <option value="name_asc">Section Name (A → Z)</option>
+            </select>
+          </div>
+
+          <!-- Reset Filter Button -->
+          <button 
+            v-if="hasActiveComparisonFilters" 
+            @click="resetComparisonFilters" 
+            class="btn-sm btn-secondary reset-filters-btn"
+            title="Reset All Filters"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            <span>Reset</span>
+          </button>
         </div>
 
         <div class="toolbar-right">
@@ -176,10 +242,25 @@
             <span class="kpi-unit">Attendance Average</span>
           </div>
         </div>
+
+        <div class="kpi-card">
+          <div class="kpi-card-header">
+            <span class="kpi-tag" :class="totalSardoAlerts > 0 ? 'kpi-tag--warning' : 'kpi-tag--success'">
+              {{ totalSardoAlerts > 0 ? 'SARDO Watchlist' : 'SARDO Clear' }}
+            </span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-main-num" :class="{ 'text-danger': totalSardoAlerts > 0 }">{{ totalSardoAlerts }}</span>
+            <span class="kpi-unit">Chronic Risk Alerts</span>
+          </div>
+        </div>
       </div>
 
       <!-- Section Ranking Table -->
       <div class="card-box">
+        <div class="table-count-banner" v-if="filteredSections.length">
+          <span>Showing <strong>{{ filteredSections.length }}</strong> of {{ comparisonData?.sections?.length || 0 }} sections</span>
+        </div>
         <div class="table-responsive">
           <table class="overview-table">
             <thead>
@@ -188,15 +269,16 @@
                 <th>Grade Level &amp; Section</th>
                 <th>Class Adviser</th>
                 <th style="text-align: center;">Learners (M/F)</th>
-                <th style="text-align: center;">Attendance %</th>
+                <th style="width: 200px; text-align: center;">Attendance %</th>
                 <th style="text-align: center;">Present</th>
                 <th style="text-align: center;">Absent</th>
                 <th style="text-align: center;">SARDO Risk</th>
-                <th style="text-align: center;">Standard Status</th>
+                <th style="text-align: center;">Compliance</th>
+                <th style="text-align: right;">Action</th>
               </tr>
             </thead>
-            <tbody v-if="comparisonData && comparisonData.sections.length">
-              <tr v-for="s in comparisonData.sections" :key="`${s.grade}-${s.section}`">
+            <tbody v-if="filteredSections.length">
+              <tr v-for="s in filteredSections" :key="`${s.grade}-${s.section}`">
                 <td style="text-align: center;">
                   <span class="rank-badge" :class="`rank-${s.rank}`">#{{ s.rank }}</span>
                 </td>
@@ -212,9 +294,18 @@
                   <small style="color: var(--muted-foreground); display: block;">{{ s.male }} M · {{ s.female }} F</small>
                 </td>
                 <td style="text-align: center;">
-                  <strong :class="s.attendanceRate >= 95 ? 'text-teal' : s.attendanceRate >= 90 ? 'text-amber' : 'text-danger'">
-                    {{ s.attendanceRate }}%
-                  </strong>
+                  <div class="rate-progress-wrap">
+                    <div class="rate-track">
+                      <div 
+                        class="rate-fill" 
+                        :class="s.attendanceRate >= 95 ? 'fill-teal' : s.attendanceRate >= 90 ? 'fill-amber' : 'fill-danger'"
+                        :style="{ width: `${Math.min(s.attendanceRate, 100)}%` }"
+                      ></div>
+                    </div>
+                    <strong :class="s.attendanceRate >= 95 ? 'text-teal' : s.attendanceRate >= 90 ? 'text-amber' : 'text-danger'">
+                      {{ s.attendanceRate }}%
+                    </strong>
+                  </div>
                 </td>
                 <td style="text-align: center;">{{ Number(s.present).toLocaleString() }}</td>
                 <td style="text-align: center;">{{ Number(s.absent).toLocaleString() }}</td>
@@ -227,11 +318,26 @@
                     {{ s.attendanceRate >= 95 ? 'Compliant' : 'Below Target' }}
                   </span>
                 </td>
+                <td style="text-align: right;">
+                  <button @click="openMonthlyRecord(s.grade, s.section)" class="btn-xs btn-secondary open-sheet-btn" title="Open monthly SF2 attendance sheet">
+                    <span>SF2 Sheet</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
+                </td>
               </tr>
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="9" class="empty-cell">No section records found for the selected scope.</td>
+                <td colspan="10" class="empty-cell">
+                  <div class="empty-state-box">
+                    <p>No section records match your current filter settings.</p>
+                    <button v-if="hasActiveComparisonFilters" @click="resetComparisonFilters" class="btn-sm btn-primary">
+                      Reset Filters
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -254,8 +360,35 @@
           </div>
 
           <div class="filter-group">
+            <label>Grade Filter</label>
+            <select v-model="quarterlyGradeFilter">
+              <option value="">All Grade Levels</option>
+              <option v-for="g in availableGrades" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label>Search Class</label>
+            <div class="search-input-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input 
+                type="text" 
+                v-model="quarterlySearch" 
+                placeholder="Section or adviser..." 
+                class="search-input"
+              />
+            </div>
+          </div>
+
+          <div class="filter-group">
             <label>School Year</label>
-            <input type="text" v-model="selectedSchoolYear" @change="loadQuarterlySummary" placeholder="2026-2027" class="text-input" style="width: 120px;" />
+            <select v-model="selectedSchoolYear" @change="loadQuarterlySummary">
+              <option value="2026-2027">2026-2027</option>
+              <option value="2025-2026">2025-2026</option>
+              <option value="2024-2025">2024-2025</option>
+            </select>
           </div>
         </div>
 
@@ -282,9 +415,9 @@
         <div class="card-box-header">
           <div>
             <h3>School-Wide Quarter {{ quarterlyData.quarter }} Totals</h3>
-            <p>School Year {{ quarterlyData.schoolYear }} · Months: {{ quarterlyData.monthsIncluded.join(', ') }}</p>
+            <p>School Year {{ quarterlyData.schoolYear }} · Reporting Months: {{ quarterlyData.monthsIncluded.join(', ') }}</p>
           </div>
-          <div class="rollcall-pct-badge badge--complete">
+          <div class="rollcall-pct-badge" :class="quarterlyData.grandTotal.attendanceRate >= 95 ? 'badge--complete' : 'badge--warning'">
             {{ quarterlyData.grandTotal.attendanceRate }}% School Attendance Rate
           </div>
         </div>
@@ -303,7 +436,7 @@
           <div class="stat-banner-item">
             <small>REPORTING SCHOOL DAYS</small>
             <strong>{{ quarterlyData.grandTotal.schoolDays }} Days</strong>
-            <span>Quarterly Window</span>
+            <span>Quarterly Consolidated Total</span>
           </div>
         </div>
       </div>
@@ -319,11 +452,12 @@
                 <th style="text-align: center;">School Days</th>
                 <th style="text-align: center;">Enrolment (M / F / Total)</th>
                 <th style="text-align: center;">ADA (M / F / Total)</th>
-                <th style="text-align: center;">Att. % (M / F / Total)</th>
+                <th style="width: 220px; text-align: center;">Att. % (M / F / Total)</th>
+                <th style="text-align: right;">Action</th>
               </tr>
             </thead>
-            <tbody v-if="quarterlyData && quarterlyData.sections.length">
-              <tr v-for="sec in quarterlyData.sections" :key="`${sec.grade}-${sec.section}`">
+            <tbody v-if="filteredQuarterlySections.length">
+              <tr v-for="sec in filteredQuarterlySections" :key="`${sec.grade}-${sec.section}`">
                 <td><strong>{{ sec.grade }} — {{ sec.section }}</strong></td>
                 <td>{{ sec.adviser || 'Unassigned' }}</td>
                 <td style="text-align: center;">{{ sec.schoolDays }}</td>
@@ -334,13 +468,30 @@
                   {{ sec.ada.male }} / {{ sec.ada.female }} / <strong>{{ sec.ada.total }}</strong>
                 </td>
                 <td style="text-align: center;">
-                  {{ sec.attendanceRate.male }}% / {{ sec.attendanceRate.female }}% / <strong class="text-teal">{{ sec.attendanceRate.total }}%</strong>
+                  <div class="rate-progress-wrap">
+                    <div class="rate-track">
+                      <div 
+                        class="rate-fill" 
+                        :class="sec.attendanceRate.total >= 95 ? 'fill-teal' : sec.attendanceRate.total >= 90 ? 'fill-amber' : 'fill-danger'"
+                        :style="{ width: `${Math.min(sec.attendanceRate.total, 100)}%` }"
+                      ></div>
+                    </div>
+                    <span>{{ sec.attendanceRate.male }}% / {{ sec.attendanceRate.female }}% / <strong class="text-teal">{{ sec.attendanceRate.total }}%</strong></span>
+                  </div>
+                </td>
+                <td style="text-align: right;">
+                  <button @click="openMonthlyRecord(sec.grade, sec.section)" class="btn-xs btn-secondary open-sheet-btn" title="Open monthly SF2 attendance sheet">
+                    <span>SF2 Sheet</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
                 </td>
               </tr>
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="6" class="empty-cell">No quarterly records filed for this period yet.</td>
+                <td colspan="7" class="empty-cell">No quarterly records match your selection.</td>
               </tr>
             </tbody>
           </table>
@@ -412,9 +563,19 @@
             </select>
           </div>
 
-          <button @click="runValidationCheck" class="btn-sm btn-primary" :disabled="validating">
-            {{ validating ? 'Validating Dataset…' : 'Run Pre-Flight Check' }}
-          </button>
+          <div class="validator-actions-wrap">
+            <button @click="runValidationCheck" class="btn-sm btn-primary" :disabled="validating">
+              {{ validating ? 'Validating Dataset…' : 'Run Pre-Flight Check' }}
+            </button>
+            <button 
+              v-if="validatorGrade && validatorSection"
+              @click="openMonthlyRecord(validatorGrade, validatorSection)" 
+              class="btn-sm btn-secondary" 
+              title="Open this class in Monthly Attendance"
+            >
+              Open in Monthly SF2 →
+            </button>
+          </div>
         </div>
 
         <!-- Validation Results Display -->
@@ -463,6 +624,36 @@
           </div>
         </div>
 
+        <!-- Archive Toolbar -->
+        <div class="filter-action-toolbar" style="margin-bottom: 16px; padding: 12px 16px;">
+          <div class="toolbar-left">
+            <div class="filter-group">
+              <label>Search Archives</label>
+              <div class="search-input-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input 
+                  type="text" 
+                  v-model="archiveSearch" 
+                  placeholder="Filter by report title..." 
+                  class="search-input"
+                />
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <label>Report Type</label>
+              <select v-model="archiveTypeFilter">
+                <option value="all">All Report Types</option>
+                <option value="section_comparison">Section Comparison</option>
+                <option value="quarterly_summary">Quarterly Summary</option>
+                <option value="custom_summary">Custom Summary</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="table-responsive">
           <table class="overview-table">
             <thead>
@@ -476,8 +667,8 @@
                 <th style="text-align: right;">Action</th>
               </tr>
             </thead>
-            <tbody v-if="archives.length">
-              <tr v-for="a in archives" :key="a.id">
+            <tbody v-if="filteredArchives.length">
+              <tr v-for="a in filteredArchives" :key="a.id">
                 <td><strong>{{ a.title }}</strong></td>
                 <td><span class="report-type-badge">{{ a.report_type }}</span></td>
                 <td><span class="format-pill">{{ (a.file_format || 'csv').toUpperCase() }}</span></td>
@@ -496,7 +687,7 @@
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="7" class="empty-cell">No reports archived for this school yet.</td>
+                <td colspan="7" class="empty-cell">No archived reports match your search criteria.</td>
               </tr>
             </tbody>
           </table>
@@ -514,6 +705,26 @@
           </div>
         </div>
 
+        <!-- Saved Views Toolbar -->
+        <div class="filter-action-toolbar" style="margin-bottom: 16px; padding: 12px 16px;">
+          <div class="toolbar-left">
+            <div class="filter-group">
+              <label>Search Views</label>
+              <div class="search-input-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input 
+                  type="text" 
+                  v-model="savedViewSearch" 
+                  placeholder="Filter by view name..." 
+                  class="search-input"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="table-responsive">
           <table class="overview-table">
             <thead>
@@ -525,12 +736,16 @@
                 <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
-            <tbody v-if="savedViews.length">
-              <tr v-for="v in savedViews" :key="v.id">
+            <tbody v-if="filteredSavedViews.length">
+              <tr v-for="v in filteredSavedViews" :key="v.id">
                 <td><strong>{{ v.name }}</strong></td>
                 <td><span class="report-type-badge">{{ v.reportType }}</span></td>
                 <td>
-                  <code>{{ JSON.stringify(v.filters) }}</code>
+                  <div class="saved-filter-chips">
+                    <span v-for="(val, key) in (v.filters || {})" :key="key" class="filter-chip">
+                      <strong>{{ key }}:</strong> {{ val }}
+                    </span>
+                  </div>
                 </td>
                 <td>{{ new Date(v.updatedAt || v.createdAt).toLocaleDateString() }}</td>
                 <td style="text-align: right;">
@@ -545,7 +760,7 @@
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="5" class="empty-cell">No custom views saved yet. Save a view from the dashboard or comparison tab.</td>
+                <td colspan="5" class="empty-cell">No custom views saved yet. Save a view from the section comparison or quarterly tab.</td>
               </tr>
             </tbody>
           </table>
@@ -557,8 +772,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
+const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const activeTab = ref('comparison')
@@ -566,19 +783,25 @@ const schoolsList = ref([])
 const selectedSchoolId = ref('')
 const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
 
-// Section Comparison State
+// Section Comparison State & Filters
 const comparisonData = ref(null)
 const filterGrade = ref('')
+const filterSection = ref('')
+const searchQuery = ref('')
+const complianceFilter = ref('all')
+const sortBy = ref('rank')
 const comparisonPreset = ref('all')
 const startDate = ref('')
 const endDate = ref('')
 const availableGrades = ref([])
 const sectionsByGrade = ref({})
 
-// Quarterly State
+// Quarterly State & Filters
 const quarterlyData = ref(null)
 const selectedQuarter = ref(1)
 const selectedSchoolYear = ref('2026-2027')
+const quarterlyGradeFilter = ref('')
+const quarterlySearch = ref('')
 
 // Template & Validation State
 const templateVersion = ref(null)
@@ -594,7 +817,127 @@ const monthNamesList = [
 
 // Archives & Saved Views State
 const archives = ref([])
+const archiveSearch = ref('')
+const archiveTypeFilter = ref('all')
 const savedViews = ref([])
+const savedViewSearch = ref('')
+
+// Computed: Total SARDO Alerts in Current Comparison Scope
+const totalSardoAlerts = computed(() => {
+  if (!comparisonData.value?.sections) return 0
+  return comparisonData.value.sections.reduce((acc, s) => acc + (s.sardoAlerts || 0), 0)
+})
+
+// Computed: Filtered & Sorted Sections for Section Comparison Tab
+const filteredSections = computed(() => {
+  if (!comparisonData.value?.sections) return []
+  let list = [...comparisonData.value.sections]
+
+  if (filterSection.value) {
+    list = list.filter(s => s.section === filterSection.value)
+  }
+
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase()
+    list = list.filter(s => 
+      s.section.toLowerCase().includes(q) ||
+      s.grade.toLowerCase().includes(q) ||
+      (s.adviser && s.adviser.toLowerCase().includes(q))
+    )
+  }
+
+  if (complianceFilter.value === 'compliant') {
+    list = list.filter(s => s.attendanceRate >= 95)
+  } else if (complianceFilter.value === 'below') {
+    list = list.filter(s => s.attendanceRate < 95)
+  } else if (complianceFilter.value === 'risk') {
+    list = list.filter(s => s.sardoAlerts > 0)
+  }
+
+  if (sortBy.value === 'rate_desc') {
+    list.sort((a, b) => b.attendanceRate - a.attendanceRate)
+  } else if (sortBy.value === 'rate_asc') {
+    list.sort((a, b) => a.attendanceRate - b.attendanceRate)
+  } else if (sortBy.value === 'enrolled_desc') {
+    list.sort((a, b) => b.enrolled - a.enrolled)
+  } else if (sortBy.value === 'name_asc') {
+    list.sort((a, b) => a.section.localeCompare(b.section))
+  } else {
+    list.sort((a, b) => (a.rank || 0) - (b.rank || 0))
+  }
+
+  return list
+})
+
+const hasActiveComparisonFilters = computed(() => {
+  return !!(
+    filterGrade.value ||
+    filterSection.value ||
+    searchQuery.value.trim() ||
+    complianceFilter.value !== 'all' ||
+    comparisonPreset.value !== 'all' ||
+    sortBy.value !== 'rank'
+  )
+})
+
+function resetComparisonFilters() {
+  filterGrade.value = ''
+  filterSection.value = ''
+  searchQuery.value = ''
+  complianceFilter.value = 'all'
+  comparisonPreset.value = 'all'
+  startDate.value = ''
+  endDate.value = ''
+  sortBy.value = 'rank'
+  loadSectionComparison()
+}
+
+// Computed: Filtered Sections for Quarterly Consolidation Tab
+const filteredQuarterlySections = computed(() => {
+  if (!quarterlyData.value?.sections) return []
+  let list = [...quarterlyData.value.sections]
+
+  if (quarterlyGradeFilter.value) {
+    list = list.filter(s => s.grade === quarterlyGradeFilter.value)
+  }
+
+  if (quarterlySearch.value.trim()) {
+    const q = quarterlySearch.value.trim().toLowerCase()
+    list = list.filter(s =>
+      s.section.toLowerCase().includes(q) ||
+      s.grade.toLowerCase().includes(q) ||
+      (s.adviser && s.adviser.toLowerCase().includes(q))
+    )
+  }
+
+  return list
+})
+
+// Computed: Filtered Archives
+const filteredArchives = computed(() => {
+  let list = archives.value || []
+  if (archiveTypeFilter.value !== 'all') {
+    list = list.filter(a => a.report_type === archiveTypeFilter.value)
+  }
+  if (archiveSearch.value.trim()) {
+    const q = archiveSearch.value.trim().toLowerCase()
+    list = list.filter(a =>
+      a.title.toLowerCase().includes(q) ||
+      (a.created_by_name && a.created_by_name.toLowerCase().includes(q))
+    )
+  }
+  return list
+})
+
+// Computed: Filtered Saved Views
+const filteredSavedViews = computed(() => {
+  let list = savedViews.value || []
+  if (savedViewSearch.value.trim()) {
+    const q = savedViewSearch.value.trim().toLowerCase()
+    list = list.filter(v => v.name.toLowerCase().includes(q))
+  }
+  return list
+})
 
 onMounted(async () => {
   if (auth.isSuperadmin) {
@@ -643,6 +986,11 @@ async function loadGradeLevels() {
   }
 }
 
+function onFilterGradeChange() {
+  filterSection.value = ''
+  loadSectionComparison()
+}
+
 function onValidatorGradeChange() {
   const sects = sectionsByGrade.value[validatorGrade.value] || []
   if (!validatorSection.value || !sects.includes(validatorSection.value)) {
@@ -653,10 +1001,24 @@ function onValidatorGradeChange() {
 function onComparisonPresetChange() {
   const p = comparisonPreset.value
   const now = new Date()
-  if (p === 'this_month') {
+  if (p === 'this_week') {
+    const day = now.getDay()
+    const diffToMonday = now.getDate() - (day === 0 ? 6 : day - 1)
+    const monday = new Date(now.setDate(diffToMonday))
+    const friday = new Date(now.setDate(monday.getDate() + 4))
+    startDate.value = monday.toISOString().slice(0, 10)
+    endDate.value = friday.toISOString().slice(0, 10)
+  } else if (p === 'this_month') {
     const y = now.getFullYear()
     const m = String(now.getMonth() + 1).padStart(2, '0')
     const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+    startDate.value = `${y}-${m}-01`
+    endDate.value = `${y}-${m}-${lastDay}`
+  } else if (p === 'last_month') {
+    const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const y = prevMonthDate.getFullYear()
+    const m = String(prevMonthDate.getMonth() + 1).padStart(2, '0')
+    const lastDay = new Date(y, prevMonthDate.getMonth() + 1, 0).getDate()
     startDate.value = `${y}-${m}-01`
     endDate.value = `${y}-${m}-${lastDay}`
   } else if (p === 'all') {
@@ -697,6 +1059,16 @@ async function loadQuarterlySummary() {
   } finally {
     loading.value = false
   }
+}
+
+function openMonthlyRecord(grade, section) {
+  router.push({
+    path: '/monthly',
+    query: {
+      grade,
+      section
+    }
+  })
 }
 
 async function inspectTemplateVersion() {
@@ -839,8 +1211,8 @@ async function saveCurrentView(type) {
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
     const filters = type === 'section_comparison'
-      ? { grade: filterGrade.value, startDate: startDate.value, endDate: endDate.value, preset: comparisonPreset.value }
-      : { quarter: selectedQuarter.value, schoolYear: selectedSchoolYear.value }
+      ? { grade: filterGrade.value, section: filterSection.value, startDate: startDate.value, endDate: endDate.value, preset: comparisonPreset.value }
+      : { quarter: selectedQuarter.value, schoolYear: selectedSchoolYear.value, grade: quarterlyGradeFilter.value }
     await auth.api('/reports/saved-views', {
       method: 'POST',
       body: JSON.stringify({
@@ -861,6 +1233,7 @@ function applySavedView(v) {
   if (v.reportType === 'section_comparison') {
     activeTab.value = 'comparison'
     if (v.filters?.grade !== undefined) filterGrade.value = v.filters.grade
+    if (v.filters?.section !== undefined) filterSection.value = v.filters.section
     if (v.filters?.startDate !== undefined) startDate.value = v.filters.startDate
     if (v.filters?.endDate !== undefined) endDate.value = v.filters.endDate
     if (v.filters?.preset) comparisonPreset.value = v.filters.preset
@@ -869,6 +1242,7 @@ function applySavedView(v) {
     activeTab.value = 'quarterly'
     if (v.filters?.quarter) selectedQuarter.value = v.filters.quarter
     if (v.filters?.schoolYear) selectedSchoolYear.value = v.filters.schoolYear
+    if (v.filters?.grade) quarterlyGradeFilter.value = v.filters.grade
     loadQuarterlySummary()
   }
 }
@@ -881,7 +1255,8 @@ async function downloadCsv(type) {
       schoolId: sid,
       quarter: selectedQuarter.value,
       schoolYear: selectedSchoolYear.value,
-      grade: filterGrade.value || '',
+      grade: (type === 'section_comparison' ? filterGrade.value : quarterlyGradeFilter.value) || '',
+      section: (type === 'section_comparison' ? filterSection.value : '') || '',
       startDate: startDate.value || '',
       endDate: endDate.value || ''
     })
@@ -917,16 +1292,16 @@ async function archiveCurrentReport(type) {
     const sid = effectiveSchoolId.value || auth.schoolId
     let contentData = ''
 
-    if (type === 'section_comparison' && comparisonData.value) {
+    if (type === 'section_comparison' && filteredSections.value.length) {
       const headers = ['Rank', 'Grade', 'Section', 'Adviser', 'Total Enrolled', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'Status']
-      const rows = (comparisonData.value.sections || []).map(s => [
+      const rows = filteredSections.value.map(s => [
         s.rank, `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.enrolled, s.male, s.female, s.present, s.absent, `"${s.attendanceRate}%"`, s.sardoAlerts, `"${s.attendanceRate >= 95 ? 'Compliant' : 'Below Target'}"`
       ])
       const summaryRow = ['Total', '""', '""', `"${comparisonData.value.summary.totalSections} sections"`, comparisonData.value.summary.totalEnrolled, '', '', comparisonData.value.summary.totalPresent, comparisonData.value.summary.totalAbsent, `"${comparisonData.value.summary.overallAttendanceRate}%"`, '', `"${comparisonData.value.summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'}"`]
       contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), summaryRow.join(',')].join('\r\n')
-    } else if (type === 'quarterly_summary' && quarterlyData.value) {
+    } else if (type === 'quarterly_summary' && filteredQuarterlySections.value.length) {
       const headers = ['Grade Level', 'Section', 'Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Total Enrolled', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
-      const rows = (quarterlyData.value.sections || []).map(s => [
+      const rows = filteredQuarterlySections.value.map(s => [
         `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.schoolDays, s.enrolment.male, s.enrolment.female, s.enrolment.total, s.ada.male, s.ada.female, s.ada.total, `"${s.attendanceRate.male}%"`, `"${s.attendanceRate.female}%"`, `"${s.attendanceRate.total}%"`
       ])
       const grandTotalRow = ['"Grand Total"', '""', '""', quarterlyData.value.grandTotal.schoolDays, quarterlyData.value.grandTotal.maleEnrolled, quarterlyData.value.grandTotal.femaleEnrolled, quarterlyData.value.grandTotal.totalEnrolled, quarterlyData.value.grandTotal.ada.male, quarterlyData.value.grandTotal.ada.female, quarterlyData.value.grandTotal.ada.total, '', '', `"${quarterlyData.value.grandTotal.attendanceRate}%"`]
@@ -1009,7 +1384,7 @@ async function archiveCurrentReport(type) {
 
 .toolbar-left, .toolbar-right {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -1021,20 +1396,56 @@ async function archiveCurrentReport(type) {
 }
 
 .filter-group label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted-foreground);
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .filter-group select, .text-input, .date-input {
-  height: 34px;
+  height: 36px;
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--foreground);
   font-size: 0.85rem;
+  transition: border-color 0.15s ease;
+}
+
+.filter-group select:focus, .text-input:focus, .date-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input-wrap svg {
+  position: absolute;
+  left: 10px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.search-input {
+  height: 36px;
+  padding: 0 10px 0 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.85rem;
+  width: 170px;
+}
+
+.search-input:focus {
+  border-color: var(--primary);
+  outline: none;
 }
 
 .filter-group-range {
@@ -1043,7 +1454,25 @@ async function archiveCurrentReport(type) {
   gap: 8px;
   font-size: 0.85rem;
   color: var(--muted-foreground);
-  margin-top: 18px;
+}
+
+.reset-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--muted-foreground);
+}
+
+.reset-filters-btn:hover {
+  color: var(--foreground);
+}
+
+.table-count-banner {
+  padding: 10px 16px 0;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
 }
 
 .rank-badge {
@@ -1059,9 +1488,42 @@ async function archiveCurrentReport(type) {
   color: var(--muted-foreground);
 }
 
-.rank-1 { background: var(--primary-bg); color: var(--primary); font-weight: 800; }
-.rank-2 { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
-.rank-3 { background: color-mix(in srgb, var(--primary) 6%, transparent); color: var(--primary); }
+.rank-1 { background: var(--primary-bg); color: var(--primary); font-weight: 800; border: 1px solid var(--primary); }
+.rank-2 { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
+.rank-3 { background: color-mix(in srgb, var(--primary) 7%, transparent); color: var(--primary); }
+
+.rate-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 140px;
+  margin: 0 auto;
+}
+
+.rate-track {
+  width: 100%;
+  height: 6px;
+  background: var(--muted);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.rate-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.fill-teal { background: var(--primary); }
+.fill-amber { background: var(--warning); }
+.fill-danger { background: var(--destructive); }
+
+.open-sheet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 
 .badge-sardo-risk {
   display: inline-block;
@@ -1094,6 +1556,15 @@ async function archiveCurrentReport(type) {
 .compliance-below {
   background: var(--warning-bg);
   color: var(--warning);
+}
+
+.empty-state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+  color: var(--muted-foreground);
 }
 
 .quarterly-stats-banner {
@@ -1168,6 +1639,12 @@ async function archiveCurrentReport(type) {
   gap: 14px;
   flex-wrap: wrap;
   margin-bottom: 20px;
+}
+
+.validator-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .validation-results-card {
@@ -1261,6 +1738,22 @@ async function archiveCurrentReport(type) {
   border-radius: 4px;
   background: var(--primary-bg);
   color: var(--primary);
+}
+
+.saved-filter-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-chip {
+  font-size: 0.74rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--foreground);
+  border: 1px solid var(--border);
 }
 
 .text-teal { color: var(--primary); }

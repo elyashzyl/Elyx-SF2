@@ -115,7 +115,7 @@ router.delete('/saved-views/:id', async (req, res) => {
 
 // ── Section Comparison Report Helper ──
 
-async function computeSectionComparison(sid, { grade, month, year, startDate, endDate }) {
+async function computeSectionComparison(sid, { grade, section, month, year, startDate, endDate }) {
   // 1. Get all active sections and teachers
   let teacherFilter = sid ? "WHERE role = 'teacher' AND school_id = ?" : "WHERE role = 'teacher'"
   const teacherRows = await query(`SELECT id, name, grade, section FROM users ${teacherFilter}`, sid ? [sid] : [])
@@ -134,12 +134,14 @@ async function computeSectionComparison(sid, { grade, month, year, startDate, en
     WHERE COALESCE(enrollment_status, 'active') = 'active'
     ${sid ? 'AND school_id = ?' : ''}
     ${grade ? 'AND grade = ?' : ''}
+    ${section ? 'AND section = ?' : ''}
     GROUP BY grade, section
     ORDER BY grade, section
   `
   const studentParams = []
   if (sid) studentParams.push(sid)
   if (grade) studentParams.push(grade)
+  if (section) studentParams.push(section)
   const sectionRosters = await query(studentSql, studentParams)
 
   // 3. Query attendance metrics
@@ -152,7 +154,8 @@ async function computeSectionComparison(sid, { grade, month, year, startDate, en
       WHERE date >= ? AND date <= ?
       ${sid ? 'AND school_id = ?' : ''}
       ${grade ? 'AND grade = ?' : ''}
-    `, [startDate, endDate, ...(sid ? [sid] : []), ...(grade ? [grade] : [])])
+      ${section ? 'AND section = ?' : ''}
+    `, [startDate, endDate, ...(sid ? [sid] : []), ...(grade ? [grade] : []), ...(section ? [section] : [])])
 
     if (recs.length) {
       const inPlaceholders = recs.map(() => '?').join(',')
@@ -184,6 +187,7 @@ async function computeSectionComparison(sid, { grade, month, year, startDate, en
     let mParams = []
     if (sid) { mConditions.push('mr.school_id = ?'); mParams.push(sid) }
     if (grade) { mConditions.push('mr.grade = ?'); mParams.push(grade) }
+    if (section) { mConditions.push('mr.section = ?'); mParams.push(section) }
     if (month) { mConditions.push('mr.month = ?'); mParams.push(parseInt(month, 10)) }
     if (year) { mConditions.push('mr.year = ?'); mParams.push(parseInt(year, 10)) }
 
@@ -222,8 +226,9 @@ async function computeSectionComparison(sid, { grade, month, year, startDate, en
       WHERE 1=1
       ${sid ? 'AND ar.school_id = ?' : ''}
       ${grade ? 'AND ar.grade = ?' : ''}
+      ${section ? 'AND ar.section = ?' : ''}
       GROUP BY ar.grade, ar.section
-    `, [ ...(sid ? [sid] : []), ...(grade ? [grade] : []) ])
+    `, [ ...(sid ? [sid] : []), ...(grade ? [grade] : []), ...(section ? [section] : []) ])
 
     dailyRecs.forEach(r => {
       const key = `${r.grade}__${r.section}`
@@ -321,7 +326,7 @@ async function computeSectionComparison(sid, { grade, month, year, startDate, en
 
 // ── Quarterly DepEd Consolidation Summary Helper ──
 
-async function computeQuarterlySummary(sid, { quarter, schoolYear }) {
+async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, section }) {
   const q = parseInt(quarter, 10) || 1
   const sy = String(schoolYear || '2026-2027').trim()
   const quarterMonthMap = {
@@ -334,13 +339,18 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear }) {
 
   // 1. Fetch monthly records matching these months
   const monthPlaceholders = months.map(() => '?').join(',')
-  const records = await query(`
+  const recParams = [...months]
+  let recSql = `
     SELECT mr.*
     FROM monthly_records mr
     WHERE mr.month IN (${monthPlaceholders})
-    ${sid ? 'AND mr.school_id = ?' : ''}
-    ORDER BY mr.grade, mr.section, mr.year, mr.month
-  `, [...months, ...(sid ? [sid] : [])])
+  `
+  if (sid) { recSql += ' AND mr.school_id = ?'; recParams.push(sid) }
+  if (grade) { recSql += ' AND mr.grade = ?'; recParams.push(grade) }
+  if (section) { recSql += ' AND mr.section = ?'; recParams.push(section) }
+  recSql += ' ORDER BY mr.grade, mr.section, mr.year, mr.month'
+
+  const records = await query(recSql, recParams)
 
   const recordIds = records.map(r => r.id)
   let entries = []
@@ -377,7 +387,7 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear }) {
   }
 
   // 3. Also include all active sections from students so every class is tracked
-  const studentSql = `
+  let studentSql = `
     SELECT grade, section,
       COUNT(*) as total,
       SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) as male,
@@ -385,10 +395,17 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear }) {
     FROM students
     WHERE COALESCE(enrollment_status, 'active') = 'active'
     ${sid ? 'AND school_id = ?' : ''}
+    ${grade ? 'AND grade = ?' : ''}
+    ${section ? 'AND section = ?' : ''}
     GROUP BY grade, section
     ORDER BY grade, section
   `
-  const allSections = await query(studentSql, sid ? [sid] : [])
+  const sParams = []
+  if (sid) sParams.push(sid)
+  if (grade) sParams.push(grade)
+  if (section) sParams.push(section)
+
+  const allSections = await query(studentSql, sParams)
   const teacherRows = await query(`SELECT name, grade, section FROM users WHERE role = 'teacher' ${sid ? 'AND school_id = ?' : ''}`, sid ? [sid] : [])
   const adviserMap = {}
   teacherRows.forEach(t => { if (t.grade && t.section) adviserMap[`${t.grade}__${t.section}`] = t.name })
