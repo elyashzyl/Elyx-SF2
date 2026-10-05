@@ -810,36 +810,91 @@ async function openMonthly() {
   loadError.value = ''
   try {
     const sid = effectiveSchoolId.value
-    const asOf = `${form.year}-${String(form.month).padStart(2, '0')}-01`
-    const students = await store.getStudents(
-      { grade: form.grade, section: form.section, includeWithdrawn: 'true', asOf },
-      sid || undefined,
-      { throwOnError: true }
-    )
+    const lastDay = new Date(form.year, form.month, 0).getDate()
+    const monthEnd = `${form.year}-${String(form.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    // 1. Fetch unified class roster, current class roster, historical roster, and existing monthly record concurrently
+    const [unifiedRoster, currentStudents, historicalStudents, existingData] = await Promise.all([
+      store.getClassRoster(form.grade, form.section, sid || undefined).catch(() => []),
+      store.getStudents(
+        { grade: form.grade, section: form.section, includeWithdrawn: 'true' },
+        sid || undefined
+      ).catch(() => []),
+      store.getStudents(
+        { grade: form.grade, section: form.section, includeWithdrawn: 'true', asOf: monthEnd },
+        sid || undefined
+      ).catch(() => []),
+      store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined, { throwOnError: true })
+    ])
+
+    // Combine rosters: any student belonging to this class across all sources is retained
+    const studentMap = new Map()
+    for (const s of (unifiedRoster || [])) {
+      if (s?.id) studentMap.set(s.id, s)
+    }
+    for (const s of (currentStudents || [])) {
+      if (s?.id && !studentMap.has(s.id)) {
+        studentMap.set(s.id, s)
+      }
+    }
+    for (const s of (historicalStudents || [])) {
+      if (s?.id && !studentMap.has(s.id)) {
+        studentMap.set(s.id, s)
+      }
+    }
+    const students = Array.from(studentMap.values())
+
+    // Build lookup for gender from all available sources
     const lookup = {}
-    for (const s of students) lookup[s.id] = s.gender || ''
+    for (const s of (unifiedRoster || [])) if (s.gender) lookup[s.id] = s.gender
+    for (const s of (currentStudents || [])) if (s.gender) lookup[s.id] = s.gender
+    for (const s of (historicalStudents || [])) if (s.gender) lookup[s.id] = s.gender
+    if (existingData?.entries) {
+      for (const e of existingData.entries) {
+        if (e.gender && !lookup[e.studentId]) lookup[e.studentId] = e.gender
+      }
+    }
     studentsLookup.value = lookup
 
-    let data = await store.fetchMonthly(form.grade, form.section, form.month, form.year, sid || undefined, { throwOnError: true })
+    let data = existingData
     if (!data) {
-      const entries = students.map(s => ({
+      // Sort new entries: Boys first, then Girls, alphabetically by name
+      const sortedStudents = [...students].sort((a, b) => {
+        const gA = normalizeGender(lookup[a.id] || a.gender) === 'female' ? 1 : 0
+        const gB = normalizeGender(lookup[b.id] || b.gender) === 'female' ? 1 : 0
+        if (gA !== gB) return gA - gB
+        return (a.name || '').localeCompare(b.name || '')
+      })
+      const entries = sortedStudents.map(s => ({
         studentId: s.id,
         name: s.name,
-        gender: s.gender || '',
+        gender: lookup[s.id] || s.gender || '',
         days: {},
         present: 0,
         absent: 0,
         remarks: '',
         late_enrollee: 0
       }))
-      data = { month: form.month, year: form.year, grade: form.grade, section: form.section, adviser: auth.user?.name || '', include_saturdays: Boolean(form.includeSaturdays), entries }
+      data = {
+        month: form.month,
+        year: form.year,
+        grade: form.grade,
+        section: form.section,
+        adviser: auth.user?.name || '',
+        include_saturdays: Boolean(form.includeSaturdays),
+        entries
+      }
       const result = await store.saveMonthly(data, auth.user, sid || undefined)
       if (result) data.id = result.id
     } else {
-      const currentIds = new Set(students.map(s => s.id))
-      data.entries = data.entries.filter(e => currentIds.has(e.studentId))
-      for (const e of data.entries) e.gender = studentsLookup.value[e.studentId] || ''
+      // PRESERVE ALL EXISTING ENTRIES! Never filter or delete saved students!
+      for (const e of data.entries) {
+        if (lookup[e.studentId]) {
+          e.gender = lookup[e.studentId]
+        }
+      }
 
+      // Add missing students from the roster as late enrollees
       const existingIds = new Set(data.entries.map(e => e.studentId))
       const missing = students.filter(s => !existingIds.has(s.id))
       if (missing.length > 0) {
@@ -847,7 +902,7 @@ async function openMonthly() {
           data.entries.push({
             studentId: s.id,
             name: s.name,
-            gender: s.gender || '',
+            gender: lookup[s.id] || s.gender || '',
             days: {},
             present: 0,
             absent: 0,

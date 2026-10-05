@@ -24,6 +24,83 @@ function scopeRecordCheck(me, record) {
   return record.school_id === me.school_id
 }
 
+export async function getUnifiedClassRoster(schoolId, grade, section) {
+  const studentMap = new Map()
+
+  // 1. Current class students in students table
+  try {
+    const rows = await query(
+      `SELECT id, name, gender, enrollment_status FROM students WHERE school_id = ? AND grade = ? AND section = ?`,
+      [schoolId, grade, section]
+    )
+    for (const r of rows) {
+      studentMap.set(r.id, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
+    }
+  } catch {}
+
+  // 2. Students who appeared in ANY monthly record of this class in this school
+  try {
+    const rows = await query(`
+      SELECT DISTINCT me.student_id as id, me.student_name as name, COALESCE(s.gender, '') as gender, me.late_enrollee
+      FROM monthly_entries me
+      JOIN monthly_records mr ON mr.id = me.record_id
+      LEFT JOIN students s ON s.id = me.student_id
+      WHERE mr.school_id = ? AND mr.grade = ? AND mr.section = ?
+    `, [schoolId, grade, section])
+    for (const r of rows) {
+      if (!studentMap.has(r.id)) {
+        studentMap.set(r.id, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: Boolean(r.late_enrollee) })
+      } else if (r.gender && !studentMap.get(r.id).gender) {
+        studentMap.get(r.id).gender = r.gender
+      }
+    }
+  } catch {}
+
+  // 3. Students with historical enrollment events for this class
+  try {
+    const rows = await query(`
+      SELECT DISTINCT s.id, s.name, COALESCE(s.gender, '') as gender
+      FROM student_enrollment_events e
+      JOIN students s ON s.id = e.student_id
+      WHERE e.school_id = ? AND e.grade = ? AND e.section = ?
+    `, [schoolId, grade, section])
+    for (const r of rows) {
+      if (!studentMap.has(r.id)) {
+        studentMap.set(r.id, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
+      } else if (r.gender && !studentMap.get(r.id).gender) {
+        studentMap.get(r.id).gender = r.gender
+      }
+    }
+  } catch {}
+
+  const list = Array.from(studentMap.values())
+  list.sort((a, b) => {
+    const gA = (a.gender || '').toLowerCase() === 'female' ? 1 : 0
+    const gB = (b.gender || '').toLowerCase() === 'female' ? 1 : 0
+    if (gA !== gB) return gA - gB
+    return (a.name || '').localeCompare(b.name || '')
+  })
+  return list
+}
+
+router.get('/roster', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+    if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
+    const { grade, section } = req.query
+    const cls = resolveClassScope(me, grade, section)
+    if (cls.error) return res.status(403).json({ error: cls.error })
+
+    const roster = await getUnifiedClassRoster(scope.schoolId, cls.grade, cls.section)
+    res.json(roster)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/', async (req, res) => {
   try {
     const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
@@ -40,13 +117,39 @@ router.get('/', async (req, res) => {
     )
     if (records.length === 0) return res.json(null)
     const record = records[0]
-    const entries = await query(`
+
+    // Reconcile entries: ensure any student who belongs to this class (or appeared in any other month)
+    // is automatically present in this monthly record so they are never missing from previous months.
+    const roster = await getUnifiedClassRoster(scope.schoolId, cls.grade, cls.section)
+    const existingEntries = await query(`
       SELECT me.*, COALESCE(s.gender, '') as student_gender 
       FROM monthly_entries me 
       LEFT JOIN students s ON s.id = me.student_id 
       WHERE me.record_id = ? 
       ORDER BY me.id
     `, [record.id])
+
+    const existingIds = new Set(existingEntries.map(e => e.student_id))
+    let newlyInserted = false
+
+    for (const s of roster) {
+      if (!existingIds.has(s.id)) {
+        await run(`
+          INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee)
+          VALUES (?, ?, ?, '{}', 0, 0, '', 1)
+        `, [record.id, s.id, s.name])
+        newlyInserted = true
+      }
+    }
+
+    const entries = newlyInserted ? await query(`
+      SELECT me.*, COALESCE(s.gender, '') as student_gender
+      FROM monthly_entries me
+      LEFT JOIN students s ON s.id = me.student_id
+      WHERE me.record_id = ?
+      ORDER BY me.id
+    `, [record.id]) : existingEntries
+
     record.entries = entries.map(e => ({
       id: e.id,
       studentId: e.student_id,
@@ -56,7 +159,7 @@ router.get('/', async (req, res) => {
       present: e.present,
       absent: e.absent,
       remarks: e.remarks || '',
-      late_enrollee: e.late_enrollee || 0
+      late_enrollee: e.late_enrollee === 1 || e.late_enrollee === true || e.late_enrollee === '1'
     }))
     record.summary_data = JSON.parse(record.summary_data || '{}')
     record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
@@ -92,28 +195,67 @@ router.post('/', async (req, res) => {
     const cls = resolveClassScope(me, grade, section)
     if (cls.error) return res.status(403).json({ error: cls.error })
     if (!await assertValidClass(res, scope.schoolId, cls.grade, cls.section)) return
-    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
-    for (const entry of entries) {
-      let student = (await query('SELECT id, school_id FROM students WHERE id = ? AND school_id = ?', [entry.studentId, scope.schoolId]))[0]
-      if (!student) {
-        const hadEnrollment = (await query('SELECT student_id FROM student_enrollment_events WHERE student_id = ? AND school_id = ? AND effective_on <= ?', [entry.studentId, scope.schoolId, monthStart]))[0]
-        if (hadEnrollment) {
-          student = (await query('SELECT id, school_id FROM students WHERE id = ?', [entry.studentId]))[0]
-        }
-      }
-      if (!student) return res.status(400).json({ error: `Student ${entry.studentId} does not belong to the selected school` })
-      const enrollment = (await query(`
-        SELECT grade, section, status FROM student_enrollment_events
-        WHERE student_id = ? AND school_id = ? AND effective_on <= ?
-        ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC LIMIT 1`, [entry.studentId, scope.schoolId, monthStart]))[0]
-      if (enrollment && (enrollment.status !== 'active' || enrollment.grade !== cls.grade || enrollment.section !== cls.section)) {
-        return res.status(400).json({ error: `Student ${entry.studentId} was not enrolled in ${cls.grade} - ${cls.section} at the start of this month` })
-      }
-    }
     const existing = await query(
       'SELECT id FROM monthly_records WHERE month = ? AND year = ? AND grade = ? AND section = ? AND school_id = ?',
       [month, year, cls.grade, cls.section, scope.schoolId]
     )
+    let existingEntryIds = new Set()
+    if (existing.length > 0) {
+      const prevEntries = await query('SELECT student_id FROM monthly_entries WHERE record_id = ?', [existing[0].id])
+      existingEntryIds = new Set(prevEntries.map(e => e.student_id))
+    }
+
+    const lastDayOfMonth = new Date(year, month, 0).getDate()
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`
+    for (const entry of entries) {
+      let student = (await query('SELECT id, grade, section, school_id FROM students WHERE id = ? AND school_id = ?', [entry.studentId, scope.schoolId]))[0]
+      if (!student) {
+        const hadEnrollment = (await query('SELECT student_id FROM student_enrollment_events WHERE student_id = ? AND school_id = ? AND effective_on <= ?', [entry.studentId, scope.schoolId, monthEnd]))[0]
+        if (hadEnrollment) {
+          student = (await query('SELECT id, grade, section, school_id FROM students WHERE id = ?', [entry.studentId]))[0]
+        }
+      }
+      if (!student) return res.status(400).json({ error: `Student ${entry.studentId} does not belong to the selected school` })
+
+      if (existingEntryIds.has(entry.studentId)) {
+        continue
+      }
+
+      const enrollment = (await query(`
+        SELECT grade, section, status FROM student_enrollment_events
+        WHERE student_id = ? AND school_id = ? AND effective_on <= ?
+        ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC LIMIT 1`, [entry.studentId, scope.schoolId, monthEnd]))[0]
+
+      let classMatches = false
+      if (enrollment) {
+        if (enrollment.grade === cls.grade && enrollment.section === cls.section) {
+          classMatches = true
+        } else {
+          const inMonthEvent = (await query(`
+            SELECT id FROM student_enrollment_events
+            WHERE student_id = ? AND school_id = ? AND grade = ? AND section = ? AND effective_on >= ? AND effective_on <= ?
+            LIMIT 1`, [entry.studentId, scope.schoolId, cls.grade, cls.section, monthStart, monthEnd]))[0]
+          if (inMonthEvent) classMatches = true
+        }
+      } else {
+        if (student.grade === cls.grade && student.section === cls.section) {
+          classMatches = true
+        } else {
+          const earliestEvent = (await query(`
+            SELECT grade, section FROM student_enrollment_events
+            WHERE student_id = ? AND school_id = ?
+            ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC LIMIT 1`, [entry.studentId, scope.schoolId]))[0]
+          if (earliestEvent && earliestEvent.grade === cls.grade && earliestEvent.section === cls.section) {
+            classMatches = true
+          }
+        }
+      }
+
+      if (!classMatches) {
+        return res.status(400).json({ error: `Student ${entry.studentId} was not enrolled in ${cls.grade} - ${cls.section}` })
+      }
+    }
     let recordId
     if (existing.length > 0) {
       recordId = existing[0].id

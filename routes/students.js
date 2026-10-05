@@ -75,6 +75,34 @@ async function ensureEnrollmentStatusColumn() {
   try {
     await run("UPDATE students SET enrollment_status = 'active' WHERE enrollment_status IS NULL OR enrollment_status = ''")
   } catch {}
+  try {
+    const missingEvents = await query(`
+      SELECT s.id, s.grade, s.section, s.school_id, s.enrollment_status,
+             COALESCE(MIN(ar.date), '2000-01-01') AS earliest_date
+      FROM students s
+      LEFT JOIN student_enrollment_events e ON e.student_id = s.id
+      LEFT JOIN attendance_entries ae ON ae.student_id = s.id
+      LEFT JOIN attendance_records ar ON ar.id = ae.record_id
+      WHERE e.id IS NULL
+      GROUP BY s.id, s.grade, s.section, s.school_id, s.enrollment_status
+    `)
+    for (const s of missingEvents) {
+      const isWithdrawn = s.enrollment_status === 'withdrawn'
+      await run(`INSERT INTO student_enrollment_events
+        (id, student_id, school_id, event_type, status, effective_on, grade, section, reason, actor_id, actor_name, actor_role, event_sequence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', 1)`, [
+        uuidv4(),
+        s.id,
+        s.school_id || '',
+        isWithdrawn ? 'withdraw' : 'enroll',
+        isWithdrawn ? 'withdrawn' : 'active',
+        s.earliest_date || '2000-01-01',
+        s.grade || '',
+        s.section || '',
+        'Baseline enrollment baseline'
+      ])
+    }
+  } catch {}
   enrollmentColumnEnsured = true
 }
 

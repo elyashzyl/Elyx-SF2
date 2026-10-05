@@ -566,8 +566,19 @@ export const useAttendanceStore = defineStore('attendance', () => {
     })
   }
 
+  async function getClassRoster(grade, section, schoolId) {
+    const extra = { grade, section }
+    if (schoolId) extra.schoolId = schoolId
+    const query = new URLSearchParams(actor(extra)).toString()
+    try {
+      return await fetchJson(`${API}/monthly/roster?${query}`) || []
+    } catch {
+      return []
+    }
+  }
+
   return {
-    getStudents, addStudent, addStudents, updateStudent, getStudentProfile,
+    getStudents, getClassRoster, addStudent, addStudents, updateStudent, getStudentProfile,
     getInterventions, createIntervention, updateIntervention, deleteIntervention,
     getGuardianContacts, logGuardianContact, deleteGuardianContact, checkDuplicateStudents,
     getEnrollmentHistory, createEnrollmentEvent, transferStudentSchool, reenrollStudent, reenrollStudents, bulkStudentAction, bulkPermanentDeleteStudents, deleteStudent, deleteStudents,
