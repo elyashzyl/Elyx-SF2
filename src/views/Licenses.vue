@@ -354,23 +354,137 @@
               <td><code>{{ request.payment_reference || 'Proof attached' }}</code></td>
               <td><span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span></td>
               <td>{{ formatDate(request.created_at) }}</td>
-              <td v-if="request.status === 'pending'" class="table-action-cell">
-                <button class="btn btn-sm btn-success" type="button" @click="reviewSubscriptionRequest(request, 'approved')">Approve</button>
-                <button class="btn btn-sm btn-danger" type="button" @click="reviewSubscriptionRequest(request, 'rejected')">Reject</button>
+              <td class="table-action-cell">
+                <button v-if="request.status === 'pending'" class="btn btn-sm btn-primary" type="button" @click="openReviewModal(request)">Review</button>
+                <button v-else class="btn btn-sm btn-secondary" type="button" @click="openReviewModal(request)">Details</button>
               </td>
-              <td v-else>Reviewed</td>
             </tr>
           </tbody>
         </table>
       </div>
       <div v-else-if="!auth.isSuperadmin && subscriptionRequests.length" class="subscription-request-list">
         <div v-for="request in subscriptionRequests" :key="request.id" class="subscription-request-row">
-          <strong>{{ formatRequestType(request.request_type) }} · {{ request.plan_name || request.plan_tier }}</strong>
-          <span>{{ request.billing_cycle }} · ₱{{ Number(request.amount || 0).toLocaleString() }}</span>
-          <span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span>
+          <div>
+            <strong>{{ formatRequestType(request.request_type) }} · {{ request.plan_name || request.plan_tier }}</strong>
+            <div style="font-size: 0.85rem; color: var(--muted-foreground); margin-top: 2px;">
+              {{ request.billing_cycle }} · ₱{{ Number(request.amount || 0).toLocaleString() }}
+              · Ref: <code>{{ request.payment_reference || 'Attached' }}</code>
+              · {{ formatDate(request.created_at) }}
+            </div>
+            <div v-if="request.notes && request.status !== 'pending'" style="font-size: 0.8rem; color: var(--muted-foreground); margin-top: 4px;">
+              <strong>Remarks:</strong> {{ request.notes }}
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="status-indicator" :class="'status--' + request.status"><span class="dot"></span>{{ request.status }}</span>
+            <button
+              v-if="request.status === 'pending'"
+              class="btn btn-xs btn-secondary"
+              @click="cancelSubscriptionRequest(request)"
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              v-if="request.proof_url"
+              class="btn btn-xs btn-secondary"
+              @click="openProofEnlarge(request.proof_url)"
+              type="button"
+            >
+              Proof
+            </button>
+          </div>
         </div>
       </div>
       <p v-else class="empty-state">{{ auth.isSuperadmin ? 'No subscription payment requests.' : 'No payment request submitted yet.' }}</p>
+    </div>
+
+    <!-- Subscription Status History & Superadmin Audit Trail Card -->
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-header-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3 style="display: flex; align-items: center; gap: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>Subscription Status History &amp; Audit Trail</span>
+            <span class="badge badge-payment-count">{{ subscriptionHistory.length }} Records</span>
+          </h3>
+          <p class="desc">
+            Audited lifecycle timeline of payment submissions, superadmin review decisions, license activations, and status transitions.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <select v-model="historyStatusFilter" class="form-select-sm" style="font-size: 0.85rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--background); color: var(--foreground);">
+            <option value="all">All Lifecycle States</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="active">Active</option>
+            <option value="trial">Trial</option>
+            <option value="suspended">Suspended</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button class="btn btn-sm btn-secondary" @click="loadSubscriptionHistory" type="button" title="Refresh Audit Trail">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div v-if="filteredSubscriptionHistory.length" class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th v-if="auth.isSuperadmin">School</th>
+              <th>Status Transition</th>
+              <th>Reviewed / Action By</th>
+              <th>Audit Notes &amp; Remarks</th>
+              <th>Details &amp; Metadata</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="h in filteredSubscriptionHistory" :key="h.id">
+              <td v-if="auth.isSuperadmin">
+                <strong>{{ h.school_name || h.school_id || 'System' }}</strong>
+              </td>
+              <td>
+                <div class="history-status-transition">
+                  <span v-if="h.from_status && h.from_status !== 'none'" class="status-indicator" :class="'status--' + h.from_status">
+                    <span class="dot"></span>{{ h.from_status }}
+                  </span>
+                  <span v-if="h.from_status && h.from_status !== 'none'" class="transition-arrow">&rarr;</span>
+                  <span class="status-indicator" :class="'status--' + h.to_status">
+                    <span class="dot"></span>{{ h.to_status }}
+                  </span>
+                </div>
+              </td>
+              <td>
+                <strong>{{ h.actor_name || 'System' }}</strong>
+                <small v-if="h.actor_role" style="display: block; color: var(--muted-foreground); text-transform: capitalize;">{{ h.actor_role }}</small>
+              </td>
+              <td>
+                <span>{{ h.notes || '—' }}</span>
+              </td>
+              <td>
+                <div v-if="h.metadata" class="history-meta-chips">
+                  <span v-if="h.metadata.plan_tier" class="meta-chip">Plan: {{ h.metadata.plan_tier }}</span>
+                  <span v-if="h.metadata.amount" class="meta-chip">₱{{ Number(h.metadata.amount).toLocaleString() }}</span>
+                  <span v-if="h.metadata.payment_reference" class="meta-chip">Ref: {{ h.metadata.payment_reference }}</span>
+                  <span v-if="h.metadata.billing_cycle" class="meta-chip">{{ h.metadata.billing_cycle }}</span>
+                  <span v-if="h.metadata.expires_at" class="meta-chip">Expires: {{ h.metadata.expires_at }}</span>
+                </div>
+                <span v-else style="color: var(--muted-foreground);">—</span>
+              </td>
+              <td>
+                <small>{{ formatDateTime(h.created_at) }}</small>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="empty-state">No subscription status history recorded yet.</p>
     </div>
 
     <!-- MODAL: SUBMIT SUBSCRIPTION PAYMENT (School admin) -->
@@ -387,12 +501,164 @@
             <div class="form-group"><label>Plan *</label><select v-model="subscriptionForm.plan_tier" required><option v-for="plan in availablePlans" :key="plan.id" :value="plan.tier">{{ plan.name }} (₱{{ Number(subscriptionForm.billing_cycle === 'monthly' ? plan.price_monthly : plan.billing_annual_total).toLocaleString() }})</option></select></div>
             <div class="form-group"><label>Billing cycle *</label><select v-model="subscriptionForm.billing_cycle"><option value="annual">Annual plan term</option><option value="monthly">Monthly</option></select></div>
             <div class="form-group"><label>Payment channel</label><select v-model="subscriptionForm.payment_method_id"><option value="">Not specified</option><option v-for="method in paymentMethods.filter(pm => pm.is_active)" :key="method.id" :value="method.id">{{ method.bank_name }}</option></select></div>
-            <div class="form-group"><label>Payment reference *</label><input v-model.trim="subscriptionForm.payment_reference" type="text" maxlength="255" placeholder="Reference number or transaction ID" /></div>
-            <div class="form-group"><label>Proof URL (optional)</label><input v-model.trim="subscriptionForm.proof_url" type="url" placeholder="https://..." /></div>
+            <div class="form-group"><label>Payment reference *</label><input v-model.trim="subscriptionForm.payment_reference" type="text" maxlength="255" placeholder="Reference number or transaction ID" required /></div>
+            
+            <div class="form-group">
+              <label>Proof of Payment (Screenshot / Receipt)</label>
+              <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <input
+                  type="file"
+                  accept="image/*"
+                  @change="handleProofUpload"
+                  id="proof-file-upload"
+                  style="display: none;"
+                />
+                <button type="button" class="btn btn-sm btn-secondary" @click="triggerProofFileInput" style="display: inline-flex; align-items: center; gap: 6px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Upload Receipt Image</span>
+                </button>
+                <small style="color: var(--muted-foreground);">Upload a receipt image or paste URL below</small>
+              </div>
+              <input v-model.trim="subscriptionForm.proof_url" type="text" placeholder="Or paste proof URL (https://... or data:image/...)" />
+              <div v-if="subscriptionForm.proof_url" style="margin-top: 8px; display: flex; align-items: center; gap: 10px;">
+                <img v-if="isImageProof(subscriptionForm.proof_url)" :src="subscriptionForm.proof_url" alt="Receipt Preview" style="max-height: 80px; border-radius: 6px; border: 1px solid var(--border);" />
+                <button type="button" class="btn btn-xs btn-secondary" @click="subscriptionForm.proof_url = ''">Remove Proof</button>
+              </div>
+            </div>
+
             <div class="form-group"><label>Notes</label><textarea v-model.trim="subscriptionForm.notes" rows="2" placeholder="Additional payment details"></textarea></div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" @click="showSubscriptionRequestModal = false">Cancel</button><button type="submit" class="btn btn-primary" :disabled="submitting">{{ submitting ? 'Submitting…' : 'Submit for Verification' }}</button></div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL: REVIEW SUBSCRIPTION PAYMENT (Superadmin) -->
+    <div v-if="auth.isSuperadmin && showReviewModal && activeReviewRequest" class="modal-overlay" @click.self="showReviewModal = false">
+      <div class="modal-card" style="max-width: 580px;">
+        <div class="modal-header">
+          <h3>Review Subscription Payment Request</h3>
+          <button class="modal-close" type="button" @click="showReviewModal = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="review-meta-grid">
+            <div class="review-meta-item">
+              <span class="review-meta-label">School:</span>
+              <strong>{{ activeReviewRequest.school_name || activeReviewRequest.school_id }}</strong>
+            </div>
+            <div class="review-meta-item">
+              <span class="review-meta-label">Request Type:</span>
+              <span class="tier-pill">{{ formatRequestType(activeReviewRequest.request_type) }}</span>
+            </div>
+            <div class="review-meta-item">
+              <span class="review-meta-label">Plan &amp; Cycle:</span>
+              <strong>{{ activeReviewRequest.plan_name || activeReviewRequest.plan_tier }} ({{ activeReviewRequest.billing_cycle }})</strong>
+            </div>
+            <div class="review-meta-item">
+              <span class="review-meta-label">Amount:</span>
+              <strong style="color: var(--primary);">₱{{ Number(activeReviewRequest.amount || 0).toLocaleString() }}</strong>
+            </div>
+          </div>
+
+          <div class="review-payment-box">
+            <div class="review-payment-row">
+              <span class="review-meta-label">Payment Channel:</span>
+              <span>{{ activeReviewRequest.payment_bank_name || activeReviewRequest.payment_method_id || 'Not specified' }}</span>
+            </div>
+            <div class="review-payment-row">
+              <span class="review-meta-label">Payment Reference:</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <code class="license-key-code">{{ activeReviewRequest.payment_reference || 'None' }}</code>
+                <button v-if="activeReviewRequest.payment_reference" type="button" class="btn-copy-account" @click="copyText(activeReviewRequest.payment_reference, 'Payment reference copied!')">Copy</button>
+              </div>
+            </div>
+            <div v-if="activeReviewRequest.requested_by_name" class="review-payment-row">
+              <span class="review-meta-label">Submitted By:</span>
+              <span>{{ activeReviewRequest.requested_by_name }} ({{ formatDate(activeReviewRequest.created_at) }})</span>
+            </div>
+            <div v-if="activeReviewRequest.notes" class="review-payment-row">
+              <span class="review-meta-label">Requester Notes:</span>
+              <em>{{ activeReviewRequest.notes }}</em>
+            </div>
+          </div>
+
+          <!-- Proof Document Preview -->
+          <div v-if="activeReviewRequest.proof_url" class="review-proof-container">
+            <span class="review-meta-label" style="display: block; margin-bottom: 6px;">Submitted Proof of Payment:</span>
+            <div style="text-align: center;">
+              <img
+                v-if="isImageProof(activeReviewRequest.proof_url)"
+                :src="activeReviewRequest.proof_url"
+                alt="Proof of Payment"
+                class="review-proof-img"
+                @click="openProofEnlarge(activeReviewRequest.proof_url)"
+                title="Click to enlarge receipt"
+              />
+              <div v-else style="padding: 10px; background: var(--secondary); border-radius: 6px;">
+                <a :href="activeReviewRequest.proof_url" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">
+                  Open External Proof Link &rarr;
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Review Remarks -->
+          <div class="form-group" style="margin-top: 16px;">
+            <label>Superadmin Review Remarks &amp; Audit Notes *</label>
+            <textarea
+              v-model.trim="reviewNotesInput"
+              rows="2"
+              placeholder="e.g. Verified payment via online banking ledger on 2026-10-06"
+              :disabled="activeReviewRequest.status !== 'pending'"
+            ></textarea>
+            <small style="color: var(--muted-foreground);">These notes are permanently saved into the audit history trail.</small>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+          <button type="button" class="btn btn-secondary" @click="showReviewModal = false">Close</button>
+          <div v-if="activeReviewRequest.status === 'pending'" style="display: flex; gap: 8px;">
+            <button
+              type="button"
+              class="btn btn-danger"
+              :disabled="submitting"
+              @click="submitRequestDecision('rejected')"
+            >
+              {{ submitting ? 'Processing…' : 'Reject Request' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              :disabled="submitting"
+              @click="submitRequestDecision('approved')"
+            >
+              {{ submitting ? 'Processing…' : 'Approve & Activate' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: ENLARGE PROOF PREVIEW -->
+    <div v-if="showProofEnlargeModal && enlargedProofUrl" class="modal-overlay" @click.self="showProofEnlargeModal = false">
+      <div class="modal-card" style="max-width: 680px; text-align: center;">
+        <div class="modal-header">
+          <h3>Payment Proof Document</h3>
+          <button class="modal-close" @click="showProofEnlargeModal = false">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+          <img
+            :src="enlargedProofUrl"
+            alt="Payment Proof Enlarge"
+            style="max-width: 100%; max-height: 70vh; border-radius: 8px; border: 1px solid var(--border);"
+          />
+        </div>
+        <div class="modal-footer" style="justify-content: center;">
+          <button class="btn btn-secondary" @click="showProofEnlargeModal = false">Close</button>
+        </div>
       </div>
     </div>
 
@@ -524,6 +790,11 @@
                   <button class="btn-icon" @click="quickRenew(lic)" title="Quick renew using the plan term">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                  </button>
+                  <button v-if="['active', 'suspended', 'trial'].includes(lic.status)" class="btn-icon icon-btn--warning" @click="cancelLicense(lic)" title="Cancel License">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
                     </svg>
                   </button>
                   <button class="btn-icon icon-btn--danger" @click="deleteLicense(lic)" title="Delete License Permanently">
@@ -801,7 +1072,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 
@@ -817,7 +1088,15 @@ const availablePlans = ref([])
 
 const paymentMethods = ref([])
 const subscriptionRequests = ref([])
+const subscriptionHistory = ref([])
+const historyStatusFilter = ref('all')
 const showSubscriptionRequestModal = ref(false)
+const showReviewModal = ref(false)
+const activeReviewRequest = ref(null)
+const reviewNotesInput = ref('')
+const showProofEnlargeModal = ref(false)
+const enlargedProofUrl = ref('')
+
 const subscriptionForm = reactive({
   request_type: 'renewal',
   plan_tier: '',
@@ -1137,6 +1416,11 @@ function planTierName(tier) {
   return tier || 'Unconfigured plan'
 }
 
+const filteredSubscriptionHistory = computed(() => {
+  if (historyStatusFilter.value === 'all') return subscriptionHistory.value
+  return subscriptionHistory.value.filter(h => h.to_status === historyStatusFilter.value || h.from_status === historyStatusFilter.value)
+})
+
 function formatDate(d) {
   if (!d) return '—'
   try {
@@ -1144,6 +1428,85 @@ function formatDate(d) {
     return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
   } catch {
     return d
+  }
+}
+
+function formatDateTime(d) {
+  if (!d) return '—'
+  try {
+    const date = new Date(d)
+    return date.toLocaleString('en-PH', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return d
+  }
+}
+
+function isImageProof(url) {
+  if (!url) return false
+  const clean = String(url).trim()
+  if (clean.startsWith('data:image/')) return true
+  return /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i.test(clean) || clean.startsWith('http')
+}
+
+function triggerProofFileInput() {
+  const input = document.getElementById('proof-file-upload')
+  if (input) input.click()
+}
+
+function handleProofUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = ev => {
+    const rawDataUrl = ev.target?.result || ''
+    const img = new Image()
+    img.onload = () => {
+      const maxDim = 1200
+      let w = img.width
+      let h = img.height
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w)
+          w = maxDim
+        } else {
+          w = Math.round((w * maxDim) / h)
+          h = maxDim
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        subscriptionForm.proof_url = canvas.toDataURL('image/jpeg', 0.85)
+      } else {
+        subscriptionForm.proof_url = rawDataUrl
+      }
+    }
+    img.onerror = () => {
+      subscriptionForm.proof_url = rawDataUrl
+    }
+    img.src = rawDataUrl
+  }
+  reader.readAsDataURL(file)
+}
+
+function openProofEnlarge(url) {
+  enlargedProofUrl.value = url
+  showProofEnlargeModal.value = true
+}
+
+async function copyText(text, successMsg = 'Copied!') {
+  try {
+    await navigator.clipboard.writeText(text)
+    showSuccess(successMsg)
+  } catch {
+    showSuccess(`Value: ${text}`)
   }
 }
 
@@ -1180,6 +1543,16 @@ async function loadSubscriptionRequests() {
   }
 }
 
+async function loadSubscriptionHistory() {
+  try {
+    const qs = new URLSearchParams(auth.actorParams({ limit: 100 })).toString()
+    const res = await fetch(`/api/subscriptions/history?${qs}`, { cache: 'no-store', headers: auth.actorHeaders() })
+    if (res.ok) subscriptionHistory.value = await res.json()
+  } catch (err) {
+    console.error('Failed to load subscription history:', err)
+  }
+}
+
 function openSubscriptionRequestModal() {
   if (auth.isSuperadmin) return
   subscriptionForm.request_type = activeLicense.value ? 'renewal' : 'activation'
@@ -1205,7 +1578,7 @@ async function submitSubscriptionRequest() {
     if (!res.ok) throw new Error(data.error || 'Failed to submit payment request')
     showSubscriptionRequestModal.value = false
     showSuccess('Payment submitted for superadmin verification.')
-    await loadSubscriptionRequests()
+    await Promise.all([loadSubscriptionRequests(), loadSubscriptionHistory()])
   } catch (err) {
     showError(err.message)
   } finally {
@@ -1213,21 +1586,47 @@ async function submitSubscriptionRequest() {
   }
 }
 
-async function reviewSubscriptionRequest(request, status) {
-  if (!auth.isSuperadmin) return
-  const action = status === 'approved' ? 'approve and activate this subscription' : 'reject this payment request'
-  if (!confirm(`Are you sure you want to ${action}?`)) return
+function openReviewModal(request) {
+  activeReviewRequest.value = request
+  reviewNotesInput.value = request.notes || ''
+  showReviewModal.value = true
+}
+
+async function submitRequestDecision(status) {
+  if (!auth.isSuperadmin || !activeReviewRequest.value) return
+  submitting.value = true
   try {
     const qs = new URLSearchParams(auth.actorParams()).toString()
-    const res = await fetch(`/api/subscriptions/requests/${request.id}/status?${qs}`, {
+    const res = await fetch(`/api/subscriptions/requests/${activeReviewRequest.value.id}/status?${qs}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...auth.actorHeaders() },
-      body: JSON.stringify(auth.actorParams({ status }))
+      body: JSON.stringify(auth.actorParams({ status, notes: reviewNotesInput.value.trim() }))
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to review request')
-    showSuccess(status === 'approved' ? 'Subscription approved and license activated.' : 'Payment request rejected.')
-    await Promise.all([loadSubscriptionRequests(), loadLicenseData()])
+    showSuccess(status === 'approved' ? 'Subscription approved and license activated!' : 'Subscription request rejected.')
+    showReviewModal.value = false
+    await Promise.all([loadSubscriptionRequests(), loadLicenseData(), loadSubscriptionHistory()])
+  } catch (err) {
+    showError(err.message)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function cancelSubscriptionRequest(request) {
+  if (!confirm('Are you sure you want to cancel this pending payment request?')) return
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/subscriptions/requests/${request.id}/cancel?${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.actorHeaders() },
+      body: JSON.stringify(auth.actorParams({ notes: 'Cancelled by school administrator' }))
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to cancel request')
+    showSuccess('Subscription payment request cancelled.')
+    await Promise.all([loadSubscriptionRequests(), loadSubscriptionHistory()])
   } catch (err) {
     showError(err.message)
   }
@@ -1504,6 +1903,26 @@ async function deleteLicense(lic) {
   }
 }
 
+async function cancelLicense(lic) {
+  if (!auth.isSuperadmin) return
+  const reason = prompt(`Enter cancellation remarks for license "${lic.license_key}":`, 'Administrative contract cancellation')
+  if (reason === null) return
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/licenses/${lic.id}/cancel?${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.actorHeaders() },
+      body: JSON.stringify(auth.actorParams({ notes: reason }))
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to cancel license')
+    showSuccess(`License "${lic.license_key}" has been cancelled.`)
+    await Promise.all([loadLicenseData(), loadSubscriptionHistory()])
+  } catch (err) {
+    showError(err.message)
+  }
+}
+
 async function quickRenew(lic) {
   if (!auth.isSuperadmin) return
   try {
@@ -1534,12 +1953,14 @@ onMounted(async () => {
     loadSchoolsList(),
     loadPlans(),
     loadPaymentMethods(),
-    loadSubscriptionRequests()
+    loadSubscriptionRequests(),
+    loadSubscriptionHistory()
   ])
   // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
   licensePollInterval = setInterval(() => {
     void loadLicenseData()
     void loadSubscriptionRequests()
+    void loadSubscriptionHistory()
     loadPaymentMethods()
   }, 6000)
 })
@@ -2105,5 +2526,135 @@ onUnmounted(() => {
   margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+/* Subscription Status History & Audit Trail styles */
+.history-status-transition {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transition-arrow {
+  color: var(--muted-foreground);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.status--pending {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.status--pending .dot { background: var(--warning); }
+
+.status--approved {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.status--approved .dot { background: var(--success); }
+
+.status--rejected {
+  background: var(--red-bg);
+  color: var(--destructive);
+}
+.status--rejected .dot { background: var(--destructive); }
+
+.status--suspended {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.status--suspended .dot { background: var(--muted-foreground); }
+
+.status--cancelled {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+.status--cancelled .dot { background: var(--muted-foreground); }
+
+.history-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.meta-chip {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+/* Review Modal specific styles */
+.review-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px;
+  background: var(--secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.review-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-meta-label {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.review-payment-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  margin-bottom: 14px;
+}
+
+.review-payment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.review-proof-container {
+  padding: 14px;
+  background: var(--secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.review-proof-img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.review-proof-img:hover {
+  transform: scale(1.02);
+}
+
+.icon-btn--warning {
+  color: var(--warning);
+}
+.icon-btn--warning:hover {
+  background: var(--warning-bg);
 }
 </style>

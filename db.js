@@ -675,6 +675,22 @@ const MYSQL_DDL = [
     email_on_status_change TINYINT NOT NULL DEFAULT 1,
     in_app_notifications TINYINT NOT NULL DEFAULT 1,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS subscription_status_history (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL DEFAULT '',
+    license_id VARCHAR(96) NOT NULL DEFAULT '',
+    request_id VARCHAR(96) NOT NULL DEFAULT '',
+    from_status VARCHAR(32) NOT NULL DEFAULT '',
+    to_status VARCHAR(32) NOT NULL DEFAULT '',
+    actor_id VARCHAR(96) NOT NULL DEFAULT '',
+    actor_name VARCHAR(255) NOT NULL DEFAULT '',
+    actor_role VARCHAR(32) NOT NULL DEFAULT '',
+    notes TEXT NULL,
+    metadata LONGTEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_sub_history_school (school_id, created_at),
+    INDEX idx_sub_history_request (request_id)
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -1339,10 +1355,26 @@ async function initSqlite() {
       email_on_status_change INTEGER NOT NULL DEFAULT 1,
       in_app_notifications INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS subscription_status_history (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL DEFAULT '',
+      license_id TEXT DEFAULT '',
+      request_id TEXT DEFAULT '',
+      from_status TEXT DEFAULT '',
+      to_status TEXT NOT NULL DEFAULT '',
+      actor_id TEXT DEFAULT '',
+      actor_name TEXT DEFAULT '',
+      actor_role TEXT DEFAULT '',
+      notes TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
   }
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_sub_history_school ON subscription_status_history (school_id, created_at)') } catch {}
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_sub_history_request ON subscription_status_history (request_id)') } catch {}
   {
     try { sqlite.run("ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN section TEXT DEFAULT ''") } catch {}

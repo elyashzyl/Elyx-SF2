@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, saveDatabase, getSchoolById } from '../db.js'
 import { requireRole, resolveScopeSchool, audit } from './_context.js'
+import { recordSubscriptionHistory } from '../lib/subscriptionHistory.js'
 
 const router = Router()
 
@@ -425,6 +426,23 @@ router.post('/', async (req, res) => {
 
     saveDatabase()
 
+    await recordSubscriptionHistory({
+      schoolId: targetSchoolId,
+      licenseId: id,
+      fromStatus: existingActive.length > 0 ? existingActive[0].status : 'none',
+      toStatus: 'active',
+      actor: me,
+      notes: notes || `Issued ${plan_tier} license (${billing_cycle})`,
+      metadata: {
+        plan_tier,
+        billing_cycle,
+        max_teachers: effTeachers,
+        max_students: effStudents,
+        license_key: licenseKey,
+        expires_at: expStr
+      }
+    })
+
     await audit(me, 'license.create', { type: 'license', id, name: licenseKey, schoolId: targetSchoolId }, `Issued ${plan_tier} license "${licenseKey}"`)
 
     const created = (await query('SELECT * FROM licenses WHERE id = ?', [id]))[0]
@@ -475,6 +493,16 @@ router.post('/activate', async (req, res) => {
     )
 
     saveDatabase()
+
+    await recordSubscriptionHistory({
+      schoolId: targetSchoolId,
+      licenseId: found.id,
+      fromStatus: found.status,
+      toStatus: 'active',
+      actor: me,
+      notes: `Activated license "${cleanKey}"`,
+      metadata: { license_key: cleanKey, expires_at: expStr }
+    })
 
     await audit(me, 'license.activate', { type: 'license', id: found.id, name: cleanKey, schoolId: targetSchoolId }, `Activated license "${cleanKey}"`)
 
@@ -538,6 +566,16 @@ router.post('/start-trial', async (req, res) => {
 
     saveDatabase()
 
+    await recordSubscriptionHistory({
+      schoolId: targetSchoolId,
+      licenseId: existing ? existing.id : id,
+      fromStatus: existing ? existing.status : 'none',
+      toStatus: 'trial',
+      actor: me,
+      notes: `${trialDays}-day free trial started`,
+      metadata: { plan_tier, trial_days: trialDays, expires_at: trialStr }
+    })
+
     await audit(me, 'license.trial_start', { type: 'license', schoolId: targetSchoolId }, `Started ${trialDays}-day free trial`)
 
     const updated = (await query('SELECT * FROM licenses WHERE school_id = ?', [targetSchoolId]))[0]
@@ -580,6 +618,16 @@ router.post('/renew', async (req, res) => {
     )
 
     saveDatabase()
+
+    await recordSubscriptionHistory({
+      schoolId: targetSchoolId,
+      licenseId: license.id,
+      fromStatus: license.status,
+      toStatus: 'active',
+      actor: me,
+      notes: `Extended license validity to ${newExpStr} (+${renewalMonths} mo)`,
+      metadata: { renewed_months: renewalMonths, expires_at: newExpStr }
+    })
 
     await audit(me, 'license.renew', { type: 'license', id: license.id, schoolId: targetSchoolId }, `Extended license validity to ${newExpStr}`)
 
@@ -633,6 +681,18 @@ router.put('/:id', async (req, res) => {
     await run(`UPDATE licenses SET ${sets.join(', ')} WHERE id = ?`, params)
     saveDatabase()
 
+    if (status && status !== license.status) {
+      await recordSubscriptionHistory({
+        schoolId: license.school_id,
+        licenseId: license.id,
+        fromStatus: license.status,
+        toStatus: status,
+        actor: me,
+        notes: notes || `License status updated to ${status}`,
+        metadata: { previous_status: license.status, new_status: status }
+      })
+    }
+
     await audit(me, 'license.update', { type: 'license', id, schoolId: license.school_id }, `Updated license "${license.license_key}"`)
 
     const updated = (await query('SELECT * FROM licenses WHERE id = ?', [id]))[0]
@@ -660,6 +720,16 @@ router.post('/:id/suspend', async (req, res) => {
 
     await run('UPDATE licenses SET status = ? WHERE id = ?', ['suspended', id])
     saveDatabase()
+
+    await recordSubscriptionHistory({
+      schoolId: license.school_id,
+      licenseId: license.id,
+      fromStatus: license.status,
+      toStatus: 'suspended',
+      actor: me,
+      notes: String(req.body?.notes || 'License suspended by platform administrator').trim(),
+      metadata: { previous_status: license.status }
+    })
 
     await audit(me, 'license.suspend', { type: 'license', id, schoolId: license.school_id }, `Suspended license "${license.license_key}"`)
 
@@ -689,6 +759,16 @@ router.post('/:id/resume', async (req, res) => {
     await run('UPDATE licenses SET status = ? WHERE id = ?', ['active', id])
     saveDatabase()
 
+    await recordSubscriptionHistory({
+      schoolId: license.school_id,
+      licenseId: license.id,
+      fromStatus: 'suspended',
+      toStatus: 'active',
+      actor: me,
+      notes: String(req.body?.notes || 'License reactivated by platform administrator').trim(),
+      metadata: { previous_status: 'suspended' }
+    })
+
     await audit(me, 'license.resume', { type: 'license', id, schoolId: license.school_id }, `Resumed license "${license.license_key}"`)
 
     const updated = (await query('SELECT * FROM licenses WHERE id = ?', [id]))[0]
@@ -696,6 +776,41 @@ router.post('/:id/resume', async (req, res) => {
   } catch (err) {
     console.error('Failed to resume license:', err.message)
     res.status(500).json({ error: 'Failed to resume license' })
+  }
+})
+
+// POST /api/licenses/:id/cancel
+// Cancel a license (Superadmin only)
+router.post('/:id/cancel', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+
+    const { id } = req.params
+    const license = (await query('SELECT * FROM licenses WHERE id = ?', [id]))[0]
+    if (!license) return res.status(404).json({ error: 'License not found' })
+
+    const cancelNotes = String(req.body?.notes || 'License cancelled by administrator').trim()
+    await run('UPDATE licenses SET status = ? WHERE id = ?', ['cancelled', id])
+    saveDatabase()
+
+    await recordSubscriptionHistory({
+      schoolId: license.school_id,
+      licenseId: license.id,
+      fromStatus: license.status,
+      toStatus: 'cancelled',
+      actor: me,
+      notes: cancelNotes,
+      metadata: { previous_status: license.status }
+    })
+
+    await audit(me, 'license.cancel', { type: 'license', id, schoolId: license.school_id }, `Cancelled license "${license.license_key}"`)
+
+    const updated = (await query('SELECT * FROM licenses WHERE id = ?', [id]))[0]
+    res.json({ success: true, license: { ...updated, features: parseFeatures(updated.features) } })
+  } catch (err) {
+    console.error('Failed to cancel license:', err.message)
+    res.status(500).json({ error: 'Failed to cancel license' })
   }
 })
 

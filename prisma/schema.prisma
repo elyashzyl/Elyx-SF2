@@ -453,3 +453,22 @@ model PaymentMethod {
 
   @@map("payment_methods")
 }
+
+model SubscriptionStatusHistory {
+  id         String   @id @default(uuid()) @db.VarChar(96)
+  schoolId   String   @default("") @map("school_id") @db.VarChar(96)
+  licenseId  String   @default("") @map("license_id") @db.VarChar(96)
+  requestId  String   @default("") @map("request_id") @db.VarChar(96)
+  fromStatus String   @default("") @map("from_status") @db.VarChar(32)
+  toStatus   String   @default("") @map("to_status") @db.VarChar(32)
+  actorId    String   @default("") @map("actor_id") @db.VarChar(96)
+  actorName  String   @default("") @map("actor_name") @db.VarChar(255)
+  actorRole  String   @default("") @map("actor_role") @db.VarChar(32)
+  notes      String?  @db.Text
+  metadata   String?  @db.LongText
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt], map: "idx_sub_history_school")
+  @@index([requestId], map: "idx_sub_history_request")
+  @@map("subscription_status_history")
+}

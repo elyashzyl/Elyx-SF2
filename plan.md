@@ -283,11 +283,11 @@ The following capabilities already exist or are substantially implemented:
 
 **Priority: High for monetization**
 
-- [ ] Add subscription status history, including pending, approved, rejected, expired, suspended, and cancelled states.
-- [ ] Add approval notes and timestamps for every subscription decision.
-- [ ] Add payment reference numbers and proof-of-payment uploads.
-- [ ] Add configurable payment instructions, QR codes, and bank accounts managed by superadmin.
-- [ ] Add payment method active/inactive status and display ordering.
+- [x] Add subscription status history, including pending, approved, rejected, expired, suspended, and cancelled states.
+- [x] Add approval notes and timestamps for every subscription decision.
+- [x] Add payment reference numbers and proof-of-payment uploads.
+- [x] Add configurable payment instructions, QR codes, and bank accounts managed by superadmin.
+- [x] Add payment method active/inactive status and display ordering.
 - [ ] Add automatic reminders before trial or subscription expiration.
 - [ ] Add grace-period handling after expiration.
 - [ ] Add invoice or receipt records after approval.
