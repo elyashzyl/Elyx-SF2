@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { query, run, saveDatabase, getSchoolById } from '../db.js'
 import { requireRole, resolveScopeSchool, audit } from './_context.js'
 import { recordSubscriptionHistory } from '../lib/subscriptionHistory.js'
+import { evaluateLicenseExpirationReminders } from '../lib/expirationReminders.js'
 
 const router = Router()
 
@@ -841,6 +842,77 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('Failed to delete license:', err.message)
     res.status(500).json({ error: 'Failed to delete license: ' + err.message })
+  }
+})
+
+// POST /api/licenses/check-expirations
+// Trigger evaluation and dispatch of license expiration reminders (Superadmin or Admin)
+router.post('/check-expirations', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    if (error) return
+
+    let targetSchoolId = null
+    if (me.role === 'admin') {
+      targetSchoolId = me.school_id
+    } else if (req.body?.school_id) {
+      targetSchoolId = req.body.school_id
+    }
+
+    const result = await evaluateLicenseExpirationReminders({ schoolId: targetSchoolId, actor: me })
+    await audit(
+      me,
+      'license.reminders_check',
+      { schoolId: targetSchoolId, remindersSent: result.remindersSent },
+      `Triggered license expiration check (${result.remindersSent} reminder(s) sent)`
+    )
+
+    res.json({ success: true, ...result })
+  } catch (err) {
+    console.error('Failed to evaluate expiration reminders:', err.message)
+    res.status(500).json({ error: 'Failed to evaluate expiration reminders: ' + err.message })
+  }
+})
+
+// GET /api/licenses/reminders
+// Retrieve recent expiration reminders for school or platform
+router.get('/reminders', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin')
+    if (error) return
+
+    let sql = `
+      SELECT r.*, s.name as school_name, s.short as school_short, l.license_key, l.plan_tier
+      FROM license_expiration_reminders r
+      LEFT JOIN schools s ON s.id = r.school_id
+      LEFT JOIN licenses l ON l.id = r.license_id
+    `
+    const params = []
+
+    if (me.role === 'admin') {
+      sql += ' WHERE r.school_id = ?'
+      params.push(me.school_id || '')
+    } else if (req.query.school_id) {
+      sql += ' WHERE r.school_id = ?'
+      params.push(req.query.school_id)
+    }
+
+    sql += ' ORDER BY r.sent_at DESC LIMIT 100'
+
+    const rows = await query(sql, params)
+    res.json(rows.map(row => {
+      let parsedRecipients = {}
+      try {
+        parsedRecipients = JSON.parse(row.recipients_data || '{}')
+      } catch {}
+      return {
+        ...row,
+        recipients_data: parsedRecipients
+      }
+    }))
+  } catch (err) {
+    console.error('Failed to get expiration reminders:', err.message)
+    res.status(500).json({ error: 'Failed to retrieve expiration reminders: ' + err.message })
   }
 })
 

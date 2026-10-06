@@ -22,6 +22,7 @@ import subscriptionRoutes from './routes/subscriptions.js'
 import reportRoutes from './routes/reports.js'
 import announcementRoutes from './routes/announcements.js'
 import { validateRequestInput } from './lib/validation.js'
+import { startExpirationReminderScheduler } from './lib/expirationReminders.js'
 
 process.on('uncaughtException', (err) => {
   console.error('[fatal] uncaughtException:', err);
@@ -390,6 +391,7 @@ if (isMainModule) {
 
   initializeServerDatabase().then(() => {
     console.log('[server] Database initialized and ready for requests')
+    startExpirationReminderScheduler()
   }).catch(err => {
     console.error('Failed to initialize database on startup:', err.message)
     // Keep server process running so reverse proxy can route traffic and return informative status

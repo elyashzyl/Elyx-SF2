@@ -288,7 +288,11 @@ The following capabilities already exist or are substantially implemented:
 - [x] Add payment reference numbers and proof-of-payment uploads.
 - [x] Add configurable payment instructions, QR codes, and bank accounts managed by superadmin.
 - [x] Add payment method active/inactive status and display ordering.
-- [ ] Add automatic reminders before trial or subscription expiration.
+- [x] Add automatic reminders before trial or subscription expiration.
+  - Added migration `028_license_expiration_reminders.mjs` creating `license_expiration_reminders` with threshold tracking, recipient audit logs, and deduplication.
+  - Added `lib/expirationReminders.js` supporting 14d, 7d, 3d, 1d, and expired interval triggers, in-app announcements, email delivery to school administrators respecting notification preferences, status transitions, and background scheduler.
+  - Added `POST /api/licenses/check-expirations` and `GET /api/licenses/reminders` with school-scoped access control.
+  - Added expiration warning banner and automated reminders audit log table with manual trigger action in `Licenses.vue`.
 - [ ] Add grace-period handling after expiration.
 - [ ] Add invoice or receipt records after approval.
 - [ ] Add webhook integration only when a supported payment provider is selected.

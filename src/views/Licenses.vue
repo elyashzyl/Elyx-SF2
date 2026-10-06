@@ -145,6 +145,53 @@
       </div>
     </div>
 
+    <!-- EXPIRATION WARNING BANNER -->
+    <div
+      v-if="activeLicense && (activeLicense.days_remaining <= 7 || activeLicense.is_expired)"
+      class="card"
+      style="margin-top: 16px; border-left: 4px solid var(--destructive); background: rgba(239, 68, 68, 0.05);"
+    >
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 4px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); color: var(--destructive); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <h4 style="margin: 0; font-size: 0.95rem; color: var(--destructive);">
+              {{ activeLicense.is_expired ? 'License Expired' : `Subscription Expiring Soon (${activeLicense.days_remaining} day${activeLicense.days_remaining === 1 ? '' : 's'} remaining)` }}
+            </h4>
+            <p style="margin: 2px 0 0 0; font-size: 0.825rem; color: var(--muted-foreground);">
+              {{ activeLicense.is_expired
+                ? 'Your school license has expired. Module access and SF2 report exports may be restricted until renewed.'
+                : 'Automated reminders have been dispatched to administrators. Submit your payment reference to ensure uninterrupted access.' }}
+            </p>
+          </div>
+        </div>
+        <div>
+          <button
+            v-if="!auth.isSuperadmin"
+            class="btn btn-sm btn-primary"
+            type="button"
+            @click="openSubscriptionRequestModal"
+          >
+            Submit Renewal Payment
+          </button>
+          <button
+            v-else
+            class="btn btn-sm btn-primary"
+            type="button"
+            @click="openRenewModal"
+          >
+            Renew School License
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Database Subscription Plans Table -->
     <div v-if="auth.isAdmin" class="card" style="margin-top: 24px;">
       <div class="card-header-row">
@@ -485,6 +532,81 @@
         </table>
       </div>
       <p v-else class="empty-state">No subscription status history recorded yet.</p>
+    </div>
+
+    <!-- SECTION: EXPIRATION REMINDERS & ALERTS -->
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3>Automated Expiration Reminders &amp; Alerts</h3>
+          <p class="desc">
+            Interval warnings (14d, 7d, 3d, 1d, expired) automatically dispatched via in-app notifications and email alerts.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button
+            v-if="auth.isSuperadmin"
+            class="btn btn-sm btn-primary"
+            type="button"
+            :disabled="checkingReminders"
+            @click="triggerExpirationCheck"
+          >
+            {{ checkingReminders ? 'Evaluating…' : 'Run Expiration Check & Dispatch' }}
+          </button>
+          <button class="btn btn-sm btn-secondary" @click="loadExpirationReminders" type="button" title="Refresh Reminders">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div v-if="expirationReminders.length" class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th v-if="auth.isSuperadmin">School</th>
+              <th>License / Plan</th>
+              <th>Reminder Alert</th>
+              <th>Target Expiry</th>
+              <th>Days Left</th>
+              <th>Channel &amp; Recipients</th>
+              <th>Dispatched At</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in expirationReminders" :key="r.id">
+              <td v-if="auth.isSuperadmin">
+                <strong>{{ r.school_name || r.school_short || r.school_id || 'Campus' }}</strong>
+              </td>
+              <td>
+                <code>{{ r.license_key || '—' }}</code>
+                <small v-if="r.plan_tier" style="display: block; color: var(--muted-foreground); text-transform: uppercase;">{{ r.plan_tier }}</small>
+              </td>
+              <td>
+                <span class="status-indicator" :class="r.days_remaining <= 0 ? 'status--expired' : r.days_remaining <= 3 ? 'status--suspended' : 'status--active'">
+                  <span class="dot"></span>
+                  <span>{{ formatReminderLabel(r.reminder_type) }}</span>
+                </span>
+              </td>
+              <td>
+                <span>{{ formatDate(r.target_expiration_date) }}</span>
+              </td>
+              <td>
+                <span :style="{ fontWeight: 'bold', color: r.days_remaining <= 0 ? 'var(--destructive)' : r.days_remaining <= 3 ? '#f59e0b' : 'inherit' }">
+                  {{ r.days_remaining <= 0 ? 'Expired' : `${r.days_remaining} day${r.days_remaining === 1 ? '' : 's'}` }}
+                </span>
+              </td>
+              <td>
+                <span class="meta-chip">{{ r.channel === 'both' ? 'Email + In-App' : r.channel }}</span>
+                <small v-if="r.recipients_count" style="display: block; color: var(--muted-foreground);">{{ r.recipients_count }} admin recipient(s)</small>
+              </td>
+              <td>
+                <small>{{ formatDateTime(r.sent_at) }}</small>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="empty-state">No automated expiration reminders dispatched yet.</p>
     </div>
 
     <!-- MODAL: SUBMIT SUBSCRIPTION PAYMENT (School admin) -->
@@ -1090,6 +1212,8 @@ const paymentMethods = ref([])
 const subscriptionRequests = ref([])
 const subscriptionHistory = ref([])
 const historyStatusFilter = ref('all')
+const expirationReminders = ref([])
+const checkingReminders = ref(false)
 const showSubscriptionRequestModal = ref(false)
 const showReviewModal = ref(false)
 const activeReviewRequest = ref(null)
@@ -1553,6 +1677,55 @@ async function loadSubscriptionHistory() {
   }
 }
 
+async function loadExpirationReminders() {
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/licenses/reminders?${qs}`, { cache: 'no-store', headers: auth.actorHeaders() })
+    if (res.ok) expirationReminders.value = await res.json()
+  } catch (err) {
+    console.error('Failed to load expiration reminders:', err)
+  }
+}
+
+async function triggerExpirationCheck() {
+  checkingReminders.value = true
+  try {
+    const res = await fetch('/api/licenses/check-expirations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.actorHeaders() },
+      body: JSON.stringify(auth.actorParams())
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Check failed')
+    showSuccess(`Evaluated licenses: ${data.remindersSent || 0} reminder(s) dispatched`)
+    await Promise.all([
+      loadLicenseData(),
+      loadExpirationReminders(),
+      loadSubscriptionHistory()
+    ])
+  } catch (err) {
+    showError(err.message || 'Failed to trigger expiration check')
+  } finally {
+    checkingReminders.value = false
+  }
+}
+
+function formatReminderLabel(type) {
+  if (!type) return 'Reminder'
+  const map = {
+    trial_7d: '7-Day Warning (Trial)',
+    trial_3d: '3-Day Urgent (Trial)',
+    trial_1d: '1-Day Critical (Trial)',
+    trial_expired: 'Trial Expired Notice',
+    sub_14d: '14-Day Notice',
+    sub_7d: '7-Day Warning',
+    sub_3d: '3-Day Urgent',
+    sub_1d: '1-Day Critical',
+    sub_expired: 'Subscription Expired'
+  }
+  return map[type] || type.replace(/_/g, ' ').toUpperCase()
+}
+
 function openSubscriptionRequestModal() {
   if (auth.isSuperadmin) return
   subscriptionForm.request_type = activeLicense.value ? 'renewal' : 'activation'
@@ -1954,13 +2127,15 @@ onMounted(async () => {
     loadPlans(),
     loadPaymentMethods(),
     loadSubscriptionRequests(),
-    loadSubscriptionHistory()
+    loadSubscriptionHistory(),
+    loadExpirationReminders()
   ])
   // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
   licensePollInterval = setInterval(() => {
     void loadLicenseData()
     void loadSubscriptionRequests()
     void loadSubscriptionHistory()
+    void loadExpirationReminders()
     loadPaymentMethods()
   }, 6000)
 })

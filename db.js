@@ -691,6 +691,24 @@ const MYSQL_DDL = [
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_sub_history_school (school_id, created_at),
     INDEX idx_sub_history_request (request_id)
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS license_expiration_reminders (
+    id VARCHAR(96) PRIMARY KEY,
+    license_id VARCHAR(96) NOT NULL,
+    school_id VARCHAR(96) NOT NULL DEFAULT '',
+    reminder_type VARCHAR(32) NOT NULL,
+    target_expiration_date VARCHAR(32) NOT NULL DEFAULT '',
+    days_remaining INT NOT NULL DEFAULT 0,
+    channel VARCHAR(32) NOT NULL DEFAULT 'both',
+    recipients_count INT NOT NULL DEFAULT 0,
+    recipients_data LONGTEXT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'sent',
+    notes TEXT NULL,
+    sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_license_reminder (license_id, reminder_type, target_expiration_date),
+    INDEX idx_reminders_school_sent (school_id, sent_at),
+    INDEX idx_reminders_license (license_id)
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -1369,12 +1387,30 @@ async function initSqlite() {
       notes TEXT,
       metadata TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS license_expiration_reminders (
+      id TEXT PRIMARY KEY,
+      license_id TEXT NOT NULL,
+      school_id TEXT NOT NULL DEFAULT '',
+      reminder_type TEXT NOT NULL,
+      target_expiration_date TEXT NOT NULL DEFAULT '',
+      days_remaining INTEGER NOT NULL DEFAULT 0,
+      channel TEXT NOT NULL DEFAULT 'both',
+      recipients_count INTEGER NOT NULL DEFAULT 0,
+      recipients_data TEXT,
+      status TEXT NOT NULL DEFAULT 'sent',
+      notes TEXT,
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(license_id, reminder_type, target_expiration_date)
     )`
   ]) {
     sqlite.run(ddl)
   }
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_sub_history_school ON subscription_status_history (school_id, created_at)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_sub_history_request ON subscription_status_history (request_id)') } catch {}
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_school_sent ON license_expiration_reminders (school_id, sent_at)') } catch {}
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_license ON license_expiration_reminders (license_id)') } catch {}
   {
     try { sqlite.run("ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN section TEXT DEFAULT ''") } catch {}

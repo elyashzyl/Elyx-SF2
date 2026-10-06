@@ -472,3 +472,24 @@ model SubscriptionStatusHistory {
   @@index([requestId], map: "idx_sub_history_request")
   @@map("subscription_status_history")
 }
+
+model LicenseExpirationReminder {
+  id                   String   @id @default(uuid()) @db.VarChar(96)
+  licenseId            String   @map("license_id") @db.VarChar(96)
+  schoolId             String   @default("") @map("school_id") @db.VarChar(96)
+  reminderType         String   @map("reminder_type") @db.VarChar(32)
+  targetExpirationDate String   @default("") @map("target_expiration_date") @db.VarChar(32)
+  daysRemaining        Int      @default(0) @map("days_remaining")
+  channel              String   @default("both") @db.VarChar(32)
+  recipientsCount      Int      @default(0) @map("recipients_count")
+  recipientsData       String?  @map("recipients_data") @db.LongText
+  status               String   @default("sent") @db.VarChar(32)
+  notes                String?  @db.Text
+  sentAt               DateTime @default(now()) @map("sent_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@unique([licenseId, reminderType, targetExpirationDate], map: "uq_license_reminder")
+  @@index([schoolId, sentAt], map: "idx_reminders_school_sent")
+  @@index([licenseId], map: "idx_reminders_license")
+  @@map("license_expiration_reminders")
+}
