@@ -10,6 +10,55 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
 
+function attendanceEntryMetrics(entry) {
+  const periods = [entry.am1, entry.am2, entry.am3, entry.am4, entry.am5, entry.am6, entry.pm1, entry.pm2, entry.pm3, entry.pm4]
+    .map(value => String(value || '').trim().toUpperCase())
+    .filter(Boolean)
+  const absentCodes = new Set(['A', 'A/S', 'U'])
+  const isAbsent = periods.length === 0 || periods.every(code => absentCodes.has(code))
+  const isTardy = periods.some(code => code === 'T' || code === 'E/T')
+  return { isAbsent, isTardy }
+}
+
+function schoolYearParts(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{4})$/)
+  if (!match) return null
+  return { start: Number(match[1]), end: Number(match[2]) }
+}
+
+// ── Database-backed school-year options ──
+
+router.get('/school-years', async (req, res) => {
+  try {
+    const { error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+
+    const params = []
+    const schoolCondition = scope.schoolId ? 'WHERE school_id = ?' : ''
+    if (scope.schoolId) params.push(scope.schoolId)
+    const rows = await query(`SELECT DISTINCT year FROM monthly_records ${schoolCondition} ORDER BY year DESC`, params)
+    const years = new Set()
+    for (const row of rows) {
+      const year = Number(row.year)
+      if (!Number.isFinite(year)) continue
+      years.add(`${year}-${year + 1}`)
+      years.add(`${year - 1}-${year}`)
+    }
+
+    const schoolParams = scope.schoolId ? [scope.schoolId] : []
+    const schoolRows = await query(`SELECT school_year FROM schools ${scope.schoolId ? 'WHERE id = ?' : ''}`, schoolParams)
+    schoolRows.forEach(row => {
+      if (row.school_year) years.add(String(row.school_year).trim())
+    })
+    res.json([...years].filter(Boolean).sort((a, b) => b.localeCompare(a)))
+  } catch (err) {
+    console.error('Failed to load report school years:', err.message)
+    res.status(500).json({ error: 'Failed to load report school years' })
+  }
+})
+
 // ── Saved Report Views ──
 
 router.get('/saved-views', async (req, res) => {
@@ -20,8 +69,15 @@ router.get('/saved-views', async (req, res) => {
     if (!scope) return
 
     const reportType = String(req.query.reportType || '').trim()
-    const conditions = ['(user_id = ? OR school_id = ?)']
-    const params = [me.id, scope.schoolId || '']
+    const conditions = []
+    const params = []
+    if (scope.schoolId) {
+      conditions.push('(user_id = ? OR school_id = ?)')
+      params.push(me.id, scope.schoolId)
+    } else {
+      conditions.push('(user_id = ? OR school_id IN (SELECT id FROM schools))')
+      params.push(me.id)
+    }
 
     if (reportType) {
       conditions.push('report_type = ?')
@@ -118,15 +174,15 @@ router.delete('/saved-views/:id', async (req, res) => {
 async function computeSectionComparison(sid, { grade, section, month, year, startDate, endDate }) {
   // 1. Get all active sections and teachers
   let teacherFilter = sid ? "WHERE role = 'teacher' AND school_id = ?" : "WHERE role = 'teacher'"
-  const teacherRows = await query(`SELECT id, name, grade, section FROM users ${teacherFilter}`, sid ? [sid] : [])
+  const teacherRows = await query(`SELECT id, name, grade, section, school_id FROM users ${teacherFilter}`, sid ? [sid] : [])
   const adviserMap = {}
   teacherRows.forEach(t => {
-    if (t.grade && t.section) adviserMap[`${t.grade}__${t.section}`] = t.name
+    if (t.grade && t.section) adviserMap[`${t.school_id || ''}::${t.grade}__${t.section}`] = t.name
   })
 
-  // 2. Query students grouped by section
+  // 2. Query students grouped by school and section
   let studentSql = `
-    SELECT grade, section,
+    SELECT school_id, grade, section,
       COUNT(*) as total,
       SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) as male,
       SUM(CASE WHEN LOWER(gender) = 'female' THEN 1 ELSE 0 END) as female
@@ -135,8 +191,8 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
     ${sid ? 'AND school_id = ?' : ''}
     ${grade ? 'AND grade = ?' : ''}
     ${section ? 'AND section = ?' : ''}
-    GROUP BY grade, section
-    ORDER BY grade, section
+    GROUP BY school_id, grade, section
+    ORDER BY school_id, grade, section
   `
   const studentParams = []
   if (sid) studentParams.push(sid)
@@ -150,7 +206,7 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
   if (startDate && endDate) {
     // Date-range filtered via attendance_records & attendance_entries
     const recs = await query(`
-      SELECT id, grade, section, date FROM attendance_records
+      SELECT id, school_id, grade, section, date FROM attendance_records
       WHERE date >= ? AND date <= ?
       ${sid ? 'AND school_id = ?' : ''}
       ${grade ? 'AND grade = ?' : ''}
@@ -167,15 +223,13 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
       for (const e of entries) {
         const r = recMap.get(e.record_id)
         if (!r) continue
-        const key = `${r.grade}__${r.section}`
+        const key = `${r.school_id || ''}::${r.grade}__${r.section}`
         if (!sectionAttendanceMap.has(key)) {
           sectionAttendanceMap.set(key, { present: 0, absent: 0, tardy: 0, sessions: new Set() })
         }
         const item = sectionAttendanceMap.get(key)
         item.sessions.add(r.date)
-        const periods = [e.am1, e.am2, e.am3, e.am4, e.am5, e.am6, e.pm1, e.pm2, e.pm3, e.pm4].filter(Boolean)
-        const isAbsent = periods.every(p => p === 'A') || periods.length === 0
-        const isTardy = periods.some(p => p === 'T' || p === 'E/T')
+        const { isAbsent, isTardy } = attendanceEntryMetrics(e)
         if (isAbsent) item.absent++
         else item.present++
         if (isTardy) item.tardy++
@@ -193,7 +247,7 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
 
     const mWhere = mConditions.length ? 'WHERE ' + mConditions.join(' AND ') : ''
     const attRows = await query(`
-      SELECT mr.grade, mr.section,
+      SELECT mr.school_id, mr.grade, mr.section,
         COALESCE(SUM(me.present), 0) as present,
         COALESCE(SUM(me.absent), 0) as absent,
         COALESCE(SUM(me.tardy), 0) as tardy,
@@ -201,11 +255,11 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
       FROM monthly_entries me
       JOIN monthly_records mr ON mr.id = me.record_id
       ${mWhere}
-      GROUP BY mr.grade, mr.section
+      GROUP BY mr.school_id, mr.grade, mr.section
     `, mParams)
 
     attRows.forEach(r => {
-      sectionAttendanceMap.set(`${r.grade}__${r.section}`, {
+      sectionAttendanceMap.set(`${r.school_id || ''}::${r.grade}__${r.section}`, {
         present: Number(r.present),
         absent: Number(r.absent),
         tardy: Number(r.tardy),
@@ -214,30 +268,39 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
     })
 
     // Also supplement from daily attendance_records for sections that have daily entries
-    // but no monthly record generated yet
-    const dailyRecs = await query(`
-      SELECT ar.grade, ar.section,
-        COUNT(DISTINCT ar.date) as sessions_count,
-        SUM(CASE WHEN ae.am1 = 'A' OR ae.am1 = 'U' THEN 1 ELSE 0 END) as absent_count,
-        SUM(CASE WHEN ae.am1 IS NOT NULL AND ae.am1 NOT IN ('A', 'U', '') THEN 1 ELSE 0 END) as present_count,
-        SUM(CASE WHEN ae.am1 IN ('T', 'E/T') THEN 1 ELSE 0 END) as tardy_count
+    // but no monthly record generated yet. Use the same period interpretation as the
+    // date-range path instead of counting only am1.
+    const dailyRows = await query(`
+      SELECT ar.school_id, ar.grade, ar.section, ar.date,
+        ae.am1, ae.am2, ae.am3, ae.am4, ae.am5, ae.am6,
+        ae.pm1, ae.pm2, ae.pm3, ae.pm4
       FROM attendance_records ar
       JOIN attendance_entries ae ON ae.record_id = ar.id
       WHERE 1=1
       ${sid ? 'AND ar.school_id = ?' : ''}
       ${grade ? 'AND ar.grade = ?' : ''}
       ${section ? 'AND ar.section = ?' : ''}
-      GROUP BY ar.grade, ar.section
     `, [ ...(sid ? [sid] : []), ...(grade ? [grade] : []), ...(section ? [section] : []) ])
 
-    dailyRecs.forEach(r => {
-      const key = `${r.grade}__${r.section}`
+    const dailyMap = new Map()
+    dailyRows.forEach(row => {
+      const key = `${row.school_id || ''}::${row.grade}__${row.section}`
+      if (!dailyMap.has(key)) dailyMap.set(key, { present: 0, absent: 0, tardy: 0, sessions: new Set() })
+      const item = dailyMap.get(key)
+      item.sessions.add(row.date)
+      const { isAbsent, isTardy } = attendanceEntryMetrics(row)
+      if (isAbsent) item.absent++
+      else item.present++
+      if (isTardy) item.tardy++
+    })
+
+    dailyMap.forEach((item, key) => {
       if (!sectionAttendanceMap.has(key)) {
         sectionAttendanceMap.set(key, {
-          present: Number(r.present_count || 0),
-          absent: Number(r.absent_count || 0),
-          tardy: Number(r.tardy_count || 0),
-          sessionsCount: Number(r.sessions_count || 0)
+          present: item.present,
+          absent: item.absent,
+          tardy: item.tardy,
+          sessionsCount: item.sessions.size
         })
       }
     })
@@ -252,30 +315,37 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
     } catch {}
   }
 
+  const sardoConditions = []
+  const sardoParams = []
+  if (sid) { sardoConditions.push('mr.school_id = ?'); sardoParams.push(sid) }
+  if (grade) { sardoConditions.push('mr.grade = ?'); sardoParams.push(grade) }
+  if (section) { sardoConditions.push('mr.section = ?'); sardoParams.push(section) }
+  sardoParams.push(sardoCumulative)
   const sardoRows = await query(`
-    SELECT mr.grade, mr.section, COUNT(DISTINCT me.student_id) as alert_count
+    SELECT mr.school_id, mr.grade, mr.section, COUNT(DISTINCT me.student_id) as alert_count
     FROM monthly_entries me
     JOIN monthly_records mr ON mr.id = me.record_id
-    ${sid ? 'WHERE mr.school_id = ?' : ''}
-    GROUP BY mr.grade, mr.section, me.student_id
+    ${sardoConditions.length ? 'WHERE ' + sardoConditions.join(' AND ') : ''}
+    GROUP BY mr.school_id, mr.grade, mr.section, me.student_id
     HAVING SUM(me.absent) >= ?
-  `, sid ? [sid, sardoCumulative] : [sardoCumulative])
+  `, sardoParams)
 
   const sardoMap = {}
   sardoRows.forEach(s => {
-    const k = `${s.grade}__${s.section}`
+    const k = `${s.school_id || ''}::${s.grade}__${s.section}`
     sardoMap[k] = (sardoMap[k] || 0) + 1
   })
 
   // 5. Combine and calculate rankings
   const sections = sectionRosters.map(sec => {
-    const key = `${sec.grade}__${sec.section}`
+    const key = `${sec.school_id || ''}::${sec.grade}__${sec.section}`
     const att = sectionAttendanceMap.get(key) || { present: 0, absent: 0, tardy: 0 }
     const totalLogged = att.present + att.absent
     const rate = totalLogged > 0 ? Number(((att.present / totalLogged) * 100).toFixed(1)) : 0
     const sessions = att.sessions ? att.sessions.size : (att.sessionsCount || 0)
 
     return {
+      schoolId: sec.school_id || null,
       grade: sec.grade,
       section: sec.section,
       adviser: adviserMap[key] || 'Unassigned',
@@ -328,7 +398,10 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
 
 async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, section }) {
   const q = parseInt(quarter, 10) || 1
-  const sy = String(schoolYear || '2026-2027').trim()
+  const sy = String(schoolYear || '').trim()
+  const syParts = schoolYearParts(sy)
+  const effectiveSchoolYear = syParts ? sy : `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
+  const effectiveParts = schoolYearParts(effectiveSchoolYear)
   const quarterMonthMap = {
     1: [8, 9, 10],
     2: [11, 12, 1],
@@ -336,14 +409,18 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
     4: [4, 5]
   }
   const months = quarterMonthMap[q] || [8, 9, 10]
+  const monthYearPairs = months.map(month => {
+    const recordYear = month >= 8 ? effectiveParts.start : effectiveParts.end
+    return { month, year: recordYear }
+  })
 
-  // 1. Fetch monthly records matching these months
-  const monthPlaceholders = months.map(() => '?').join(',')
-  const recParams = [...months]
+  // 1. Fetch monthly records matching both month and academic year.
+  const monthYearWhere = monthYearPairs.map(() => '(mr.month = ? AND mr.year = ?)').join(' OR ')
+  const recParams = monthYearPairs.flatMap(pair => [pair.month, pair.year])
   let recSql = `
     SELECT mr.*
     FROM monthly_records mr
-    WHERE mr.month IN (${monthPlaceholders})
+    WHERE (${monthYearWhere})
   `
   if (sid) { recSql += ' AND mr.school_id = ?'; recParams.push(sid) }
   if (grade) { recSql += ' AND mr.grade = ?'; recParams.push(grade) }
@@ -351,7 +428,6 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   recSql += ' ORDER BY mr.grade, mr.section, mr.year, mr.month'
 
   const records = await query(recSql, recParams)
-
   const recordIds = records.map(r => r.id)
   let entries = []
   if (recordIds.length) {
@@ -373,9 +449,10 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   // 2. Group records by Grade & Section
   const classGroups = new Map()
   for (const r of records) {
-    const key = `${r.grade}__${r.section}`
+    const key = `${r.school_id || ''}::${r.grade}__${r.section}`
     if (!classGroups.has(key)) {
       classGroups.set(key, {
+        schoolId: r.school_id || null,
         grade: r.grade,
         section: r.section,
         adviser: r.adviser,
@@ -388,7 +465,7 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
 
   // 3. Also include all active sections from students so every class is tracked
   let studentSql = `
-    SELECT grade, section,
+    SELECT school_id, grade, section,
       COUNT(*) as total,
       SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) as male,
       SUM(CASE WHEN LOWER(gender) = 'female' THEN 1 ELSE 0 END) as female
@@ -397,8 +474,8 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
     ${sid ? 'AND school_id = ?' : ''}
     ${grade ? 'AND grade = ?' : ''}
     ${section ? 'AND section = ?' : ''}
-    GROUP BY grade, section
-    ORDER BY grade, section
+    GROUP BY school_id, grade, section
+    ORDER BY school_id, grade, section
   `
   const sParams = []
   if (sid) sParams.push(sid)
@@ -406,14 +483,15 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   if (section) sParams.push(section)
 
   const allSections = await query(studentSql, sParams)
-  const teacherRows = await query(`SELECT name, grade, section FROM users WHERE role = 'teacher' ${sid ? 'AND school_id = ?' : ''}`, sid ? [sid] : [])
+  const teacherRows = await query(`SELECT name, grade, section, school_id FROM users WHERE role = 'teacher' ${sid ? 'AND school_id = ?' : ''}`, sid ? [sid] : [])
   const adviserMap = {}
-  teacherRows.forEach(t => { if (t.grade && t.section) adviserMap[`${t.grade}__${t.section}`] = t.name })
+  teacherRows.forEach(t => { if (t.grade && t.section) adviserMap[`${t.school_id || ''}::${t.grade}__${t.section}`] = t.name })
 
   for (const s of allSections) {
-    const key = `${s.grade}__${s.section}`
+    const key = `${s.school_id || ''}::${s.grade}__${s.section}`
     if (!classGroups.has(key)) {
       classGroups.set(key, {
+        schoolId: s.school_id || null,
         grade: s.grade,
         section: s.section,
         adviser: adviserMap[key] || 'Unassigned',
@@ -494,6 +572,7 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
     grandDays = Math.max(grandDays, qTotalDays)
 
     sectionSummaries.push({
+      schoolId: group.schoolId || null,
       grade: group.grade,
       section: group.section,
       adviser: group.adviser || adviserMap[key] || 'Unassigned',
@@ -513,7 +592,7 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   return {
     schoolId: sid,
     quarter: q,
-    schoolYear: sy,
+    schoolYear: effectiveSchoolYear,
     monthsIncluded: months.map(m => MONTH_NAMES[m]),
     grandTotal: {
       totalEnrolled: grandTotalEnrolled,
@@ -676,13 +755,19 @@ router.get('/archive', async (req, res) => {
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
 
+    const archiveParams = []
+    let archiveWhere = ''
+    if (scope.schoolId) {
+      archiveWhere = 'WHERE school_id = ?'
+      archiveParams.push(scope.schoolId)
+    }
     const rows = await query(`
       SELECT id, school_id, created_by, created_by_name, report_type, title, file_format, file_size, status, created_at
       FROM report_archives
-      WHERE school_id = ?
+      ${archiveWhere}
       ORDER BY created_at DESC
       LIMIT 100
-    `, [scope.schoolId || ''])
+    `, archiveParams)
 
     res.json(rows)
   } catch (err) {

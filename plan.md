@@ -232,12 +232,15 @@ The following capabilities already exist or are substantially implemented:
 - [x] Add dashboard date-range filters and saved report views.
   - Added `startDate` and `endDate` query handling to `/api/dashboard/stats`.
   - Added `saved_report_views` table (migration `025_reports_and_analytics.mjs`), API endpoints in `routes/reports.js`, and quick preset picker in `src/views/AdminDashboard.vue`.
+  - Dashboard and Reports now share authenticated API handling, school scope, date filters, and dashboard saved-view restoration.
 - [x] Add attendance trend charts and section comparison reports.
   - Added `GET /api/reports/section-comparison` ranking sections by attendance rate, enrollment, and SARDO risk count.
   - Interactive Section Comparison tab in `src/views/Reports.vue`.
+  - Grade, section, school, date-range, compliance, search, sorting, KPI, and SF2 navigation now use the same active scope.
 - [x] Add monthly and quarterly summary reports.
   - Added `GET /api/reports/quarterly-summary` calculating official DepEd Form 2 quarterly ADA, enrolment, and attendance percentages across Q1 to Q4.
   - Quarterly Consolidation tab in `src/views/Reports.vue`.
+  - School-year options are database-backed, quarterly month/year matching is explicit, and filtered KPI/CSV totals match the visible table.
 - [x] Add downloadable CSV/PDF reports for operational summaries.
   - Added `GET /api/reports/export/csv` generating formatted CSVs with UTF-8 BOM for section comparisons, quarterly summaries, and operational records.
 - [x] Add report generation status for large exports.
@@ -247,6 +250,7 @@ The following capabilities already exist or are substantially implemented:
   - Report Archive tab in `src/views/Reports.vue`.
 - [x] Add automated regression tests for every SF2 export change.
   - Enhanced `tests/export-regression.test.mjs` verifying template structure, sheet naming, cell glyphs (`◤`, `◢`, `x`), learner rows, and ADA formulas.
+  - `tests/phase4-reports-and-exports.test.mjs` covers date filtering, saved views, section filters, quarterly calculations, CSV export, archive actions, jobs, and validation.
 - [x] Add template version tracking while preserving the current SF2 formatting.
   - Added `GET /api/export/template/version` calculating SHA-256 hash, file size, template source, and sheets count.
 - [x] Add an export validation page that checks missing students, invalid codes, and incomplete dates before generating the workbook.

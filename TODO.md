@@ -218,6 +218,16 @@ Remaining attendance follow-ups:
 
 ## 6. Phase 4 Reports, Analytics, and Exports
 
+- [x] **Connect dashboard analytics and reports to shared data and filters**
+  - Dashboard and Reports now use the shared authenticated `auth.api` wrapper with session credentials and local/test actor headers.
+  - Superadmin all-school scope is preserved; selected-school scope is passed through dashboard, reports, monthly SF2 navigation, archives, and downloads.
+  - Report errors are visible in the page instead of being silently swallowed.
+  - Section comparison filters include grade and section server-side; visible KPI and archive totals use the filtered rows.
+  - Quarterly summaries use database-backed school-year options and explicit month/year matching.
+  - Daily fallback metrics use the same attendance-code interpretation as date-range reports.
+  - No SF2 workbook layout or formatting was changed.
+  - Regression coverage passed for the Phase 4 report API suite.
+
 - [x] **Dashboard Date-Range Filters & Saved Report Views**
   - Added `startDate` and `endDate` query handling in `routes/dashboard.js` to bound attendance rates and grade/section aggregates.
   - Added `saved_report_views` table (migration `025_reports_and_analytics.mjs`), API endpoints in `routes/reports.js`, and quick preset picker in `src/views/AdminDashboard.vue`.
@@ -237,7 +247,7 @@ Remaining attendance follow-ups:
   - Added `POST /api/export/validate` verifying required student names, 12-digit LRN syntax, recognized attendance glyphs, unassigned genders, and date continuity.
   - "SF2 Export Pre-Check" tab in `src/views/Reports.vue` and pre-validation modal in `src/views/MonthlyAttendance.vue`.
 - [x] **Automated Regression Test Suite**
-  - Added `tests/phase4-reports-and-exports.test.mjs` covering all Phase 4 endpoints.
+  - `tests/phase4-reports-and-exports.test.mjs` covering all Phase 4 endpoints, including grade/section filter consistency.
   - Enhanced `tests/export-regression.test.mjs` verifying template structure, sheet naming, cell glyphs (`◤`, `◢`, `x`), learner rows, and ADA formulas.
 
 ---

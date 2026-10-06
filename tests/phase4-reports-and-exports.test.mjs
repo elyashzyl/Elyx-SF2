@@ -179,8 +179,8 @@ test('section comparison report calculates ranks and rates', async () => {
 })
 
 test('quarterly summary report aggregates DepEd Form 2 metrics', async () => {
-  // Query Q3 (Feb-March) which covers month 3 (March)
-  const res = await request(`/api/reports/quarterly-summary?schoolId=${schoolId}&quarter=3&schoolYear=2026-2027`, {
+  // Query Q3 (February-March) in the academic year containing the March 2025 fixture.
+  const res = await request(`/api/reports/quarterly-summary?schoolId=${schoolId}&quarter=3&schoolYear=2024-2025`, {
     headers: headers(adminId, 'admin')
   })
   assert.equal(res.response.status, 200)
@@ -190,6 +190,16 @@ test('quarterly summary report aggregates DepEd Form 2 metrics', async () => {
   const sec = res.body.sections.find(s => s.section === 'Section Emerald')
   assert.ok(sec)
   assert.ok(sec.ada.total > 0)
+})
+
+test('section comparison applies grade and section filters consistently', async () => {
+  const res = await request(`/api/reports/section-comparison?schoolId=${schoolId}&grade=${encodeURIComponent('Grade 8')}&section=${encodeURIComponent('Section Emerald')}`, {
+    headers: headers(adminId, 'admin')
+  })
+  assert.equal(res.response.status, 200)
+  assert.equal(res.body.sections.length, 1)
+  assert.equal(res.body.sections[0].section, 'Section Emerald')
+  assert.equal(res.body.sections[0].grade, 'Grade 8')
 })
 
 test('CSV export returns proper attachment headers and formatted content', async () => {

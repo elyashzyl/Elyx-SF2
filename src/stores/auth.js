@@ -144,6 +144,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Shared API wrapper used by dashboard/report pages. It preserves the
+  // server session and also sends legacy actor headers for local/test mode.
+  async function api(path, options = {}) {
+    const url = path.startsWith('/api/') || path.startsWith('http')
+      ? path
+      : `${API}${path.startsWith('/') ? path : `/${path}`}`
+    const headers = actorHeaders({ ...(options.headers || {}) })
+    if (options.body !== undefined && options.body !== null && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json'
+    }
+    return fetchJson(url, {
+      ...options,
+      headers,
+      credentials: options.credentials || 'same-origin'
+    })
+  }
+
   async function getUsers(schoolId) {
     try {
       const params = new URLSearchParams(actorParams(schoolId ? { schoolId } : {}))
@@ -418,5 +435,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, unlockUser, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, exportSchoolData, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, api, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, unlockUser, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, exportSchoolData, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
 })

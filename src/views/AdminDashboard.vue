@@ -514,7 +514,7 @@
                     <span v-else class="status-pill status-pill--neutral">No data</span>
                   </td>
                   <td style="text-align: right;">
-                    <router-link :to="`/monthly?grade=${encodeURIComponent(g.grade)}&section=${encodeURIComponent(sec.section)}`" class="table-action-btn">
+                    <router-link :to="{ path: '/monthly', query: { grade: g.grade, section: sec.section, ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}) } }" class="table-action-btn">
                       <span>View SF2</span>
                       <span class="action-arrow">→</span>
                     </router-link>
@@ -618,7 +618,7 @@
                   <span v-else style="color: var(--muted-foreground);">—</span>
                 </td>
                 <td style="text-align: right;">
-                  <router-link :to="`/monthly?grade=${encodeURIComponent(r.grade)}&section=${encodeURIComponent(r.section)}`" class="table-action-btn">
+                  <router-link :to="{ path: '/monthly', query: { grade: r.grade, section: r.section, ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}) } }" class="table-action-btn">
                     <span>Open</span>
                   </router-link>
                 </td>
@@ -704,11 +704,13 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
+const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
-const selectedSchoolId = ref(auth.schoolId || '')
+const selectedSchoolId = ref(String(route.query.schoolId || auth.schoolId || ''))
 const schoolsList = ref([])
 const sectionSearch = ref('')
 
@@ -975,19 +977,14 @@ async function loadStats() {
   loading.value = true
   try {
     const sid = selectedSchoolId.value || auth.schoolId || ''
-    const params = new URLSearchParams({
-      userId: auth.user?.id || '',
-      userRole: auth.user?.role || '',
-      ...(sid ? { schoolId: sid } : {})
-    })
-
+    const params = new URLSearchParams()
+    if (sid) params.set('schoolId', sid)
     if (customStartDate.value && customEndDate.value) {
       params.set('startDate', customStartDate.value)
       params.set('endDate', customEndDate.value)
     }
 
-    const res = await fetch(`/api/dashboard/stats?${params}`)
-    const data = await res.json()
+    const data = await auth.api(`/dashboard/stats?${params.toString()}`)
 
     if (data) {
       stats.value = {
@@ -1012,6 +1009,11 @@ async function loadStats() {
 }
 
 onMounted(async () => {
+  if (route.query.startDate && route.query.endDate) {
+    datePreset.value = 'custom'
+    customStartDate.value = String(route.query.startDate)
+    customEndDate.value = String(route.query.endDate)
+  }
   await loadSchools()
   await loadStats()
   await loadAnnouncements()

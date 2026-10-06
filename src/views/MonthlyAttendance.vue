@@ -601,6 +601,11 @@ onMounted(async () => {
     }
   } catch {}
   try {
+    if (route.query.schoolId && auth.isSuperadmin) {
+      selectedSchoolId.value = String(route.query.schoolId)
+      await loadGradeLevels(selectedSchoolId.value)
+      applyGradeDefaults()
+    }
     if (route.query.grade && route.query.section) {
       form.grade = String(route.query.grade)
       form.section = String(route.query.section)

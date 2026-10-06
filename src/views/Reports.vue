@@ -36,6 +36,14 @@
       </div>
     </header>
 
+    <div v-if="errorMessage" class="report-error-banner" role="alert">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span>{{ errorMessage }}</span>
+      <button type="button" class="report-error-dismiss" @click="errorMessage = ''" aria-label="Dismiss error">×</button>
+    </div>
+
     <!-- Navigation Tabs -->
     <div class="reports-tabs-bar">
       <button 
@@ -126,7 +134,7 @@
           <!-- Section Filter -->
           <div class="filter-group" v-if="filterGrade && (sectionsByGrade[filterGrade] || []).length">
             <label>Section</label>
-            <select v-model="filterSection">
+            <select v-model="filterSection" @change="loadSectionComparison">
               <option value="">All Sections</option>
               <option v-for="s in (sectionsByGrade[filterGrade] || [])" :key="s" :value="s">{{ s }}</option>
             </select>
@@ -216,7 +224,7 @@
             <span class="kpi-tag">Sections Analyzed</span>
           </div>
           <div class="kpi-value-row">
-            <span class="kpi-main-num">{{ comparisonData.summary.totalSections }}</span>
+            <span class="kpi-main-num">{{ filteredComparisonSummary.totalSections }}</span>
             <span class="kpi-unit">Active Classes</span>
           </div>
         </div>
@@ -226,19 +234,19 @@
             <span class="kpi-tag">Total Enrolment</span>
           </div>
           <div class="kpi-value-row">
-            <span class="kpi-main-num">{{ comparisonData.summary.totalEnrolled }}</span>
+            <span class="kpi-main-num">{{ filteredComparisonSummary.totalEnrolled }}</span>
             <span class="kpi-unit">Learners</span>
           </div>
         </div>
 
         <div class="kpi-card">
           <div class="kpi-card-header">
-            <span class="kpi-tag" :class="comparisonData.summary.overallAttendanceRate >= 95 ? 'kpi-tag--success' : 'kpi-tag--warning'">
-              {{ comparisonData.summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention' }}
+            <span class="kpi-tag" :class="filteredComparisonSummary.overallAttendanceRate >= 95 ? 'kpi-tag--success' : 'kpi-tag--warning'">
+              {{ filteredComparisonSummary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention' }}
             </span>
           </div>
           <div class="kpi-value-row">
-            <span class="kpi-main-num">{{ comparisonData.summary.overallAttendanceRate }}%</span>
+            <span class="kpi-main-num">{{ filteredComparisonSummary.overallAttendanceRate }}%</span>
             <span class="kpi-unit">Attendance Average</span>
           </div>
         </div>
@@ -278,7 +286,7 @@
               </tr>
             </thead>
             <tbody v-if="filteredSections.length">
-              <tr v-for="s in filteredSections" :key="`${s.grade}-${s.section}`">
+              <tr v-for="s in filteredSections" :key="`${s.schoolId || ''}-${s.grade}-${s.section}`">
                 <td style="text-align: center;">
                   <span class="rank-badge" :class="`rank-${s.rank}`">#{{ s.rank }}</span>
                 </td>
@@ -319,7 +327,7 @@
                   </span>
                 </td>
                 <td style="text-align: right;">
-                  <button @click="openMonthlyRecord(s.grade, s.section)" class="btn-xs btn-secondary open-sheet-btn" title="Open monthly SF2 attendance sheet">
+                  <button @click="openMonthlyRecord(s.grade, s.section, s.schoolId)" class="btn-xs btn-secondary open-sheet-btn" title="Open monthly SF2 attendance sheet">
                     <span>SF2 Sheet</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="9 18 15 12 9 6"/>
@@ -385,9 +393,7 @@
           <div class="filter-group">
             <label>School Year</label>
             <select v-model="selectedSchoolYear" @change="loadQuarterlySummary">
-              <option value="2026-2027">2026-2027</option>
-              <option value="2025-2026">2025-2026</option>
-              <option value="2024-2025">2024-2025</option>
+              <option v-for="year in schoolYearOptions" :key="year" :value="year">{{ year }}</option>
             </select>
           </div>
         </div>
@@ -418,24 +424,24 @@
             <p>School Year {{ quarterlyData.schoolYear }} · Reporting Months: {{ quarterlyData.monthsIncluded.join(', ') }}</p>
           </div>
           <div class="rollcall-pct-badge" :class="quarterlyData.grandTotal.attendanceRate >= 95 ? 'badge--complete' : 'badge--warning'">
-            {{ quarterlyData.grandTotal.attendanceRate }}% School Attendance Rate
+            {{ filteredQuarterlySummary.attendanceRate }}% School Attendance Rate
           </div>
         </div>
 
         <div class="quarterly-stats-banner">
           <div class="stat-banner-item">
             <small>REGISTERED LEARNERS</small>
-            <strong>{{ quarterlyData.grandTotal.totalEnrolled }}</strong>
-            <span>{{ quarterlyData.grandTotal.maleEnrolled }} M / {{ quarterlyData.grandTotal.femaleEnrolled }} F</span>
+            <strong>{{ filteredQuarterlySummary.totalEnrolled }}</strong>
+            <span>{{ filteredQuarterlySummary.maleEnrolled }} M / {{ filteredQuarterlySummary.femaleEnrolled }} F</span>
           </div>
           <div class="stat-banner-item">
             <small>AVERAGE DAILY ATTENDANCE (ADA)</small>
-            <strong class="text-teal">{{ quarterlyData.grandTotal.ada.total }}</strong>
-            <span>{{ quarterlyData.grandTotal.ada.male }} M / {{ quarterlyData.grandTotal.ada.female }} F</span>
+            <strong class="text-teal">{{ filteredQuarterlySummary.ada.total }}</strong>
+            <span>{{ filteredQuarterlySummary.ada.male }} M / {{ filteredQuarterlySummary.ada.female }} F</span>
           </div>
           <div class="stat-banner-item">
             <small>REPORTING SCHOOL DAYS</small>
-            <strong>{{ quarterlyData.grandTotal.schoolDays }} Days</strong>
+            <strong>{{ filteredQuarterlySummary.schoolDays }} Days</strong>
             <span>Quarterly Consolidated Total</span>
           </div>
         </div>
@@ -457,7 +463,7 @@
               </tr>
             </thead>
             <tbody v-if="filteredQuarterlySections.length">
-              <tr v-for="sec in filteredQuarterlySections" :key="`${sec.grade}-${sec.section}`">
+              <tr v-for="sec in filteredQuarterlySections" :key="`${sec.schoolId || ''}-${sec.grade}-${sec.section}`">
                 <td><strong>{{ sec.grade }} — {{ sec.section }}</strong></td>
                 <td>{{ sec.adviser || 'Unassigned' }}</td>
                 <td style="text-align: center;">{{ sec.schoolDays }}</td>
@@ -480,7 +486,7 @@
                   </div>
                 </td>
                 <td style="text-align: right;">
-                  <button @click="openMonthlyRecord(sec.grade, sec.section)" class="btn-xs btn-secondary open-sheet-btn" title="Open monthly SF2 attendance sheet">
+                  <button @click="openMonthlyRecord(sec.grade, sec.section, sec.schoolId)" class="btn-xs btn-secondary open-sheet-btn" title="Open monthly SF2 attendance sheet">
                     <span>SF2 Sheet</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="9 18 15 12 9 6"/>
@@ -569,7 +575,7 @@
             </button>
             <button 
               v-if="validatorGrade && validatorSection"
-              @click="openMonthlyRecord(validatorGrade, validatorSection)" 
+              @click="openMonthlyRecord(validatorGrade, validatorSection, effectiveSchoolId)"
               class="btn-sm btn-secondary" 
               title="Open this class in Monthly Attendance"
             >
@@ -772,15 +778,17 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
+const errorMessage = ref('')
 const activeTab = ref('comparison')
 const schoolsList = ref([])
-const selectedSchoolId = ref('')
+const selectedSchoolId = ref(String(route.query.schoolId || ''))
 const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
 
 // Section Comparison State & Filters
@@ -799,7 +807,7 @@ const sectionsByGrade = ref({})
 // Quarterly State & Filters
 const quarterlyData = ref(null)
 const selectedQuarter = ref(1)
-const selectedSchoolYear = ref('2026-2027')
+const selectedSchoolYear = ref('')
 const quarterlyGradeFilter = ref('')
 const quarterlySearch = ref('')
 
@@ -822,11 +830,30 @@ const archiveTypeFilter = ref('all')
 const savedViews = ref([])
 const savedViewSearch = ref('')
 
+function academicYearForDate(date = new Date()) {
+  const year = date.getFullYear()
+  return date.getMonth() + 1 >= 8 ? `${year}-${year + 1}` : `${year - 1}-${year}`
+}
+
+const schoolYearOptions = ref([])
+
 // Computed: Total SARDO Alerts in Current Comparison Scope
-const totalSardoAlerts = computed(() => {
-  if (!comparisonData.value?.sections) return 0
-  return comparisonData.value.sections.reduce((acc, s) => acc + (s.sardoAlerts || 0), 0)
+const filteredComparisonSummary = computed(() => {
+  const sections = filteredSections.value
+  const totalPresent = sections.reduce((sum, s) => sum + Number(s.present || 0), 0)
+  const totalAbsent = sections.reduce((sum, s) => sum + Number(s.absent || 0), 0)
+  return {
+    totalSections: sections.length,
+    totalEnrolled: sections.reduce((sum, s) => sum + Number(s.enrolled || 0), 0),
+    totalPresent,
+    totalAbsent,
+    overallAttendanceRate: totalPresent + totalAbsent > 0
+      ? Number(((totalPresent / (totalPresent + totalAbsent)) * 100).toFixed(1))
+      : 0
+  }
 })
+
+const totalSardoAlerts = computed(() => filteredSections.value.reduce((acc, s) => acc + Number(s.sardoAlerts || 0), 0))
 
 // Computed: Filtered & Sorted Sections for Section Comparison Tab
 const filteredSections = computed(() => {
@@ -913,6 +940,26 @@ const filteredQuarterlySections = computed(() => {
   return list
 })
 
+const filteredQuarterlySummary = computed(() => {
+  const sections = filteredQuarterlySections.value
+  const maleEnrolled = sections.reduce((sum, s) => sum + Number(s.enrolment?.male || 0), 0)
+  const femaleEnrolled = sections.reduce((sum, s) => sum + Number(s.enrolment?.female || 0), 0)
+  const totalEnrolled = maleEnrolled + femaleEnrolled
+  const adaMale = sections.reduce((sum, s) => sum + Number(s.ada?.male || 0), 0)
+  const adaFemale = sections.reduce((sum, s) => sum + Number(s.ada?.female || 0), 0)
+  const attendanceRate = totalEnrolled > 0
+    ? Number((sections.reduce((sum, s) => sum + Number(s.attendanceRate?.total || 0) * Number(s.enrolment?.total || 0), 0) / totalEnrolled).toFixed(1))
+    : 0
+  return {
+    totalEnrolled,
+    maleEnrolled,
+    femaleEnrolled,
+    ada: { male: Number(adaMale.toFixed(2)), female: Number(adaFemale.toFixed(2)), total: Number((adaMale + adaFemale).toFixed(2)) },
+    attendanceRate,
+    schoolDays: sections.reduce((max, s) => Math.max(max, Number(s.schoolDays || 0)), 0)
+  }
+})
+
 // Computed: Filtered Archives
 const filteredArchives = computed(() => {
   let list = archives.value || []
@@ -943,16 +990,24 @@ onMounted(async () => {
   if (auth.isSuperadmin) {
     try {
       schoolsList.value = await auth.getSchools()
-      if (schoolsList.value.length && !selectedSchoolId.value) {
-        selectedSchoolId.value = schoolsList.value[0].id
-      }
-    } catch {}
+    } catch (err) {
+      errorMessage.value = err.message || 'Unable to load schools'
+    }
   }
+  await loadSchoolYears()
+  if (!selectedSchoolYear.value) selectedSchoolYear.value = schoolYearOptions.value[0] || academicYearForDate()
   await loadGradeLevels()
   await loadSectionComparison()
 })
 
 async function onSchoolChange() {
+  filterGrade.value = ''
+  filterSection.value = ''
+  quarterlyGradeFilter.value = ''
+  await loadSchoolYears()
+  if (!schoolYearOptions.value.includes(selectedSchoolYear.value)) {
+    selectedSchoolYear.value = schoolYearOptions.value[0] || academicYearForDate()
+  }
   await loadGradeLevels()
   loadActiveTab()
 }
@@ -965,9 +1020,25 @@ function loadActiveTab() {
   else if (activeTab.value === 'views') loadSavedViews()
 }
 
+async function loadSchoolYears() {
+  try {
+    const params = new URLSearchParams()
+    if (effectiveSchoolId.value) params.set('schoolId', effectiveSchoolId.value)
+    const years = await auth.api(`/reports/school-years?${params.toString()}`)
+    schoolYearOptions.value = Array.isArray(years) && years.length ? years : [academicYearForDate()]
+  } catch (err) {
+    schoolYearOptions.value = [academicYearForDate()]
+    errorMessage.value = err.message || 'Failed to load school years'
+  }
+}
+
 async function loadGradeLevels() {
   const sid = effectiveSchoolId.value || auth.schoolId
-  if (!sid) return
+  if (!sid) {
+    availableGrades.value = []
+    sectionsByGrade.value = {}
+    return
+  }
   try {
     const res = await auth.api(`/schools/${sid}/grades`)
     const levels = Array.isArray(res) ? res : (res?.levels || [])
@@ -982,7 +1053,7 @@ async function loadGradeLevels() {
       onValidatorGradeChange()
     }
   } catch (err) {
-    console.error('Failed to load grade levels:', err)
+    errorMessage.value = err.message || 'Failed to load grade levels'
   }
 }
 
@@ -1030,17 +1101,33 @@ function onComparisonPresetChange() {
 
 async function loadSectionComparison() {
   loading.value = true
+  errorMessage.value = ''
   try {
+    if (startDate.value && endDate.value && startDate.value > endDate.value) {
+      throw new Error('The start date must be before or equal to the end date.')
+    }
     const params = new URLSearchParams()
     if (effectiveSchoolId.value) params.set('schoolId', effectiveSchoolId.value)
     if (filterGrade.value) params.set('grade', filterGrade.value)
+    if (filterSection.value) params.set('section', filterSection.value)
     if (startDate.value && endDate.value) {
       params.set('startDate', startDate.value)
       params.set('endDate', endDate.value)
     }
     comparisonData.value = await auth.api(`/reports/section-comparison?${params.toString()}`)
+    if (!effectiveSchoolId.value && Array.isArray(comparisonData.value?.sections)) {
+      const grades = [...new Set(comparisonData.value.sections.map(s => s.grade).filter(Boolean))]
+      availableGrades.value = grades
+      const map = {}
+      for (const row of comparisonData.value.sections) {
+        if (!map[row.grade]) map[row.grade] = []
+        if (row.section && !map[row.grade].includes(row.section)) map[row.grade].push(row.section)
+      }
+      sectionsByGrade.value = map
+    }
   } catch (err) {
-    console.error(err)
+    comparisonData.value = null
+    errorMessage.value = err.message || 'Failed to load section comparison'
   } finally {
     loading.value = false
   }
@@ -1048,6 +1135,7 @@ async function loadSectionComparison() {
 
 async function loadQuarterlySummary() {
   loading.value = true
+  errorMessage.value = ''
   try {
     const params = new URLSearchParams()
     if (effectiveSchoolId.value) params.set('schoolId', effectiveSchoolId.value)
@@ -1055,18 +1143,20 @@ async function loadQuarterlySummary() {
     params.set('schoolYear', selectedSchoolYear.value)
     quarterlyData.value = await auth.api(`/reports/quarterly-summary?${params.toString()}`)
   } catch (err) {
-    console.error(err)
+    quarterlyData.value = null
+    errorMessage.value = err.message || 'Failed to load quarterly summary'
   } finally {
     loading.value = false
   }
 }
 
-function openMonthlyRecord(grade, section) {
+function openMonthlyRecord(grade, section, schoolId = '') {
   router.push({
     path: '/monthly',
     query: {
       grade,
-      section
+      section,
+      ...(schoolId || effectiveSchoolId.value ? { schoolId: schoolId || effectiveSchoolId.value } : {})
     }
   })
 }
@@ -1147,16 +1237,26 @@ async function runValidationCheck() {
 }
 
 async function loadArchives() {
+  errorMessage.value = ''
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
-    archives.value = await auth.api(`/reports/archive?schoolId=${sid}`)
-  } catch {}
+    const params = new URLSearchParams()
+    if (sid) params.set('schoolId', sid)
+    archives.value = await auth.api(`/reports/archive?${params.toString()}`)
+  } catch (err) {
+    errorMessage.value = err.message || 'Failed to load report archives'
+  }
 }
 
 async function downloadArchive(a) {
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
-    const res = await fetch(`/api/reports/archive/${a.id}/download?schoolId=${sid}`)
+    const params = new URLSearchParams()
+    if (sid) params.set('schoolId', sid)
+    const res = await fetch(`/api/reports/archive/${a.id}/download?${params.toString()}`, {
+      headers: auth.actorHeaders(),
+      credentials: 'same-origin'
+    })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.error || 'Failed to download report archive')
@@ -1188,10 +1288,15 @@ async function deleteArchive(id) {
 }
 
 async function loadSavedViews() {
+  errorMessage.value = ''
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
-    savedViews.value = await auth.api(`/reports/saved-views?schoolId=${sid}`)
-  } catch {}
+    const params = new URLSearchParams()
+    if (sid) params.set('schoolId', sid)
+    savedViews.value = await auth.api(`/reports/saved-views?${params.toString()}`)
+  } catch (err) {
+    errorMessage.value = err.message || 'Failed to load saved views'
+  }
 }
 
 async function deleteSavedView(id) {
@@ -1199,7 +1304,9 @@ async function deleteSavedView(id) {
   try {
     await auth.api(`/reports/saved-views/${id}`, { method: 'DELETE' })
     await loadSavedViews()
-  } catch {}
+  } catch (err) {
+    errorMessage.value = err.message || 'Failed to delete saved view'
+  }
 }
 
 async function saveCurrentView(type) {
@@ -1238,40 +1345,52 @@ function applySavedView(v) {
     if (v.filters?.endDate !== undefined) endDate.value = v.filters.endDate
     if (v.filters?.preset) comparisonPreset.value = v.filters.preset
     loadSectionComparison()
+  } else if (v.reportType === 'dashboard') {
+    router.push({ path: '/', query: { ...(effectiveSchoolId.value ? { schoolId: effectiveSchoolId.value } : {}), ...(v.filters?.startDate ? { startDate: v.filters.startDate } : {}), ...(v.filters?.endDate ? { endDate: v.filters.endDate } : {}) } })
   } else if (v.reportType === 'quarterly_summary') {
     activeTab.value = 'quarterly'
     if (v.filters?.quarter) selectedQuarter.value = v.filters.quarter
     if (v.filters?.schoolYear) selectedSchoolYear.value = v.filters.schoolYear
-    if (v.filters?.grade) quarterlyGradeFilter.value = v.filters.grade
+    if (v.filters?.grade !== undefined) quarterlyGradeFilter.value = v.filters.grade
     loadQuarterlySummary()
   }
 }
 
-async function downloadCsv(type) {
+function csvCell(value) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`
+}
+
+function downloadCsv(type) {
   try {
-    const sid = effectiveSchoolId.value || auth.schoolId
-    const params = new URLSearchParams({
-      type,
-      schoolId: sid,
-      quarter: selectedQuarter.value,
-      schoolYear: selectedSchoolYear.value,
-      grade: (type === 'section_comparison' ? filterGrade.value : quarterlyGradeFilter.value) || '',
-      section: (type === 'section_comparison' ? filterSection.value : '') || '',
-      startDate: startDate.value || '',
-      endDate: endDate.value || ''
-    })
-    const res = await fetch(`/api/reports/export/csv?${params.toString()}`)
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || 'Failed to export CSV')
+    let headers
+    let rows
+    let filename
+
+    if (type === 'section_comparison') {
+      headers = ['Rank', 'Grade', 'Section', 'Class Adviser', 'Total Learners', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'DepEd Compliance Status']
+      rows = filteredSections.value.map(s => [
+        s.rank, s.grade, s.section, s.adviser || 'Unassigned', s.enrolled, s.male, s.female,
+        s.present, s.absent, `${s.attendanceRate}%`, s.sardoAlerts,
+        s.attendanceRate >= 95 ? 'Compliant (DepEd DO 8 Met)' : 'Below Target'
+      ])
+      const summary = filteredComparisonSummary.value
+      rows.push(['Total', '', '', `${summary.totalSections} sections`, summary.totalEnrolled, '', '', summary.totalPresent, summary.totalAbsent, `${summary.overallAttendanceRate}%`, '', summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'])
+      filename = `section-comparison-${new Date().toISOString().slice(0, 10)}.csv`
+    } else {
+      headers = ['Grade Level', 'Section', 'Class Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Enrolled Total', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
+      rows = filteredQuarterlySections.value.map(s => [
+        s.grade, s.section, s.adviser || 'Unassigned', s.schoolDays,
+        s.enrolment.male, s.enrolment.female, s.enrolment.total,
+        s.ada.male, s.ada.female, s.ada.total,
+        `${s.attendanceRate.male}%`, `${s.attendanceRate.female}%`, `${s.attendanceRate.total}%`
+      ])
+      const summary = filteredQuarterlySummary.value
+      rows.push(['Grand Total', '', '', summary.schoolDays, summary.maleEnrolled, summary.femaleEnrolled, summary.totalEnrolled, summary.ada.male, summary.ada.female, summary.ada.total, '', '', `${summary.attendanceRate}%`])
+      filename = `deped-quarter-${selectedQuarter.value}-summary-${new Date().toISOString().slice(0, 10)}.csv`
     }
-    const blob = await res.blob()
-    const contentDisposition = res.headers.get('Content-Disposition')
-    let filename = `${type}-${new Date().toISOString().slice(0, 10)}.csv`
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?([^";]+)"?/)
-      if (match && match[1]) filename = match[1]
-    }
+
+    const content = '\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -1281,7 +1400,7 @@ async function downloadCsv(type) {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
   } catch (err) {
-    alert(err.message || 'CSV download failed')
+    errorMessage.value = err.message || 'CSV download failed'
   }
 }
 
@@ -1297,14 +1416,14 @@ async function archiveCurrentReport(type) {
       const rows = filteredSections.value.map(s => [
         s.rank, `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.enrolled, s.male, s.female, s.present, s.absent, `"${s.attendanceRate}%"`, s.sardoAlerts, `"${s.attendanceRate >= 95 ? 'Compliant' : 'Below Target'}"`
       ])
-      const summaryRow = ['Total', '""', '""', `"${comparisonData.value.summary.totalSections} sections"`, comparisonData.value.summary.totalEnrolled, '', '', comparisonData.value.summary.totalPresent, comparisonData.value.summary.totalAbsent, `"${comparisonData.value.summary.overallAttendanceRate}%"`, '', `"${comparisonData.value.summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'}"`]
+      const summaryRow = ['Total', '""', '""', `"${filteredComparisonSummary.value.totalSections} sections"`, filteredComparisonSummary.value.totalEnrolled, '', '', filteredComparisonSummary.value.totalPresent, filteredComparisonSummary.value.totalAbsent, `"${filteredComparisonSummary.value.overallAttendanceRate}%"`, '', `"${filteredComparisonSummary.value.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'}"`]
       contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), summaryRow.join(',')].join('\r\n')
     } else if (type === 'quarterly_summary' && filteredQuarterlySections.value.length) {
       const headers = ['Grade Level', 'Section', 'Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Total Enrolled', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
       const rows = filteredQuarterlySections.value.map(s => [
         `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.schoolDays, s.enrolment.male, s.enrolment.female, s.enrolment.total, s.ada.male, s.ada.female, s.ada.total, `"${s.attendanceRate.male}%"`, `"${s.attendanceRate.female}%"`, `"${s.attendanceRate.total}%"`
       ])
-      const grandTotalRow = ['"Grand Total"', '""', '""', quarterlyData.value.grandTotal.schoolDays, quarterlyData.value.grandTotal.maleEnrolled, quarterlyData.value.grandTotal.femaleEnrolled, quarterlyData.value.grandTotal.totalEnrolled, quarterlyData.value.grandTotal.ada.male, quarterlyData.value.grandTotal.ada.female, quarterlyData.value.grandTotal.ada.total, '', '', `"${quarterlyData.value.grandTotal.attendanceRate}%"`]
+      const grandTotalRow = ['"Grand Total"', '""', '""', filteredQuarterlySummary.value.schoolDays, filteredQuarterlySummary.value.maleEnrolled, filteredQuarterlySummary.value.femaleEnrolled, filteredQuarterlySummary.value.totalEnrolled, filteredQuarterlySummary.value.ada.male, filteredQuarterlySummary.value.ada.female, filteredQuarterlySummary.value.ada.total, '', '', `"${filteredQuarterlySummary.value.attendanceRate}%"`]
       contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), grandTotalRow.join(',')].join('\r\n')
     } else {
       contentData = `Report: ${title}\nGenerated on: ${new Date().toISOString()}`
@@ -1322,14 +1441,35 @@ async function archiveCurrentReport(type) {
       })
     })
     alert('Report archived successfully')
-    if (activeTab.value === 'archive') await loadArchives()
+    await loadArchives()
   } catch (err) {
-    alert(err.message || 'Archiving failed')
+    errorMessage.value = err.message || 'Archiving failed'
   }
 }
 </script>
 
 <style scoped>
+.report-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--card));
+  color: var(--destructive);
+  font-size: 0.85rem;
+}
+
+.report-error-dismiss {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
 .reports-view {
   display: flex;
   flex-direction: column;
