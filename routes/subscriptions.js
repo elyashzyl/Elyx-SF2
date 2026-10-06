@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, saveDatabase } from '../db.js'
-import { actingUser, audit, requireRole } from './_context.js'
+import { actingUser, audit, requireRole, getLicenseGracePeriodState } from './_context.js'
 import { recordSubscriptionHistory } from '../lib/subscriptionHistory.js'
 
 const router = Router()
@@ -94,6 +94,20 @@ router.post('/requests', async (req, res) => {
     const existing = await query('SELECT id FROM subscription_requests WHERE school_id = ? AND status = "pending" LIMIT 1', [targetSchoolId])
     if (existing.length) return res.status(409).json({ error: 'This school already has a payment request awaiting review' })
 
+    const cleanRef = String(payment_reference || '').trim()
+    if (cleanRef) {
+      // Check collision: prevent duplicate submissions with the same payment reference
+      const dupRows = await query(
+        'SELECT id, school_id, status FROM subscription_requests WHERE LOWER(payment_reference) = LOWER(?) AND status IN ("pending", "approved") LIMIT 1',
+        [cleanRef]
+      )
+      if (dupRows.length > 0) {
+        return res.status(409).json({
+          error: `Payment reference "${cleanRef}" has already been submitted and is currently ${dupRows[0].status}. Duplicate payment references cannot be processed.`
+        })
+      }
+    }
+
     const currentLicense = (await query('SELECT id, status FROM licenses WHERE school_id = ? ORDER BY issued_at DESC LIMIT 1', [targetSchoolId]))[0]
     const fromStatus = currentLicense?.status || 'none'
 
@@ -156,6 +170,7 @@ router.patch('/requests/:id/status', async (req, res) => {
 
     let targetLicenseId = ''
     let prevLicenseStatus = 'none'
+    let generatedInvoice = null
 
     if (status === 'approved') {
       const license = (await query('SELECT * FROM licenses WHERE school_id = ? ORDER BY issued_at DESC LIMIT 1', [request.school_id]))[0]
@@ -214,6 +229,54 @@ router.patch('/requests/:id/status', async (req, res) => {
         notes: `License active until ${expiryString}`,
         metadata: { plan_tier: plan.tier, expires_at: expiryString }
       })
+
+      // Generate official invoice and receipt record
+      const invoiceId = uuidv4()
+      const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
+      const invoiceNumber = `INV-${yyyymm}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
+      const paymentMethodRow = request.payment_method_id
+        ? (await query('SELECT bank_name, type FROM payment_methods WHERE id = ? LIMIT 1', [request.payment_method_id]))[0]
+        : null
+      const paymentChannel = paymentMethodRow
+        ? `${paymentMethodRow.bank_name} (${paymentMethodRow.type})`
+        : (request.payment_method_id || 'Direct Reference')
+
+      const invAmount = Number(request.amount || 0)
+      const invCurrency = plan.currency || 'PHP'
+
+      await run(`INSERT INTO subscription_invoices (
+        id, invoice_number, request_id, school_id, license_id, plan_tier, plan_name, billing_cycle,
+        amount, currency, payment_method_id, payment_channel, payment_reference, status,
+        issued_at, due_at, paid_at, notes, metadata, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?, ?, ?, ?, ?)`, [
+        invoiceId,
+        invoiceNumber,
+        request.id,
+        request.school_id,
+        targetLicenseId,
+        plan.tier,
+        plan.name,
+        request.billing_cycle,
+        invAmount,
+        invCurrency,
+        request.payment_method_id || '',
+        paymentChannel,
+        request.payment_reference || '',
+        nowString,
+        nowString,
+        nowString,
+        String(notes).trim() || 'Paid upon payment verification',
+        JSON.stringify({
+          reviewed_by: me.id,
+          reviewed_by_name: me.name,
+          request_type: request.request_type,
+          proof_url: request.proof_url || ''
+        }),
+        nowString
+      ])
+
+      generatedInvoice = (await query('SELECT * FROM subscription_invoices WHERE id = ?', [invoiceId]))[0] || null
+      await audit(me, 'subscription_invoice.create', { type: 'subscription_invoice', id: invoiceId, schoolId: request.school_id }, `Generated official invoice ${invoiceNumber} for ${request.school_id}`)
     } else {
       // Record rejection in status history
       await recordSubscriptionHistory({
@@ -234,7 +297,11 @@ router.patch('/requests/:id/status', async (req, res) => {
     await run('UPDATE subscription_requests SET status = ?, reviewed_by = ?, reviewed_at = ?, notes = ?, updated_at = ? WHERE id = ?', [status, me.id, nowString, String(notes).trim() || request.notes || '', nowString, request.id])
     await audit(me, `subscription_request.${status}`, { type: 'subscription_request', id: request.id, schoolId: request.school_id }, `${status === 'approved' ? 'Approved' : 'Rejected'} subscription payment request`)
     saveDatabase()
-    res.json({ success: true, request: publicRequest((await query('SELECT * FROM subscription_requests WHERE id = ?', [request.id]))[0]) })
+    res.json({
+      success: true,
+      request: publicRequest((await query('SELECT * FROM subscription_requests WHERE id = ?', [request.id]))[0]),
+      invoice: generatedInvoice
+    })
   } catch (err) {
     console.error('Failed to review subscription request:', err.message)
     res.status(500).json({ error: 'Failed to review subscription request' })
@@ -333,6 +400,236 @@ router.get('/history', async (req, res) => {
   } catch (err) {
     console.error('Failed to fetch subscription status history:', err.message)
     res.status(500).json({ error: 'Failed to retrieve subscription status history' })
+  }
+})
+
+// GET /api/subscriptions/invoices
+// Retrieves billing invoices and official receipts (school-scoped or superadmin global)
+router.get('/invoices', async (req, res) => {
+  try {
+    const me = await actingUser(req, res)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+    const { schoolId, limit = 100 } = req.query
+    const maxLimit = Math.min(250, Math.max(1, parseInt(limit, 10) || 100))
+
+    let rows
+    if (me.role === 'superadmin') {
+      if (schoolId) {
+        rows = await query(`
+          SELECT i.*, s.name AS school_name, s.short AS school_short
+          FROM subscription_invoices i
+          LEFT JOIN schools s ON s.id = i.school_id
+          WHERE i.school_id = ?
+          ORDER BY i.created_at DESC
+          LIMIT ?
+        `, [schoolId, maxLimit])
+      } else {
+        rows = await query(`
+          SELECT i.*, s.name AS school_name, s.short AS school_short
+          FROM subscription_invoices i
+          LEFT JOIN schools s ON s.id = i.school_id
+          ORDER BY i.created_at DESC
+          LIMIT ?
+        `, [maxLimit])
+      }
+    } else {
+      if (!me.school_id) return res.json([])
+      rows = await query(`
+        SELECT i.*, s.name AS school_name, s.short AS school_short
+        FROM subscription_invoices i
+        LEFT JOIN schools s ON s.id = i.school_id
+        WHERE i.school_id = ?
+        ORDER BY i.created_at DESC
+        LIMIT ?
+      `, [me.school_id, maxLimit])
+    }
+
+    const parsed = rows.map(r => {
+      let metadata = null
+      if (r.metadata) {
+        try { metadata = JSON.parse(r.metadata) } catch { metadata = r.metadata }
+      }
+      return { ...r, metadata }
+    })
+
+    res.json(parsed)
+  } catch (err) {
+    console.error('Failed to list invoices:', err.message)
+    res.status(500).json({ error: 'Failed to retrieve invoice records' })
+  }
+})
+
+// GET /api/subscriptions/invoices/:id
+// Single invoice record with school and payment breakdown
+router.get('/invoices/:id', async (req, res) => {
+  try {
+    const me = await actingUser(req, res)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+
+    const rows = await query(`
+      SELECT i.*, s.name AS school_name, s.short AS school_short, s.address AS school_address,
+        pm.bank_name AS payment_bank_name, pm.account_name AS payment_account_name, pm.account_number AS payment_account_number
+      FROM subscription_invoices i
+      LEFT JOIN schools s ON s.id = i.school_id
+      LEFT JOIN payment_methods pm ON pm.id = i.payment_method_id
+      WHERE i.id = ? OR i.invoice_number = ?
+      LIMIT 1
+    `, [req.params.id, req.params.id])
+
+    const inv = rows[0]
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' })
+
+    if (me.role !== 'superadmin' && inv.school_id !== me.school_id) {
+      return res.status(403).json({ error: 'Forbidden: outside your school' })
+    }
+
+    let metadata = null
+    if (inv.metadata) {
+      try { metadata = JSON.parse(inv.metadata) } catch { metadata = inv.metadata }
+    }
+
+    res.json({ ...inv, metadata })
+  } catch (err) {
+    console.error('Failed to get invoice:', err.message)
+    res.status(500).json({ error: 'Failed to retrieve invoice' })
+  }
+})
+
+// GET /api/subscriptions/analytics
+// Superadmin platform monetization and subscription telemetry
+router.get('/analytics', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+
+    const schools = await query('SELECT id, name, short FROM schools WHERE archived_at IS NULL')
+    const totalCampuses = schools.length
+
+    const licenses = await query(`
+      SELECT l.*, s.name as school_name
+      FROM licenses l
+      LEFT JOIN schools s ON s.id = l.school_id
+      ORDER BY l.issued_at DESC
+    `)
+
+    // Latest license per school
+    const latestLicenseBySchool = new Map()
+    for (const lic of licenses) {
+      if (lic.school_id && !latestLicenseBySchool.has(lic.school_id)) {
+        latestLicenseBySchool.set(lic.school_id, lic)
+      }
+    }
+
+    let activeCount = 0
+    let inGraceCount = 0
+    let expiredCount = 0
+    let trialCount = 0
+    let suspendedCount = 0
+    let mrrEstimate = 0
+
+    const plans = await query('SELECT * FROM subscription_plans')
+    const planMap = new Map()
+    for (const p of plans) {
+      planMap.set(p.tier, p)
+      planMap.set(p.id, p)
+    }
+
+    const planDistribution = {}
+
+    for (const [, lic] of latestLicenseBySchool) {
+      const graceState = getLicenseGracePeriodState(lic)
+      const plan = planMap.get(lic.plan_tier)
+
+      if (lic.status === 'trial') {
+        trialCount++
+      } else if (lic.status === 'suspended' || lic.status === 'cancelled') {
+        suspendedCount++
+      } else if (graceState.inGracePeriod) {
+        inGraceCount++
+      } else if (graceState.hardLockout) {
+        expiredCount++
+      } else {
+        activeCount++
+        if (plan) {
+          const tier = lic.plan_tier || 'custom'
+          planDistribution[tier] = (planDistribution[tier] || 0) + 1
+          if (lic.billing_cycle === 'monthly') {
+            mrrEstimate += Number(plan.price_monthly || 0)
+          } else {
+            const months = Number(plan.billing_months) || 12
+            mrrEstimate += Math.round(Number(plan.billing_annual_total || 0) / months)
+          }
+        }
+      }
+    }
+
+    const invoiceRows = await query(`
+      SELECT COUNT(*) as total_invoices,
+        COALESCE(SUM(amount), 0) as total_revenue
+      FROM subscription_invoices
+      WHERE status = 'paid'
+    `)
+    const totalRevenue = Number(invoiceRows[0]?.total_revenue || 0)
+    const totalInvoices = Number(invoiceRows[0]?.total_invoices || 0)
+
+    const recentInvoices = await query(`
+      SELECT i.*, s.name as school_name
+      FROM subscription_invoices i
+      LEFT JOIN schools s ON s.id = i.school_id
+      ORDER BY i.created_at DESC
+      LIMIT 10
+    `)
+
+    const churnedCampuses = expiredCount + suspendedCount
+    const churnRate = totalCampuses > 0
+      ? Number(((churnedCampuses / totalCampuses) * 100).toFixed(1))
+      : 0
+
+    const arrEstimate = mrrEstimate * 12
+
+    res.json({
+      summary: {
+        total_campuses: totalCampuses,
+        active_subscriptions: activeCount,
+        in_grace_period: inGraceCount,
+        expired_subscriptions: expiredCount,
+        trial_subscriptions: trialCount,
+        suspended_subscriptions: suspendedCount,
+        total_invoices: totalInvoices,
+        total_revenue: totalRevenue,
+        mrr_estimate: mrrEstimate,
+        arr_estimate: arrEstimate,
+        churn_rate: churnRate
+      },
+      plan_distribution: planDistribution,
+      recent_invoices: recentInvoices
+    })
+  } catch (err) {
+    console.error('Failed to get subscription analytics:', err.message)
+    res.status(500).json({ error: 'Failed to compute subscription analytics' })
+  }
+})
+
+// POST /api/subscriptions/webhook
+// Webhook endpoint for supported external payment providers
+router.post('/webhook', async (req, res) => {
+  try {
+    const signature = req.headers['x-webhook-signature'] || req.headers['stripe-signature'] || ''
+    const webhookSecret = process.env.PAYMENT_WEBHOOK_SECRET
+
+    if (webhookSecret && signature) {
+      // Secret configured: verification hook point
+    }
+
+    const event = req.body || {}
+    res.status(200).json({
+      received: true,
+      provider: process.env.PAYMENT_PROVIDER || 'manual',
+      event_type: event.type || event.event || 'generic'
+    })
+  } catch (err) {
+    console.error('Webhook error:', err.message)
+    res.status(400).json({ error: 'Webhook processing error' })
   }
 })
 

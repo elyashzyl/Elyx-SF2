@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run, saveDatabase, getSchoolById } from '../db.js'
-import { requireRole, resolveScopeSchool, audit } from './_context.js'
+import { requireRole, resolveScopeSchool, audit, getLicenseGracePeriodState } from './_context.js'
 import { recordSubscriptionHistory } from '../lib/subscriptionHistory.js'
 import { evaluateLicenseExpirationReminders } from '../lib/expirationReminders.js'
 
@@ -48,6 +48,7 @@ function toPublicPlan(row) {
     billing_months: row.billing_months,
     currency: row.currency,
     trial_days: row.trial_days,
+    grace_period_days: row.grace_period_days !== undefined ? Number(row.grace_period_days) : 5,
     max_teachers: row.max_teachers,
     max_students: row.max_students,
     is_featured: row.is_featured,
@@ -182,6 +183,7 @@ router.put('/plans/:id', async (req, res) => {
       billing_annual_total,
       billing_months,
       trial_days,
+      grace_period_days,
       max_teachers,
       max_students,
       badge,
@@ -199,7 +201,7 @@ router.put('/plans/:id', async (req, res) => {
     await run(
       `UPDATE subscription_plans SET
         name = ?, description = ?, tag = ?, price_monthly = ?, price_annual_monthly = ?,
-        billing_annual_total = ?, billing_months = ?, trial_days = ?, max_teachers = ?, max_students = ?,
+        billing_annual_total = ?, billing_months = ?, trial_days = ?, grace_period_days = ?, max_teachers = ?, max_students = ?,
         badge = ?, cta_text = ?, cta_url = ?, features = ?, modules = ?
        WHERE id = ?`,
       [
@@ -211,6 +213,7 @@ router.put('/plans/:id', async (req, res) => {
         Number(billing_annual_total !== undefined ? billing_annual_total : existing.billing_annual_total),
         billing_months !== undefined ? Number(billing_months) : existing.billing_months,
         Number(trial_days !== undefined ? trial_days : existing.trial_days),
+        Number(grace_period_days !== undefined ? grace_period_days : (existing.grace_period_days ?? 5)),
         Number(max_teachers !== undefined ? max_teachers : existing.max_teachers),
         Number(max_students !== undefined ? max_students : existing.max_students),
         badge ?? existing.badge,
@@ -287,12 +290,19 @@ router.get('/', async (req, res) => {
         ORDER BY l.issued_at DESC
       `)
 
-      return res.json(rows.map(row => ({
-        ...row,
-        features: parseFeatures(row.features),
-        days_remaining: calculateDaysRemaining(row.status === 'trial' ? row.trial_ends_at : row.expires_at),
-        is_expired: calculateDaysRemaining(row.status === 'trial' ? row.trial_ends_at : row.expires_at) <= 0
-      })))
+      return res.json(rows.map(row => {
+        const graceState = getLicenseGracePeriodState(row)
+        return {
+          ...row,
+          features: parseFeatures(row.features),
+          days_remaining: calculateDaysRemaining(row.status === 'trial' ? row.trial_ends_at : row.expires_at),
+          is_expired: calculateDaysRemaining(row.status === 'trial' ? row.trial_ends_at : row.expires_at) <= 0,
+          grace_period_days: row.grace_period_days !== undefined ? Number(row.grace_period_days) : 5,
+          in_grace_period: graceState.inGracePeriod,
+          grace_days_remaining: graceState.graceDaysRemaining,
+          hard_lockout: graceState.hardLockout
+        }
+      }))
     }
 
     const schoolId = scope.schoolId || me.school_id
@@ -314,6 +324,7 @@ router.get('/', async (req, res) => {
     const effectiveExpiry = license.status === 'trial' && license.trial_ends_at ? license.trial_ends_at : license.expires_at
     const daysRemaining = calculateDaysRemaining(effectiveExpiry)
     const isExpired = daysRemaining <= 0 && license.status !== 'active'
+    const graceState = getLicenseGracePeriodState(license)
 
     res.json({
       license: {
@@ -323,7 +334,11 @@ router.get('/', async (req, res) => {
         is_expired: isExpired,
         is_trial: license.status === 'trial',
         trial_days: licensePlan?.trial_days || null,
-        billing_months: licensePlan?.billing_months || null
+        billing_months: licensePlan?.billing_months || null,
+        grace_period_days: license.grace_period_days !== undefined ? Number(license.grace_period_days) : 5,
+        in_grace_period: graceState.inGracePeriod,
+        grace_days_remaining: graceState.graceDaysRemaining,
+        hard_lockout: graceState.hardLockout
       },
       usage: {
         teachers: teachersCount,
@@ -355,6 +370,7 @@ router.post('/', async (req, res) => {
       custom_key,
       max_teachers,
       max_students,
+      grace_period_days,
       notes
     } = req.body || {}
 
@@ -392,6 +408,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'The selected plan has invalid capacity limits' })
     }
     const effFeatures = typeof dbPlan.modules === 'string' ? dbPlan.modules : JSON.stringify(dbPlan.modules || {})
+    const effGracePeriod = grace_period_days !== undefined ? Number(grace_period_days) : (dbPlan.grace_period_days ?? 5)
 
     // Check for existing active or trial license for target school to prevent duplication
     const existingActive = await query(
@@ -406,8 +423,8 @@ router.post('/', async (req, res) => {
     }
 
     await run(
-      `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at, trial_ends_at, features, notes, grace_period_days)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         targetSchoolId,
@@ -421,7 +438,8 @@ router.post('/', async (req, res) => {
         expStr,
         '',
         effFeatures,
-        notes || ''
+        notes || '',
+        effGracePeriod
       ]
     )
 

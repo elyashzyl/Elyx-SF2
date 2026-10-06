@@ -89,18 +89,49 @@ export async function assertSchoolAccess(req, res, targetSchoolId) {
   return me
 }
 
+export function getLicenseGracePeriodState(license) {
+  if (!license) {
+    return { active: false, expired: true, inGracePeriod: false, graceDaysRemaining: 0, hardLockout: true, reason: 'none' }
+  }
+  if (license.status === 'suspended' || license.status === 'cancelled') {
+    return { active: false, expired: license.status === 'cancelled', inGracePeriod: false, graceDaysRemaining: 0, hardLockout: true, reason: license.status }
+  }
+
+  const targetDate = license.status === 'trial' && license.trial_ends_at ? license.trial_ends_at : license.expires_at
+  if (!targetDate) {
+    return { active: true, expired: false, inGracePeriod: false, graceDaysRemaining: 0, hardLockout: false }
+  }
+
+  const expiry = new Date(targetDate)
+  expiry.setHours(23, 59, 59, 999)
+  const now = new Date()
+
+  if (now <= expiry) {
+    return { active: true, expired: false, inGracePeriod: false, graceDaysRemaining: 0, hardLockout: false }
+  }
+
+  // Target expiry has passed -> evaluate configured grace period
+  const graceDays = Number.isInteger(Number(license.grace_period_days)) && Number(license.grace_period_days) >= 0
+    ? Number(license.grace_period_days)
+    : 5
+
+  const graceEnd = new Date(expiry)
+  graceEnd.setDate(graceEnd.getDate() + graceDays)
+
+  if (now <= graceEnd) {
+    const msRemaining = graceEnd.getTime() - now.getTime()
+    const graceDaysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)))
+    return { active: false, expired: true, inGracePeriod: true, graceDaysRemaining, hardLockout: false, reason: 'grace_period' }
+  }
+
+  return { active: false, expired: true, inGracePeriod: false, graceDaysRemaining: 0, hardLockout: true, reason: 'expired' }
+}
+
 export function isLicenseActive(license) {
   if (!license) return false
-  if (license.status === 'suspended') return false
-  if (license.status === 'expired') return false
-  
-  const targetDate = license.status === 'trial' && license.trial_ends_at ? license.trial_ends_at : license.expires_at
-  if (!targetDate) return true
-  
-  const expiry = new Date(targetDate)
-  const now = new Date()
-  expiry.setHours(23, 59, 59, 999)
-  return now <= expiry
+  if (license.status === 'suspended' || license.status === 'cancelled') return false
+  const state = getLicenseGracePeriodState(license)
+  return !state.hardLockout
 }
 
 export async function getSchoolLicense(schoolId) {
@@ -134,15 +165,35 @@ export async function resolveScopeSchool(req, res, explicit, options = { checkLi
   // Enforce license check for non-superadmin users if checkLicense is true
   if (options.checkLicense !== false && me.role !== 'superadmin' && targetSchoolId) {
     const license = await getSchoolLicense(targetSchoolId)
-    if (license && !isLicenseActive(license)) {
-      const reason = license.status === 'suspended' ? 'suspended' : 'expired'
-      res.status(402).json({
-        error: `School workspace is locked. Your ElyTrack license is currently ${reason}. Please contact your administrator or ely.ashzyl@gmail.com to restore access.`,
-        licenseStatus: license.status,
-        licenseLocked: true,
-        schoolId: targetSchoolId
-      })
-      return null
+    if (license) {
+      const graceState = getLicenseGracePeriodState(license)
+      if (graceState.hardLockout) {
+        const reason = graceState.reason || (license.status === 'suspended' ? 'suspended' : 'expired')
+        res.status(402).json({
+          error: `School workspace is locked. Your ElyTrack license is currently ${reason}. Please contact your administrator or ely.ashzyl@gmail.com to restore access.`,
+          licenseStatus: license.status,
+          licenseLocked: true,
+          schoolId: targetSchoolId
+        })
+        return null
+      }
+
+      if (graceState.inGracePeriod) {
+        res.setHeader('X-License-Grace-Period', '1')
+        res.setHeader('X-License-Grace-Days', String(graceState.graceDaysRemaining))
+        const method = (req.method || 'GET').toUpperCase()
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          res.status(402).json({
+            error: `School workspace is in a ${license.grace_period_days || 5}-day grace period (${graceState.graceDaysRemaining} day${graceState.graceDaysRemaining === 1 ? '' : 's'} remaining). Access is read-only. Please submit a renewal payment to restore full write operations.`,
+            inGracePeriod: true,
+            graceDaysRemaining: graceState.graceDaysRemaining,
+            readOnly: true,
+            licenseStatus: 'grace_period',
+            schoolId: targetSchoolId
+          })
+          return null
+        }
+      }
     }
   }
 

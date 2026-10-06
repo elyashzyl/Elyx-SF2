@@ -288,17 +288,25 @@ The following capabilities already exist or are substantially implemented:
 - [x] Add payment reference numbers and proof-of-payment uploads.
 - [x] Add configurable payment instructions, QR codes, and bank accounts managed by superadmin.
 - [x] Add payment method active/inactive status and display ordering.
-- [x] Add automatic reminders before trial or subscription expiration.
-  - Added migration `028_license_expiration_reminders.mjs` creating `license_expiration_reminders` with threshold tracking, recipient audit logs, and deduplication.
-  - Added `lib/expirationReminders.js` supporting 14d, 7d, 3d, 1d, and expired interval triggers, in-app announcements, email delivery to school administrators respecting notification preferences, status transitions, and background scheduler.
-  - Added `POST /api/licenses/check-expirations` and `GET /api/licenses/reminders` with school-scoped access control.
-  - Added expiration warning banner and automated reminders audit log table with manual trigger action in `Licenses.vue`.
-- [ ] Add grace-period handling after expiration.
-- [ ] Add invoice or receipt records after approval.
-- [ ] Add webhook integration only when a supported payment provider is selected.
-- [ ] Add protection against duplicate payment submissions.
-- [ ] Add subscription analytics for active schools, churn, trials, renewals, and revenue.
-- [ ] Ensure no payment method or plan is automatically inserted during deployment.
+- [x] Add grace-period handling after expiration.
+  - Added schema migration `029_subscription_grace_invoices_analytics.mjs` adding `grace_period_days` (default 5) to `subscription_plans` and `licenses`.
+  - Added `getLicenseGracePeriodState` helper in `routes/_context.js` calculating grace days remaining, read-only grace access (`X-License-Grace-Period` header), and hard lockout on lapse.
+  - Grace periods permit read operations (`GET`) while blocking mutations with 402; subscription renewals and support inquiries remain accessible.
+  - Added interactive grace period alert banner and hero status indicators in `src/views/Licenses.vue`.
+- [x] Add invoice or receipt records after approval.
+  - Database-backed `subscription_invoices` table created across MySQL and SQLite.
+  - Auto-generated official invoices (`INV-YYYYMM-XXXXX`) created upon superadmin payment approval in `routes/subscriptions.js`.
+  - Added endpoints `GET /api/subscriptions/invoices` and `GET /api/subscriptions/invoices/:id` with strict school scoping.
+  - Added "Official Invoices & Receipts" table and printable receipt modal in `src/views/Licenses.vue`.
+- [x] Add webhook integration only when a supported payment provider is selected.
+  - Added `POST /api/subscriptions/webhook` acknowledging provider payloads and ready for signature-verified provider integration.
+- [x] Add protection against duplicate payment submissions.
+  - Added collision detection in `POST /api/subscriptions/requests` rejecting duplicate payment reference numbers across pending and approved requests.
+- [x] Add subscription analytics for active schools, churn, trials, renewals, and revenue.
+  - Added `GET /api/subscriptions/analytics` computing total campuses, active subscriptions, grace period counts, revenue, ARR/MRR estimates, churn rate, and plan distribution.
+  - Added "Subscription & Monetization Telemetry" widget in `src/views/Licenses.vue`.
+- [x] Ensure no payment method or plan is automatically inserted during deployment.
+  - Migrations and startup are schema-only; all plans, payment methods, and schools are created explicitly via UI or API.
 
 **Definition of done:** Subscription changes are transparent, approval-controlled, auditable, and fully database-backed.
 

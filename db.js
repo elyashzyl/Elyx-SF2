@@ -480,7 +480,8 @@ const MYSQL_DDL = [
     expires_at TEXT NOT NULL DEFAULT (''),
     trial_ends_at TEXT NOT NULL DEFAULT (''),
     features TEXT NOT NULL DEFAULT ('{}'),
-    notes TEXT NOT NULL DEFAULT ('')
+    notes TEXT NOT NULL DEFAULT (''),
+    grace_period_days INT NOT NULL DEFAULT 5
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS subscription_plans (
     id VARCHAR(64) PRIMARY KEY,
@@ -494,6 +495,7 @@ const MYSQL_DDL = [
     billing_months INT NULL,
     currency VARCHAR(10) NOT NULL DEFAULT ('PHP'),
     trial_days INT NOT NULL DEFAULT 14,
+    grace_period_days INT NOT NULL DEFAULT 5,
     max_teachers INT NOT NULL DEFAULT 1,
     max_students INT NOT NULL DEFAULT 65,
     is_featured INT NOT NULL DEFAULT 0,
@@ -709,6 +711,30 @@ const MYSQL_DDL = [
     UNIQUE KEY uq_license_reminder (license_id, reminder_type, target_expiration_date),
     INDEX idx_reminders_school_sent (school_id, sent_at),
     INDEX idx_reminders_license (license_id)
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS subscription_invoices (
+    id VARCHAR(96) PRIMARY KEY,
+    invoice_number VARCHAR(64) UNIQUE NOT NULL,
+    request_id VARCHAR(96) NOT NULL DEFAULT (''),
+    school_id VARCHAR(96) NOT NULL DEFAULT (''),
+    license_id VARCHAR(96) NOT NULL DEFAULT (''),
+    plan_tier VARCHAR(64) NOT NULL DEFAULT (''),
+    plan_name VARCHAR(255) NOT NULL DEFAULT (''),
+    billing_cycle VARCHAR(32) NOT NULL DEFAULT ('annual'),
+    amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+    currency VARCHAR(16) NOT NULL DEFAULT ('PHP'),
+    payment_method_id VARCHAR(96) NOT NULL DEFAULT (''),
+    payment_channel VARCHAR(128) NOT NULL DEFAULT (''),
+    payment_reference VARCHAR(255) NOT NULL DEFAULT (''),
+    status VARCHAR(32) NOT NULL DEFAULT ('paid'),
+    issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    due_at DATETIME NULL,
+    paid_at DATETIME NULL,
+    notes TEXT NULL,
+    metadata LONGTEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_invoices_school (school_id, created_at),
+    INDEX idx_invoices_request (request_id)
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -1178,7 +1204,8 @@ async function initSqlite() {
       expires_at TEXT DEFAULT '',
       trial_ends_at TEXT DEFAULT '',
       features TEXT DEFAULT '{}',
-      notes TEXT DEFAULT ''
+      notes TEXT DEFAULT '',
+      grace_period_days INTEGER DEFAULT 5
     )`,
     `CREATE TABLE IF NOT EXISTS subscription_plans (
       id TEXT PRIMARY KEY,
@@ -1192,6 +1219,7 @@ async function initSqlite() {
       billing_months INTEGER,
       currency TEXT DEFAULT 'PHP',
       trial_days INTEGER DEFAULT 14,
+      grace_period_days INTEGER DEFAULT 5,
       max_teachers INTEGER DEFAULT 1,
       max_students INTEGER DEFAULT 65,
       is_featured INTEGER DEFAULT 0,
@@ -1403,6 +1431,28 @@ async function initSqlite() {
       sent_at TEXT NOT NULL DEFAULT (datetime('now')),
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(license_id, reminder_type, target_expiration_date)
+    )`,
+    `CREATE TABLE IF NOT EXISTS subscription_invoices (
+      id TEXT PRIMARY KEY,
+      invoice_number TEXT UNIQUE NOT NULL,
+      request_id TEXT NOT NULL DEFAULT '',
+      school_id TEXT NOT NULL DEFAULT '',
+      license_id TEXT NOT NULL DEFAULT '',
+      plan_tier TEXT NOT NULL DEFAULT '',
+      plan_name TEXT NOT NULL DEFAULT '',
+      billing_cycle TEXT NOT NULL DEFAULT 'annual',
+      amount REAL NOT NULL DEFAULT 0.00,
+      currency TEXT NOT NULL DEFAULT 'PHP',
+      payment_method_id TEXT NOT NULL DEFAULT '',
+      payment_channel TEXT NOT NULL DEFAULT '',
+      payment_reference TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'paid',
+      issued_at TEXT NOT NULL DEFAULT (datetime('now')),
+      due_at TEXT,
+      paid_at TEXT,
+      notes TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
@@ -1411,7 +1461,11 @@ async function initSqlite() {
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_sub_history_request ON subscription_status_history (request_id)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_school_sent ON license_expiration_reminders (school_id, sent_at)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_license ON license_expiration_reminders (license_id)') } catch {}
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_school ON subscription_invoices (school_id, created_at)') } catch {}
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_request ON subscription_invoices (request_id)') } catch {}
   {
+    try { sqlite.run("ALTER TABLE subscription_plans ADD COLUMN grace_period_days INTEGER NOT NULL DEFAULT 5") } catch {}
+    try { sqlite.run("ALTER TABLE licenses ADD COLUMN grace_period_days INTEGER NOT NULL DEFAULT 5") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN section TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE users ADD COLUMN period TEXT DEFAULT ''") } catch {}

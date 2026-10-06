@@ -355,6 +355,7 @@ model License {
   trialEndsAt  String @default("") @map("trial_ends_at") @db.Text
   features     String @default("{}") @db.Text
   notes        String @default("") @db.Text
+  gracePeriodDays Int @default(5) @map("grace_period_days")
 
   @@map("licenses")
 }
@@ -371,6 +372,7 @@ model SubscriptionPlan {
   billingMonths      Int?    @map("billing_months")
   currency           String  @default("PHP") @db.VarChar(10)
   trialDays          Int     @default(14) @map("trial_days")
+  gracePeriodDays    Int     @default(5) @map("grace_period_days")
   maxTeachers        Int     @default(1) @map("max_teachers")
   maxStudents        Int     @default(65) @map("max_students")
   isFeatured         Int     @default(0) @map("is_featured")
@@ -492,4 +494,31 @@ model LicenseExpirationReminder {
   @@index([schoolId, sentAt], map: "idx_reminders_school_sent")
   @@index([licenseId], map: "idx_reminders_license")
   @@map("license_expiration_reminders")
+}
+
+model SubscriptionInvoice {
+  id               String   @id @default(uuid()) @db.VarChar(96)
+  invoiceNumber    String   @unique @map("invoice_number") @db.VarChar(64)
+  requestId        String   @default("") @map("request_id") @db.VarChar(96)
+  schoolId         String   @default("") @map("school_id") @db.VarChar(96)
+  licenseId        String   @default("") @map("license_id") @db.VarChar(96)
+  planTier         String   @default("") @map("plan_tier") @db.VarChar(64)
+  planName         String   @default("") @map("plan_name") @db.VarChar(255)
+  billingCycle     String   @default("annual") @map("billing_cycle") @db.VarChar(32)
+  amount           Decimal  @default(0.00) @db.Decimal(12, 2)
+  currency         String   @default("PHP") @db.VarChar(16)
+  paymentMethodId  String   @default("") @map("payment_method_id") @db.VarChar(96)
+  paymentChannel   String   @default("") @map("payment_channel") @db.VarChar(128)
+  paymentReference String   @default("") @map("payment_reference") @db.VarChar(255)
+  status           String   @default("paid") @db.VarChar(32)
+  issuedAt         DateTime @default(now()) @map("issued_at")
+  dueAt            DateTime? @map("due_at")
+  paidAt           DateTime? @map("paid_at")
+  notes            String?  @db.Text
+  metadata         String?  @db.LongText
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt], map: "idx_invoices_school")
+  @@index([requestId], map: "idx_invoices_request")
+  @@map("subscription_invoices")
 }

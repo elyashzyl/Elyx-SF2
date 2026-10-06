@@ -27,6 +27,40 @@
       </div>
     </div>
 
+    <!-- SUPERADMIN MONETIZATION & SUBSCRIPTION TELEMETRY -->
+    <div v-if="auth.isSuperadmin && telemetry" class="telemetry-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
+      <div class="card" style="padding: 16px;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Total Campuses</span>
+        <div style="font-size: 1.6rem; font-weight: 700; margin-top: 4px;">{{ telemetry.summary?.total_campuses || 0 }}</div>
+        <small style="color: var(--muted-foreground);">Institutional schools</small>
+      </div>
+      <div class="card" style="padding: 16px;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Active Subscriptions</span>
+        <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary); margin-top: 4px;">{{ telemetry.summary?.active_subscriptions || 0 }}</div>
+        <small style="color: var(--muted-foreground);">Fully provisioned</small>
+      </div>
+      <div class="card" style="padding: 16px;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">In Grace Period</span>
+        <div style="font-size: 1.6rem; font-weight: 700; color: #d97706; margin-top: 4px;">{{ telemetry.summary?.in_grace_period || 0 }}</div>
+        <small style="color: var(--muted-foreground);">Read-only grace window</small>
+      </div>
+      <div class="card" style="padding: 16px;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Estimated MRR / ARR</span>
+        <div style="font-size: 1.4rem; font-weight: 700; margin-top: 4px;">₱{{ Number(telemetry.summary?.mrr_estimate || 0).toLocaleString() }}</div>
+        <small style="color: var(--muted-foreground);">ARR: ₱{{ Number(telemetry.summary?.arr_estimate || 0).toLocaleString() }}</small>
+      </div>
+      <div class="card" style="padding: 16px;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Total Invoiced</span>
+        <div style="font-size: 1.4rem; font-weight: 700; color: #10b981; margin-top: 4px;">₱{{ Number(telemetry.summary?.total_revenue || 0).toLocaleString() }}</div>
+        <small style="color: var(--muted-foreground);">{{ telemetry.summary?.total_invoices || 0 }} paid invoices</small>
+      </div>
+      <div class="card" style="padding: 16px;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Churn Rate</span>
+        <div style="font-size: 1.6rem; font-weight: 700; margin-top: 4px;">{{ telemetry.summary?.churn_rate || 0 }}%</div>
+        <small style="color: var(--muted-foreground);">Expired/cancelled</small>
+      </div>
+    </div>
+
     <!-- Active License Hero Card (For School Admin / Selected School) -->
     <div v-if="activeLicense" class="license-hero-card" :class="[ 'tier--' + activeLicense.plan_tier, { 'is-expired': activeLicense.is_expired } ]">
       <div class="hero-top-row">
@@ -35,6 +69,9 @@
           <span class="status-indicator" :class="'status--' + activeLicense.status">
             <span class="dot"></span>
             <span>{{ activeLicense.status.toUpperCase() }}</span>
+          </span>
+          <span v-if="activeLicense.in_grace_period" class="trial-pill" style="background: rgba(245, 158, 11, 0.15); color: #d97706; border-color: #f59e0b;">
+            Grace Period ({{ activeLicense.grace_days_remaining }}d left)
           </span>
           <span v-if="activeLicense.is_trial" class="trial-pill">{{ activeLicense.trial_days || 'Configured' }}-Day Free Trial</span>
         </div>
@@ -145,9 +182,53 @@
       </div>
     </div>
 
+    <!-- GRACE PERIOD NOTICE BANNER -->
+    <div
+      v-if="activeLicense && activeLicense.in_grace_period"
+      class="card"
+      style="margin-top: 16px; border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, 0.08);"
+    >
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 4px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(245, 158, 11, 0.2); color: #d97706; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div>
+            <h4 style="margin: 0; font-size: 0.95rem; color: #b45309;">
+              Campus Grace Period Active ({{ activeLicense.grace_days_remaining }} day{{ activeLicense.grace_days_remaining === 1 ? '' : 's' }} remaining)
+            </h4>
+            <p style="margin: 2px 0 0 0; font-size: 0.825rem; color: var(--muted-foreground);">
+              The subscription expired, but this campus remains in a {{ activeLicense.grace_period_days || 5 }}-day grace period. Records are read-only; submit payment verification to restore write permissions.
+            </p>
+          </div>
+        </div>
+        <div>
+          <button
+            v-if="!auth.isSuperadmin"
+            class="btn btn-sm btn-primary"
+            type="button"
+            @click="openSubscriptionRequestModal"
+          >
+            Submit Renewal Payment
+          </button>
+          <button
+            v-else
+            class="btn btn-sm btn-primary"
+            type="button"
+            @click="openRenewModal"
+          >
+            Renew School License
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- EXPIRATION WARNING BANNER -->
     <div
-      v-if="activeLicense && (activeLicense.days_remaining <= 7 || activeLicense.is_expired)"
+      v-if="activeLicense && !activeLicense.in_grace_period && (activeLicense.days_remaining <= 7 || activeLicense.is_expired)"
       class="card"
       style="margin-top: 16px; border-left: 4px solid var(--destructive); background: rgba(239, 68, 68, 0.05);"
     >
@@ -212,6 +293,7 @@
               <th>Max Teachers</th>
               <th>Max Students</th>
               <th>Trial</th>
+              <th>Grace Period</th>
               <th v-if="auth.isSuperadmin">Actions</th>
             </tr>
           </thead>
@@ -230,6 +312,7 @@
               <td>{{ p.max_teachers }}</td>
               <td>{{ p.max_students }}</td>
               <td>{{ p.trial_days }} days</td>
+              <td>{{ p.grace_period_days || 5 }} days</td>
               <td v-if="auth.isSuperadmin">
                 <div class="table-actions">
                   <button class="btn-icon" @click="openEditPlanModal(p)" title="Edit Plan Details in Database">
@@ -609,6 +692,137 @@
       <p v-else class="empty-state">No automated expiration reminders dispatched yet.</p>
     </div>
 
+    <!-- SECTION: OFFICIAL INVOICES & BILLING RECEIPTS -->
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3>Official Invoices &amp; Receipts</h3>
+          <p class="desc">
+            Audited, database-backed billing records and receipts generated upon payment verification.
+          </p>
+        </div>
+        <div>
+          <button class="btn btn-sm btn-secondary" @click="loadInvoices" type="button" title="Refresh Invoices">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div v-if="invoices.length" class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th v-if="auth.isSuperadmin">School</th>
+              <th>Plan &amp; Cycle</th>
+              <th>Channel &amp; Ref</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date Issued</th>
+              <th>Receipt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inv in invoices" :key="inv.id">
+              <td>
+                <code>{{ inv.invoice_number }}</code>
+              </td>
+              <td v-if="auth.isSuperadmin">
+                <strong>{{ inv.school_name || inv.school_id }}</strong>
+              </td>
+              <td>
+                <strong>{{ inv.plan_name || inv.plan_tier }}</strong>
+                <small style="display: block; color: var(--muted-foreground); text-transform: capitalize;">{{ inv.billing_cycle }}</small>
+              </td>
+              <td>
+                <span>{{ inv.payment_channel || 'Direct' }}</span>
+                <small v-if="inv.payment_reference" style="display: block; color: var(--muted-foreground);">Ref: {{ inv.payment_reference }}</small>
+              </td>
+              <td>
+                <strong style="color: var(--primary);">₱{{ Number(inv.amount || 0).toLocaleString() }}</strong>
+              </td>
+              <td>
+                <span class="status-indicator status--active">
+                  <span class="dot"></span>PAID
+                </span>
+              </td>
+              <td>
+                <small>{{ formatDate(inv.issued_at) }}</small>
+              </td>
+              <td>
+                <button type="button" class="btn btn-xs btn-secondary" @click="viewReceipt(inv)">
+                  View Receipt
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="empty-state">No official invoices or receipts recorded yet.</p>
+    </div>
+
+    <!-- MODAL: RECEIPT PREVIEW / PRINT -->
+    <div v-if="showReceiptModal && selectedReceipt" class="modal-overlay" @click.self="showReceiptModal = false">
+      <div class="modal-card" style="max-width: 560px;">
+        <div class="modal-header">
+          <h3>Official Billing Receipt</h3>
+          <button class="modal-close" type="button" @click="showReceiptModal = false">&times;</button>
+        </div>
+        <div class="modal-body receipt-modal-body" style="padding: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--border); padding-bottom: 16px; margin-bottom: 16px;">
+            <div>
+              <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--primary);">ElyTrack</h2>
+              <small style="color: var(--muted-foreground);">DepEd SF2 Automation &amp; Attendance Cloud</small>
+            </div>
+            <div style="text-align: right;">
+              <code style="font-weight: 700; font-size: 0.95rem;">{{ selectedReceipt.invoice_number }}</code>
+              <small style="display: block; color: var(--muted-foreground);">Issued: {{ formatDate(selectedReceipt.issued_at) }}</small>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <div>
+              <span class="review-meta-label">Billed Campus:</span>
+              <strong>{{ selectedReceipt.school_name || selectedReceipt.school_id }}</strong>
+            </div>
+            <div>
+              <span class="review-meta-label">Payment Status:</span>
+              <span class="status-indicator status--active"><span class="dot"></span>PAID IN FULL</span>
+            </div>
+            <div>
+              <span class="review-meta-label">Payment Method:</span>
+              <span>{{ selectedReceipt.payment_channel }}</span>
+            </div>
+            <div>
+              <span class="review-meta-label">Transaction Ref:</span>
+              <code>{{ selectedReceipt.payment_reference || 'None' }}</code>
+            </div>
+          </div>
+
+          <div style="background: var(--muted, rgba(0,0,0,0.03)); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>Subscription Item</span>
+              <span>Amount</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 1rem; border-top: 1px dashed var(--border); padding-top: 8px;">
+              <span>{{ selectedReceipt.plan_name || selectedReceipt.plan_tier }} ({{ selectedReceipt.billing_cycle }})</span>
+              <span style="color: var(--primary);">₱{{ Number(selectedReceipt.amount || 0).toLocaleString() }} {{ selectedReceipt.currency || 'PHP' }}</span>
+            </div>
+          </div>
+
+          <div v-if="selectedReceipt.notes" style="font-size: 0.85rem; color: var(--muted-foreground); margin-bottom: 16px;">
+            <strong>Verification Note:</strong> {{ selectedReceipt.notes }}
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+          <button type="button" class="btn btn-secondary" @click="showReceiptModal = false">Close</button>
+          <button type="button" class="btn btn-primary" @click="printReceipt">
+            Print Official Receipt
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL: SUBMIT SUBSCRIPTION PAYMENT (School admin) -->
     <div v-if="showSubscriptionRequestModal" class="modal-overlay" @click.self="showSubscriptionRequestModal = false">
       <div class="modal-card">
@@ -825,6 +1039,10 @@
               <div class="form-group">
                 <label>Trial Days</label>
                 <input v-model.number="editPlanForm.trial_days" type="number" min="0" required />
+              </div>
+              <div class="form-group">
+                <label>Grace Period Days</label>
+                <input v-model.number="editPlanForm.grace_period_days" type="number" min="0" required />
               </div>
             </div>
             <div class="form-row">
@@ -1267,9 +1485,15 @@ const editPlanForm = reactive({
   billing_annual_total: 0,
   billing_months: null,
   trial_days: 0,
+  grace_period_days: 5,
   max_teachers: 1,
   max_students: 65
 })
+
+const invoices = ref([])
+const telemetry = ref(null)
+const showReceiptModal = ref(false)
+const selectedReceipt = ref(null)
 
 const issueForm = reactive({
   school_id: '',
@@ -1833,6 +2057,7 @@ function openEditPlanModal(plan) {
     billing_annual_total: plan.billing_annual_total,
     billing_months: plan.billing_months,
     trial_days: plan.trial_days,
+    grace_period_days: plan.grace_period_days ?? 5,
     max_teachers: plan.max_teachers,
     max_students: plan.max_students
   })
@@ -1862,6 +2087,42 @@ async function handleSavePlan() {
   } finally {
     submitting.value = false
   }
+}
+
+async function loadInvoices() {
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/subscriptions/invoices?${qs}`, {
+      headers: auth.actorHeaders()
+    })
+    const data = await res.json()
+    if (res.ok) invoices.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('Failed to load invoices:', err)
+  }
+}
+
+async function loadTelemetry() {
+  if (!auth.isSuperadmin) return
+  try {
+    const qs = new URLSearchParams(auth.actorParams()).toString()
+    const res = await fetch(`/api/subscriptions/analytics?${qs}`, {
+      headers: auth.actorHeaders()
+    })
+    const data = await res.json()
+    if (res.ok) telemetry.value = data
+  } catch (err) {
+    console.error('Failed to load telemetry:', err)
+  }
+}
+
+function viewReceipt(inv) {
+  selectedReceipt.value = inv
+  showReceiptModal.value = true
+}
+
+function printReceipt() {
+  window.print()
 }
 
 async function deletePlan(plan) {
@@ -2128,7 +2389,9 @@ onMounted(async () => {
     loadPaymentMethods(),
     loadSubscriptionRequests(),
     loadSubscriptionHistory(),
-    loadExpirationReminders()
+    loadExpirationReminders(),
+    loadInvoices(),
+    loadTelemetry()
   ])
   // Real-time polling every 6 seconds to keep license status and capacity synchronized across tabs/devices
   licensePollInterval = setInterval(() => {
@@ -2136,6 +2399,8 @@ onMounted(async () => {
     void loadSubscriptionRequests()
     void loadSubscriptionHistory()
     void loadExpirationReminders()
+    void loadInvoices()
+    void loadTelemetry()
     loadPaymentMethods()
   }, 6000)
 })
