@@ -212,7 +212,10 @@
             <span>Export CSV</span>
           </button>
           <button @click="archiveCurrentReport('section_comparison')" class="btn-sm btn-secondary">
-            Archive Report
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="21 8 21 21 3 21 3 8"/><rect width="22" height="5" x="1" y="3"/><line x1="10" y1="12" x2="14" y2="12"/>
+            </svg>
+            <span>Archive Report</span>
           </button>
         </div>
       </div>
@@ -408,10 +411,16 @@
             <span>Save View</span>
           </button>
           <button @click="downloadCsv('quarterly_summary')" class="btn-sm btn-primary">
-            Export DepEd CSV
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export DepEd CSV</span>
           </button>
           <button @click="archiveCurrentReport('quarterly_summary')" class="btn-sm btn-secondary">
-            Archive Report
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="21 8 21 21 3 21 3 8"/><rect width="22" height="5" x="1" y="3"/><line x1="10" y1="12" x2="14" y2="12"/>
+            </svg>
+            <span>Archive Report</span>
           </button>
         </div>
       </div>
@@ -631,7 +640,7 @@
         </div>
 
         <!-- Archive Toolbar -->
-        <div class="filter-action-toolbar" style="margin-bottom: 16px; padding: 12px 16px;">
+        <div class="filter-action-toolbar archive-toolbar">
           <div class="toolbar-left">
             <div class="filter-group">
               <label>Search Archives</label>
@@ -682,12 +691,20 @@
                 <td>{{ a.created_by_name || 'System' }}</td>
                 <td>{{ new Date(a.created_at).toLocaleString() }}</td>
                 <td style="text-align: right;">
-                  <button @click="downloadArchive(a)" class="btn-xs btn-primary">
-                    Download
-                  </button>
-                  <button @click="deleteArchive(a.id)" class="btn-xs btn-secondary" style="color: var(--destructive, #ef4444); margin-left: 6px;">
-                    Delete
-                  </button>
+                  <div class="row-actions">
+                    <button @click="downloadArchive(a)" class="btn-xs btn-primary">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      <span>Download</span>
+                    </button>
+                    <button @click="deleteArchive(a.id)" class="btn-xs btn-secondary row-action-danger">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -712,7 +729,7 @@
         </div>
 
         <!-- Saved Views Toolbar -->
-        <div class="filter-action-toolbar" style="margin-bottom: 16px; padding: 12px 16px;">
+        <div class="filter-action-toolbar archive-toolbar">
           <div class="toolbar-left">
             <div class="filter-group">
               <label>Search Views</label>
@@ -755,12 +772,20 @@
                 </td>
                 <td>{{ new Date(v.updatedAt || v.createdAt).toLocaleDateString() }}</td>
                 <td style="text-align: right;">
-                  <button @click="applySavedView(v)" class="btn-xs btn-primary" style="margin-right: 8px;">
-                    Load View
-                  </button>
-                  <button @click="deleteSavedView(v.id)" class="btn-xs btn-secondary" style="color: var(--destructive);">
-                    Delete
-                  </button>
+                  <div class="row-actions">
+                    <button @click="applySavedView(v)" class="btn-xs btn-primary">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                      <span>Load View</span>
+                    </button>
+                    <button @click="deleteSavedView(v.id)" class="btn-xs btn-secondary row-action-danger">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1473,7 +1498,135 @@ async function archiveCurrentReport(type) {
 .reports-view {
   display: flex;
   flex-direction: column;
+  gap: 24px;
+}
+
+/* Keep Reports & Analytics visually consistent with the dashboard shell. */
+.reports-view .overview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.reports-view .overview-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+  color: var(--primary);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.reports-view .eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.reports-view .overview-header-copy h1 {
+  margin: 0 0 6px;
+  color: var(--foreground);
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -.04em;
+}
+
+.reports-view .overview-header-copy p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: .84rem;
+  line-height: 1.5;
+}
+
+.reports-view .overview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reports-view .school-picker-wrap {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.reports-view .school-picker-select {
+  min-width: 170px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: .76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reports-view .overview-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: .74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.reports-view .overview-refresh-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--secondary);
+  color: var(--primary);
+}
+
+.reports-view .btn-primary,
+.reports-view .btn-secondary,
+.reports-view .btn-sm,
+.reports-view .btn-xs {
+  min-height: 36px;
+  border-radius: 9px;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.reports-view .btn-sm {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.reports-view .btn-xs {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.reports-view .btn-primary {
+  box-shadow: 0 5px 12px var(--primary-glow);
+}
+
+.reports-view .btn-primary svg,
+.reports-view .btn-secondary svg,
+.reports-view .btn-sm svg,
+.reports-view .btn-xs svg {
+  flex: 0 0 auto;
 }
 
 .reports-tabs-bar {
@@ -1484,20 +1637,162 @@ async function archiveCurrentReport(type) {
   overflow-x: auto;
 }
 
+.tab-content-pane {
+  min-width: 0;
+}
+
+.card-box-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+
+.card-box-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.card-box-header p {
+  margin-top: 5px;
+  color: var(--muted-foreground);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kpi-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-xs);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.kpi-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.kpi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kpi-tag {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.kpi-tag--success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.kpi-tag--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.kpi-main-num {
+  color: var(--foreground);
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -.05em;
+  line-height: 1;
+}
+
+.kpi-unit {
+  color: var(--muted-foreground);
+  font-size: .7rem;
+  font-weight: 600;
+}
+
+.rollcall-pct-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.badge--complete {
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.badge--warning,
+.badge--progress {
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
 .report-tab-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
   background: transparent;
   color: var(--muted-foreground);
-  font-size: 0.875rem;
-  font-weight: 500;
-  border: 1px solid transparent;
+  font-size: .72rem;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
   white-space: nowrap;
+}
+
+.report-tab-btn:focus-visible,
+.reports-view button:focus-visible,
+.reports-view select:focus-visible,
+.reports-view input:focus-visible {
+  outline: 3px solid var(--primary-bg);
+  outline-offset: 1px;
+}
+
+.report-tab-btn:active {
+  transform: scale(.97);
 }
 
 .report-tab-btn:hover {
@@ -1506,27 +1801,61 @@ async function archiveCurrentReport(type) {
 }
 
 .report-tab-btn.active {
-  color: var(--primary);
-  background: var(--card);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
   border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
 }
 
 .filter-action-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 14px 18px;
+  padding: 18px;
   margin-bottom: 20px;
+}
+
+.reports-view .card-box {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbar-left, .toolbar-right {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+.toolbar-right {
+  margin-left: auto;
+}
+
+.archive-toolbar {
+  padding: 0 0 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.row-action-danger {
+  color: var(--destructive) !important;
+}
+
+.row-action-danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--destructive) 30%, var(--border));
+  background: var(--red-bg);
+  color: var(--destructive) !important;
 }
 
 .filter-group {
@@ -1544,19 +1873,26 @@ async function archiveCurrentReport(type) {
 }
 
 .filter-group select, .text-input, .date-input {
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  width: 100%;
+  min-width: 132px;
+  height: 39px;
+  padding: 0 11px;
+  border: 1px solid var(--input);
+  border-radius: 9px;
+  outline: none;
   background: var(--card);
   color: var(--foreground);
-  font-size: 0.85rem;
-  transition: border-color 0.15s ease;
+  font-size: .76rem;
+  transition: border-color .17s ease, box-shadow .17s ease, background .17s ease;
+}
+
+.filter-group select:hover, .text-input:hover, .date-input:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--input));
 }
 
 .filter-group select:focus, .text-input:focus, .date-input:focus {
-  border-color: var(--primary);
-  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--primary-bg);
 }
 
 .search-input-wrap {
@@ -1573,19 +1909,20 @@ async function archiveCurrentReport(type) {
 }
 
 .search-input {
-  height: 36px;
-  padding: 0 10px 0 32px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  width: 190px;
+  height: 39px;
+  padding: 0 11px 0 32px;
+  border: 1px solid var(--input);
+  border-radius: 9px;
+  outline: none;
   background: var(--card);
   color: var(--foreground);
-  font-size: 0.85rem;
-  width: 170px;
+  font-size: .76rem;
 }
 
 .search-input:focus {
-  border-color: var(--primary);
-  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--primary-bg);
 }
 
 .filter-group-range {
@@ -1610,9 +1947,67 @@ async function archiveCurrentReport(type) {
 }
 
 .table-count-banner {
-  padding: 10px 16px 0;
-  font-size: 0.78rem;
+  padding: 0 22px 12px;
+  font-size: .7rem;
   color: var(--muted-foreground);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .74rem;
+}
+
+.overview-table th {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.overview-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+
+.overview-table tbody tr {
+  transition: background .12s ease;
+}
+
+.overview-table tbody tr:hover {
+  background: var(--secondary);
+}
+
+.overview-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.empty-cell {
+  padding: 0 !important;
+}
+
+.unassigned-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 20%, transparent);
+  border-radius: 6px;
+  background: var(--red-bg);
+  color: var(--destructive);
+  font-size: .66rem;
+  font-weight: 800;
 }
 
 .rank-badge {
@@ -1710,10 +2105,11 @@ async function archiveCurrentReport(type) {
 .quarterly-stats-banner {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  padding: 16px 20px;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--muted);
-  border-radius: var(--radius-sm);
   margin-top: 14px;
 }
 
@@ -1899,4 +2295,108 @@ async function archiveCurrentReport(type) {
 .text-teal { color: var(--primary); }
 .text-amber { color: var(--warning); }
 .text-danger { color: var(--destructive); }
+
+@media (max-width: 1100px) {
+  .reports-view .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .reports-view .overview-header {
+    flex-direction: column;
+  }
+
+  .reports-view .overview-header-actions {
+    justify-content: flex-start;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+  }
+
+  .toolbar-right {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .reports-view {
+    gap: 16px;
+  }
+
+  .reports-view .overview-header-copy h1 {
+    font-size: 1.55rem;
+  }
+
+  .reports-tabs-bar {
+    gap: 5px;
+    padding-bottom: 6px;
+  }
+
+  .report-tab-btn {
+    min-height: 35px;
+    padding: 0 10px;
+    font-size: .66rem;
+  }
+
+  .filter-action-toolbar {
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .toolbar-left,
+  .toolbar-right,
+  .filter-group,
+  .filter-group-range,
+  .validator-controls,
+  .validator-actions-wrap {
+    width: 100%;
+  }
+
+  .filter-group select,
+  .search-input,
+  .date-input,
+  .toolbar-right .btn-sm,
+  .validator-actions-wrap .btn-sm {
+    width: 100%;
+  }
+
+  .filter-group-range {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .filter-group-range span {
+    display: none;
+  }
+
+  .toolbar-right,
+  .validator-actions-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row-actions {
+    justify-content: flex-start;
+  }
+
+  .reports-view .card-box {
+    padding: 16px;
+  }
+
+  .reports-view .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-view .card-box-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .overview-table {
+    min-width: 860px;
+  }
+}
 </style>
