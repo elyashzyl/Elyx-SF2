@@ -92,6 +92,12 @@ const routes = [
     meta: { role: ['superadmin', 'admin'] }
   },
   {
+    path: '/inquiries',
+    name: 'Inquiries',
+    component: () => import('../views/Inquiries.vue'),
+    meta: { role: ['superadmin', 'admin', 'teacher'] }
+  },
+  {
     path: '/licenses',
     name: 'Licenses',
     component: () => import('../views/Licenses.vue'),

@@ -100,6 +100,224 @@ async function checkUserEmailPreference(userId, prefKey) {
   }
 }
 
+// Analytics summary for inquiries (KPIs)
+router.get('/stats', async (req, res) => {
+  try {
+    const me = await actingUser(req, res)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+
+    const { schoolId } = req.query
+    let sql = 'SELECT * FROM inquiries'
+    const params = []
+    const conditions = []
+
+    if (me.role !== 'superadmin') {
+      if (me.role === 'admin' && me.school_id) {
+        conditions.push('(user_id = ? OR school_id = ?)')
+        params.push(me.id, me.school_id)
+      } else {
+        conditions.push('user_id = ?')
+        params.push(me.id)
+      }
+    } else if (schoolId && schoolId.trim()) {
+      conditions.push('school_id = ?')
+      params.push(schoolId.trim())
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ')
+    }
+
+    const rows = await query(sql, params)
+    const total = rows.length
+    const open = rows.filter(r => r.status === 'open').length
+    const finished = rows.filter(r => r.status === 'finished').length
+    const urgent = rows.filter(r => r.priority === 'urgent' && r.status === 'open').length
+    const high = rows.filter(r => r.priority === 'high' && r.status === 'open').length
+
+    // Category distribution
+    const categoryCounts = {}
+    for (const c of VALID_CATEGORIES) categoryCounts[c] = 0
+    for (const r of rows) {
+      const cat = r.category || 'general'
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1
+    }
+
+    // Priority distribution
+    const priorityCounts = {}
+    for (const p of VALID_PRIORITIES) priorityCounts[p] = 0
+    for (const r of rows) {
+      const pr = r.priority || 'medium'
+      priorityCounts[pr] = (priorityCounts[pr] || 0) + 1
+    }
+
+    // Average resolution time (hours) for finished tickets
+    let totalResolutionHours = 0
+    let resolvedCount = 0
+    for (const r of rows) {
+      if (r.status === 'finished' && r.created_at && r.resolved_at) {
+        const createdMs = new Date(r.created_at).getTime()
+        const resolvedMs = new Date(r.resolved_at).getTime()
+        if (resolvedMs > createdMs) {
+          totalResolutionHours += (resolvedMs - createdMs) / (1000 * 60 * 60)
+          resolvedCount++
+        }
+      }
+    }
+    const avgResolutionHours = resolvedCount > 0 ? Math.round((totalResolutionHours / resolvedCount) * 10) / 10 : 0
+    const resolutionRate = total > 0 ? Math.round((finished / total) * 100) : 100
+
+    res.json({
+      total,
+      open,
+      finished,
+      urgent,
+      high,
+      resolutionRate,
+      avgResolutionHours,
+      categoryCounts,
+      priorityCounts
+    })
+  } catch (err) {
+    console.error('Error fetching inquiry stats:', err.message)
+    res.status(500).json({ error: 'Failed to fetch inquiry stats' })
+  }
+})
+
+// Bulk status update (superadmin only)
+router.post('/bulk-status', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+
+    const { ids = [], status = 'finished', note = '' } = req.body || {}
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No inquiry IDs provided' })
+    }
+    if (!['open', 'finished'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' })
+    }
+
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 19)
+    const resolvedAt = status === 'finished' ? now : ''
+    const resolvedBy = status === 'finished' ? (me.name || me.username) : ''
+
+    let updatedCount = 0
+    for (const id of ids) {
+      const rows = await query('SELECT * FROM inquiries WHERE id = ?', [id])
+      if (rows.length) {
+        const inquiry = rows[0]
+        await run(
+          'UPDATE inquiries SET status = ?, resolved_at = ?, resolved_by = ?, user_notified = 0, updated_at = ? WHERE id = ?',
+          [status, resolvedAt, resolvedBy, now, id]
+        )
+        const historyId = uuidv4()
+        const historyNote = (note || `Bulk updated status to ${status}`).trim()
+        await run(
+          `INSERT INTO inquiry_status_history (
+            id, inquiry_id, old_status, new_status, changed_by_id, changed_by_name, note, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [historyId, id, inquiry.status, status, me.id, me.name || me.username, historyNote, now]
+        )
+        updatedCount++
+      }
+    }
+
+    await audit(me, 'inquiry.bulk_status', {
+      type: 'inquiry',
+      count: updatedCount,
+      targetStatus: status
+    }, `Bulk marked ${updatedCount} inquiries as ${status}`)
+
+    res.json({ success: true, updatedCount })
+  } catch (err) {
+    console.error('Error bulk updating inquiries:', err.message)
+    res.status(500).json({ error: 'Failed to bulk update inquiries' })
+  }
+})
+
+// Export inquiries to CSV
+router.get('/export/csv', async (req, res) => {
+  try {
+    const me = await actingUser(req, res)
+    if (!me) return res.status(401).json({ error: 'Not authenticated' })
+
+    const { status, category, priority, assigned_to, search, schoolId } = req.query
+
+    let sql = 'SELECT * FROM inquiries'
+    const params = []
+    const conditions = []
+
+    if (me.role !== 'superadmin') {
+      if (me.role === 'admin' && me.school_id) {
+        conditions.push('(user_id = ? OR school_id = ?)')
+        params.push(me.id, me.school_id)
+      } else {
+        conditions.push('user_id = ?')
+        params.push(me.id)
+      }
+    } else if (schoolId && schoolId.trim()) {
+      conditions.push('school_id = ?')
+      params.push(schoolId.trim())
+    }
+
+    if (status && status !== 'all') {
+      conditions.push('status = ?')
+      params.push(status)
+    }
+    if (category && category !== 'all') {
+      conditions.push('category = ?')
+      params.push(category)
+    }
+    if (priority && priority !== 'all') {
+      conditions.push('priority = ?')
+      params.push(priority)
+    }
+    if (assigned_to && assigned_to !== 'all') {
+      conditions.push('assigned_to = ?')
+      params.push(assigned_to)
+    }
+    if (search && search.trim()) {
+      const q = `%${search.trim()}%`
+      conditions.push('(subject LIKE ? OR user_name LIKE ? OR school_name LIKE ? OR category LIKE ?)')
+      params.push(q, q, q, q)
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ')
+    }
+    sql += ' ORDER BY created_at DESC'
+
+    const rows = await query(sql, params)
+
+    const headers = ['Ticket ID', 'Campus', 'Requester', 'Role', 'Email', 'Category', 'Priority', 'Subject', 'Status', 'Assigned To', 'Created At', 'Resolved At', 'Resolved By']
+    const csvRows = rows.map(r => [
+      `"${r.id}"`,
+      `"${(r.school_name || '').replace(/"/g, '""')}"`,
+      `"${(r.user_name || '').replace(/"/g, '""')}"`,
+      `"${r.user_role || ''}"`,
+      `"${r.user_email || ''}"`,
+      `"${r.category || ''}"`,
+      `"${(r.priority || 'medium').toUpperCase()}"`,
+      `"${(r.subject || '').replace(/"/g, '""')}"`,
+      `"${(r.status || 'open').toUpperCase()}"`,
+      `"${(r.assigned_to_name || 'Unassigned').replace(/"/g, '""')}"`,
+      `"${r.created_at || ''}"`,
+      `"${r.resolved_at || ''}"`,
+      `"${(r.resolved_by || '').replace(/"/g, '""')}"`
+    ])
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map(r => r.join(','))].join('\r\n')
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="elytrack-inquiries-${Date.now()}.csv"`)
+    res.send(csvContent)
+  } catch (err) {
+    console.error('Error exporting inquiries:', err.message)
+    res.status(500).json({ error: 'Failed to export inquiries' })
+  }
+})
+
 // List inquiries
 // Superadmin sees all inquiries across all schools.
 // Admins and teachers see their own inquiries (or inquiries from their school).

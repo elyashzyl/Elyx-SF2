@@ -14,7 +14,7 @@
     "db:migrate:fresh": "node scripts/migrate.mjs --fresh",
     "db:migrate:status": "node scripts/migrate.mjs --status",
     "db:verify-schema": "node scripts/verify-schema.mjs",
-        "db:verify-phase1": "node scripts/verify-phase1.mjs",
+    "db:verify-phase1": "node scripts/verify-phase1.mjs",
     "db:seed": "node scripts/seed.mjs",
     "db:setup": "node scripts/migrate.mjs",
     "db:reset": "node scripts/reset-sqlite.mjs",
@@ -49,13 +49,19 @@
     "vue": "^3.5.34",
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5",
-    "xlsx-js-style": "^1.2.0"
+    "xlsx-js-style": "^1.2.0",
+    "vite": "7.1.7",
+    "@vitejs/plugin-vue": "^6.0.6"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.6",
     "concurrently": "^10.0.3",
     "nodemon": "^3.0.3",
-    "prisma": "6.4.1",
-    "vite": "7.1.7"
+    "prisma": "6.4.1"
+  },
+  "overrides": {
+    "esbuild": "0.25.12"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "0.25.12"
   }
 }
