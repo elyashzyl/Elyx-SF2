@@ -522,3 +522,21 @@ model SubscriptionInvoice {
   @@index([requestId], map: "idx_invoices_request")
   @@map("subscription_invoices")
 }
+
+model QuarterlyTerm {
+  id            String   @id @default(uuid()) @db.VarChar(96)
+  schoolId      String   @default("") @map("school_id") @db.VarChar(96)
+  quarterNumber Int      @map("quarter_number")
+  quarterName   String   @default("") @map("quarter_name") @db.VarChar(128)
+  schoolYear    String   @default("") @map("school_year") @db.VarChar(32)
+  months        String   @default("") @db.VarChar(255)
+  startDate     String   @default("") @map("start_date") @db.VarChar(10)
+  endDate       String   @default("") @map("end_date") @db.VarChar(10)
+  targetDays    Int      @default(50) @map("target_days")
+  isActive      Int      @default(1) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  @@index([schoolId, schoolYear, quarterNumber], map: "idx_quarterly_school_sy")
+  @@map("quarterly_terms")
+}

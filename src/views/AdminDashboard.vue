@@ -408,6 +408,82 @@
       </section>
     </div>
 
+    <!-- Multi-Campus Performance Breakdown (Superadmin / Multi-School Scope) -->
+    <section v-if="!selectedSchoolId && campusBreakdown.length > 0" class="card-box campus-breakdown-box">
+      <div class="card-box-header">
+        <div>
+          <h3>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 21h18M3 7v14M21 7v14M6 11h2M6 15h2M10 11h2M10 15h2M14 11h2M14 15h2M18 11h2M18 15h2M7 3h10l2 4H5z"/>
+            </svg>
+            <span>Multi-Campus Performance Breakdown</span>
+          </h3>
+          <p>Real-time cross-campus comparative telemetry, enrolment, and attendance benchmarks</p>
+        </div>
+        <router-link to="/reports" class="view-all-link">
+          <span>Detailed Campus Reports</span>
+          <span>→</span>
+        </router-link>
+      </div>
+
+      <div class="table-responsive">
+        <table class="overview-table">
+          <thead>
+            <tr>
+              <th>Campus / School Name</th>
+              <th style="text-align: center;">Learners</th>
+              <th style="text-align: center;">Faculty</th>
+              <th style="text-align: center;">Gender (M/F)</th>
+              <th style="width: 200px; text-align: center;">Attendance %</th>
+              <th style="text-align: center;">Status</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in campusBreakdown" :key="c.id">
+              <td>
+                <strong>{{ c.name }}</strong>
+                <small v-if="c.depedId" style="color: var(--muted-foreground); display: block;">DepEd ID: {{ c.depedId }}</small>
+              </td>
+              <td style="text-align: center; font-weight: 700;">{{ Number(c.students).toLocaleString() }}</td>
+              <td style="text-align: center;">{{ c.teachers }}</td>
+              <td style="text-align: center; color: var(--muted-foreground); font-size: 0.8rem;">
+                {{ c.maleStudents }} M · {{ c.femaleStudents }} F
+              </td>
+              <td style="text-align: center;">
+                <div class="rate-progress-wrap" style="max-width: 140px; margin: 0 auto;">
+                  <div class="grade-progress-track" style="margin-bottom: 4px;">
+                    <div 
+                      class="grade-progress-fill" 
+                      :class="c.attendanceRate >= 95 ? 'fill--good' : c.attendanceRate >= 90 ? 'fill--fair' : 'fill--warn'"
+                      :style="{ width: `${Math.min(100, c.attendanceRate)}%` }"
+                    ></div>
+                  </div>
+                  <strong :class="c.attendanceRate >= 95 ? 'text-teal' : c.attendanceRate >= 90 ? 'text-amber' : 'text-danger'">
+                    {{ c.attendanceRate }}%
+                  </strong>
+                </div>
+              </td>
+              <td style="text-align: center;">
+                <span 
+                  class="status-pill" 
+                  :class="c.attendanceRate >= 95 ? 'status-pill--success' : c.attendanceRate >= 90 ? 'status-pill--warning' : 'status-pill--danger'"
+                >
+                  {{ c.attendanceRate >= 95 ? '≥ 95% High' : c.attendanceRate >= 90 ? '90-94% Normal' : '< 90% Alert' }}
+                </span>
+              </td>
+              <td style="text-align: right;">
+                <button @click="selectedSchoolId = c.id; loadStats()" class="table-action-btn" type="button" title="Scope dashboard to this campus">
+                  <span>Scope Campus</span>
+                  <span class="action-arrow">→</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Grade Level & Section Performance -->
     <section class="card-box grade-performance-box">
       <div class="card-box-header">
@@ -834,6 +910,7 @@ const recentRecords = ref([])
 const chronicAbsenteeism = ref([])
 const sardoRules = ref({ consecutive: 3, cumulative: 5 })
 const todayCompletion = ref(null)
+const campusBreakdown = ref([])
 
 // Date Range Filtering & Saved Views
 const datePreset = ref('all')
@@ -1000,6 +1077,7 @@ async function loadStats() {
       chronicAbsenteeism.value = data.chronicAbsenteeism || []
       sardoRules.value = data.sardoRules || { consecutive: 3, cumulative: 5 }
       todayCompletion.value = data.todayAttendanceCompletion || null
+      campusBreakdown.value = Array.isArray(data.schools) ? data.schools : []
     }
   } catch (err) {
     console.error('Error loading dashboard stats:', err)

@@ -402,6 +402,60 @@ router.get('/stats', async (req, res) => {
       sections: sectionCompletionList
     }
 
+    // 8c. Per-school analytics breakdown for multi-campus / superadmin overview
+    let schoolStats = []
+    if (!sid || me.role === 'superadmin') {
+      const allSchools = await query('SELECT id, name, short, school_id as deped_id FROM schools ORDER BY name ASC')
+      if (allSchools.length > 0) {
+        const schStudentCounts = await query(`
+          SELECT school_id, COUNT(*) as total,
+            SUM(CASE WHEN LOWER(gender) = 'male' THEN 1 ELSE 0 END) as male,
+            SUM(CASE WHEN LOWER(gender) = 'female' THEN 1 ELSE 0 END) as female
+          FROM students
+          GROUP BY school_id
+        `)
+        const schTeacherCounts = await query(`
+          SELECT school_id, COUNT(*) as total
+          FROM users WHERE role = 'teacher'
+          GROUP BY school_id
+        `)
+        const schAttCounts = await query(`
+          SELECT mr.school_id,
+            COALESCE(SUM(me.present), 0) as present,
+            COALESCE(SUM(me.absent), 0) as absent
+          FROM monthly_entries me
+          JOIN monthly_records mr ON mr.id = me.record_id
+          GROUP BY mr.school_id
+        `)
+
+        const stMap = new Map(schStudentCounts.map(s => [s.school_id, s]))
+        const tcMap = new Map(schTeacherCounts.map(t => [t.school_id, Number(t.total)]))
+        const atMap = new Map(schAttCounts.map(a => [a.school_id, a]))
+
+        schoolStats = allSchools.map(sch => {
+          const st = stMap.get(sch.id) || { total: 0, male: 0, female: 0 }
+          const tc = tcMap.get(sch.id) || 0
+          const at = atMap.get(sch.id) || { present: 0, absent: 0 }
+          const totalDays = Number(at.present) + Number(at.absent)
+          const schRate = totalDays > 0 ? Number(((Number(at.present) / totalDays) * 100).toFixed(1)) : 0
+
+          return {
+            id: sch.id,
+            name: sch.name,
+            short: sch.short || sch.name,
+            depedId: sch.deped_id || '',
+            students: Number(st.total || 0),
+            maleStudents: Number(st.male || 0),
+            femaleStudents: Number(st.female || 0),
+            teachers: tc,
+            present: Number(at.present || 0),
+            absent: Number(at.absent || 0),
+            attendanceRate: schRate
+          }
+        })
+      }
+    }
+
     // 9. Teacher-Specific Class Stats
     let teacherClass = null
     if (me.role === 'teacher') {
@@ -577,6 +631,7 @@ router.get('/stats', async (req, res) => {
       chronicAbsenteeism,
       sardoRules: { consecutive: sardoConsecutive, cumulative: sardoCumulative },
       todayAttendanceCompletion,
+      schools: schoolStats,
       teacherClass
     })
   } catch (err) {

@@ -118,8 +118,16 @@
 
     <div class="card">
       <div class="card-header">
-        <h2>Important Dates</h2>
-        <button v-if="isAdmin" @click="openQuarterlyForm" class="btn-sm btn-primary">+ Add Row</button>
+        <div>
+          <h2>Important Dates</h2>
+          <small style="color: var(--muted-foreground);">Academic grading milestones and calendar dates across quarters</small>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <router-link v-if="isAdmin" to="/quarterly" class="btn-sm btn-secondary">
+            Configure Quarters &amp; Dates →
+          </router-link>
+          <button v-if="isAdmin" @click="openQuarterlyForm" class="btn-sm btn-primary">+ Add Row</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table class="attendance-table quarterly-table">

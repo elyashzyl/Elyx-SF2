@@ -21,6 +21,7 @@ import paymentMethodRoutes from './routes/payment_methods.js'
 import subscriptionRoutes from './routes/subscriptions.js'
 import reportRoutes from './routes/reports.js'
 import announcementRoutes from './routes/announcements.js'
+import quarterlyRoutes from './routes/quarterly.js'
 import { validateRequestInput } from './lib/validation.js'
 import { startExpirationReminderScheduler } from './lib/expirationReminders.js'
 
@@ -297,6 +298,7 @@ app.use('/api/payment-methods', paymentMethodRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/announcements', announcementRoutes)
+app.use('/api/quarterly', quarterlyRoutes)
 
 app.get(['/api/health', '/health'], async (req, res) => {
   if (!dbReady) {

@@ -735,6 +735,21 @@ const MYSQL_DDL = [
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_invoices_school (school_id, created_at),
     INDEX idx_invoices_request (request_id)
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS quarterly_terms (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL DEFAULT (''),
+    quarter_number INT NOT NULL,
+    quarter_name VARCHAR(128) NOT NULL DEFAULT (''),
+    school_year VARCHAR(32) NOT NULL DEFAULT (''),
+    months VARCHAR(255) NOT NULL DEFAULT (''),
+    start_date VARCHAR(10) NOT NULL DEFAULT (''),
+    end_date VARCHAR(10) NOT NULL DEFAULT (''),
+    target_days INT NOT NULL DEFAULT 50,
+    is_active INT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_quarterly_school_sy (school_id, school_year, quarter_number)
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
 ]
 
@@ -1453,6 +1468,20 @@ async function initSqlite() {
       notes TEXT,
       metadata TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS quarterly_terms (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL DEFAULT '',
+      quarter_number INTEGER NOT NULL,
+      quarter_name TEXT NOT NULL DEFAULT '',
+      school_year TEXT NOT NULL DEFAULT '',
+      months TEXT NOT NULL DEFAULT '',
+      start_date TEXT NOT NULL DEFAULT '',
+      end_date TEXT NOT NULL DEFAULT '',
+      target_days INTEGER NOT NULL DEFAULT 50,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]) {
     sqlite.run(ddl)
@@ -1463,6 +1492,7 @@ async function initSqlite() {
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_license ON license_expiration_reminders (license_id)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_school ON subscription_invoices (school_id, created_at)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_request ON subscription_invoices (request_id)') } catch {}
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_quarterly_school_sy ON quarterly_terms (school_id, school_year, quarter_number)') } catch {}
   {
     try { sqlite.run("ALTER TABLE subscription_plans ADD COLUMN grace_period_days INTEGER NOT NULL DEFAULT 5") } catch {}
     try { sqlite.run("ALTER TABLE licenses ADD COLUMN grace_period_days INTEGER NOT NULL DEFAULT 5") } catch {}

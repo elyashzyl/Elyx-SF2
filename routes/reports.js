@@ -337,15 +337,22 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
   })
 
   // 5. Combine and calculate rankings
+  const schoolRows = await query('SELECT id, name, short, school_id as deped_id FROM schools ORDER BY name ASC')
+  const schoolMap = new Map(schoolRows.map(s => [s.id, s]))
+
   const sections = sectionRosters.map(sec => {
     const key = `${sec.school_id || ''}::${sec.grade}__${sec.section}`
     const att = sectionAttendanceMap.get(key) || { present: 0, absent: 0, tardy: 0 }
     const totalLogged = att.present + att.absent
     const rate = totalLogged > 0 ? Number(((att.present / totalLogged) * 100).toFixed(1)) : 0
     const sessions = att.sessions ? att.sessions.size : (att.sessionsCount || 0)
+    const sch = schoolMap.get(sec.school_id)
 
     return {
       schoolId: sec.school_id || null,
+      schoolName: sch?.name || '',
+      schoolShort: sch?.short || sch?.name || '',
+      depedId: sch?.deped_id || '',
       grade: sec.grade,
       section: sec.section,
       adviser: adviserMap[key] || 'Unassigned',
@@ -369,6 +376,38 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
     s.rank = idx + 1
   })
 
+  // Per-school breakdown for multi-school and overall views
+  const schoolSummaries = schoolRows.map(sch => {
+    const schSections = sections.filter(s => s.schoolId === sch.id)
+    const schEnrolled = schSections.reduce((acc, s) => acc + s.enrolled, 0)
+    const schMale = schSections.reduce((acc, s) => acc + s.male, 0)
+    const schFemale = schSections.reduce((acc, s) => acc + s.female, 0)
+    const schPresent = schSections.reduce((acc, s) => acc + s.present, 0)
+    const schAbsent = schSections.reduce((acc, s) => acc + s.absent, 0)
+    const schTardy = schSections.reduce((acc, s) => acc + s.tardy, 0)
+    const schSardo = schSections.reduce((acc, s) => acc + s.sardoAlerts, 0)
+    const schTotalLogged = schPresent + schAbsent
+    const schRate = schTotalLogged > 0 ? Number(((schPresent / schTotalLogged) * 100).toFixed(1)) : 0
+    const compliantCount = schSections.filter(s => s.attendanceRate >= 95).length
+    const complianceRate = schSections.length > 0 ? Number(((compliantCount / schSections.length) * 100).toFixed(1)) : 0
+
+    return {
+      schoolId: sch.id,
+      schoolName: sch.name,
+      schoolShort: sch.short || sch.name,
+      depedId: sch.deped_id || '',
+      sectionsCount: schSections.length,
+      enrolled: { total: schEnrolled, male: schMale, female: schFemale },
+      present: schPresent,
+      absent: schAbsent,
+      tardy: schTardy,
+      attendanceRate: schRate,
+      sardoAlerts: schSardo,
+      compliantSections: compliantCount,
+      complianceRate
+    }
+  }).filter(sch => !sid || sch.schoolId === sid)
+
   // Campus-wide aggregates
   const totalEnrolled = sections.reduce((acc, s) => acc + s.enrolled, 0)
   const totalPresent = sections.reduce((acc, s) => acc + s.present, 0)
@@ -390,6 +429,7 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
       overallAttendanceRate: overallRate,
       depedStandardRate: 95
     },
+    schoolSummaries,
     sections
   }
 }
@@ -402,13 +442,33 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   const syParts = schoolYearParts(sy)
   const effectiveSchoolYear = syParts ? sy : `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
   const effectiveParts = schoolYearParts(effectiveSchoolYear)
-  const quarterMonthMap = {
+  const defaultQuarterMonthMap = {
     1: [8, 9, 10],
     2: [11, 12, 1],
     3: [2, 3],
     4: [4, 5]
   }
-  const months = quarterMonthMap[q] || [8, 9, 10]
+
+  // Check database for configured quarterly terms for this school/global scope
+  let months = null
+  let configuredQuarterName = `Quarter ${q}`
+  try {
+    const qTermRows = await query(
+      `SELECT * FROM quarterly_terms WHERE (school_id = ? OR school_id = '') AND quarter_number = ? ORDER BY school_id DESC`,
+      [sid || '', q]
+    )
+    if (qTermRows.length && qTermRows[0].months) {
+      const parsed = qTermRows[0].months.split(',').map(m => parseInt(m.trim(), 10)).filter(m => m >= 1 && m <= 12)
+      if (parsed.length) {
+        months = parsed
+        if (qTermRows[0].quarter_name) configuredQuarterName = qTermRows[0].quarter_name
+      }
+    }
+  } catch {}
+
+  if (!months || !months.length) {
+    months = defaultQuarterMonthMap[q] || [8, 9, 10]
+  }
   const monthYearPairs = months.map(month => {
     const recordYear = month >= 8 ? effectiveParts.start : effectiveParts.end
     return { month, year: recordYear }
@@ -503,6 +563,9 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   }
 
   // Calculate quarterly metrics per section
+  const schoolRows = await query('SELECT id, name, short, school_id as deped_id FROM schools ORDER BY name ASC')
+  const schoolMap = new Map(schoolRows.map(s => [s.id, s]))
+
   const sectionSummaries = []
   let grandMaleEnrolled = 0
   let grandFemaleEnrolled = 0
@@ -571,8 +634,13 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
     grandTotalADA += tADA
     grandDays = Math.max(grandDays, qTotalDays)
 
+    const schoolMeta = schoolMap.get(group.schoolId)
+
     sectionSummaries.push({
       schoolId: group.schoolId || null,
+      schoolName: schoolMeta?.name || '',
+      schoolShort: schoolMeta?.short || schoolMeta?.name || '',
+      depedId: schoolMeta?.deped_id || '',
       grade: group.grade,
       section: group.section,
       adviser: group.adviser || adviserMap[key] || 'Unassigned',
@@ -583,6 +651,35 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
     })
   }
 
+  // Multi-school quarterly aggregates
+  const schoolSummaries = schoolRows.map(sch => {
+    const schSections = sectionSummaries.filter(s => s.schoolId === sch.id)
+    const mEnrolled = schSections.reduce((acc, s) => acc + s.enrolment.male, 0)
+    const fEnrolled = schSections.reduce((acc, s) => acc + s.enrolment.female, 0)
+    const tEnrolled = schSections.reduce((acc, s) => acc + s.enrolment.total, 0)
+    const mADA = Number(schSections.reduce((acc, s) => acc + s.ada.male, 0).toFixed(2))
+    const fADA = Number(schSections.reduce((acc, s) => acc + s.ada.female, 0).toFixed(2))
+    const tADA = Number((mADA + fADA).toFixed(2))
+    const sDays = schSections.reduce((max, s) => Math.max(max, s.schoolDays), 0)
+    const schRate = tEnrolled > 0 && sDays > 0
+      ? Number(((tADA / tEnrolled) * 100).toFixed(1))
+      : (schSections.length > 0
+          ? Number((schSections.reduce((acc, s) => acc + s.attendanceRate.total, 0) / schSections.length).toFixed(1))
+          : 0)
+
+    return {
+      schoolId: sch.id,
+      schoolName: sch.name,
+      schoolShort: sch.short || sch.name,
+      depedId: sch.deped_id || '',
+      sectionsCount: schSections.length,
+      schoolDays: sDays,
+      enrolment: { male: mEnrolled, female: fEnrolled, total: tEnrolled },
+      ada: { male: mADA, female: fADA, total: tADA },
+      attendanceRate: schRate
+    }
+  }).filter(sch => !sid || sch.schoolId === sid)
+
   const overallAttRate = grandTotalEnrolled > 0 && grandDays > 0
     ? Number(((grandTotalADA / grandTotalEnrolled) * 100).toFixed(1))
     : (sectionSummaries.length > 0
@@ -592,6 +689,7 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
   return {
     schoolId: sid,
     quarter: q,
+    configuredQuarterName,
     schoolYear: effectiveSchoolYear,
     monthsIncluded: months.map(m => MONTH_NAMES[m]),
     grandTotal: {
@@ -606,6 +704,7 @@ async function computeQuarterlySummary(sid, { quarter, schoolYear, grade, sectio
       attendanceRate: overallAttRate,
       schoolDays: grandDays
     },
+    schoolSummaries,
     sections: sectionSummaries
   }
 }
@@ -662,9 +761,10 @@ router.get('/export/csv', async (req, res) => {
     if (reportType === 'section_comparison') {
       filename = `section-comparison-${new Date().toISOString().slice(0, 10)}.csv`
       const rep = await computeSectionComparison(sid, req.query)
-      const headers = ['Rank', 'Grade', 'Section', 'Class Adviser', 'Total Learners', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'DepEd Compliance Status']
+      const headers = ['Rank', 'Campus', 'Grade', 'Section', 'Class Adviser', 'Total Learners', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'DepEd Compliance Status']
       const rows = (rep.sections || []).map(s => [
         s.rank,
+        `"${s.schoolShort || s.schoolName || ''}"`,
         `"${s.grade}"`,
         `"${s.section}"`,
         `"${s.adviser || 'Unassigned'}"`,
@@ -680,6 +780,7 @@ router.get('/export/csv', async (req, res) => {
 
       const summaryRow = [
         'Total',
+        '""',
         '""',
         '""',
         `"${rep.summary.totalSections} sections"`,
@@ -698,8 +799,9 @@ router.get('/export/csv', async (req, res) => {
       const q = req.query.quarter || 1
       filename = `deped-quarter-${q}-summary-${new Date().toISOString().slice(0, 10)}.csv`
       const rep = await computeQuarterlySummary(sid, req.query)
-      const headers = ['Grade Level', 'Section', 'Class Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Enrolled Total', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
+      const headers = ['Campus', 'Grade Level', 'Section', 'Class Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Enrolled Total', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
       const rows = (rep.sections || []).map(s => [
+        `"${s.schoolShort || s.schoolName || ''}"`,
         `"${s.grade}"`,
         `"${s.section}"`,
         `"${s.adviser || 'Unassigned'}"`,
@@ -717,6 +819,7 @@ router.get('/export/csv', async (req, res) => {
 
       const grandTotalRow = [
         '"Grand Total"',
+        '""',
         '""',
         '""',
         rep.grandTotal.schoolDays,

@@ -267,6 +267,85 @@
         </div>
       </div>
 
+      <!-- Campus Comparison & Institutional Breakdown (When All Deployed Schools Selected) -->
+      <div v-if="!effectiveSchoolId && comparisonData?.schoolSummaries?.length" class="card-box" style="margin-bottom: 20px;">
+        <div class="card-box-header">
+          <div>
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 21h18M3 7v14M21 7v14M6 11h2M6 15h2M10 11h2M10 15h2M14 11h2M14 15h2M18 11h2M18 15h2M7 3h10l2 4H5z"/>
+              </svg>
+              <span>Campus Comparison &amp; Institutional Breakdown</span>
+            </h3>
+            <p>Overall cross-campus attendance, enrolment, and DepEd DO 8 compliance comparison</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="overview-table">
+            <thead>
+              <tr>
+                <th>Campus / School</th>
+                <th style="text-align: center;">Sections</th>
+                <th style="text-align: center;">Learners (M/F)</th>
+                <th style="width: 200px; text-align: center;">Attendance %</th>
+                <th style="text-align: center;">Present</th>
+                <th style="text-align: center;">Absent</th>
+                <th style="text-align: center;">SARDO Risk</th>
+                <th style="text-align: center;">Compliance</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="sch in comparisonData.schoolSummaries" :key="sch.schoolId">
+                <td>
+                  <strong>{{ sch.schoolName }}</strong>
+                  <small v-if="sch.depedId" style="color: var(--muted-foreground); display: block;">ID: {{ sch.depedId }}</small>
+                </td>
+                <td style="text-align: center; font-weight: 700;">{{ sch.sectionsCount }}</td>
+                <td style="text-align: center;">
+                  <strong>{{ sch.enrolled.total }}</strong>
+                  <small style="color: var(--muted-foreground); display: block;">{{ sch.enrolled.male }} M · {{ sch.enrolled.female }} F</small>
+                </td>
+                <td style="text-align: center;">
+                  <div class="rate-progress-wrap">
+                    <div class="rate-track">
+                      <div 
+                        class="rate-fill" 
+                        :class="sch.attendanceRate >= 95 ? 'fill-teal' : sch.attendanceRate >= 90 ? 'fill-amber' : 'fill-danger'"
+                        :style="{ width: `${Math.min(sch.attendanceRate, 100)}%` }"
+                      ></div>
+                    </div>
+                    <strong :class="sch.attendanceRate >= 95 ? 'text-teal' : sch.attendanceRate >= 90 ? 'text-amber' : 'text-danger'">
+                      {{ sch.attendanceRate }}%
+                    </strong>
+                  </div>
+                </td>
+                <td style="text-align: center;">{{ Number(sch.present).toLocaleString() }}</td>
+                <td style="text-align: center;">{{ Number(sch.absent).toLocaleString() }}</td>
+                <td style="text-align: center;">
+                  <span v-if="sch.sardoAlerts > 0" class="badge-sardo-risk">{{ sch.sardoAlerts }} at risk</span>
+                  <span v-else class="badge-sardo-clear">None</span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="compliance-pill" :class="sch.attendanceRate >= 95 ? 'compliance-met' : 'compliance-below'">
+                    {{ sch.attendanceRate >= 95 ? 'Compliant' : 'Below Target' }}
+                  </span>
+                </td>
+                <td style="text-align: right;">
+                  <button @click="selectedSchoolId = sch.schoolId; onSchoolChange()" class="btn-xs btn-secondary" title="Filter to this campus">
+                    <span>View Campus</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Section Ranking Table -->
       <div class="card-box">
         <div class="table-count-banner" v-if="filteredSections.length">
@@ -277,6 +356,7 @@
             <thead>
               <tr>
                 <th style="width: 60px; text-align: center;">Rank</th>
+                <th v-if="!effectiveSchoolId">Campus</th>
                 <th>Grade Level &amp; Section</th>
                 <th>Class Adviser</th>
                 <th style="text-align: center;">Learners (M/F)</th>
@@ -292,6 +372,9 @@
               <tr v-for="s in filteredSections" :key="`${s.schoolId || ''}-${s.grade}-${s.section}`">
                 <td style="text-align: center;">
                   <span class="rank-badge" :class="`rank-${s.rank}`">#{{ s.rank }}</span>
+                </td>
+                <td v-if="!effectiveSchoolId">
+                  <span class="campus-tag">{{ s.schoolShort || s.schoolName || '—' }}</span>
                 </td>
                 <td>
                   <strong>{{ s.grade }} — {{ s.section }}</strong>
@@ -341,7 +424,7 @@
             </tbody>
             <tbody v-else>
               <tr>
-                <td colspan="10" class="empty-cell">
+                <td :colspan="!effectiveSchoolId ? 11 : 10" class="empty-cell">
                   <div class="empty-state-box">
                     <p>No section records match your current filter settings.</p>
                     <button v-if="hasActiveComparisonFilters" @click="resetComparisonFilters" class="btn-sm btn-primary">
@@ -402,6 +485,12 @@
         </div>
 
         <div class="toolbar-right">
+          <router-link to="/quarterly" class="btn-sm btn-secondary" title="Configure custom quarter months &amp; school days">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+            <span>Edit Quarterly Terms →</span>
+          </router-link>
           <button @click="saveCurrentView('quarterly_summary')" class="btn-sm btn-secondary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -456,12 +545,82 @@
         </div>
       </div>
 
+      <!-- Campus Quarterly Breakdown (When All Deployed Schools Selected) -->
+      <div v-if="!effectiveSchoolId && quarterlyData?.schoolSummaries?.length" class="card-box" style="margin-bottom: 20px;">
+        <div class="card-box-header">
+          <div>
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 21h18M3 7v14M21 7v14M6 11h2M6 15h2M10 11h2M10 15h2M14 11h2M14 15h2M18 11h2M18 15h2M7 3h10l2 4H5z"/>
+              </svg>
+              <span>Campus Quarterly Breakdown (Quarter {{ quarterlyData.quarter }})</span>
+            </h3>
+            <p>Comparative quarterly attendance and Average Daily Attendance (ADA) across campuses</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="overview-table">
+            <thead>
+              <tr>
+                <th>Campus / School</th>
+                <th style="text-align: center;">Sections</th>
+                <th style="text-align: center;">School Days</th>
+                <th style="text-align: center;">Enrolment (M / F / Total)</th>
+                <th style="text-align: center;">ADA (M / F / Total)</th>
+                <th style="width: 220px; text-align: center;">Attendance %</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="sch in quarterlyData.schoolSummaries" :key="sch.schoolId">
+                <td>
+                  <strong>{{ sch.schoolName }}</strong>
+                  <small v-if="sch.depedId" style="color: var(--muted-foreground); display: block;">ID: {{ sch.depedId }}</small>
+                </td>
+                <td style="text-align: center; font-weight: 700;">{{ sch.sectionsCount }}</td>
+                <td style="text-align: center;">{{ sch.schoolDays }}</td>
+                <td style="text-align: center;">
+                  {{ sch.enrolment.male }} / {{ sch.enrolment.female }} / <strong>{{ sch.enrolment.total }}</strong>
+                </td>
+                <td style="text-align: center;">
+                  {{ sch.ada.male }} / {{ sch.ada.female }} / <strong>{{ sch.ada.total }}</strong>
+                </td>
+                <td style="text-align: center;">
+                  <div class="rate-progress-wrap">
+                    <div class="rate-track">
+                      <div 
+                        class="rate-fill" 
+                        :class="sch.attendanceRate >= 95 ? 'fill-teal' : sch.attendanceRate >= 90 ? 'fill-amber' : 'fill-danger'"
+                        :style="{ width: `${Math.min(sch.attendanceRate, 100)}%` }"
+                      ></div>
+                    </div>
+                    <strong :class="sch.attendanceRate >= 95 ? 'text-teal' : sch.attendanceRate >= 90 ? 'text-amber' : 'text-danger'">
+                      {{ sch.attendanceRate }}%
+                    </strong>
+                  </div>
+                </td>
+                <td style="text-align: right;">
+                  <button @click="selectedSchoolId = sch.schoolId; onSchoolChange()" class="btn-xs btn-secondary" title="Filter quarterly to this campus">
+                    <span>View Campus</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Granular Table -->
       <div class="card-box">
         <div class="table-responsive">
           <table class="overview-table">
             <thead>
               <tr>
+                <th v-if="!effectiveSchoolId">Campus</th>
                 <th>Grade Level &amp; Section</th>
                 <th>Class Adviser</th>
                 <th style="text-align: center;">School Days</th>
@@ -473,6 +632,9 @@
             </thead>
             <tbody v-if="filteredQuarterlySections.length">
               <tr v-for="sec in filteredQuarterlySections" :key="`${sec.schoolId || ''}-${sec.grade}-${sec.section}`">
+                <td v-if="!effectiveSchoolId">
+                  <span class="campus-tag">{{ sec.schoolShort || sec.schoolName || '—' }}</span>
+                </td>
                 <td><strong>{{ sec.grade }} — {{ sec.section }}</strong></td>
                 <td>{{ sec.adviser || 'Unassigned' }}</td>
                 <td style="text-align: center;">{{ sec.schoolDays }}</td>
@@ -1390,27 +1552,47 @@ function downloadCsv(type) {
     let headers
     let rows
     let filename
+    const showCampus = !effectiveSchoolId.value
 
     if (type === 'section_comparison') {
-      headers = ['Rank', 'Grade', 'Section', 'Class Adviser', 'Total Learners', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'DepEd Compliance Status']
+      headers = [
+        ...(showCampus ? ['Campus'] : []),
+        'Rank', 'Grade', 'Section', 'Class Adviser', 'Total Learners', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'DepEd Compliance Status'
+      ]
       rows = filteredSections.value.map(s => [
+        ...(showCampus ? [s.schoolShort || s.schoolName || ''] : []),
         s.rank, s.grade, s.section, s.adviser || 'Unassigned', s.enrolled, s.male, s.female,
         s.present, s.absent, `${s.attendanceRate}%`, s.sardoAlerts,
         s.attendanceRate >= 95 ? 'Compliant (DepEd DO 8 Met)' : 'Below Target'
       ])
       const summary = filteredComparisonSummary.value
-      rows.push(['Total', '', '', `${summary.totalSections} sections`, summary.totalEnrolled, '', '', summary.totalPresent, summary.totalAbsent, `${summary.overallAttendanceRate}%`, '', summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'])
+      rows.push([
+        ...(showCampus ? [''] : []),
+        'Total', '', '', `${summary.totalSections} sections`, summary.totalEnrolled, '', '',
+        summary.totalPresent, summary.totalAbsent, `${summary.overallAttendanceRate}%`, '',
+        summary.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'
+      ])
       filename = `section-comparison-${new Date().toISOString().slice(0, 10)}.csv`
     } else {
-      headers = ['Grade Level', 'Section', 'Class Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Enrolled Total', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
+      headers = [
+        ...(showCampus ? ['Campus'] : []),
+        'Grade Level', 'Section', 'Class Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Enrolled Total', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total'
+      ]
       rows = filteredQuarterlySections.value.map(s => [
+        ...(showCampus ? [s.schoolShort || s.schoolName || ''] : []),
         s.grade, s.section, s.adviser || 'Unassigned', s.schoolDays,
         s.enrolment.male, s.enrolment.female, s.enrolment.total,
         s.ada.male, s.ada.female, s.ada.total,
         `${s.attendanceRate.male}%`, `${s.attendanceRate.female}%`, `${s.attendanceRate.total}%`
       ])
       const summary = filteredQuarterlySummary.value
-      rows.push(['Grand Total', '', '', summary.schoolDays, summary.maleEnrolled, summary.femaleEnrolled, summary.totalEnrolled, summary.ada.male, summary.ada.female, summary.ada.total, '', '', `${summary.attendanceRate}%`])
+      rows.push([
+        ...(showCampus ? [''] : []),
+        'Grand Total', '', '', summary.schoolDays,
+        summary.maleEnrolled, summary.femaleEnrolled, summary.totalEnrolled,
+        summary.ada.male, summary.ada.female, summary.ada.total,
+        '', '', `${summary.attendanceRate}%`
+      ])
       filename = `deped-quarter-${selectedQuarter.value}-summary-${new Date().toISOString().slice(0, 10)}.csv`
     }
 
@@ -1434,21 +1616,36 @@ async function archiveCurrentReport(type) {
   if (!title) return
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
+    const showCampus = !effectiveSchoolId.value
     let contentData = ''
 
     if (type === 'section_comparison' && filteredSections.value.length) {
-      const headers = ['Rank', 'Grade', 'Section', 'Adviser', 'Total Enrolled', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'Status']
+      const headers = [
+        ...(showCampus ? ['Campus'] : []),
+        'Rank', 'Grade', 'Section', 'Adviser', 'Total Enrolled', 'Male', 'Female', 'Present', 'Absent', 'Attendance %', 'SARDO Alerts', 'Status'
+      ]
       const rows = filteredSections.value.map(s => [
+        ...(showCampus ? [`"${s.schoolShort || s.schoolName || ''}"`] : []),
         s.rank, `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.enrolled, s.male, s.female, s.present, s.absent, `"${s.attendanceRate}%"`, s.sardoAlerts, `"${s.attendanceRate >= 95 ? 'Compliant' : 'Below Target'}"`
       ])
-      const summaryRow = ['Total', '""', '""', `"${filteredComparisonSummary.value.totalSections} sections"`, filteredComparisonSummary.value.totalEnrolled, '', '', filteredComparisonSummary.value.totalPresent, filteredComparisonSummary.value.totalAbsent, `"${filteredComparisonSummary.value.overallAttendanceRate}%"`, '', `"${filteredComparisonSummary.value.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'}"`]
+      const summaryRow = [
+        ...(showCampus ? ['""'] : []),
+        'Total', '""', '""', `"${filteredComparisonSummary.value.totalSections} sections"`, filteredComparisonSummary.value.totalEnrolled, '', '', filteredComparisonSummary.value.totalPresent, filteredComparisonSummary.value.totalAbsent, `"${filteredComparisonSummary.value.overallAttendanceRate}%"`, '', `"${filteredComparisonSummary.value.overallAttendanceRate >= 95 ? 'DepEd Target Met' : 'Attention Needed'}"`
+      ]
       contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), summaryRow.join(',')].join('\r\n')
     } else if (type === 'quarterly_summary' && filteredQuarterlySections.value.length) {
-      const headers = ['Grade Level', 'Section', 'Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Total Enrolled', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total']
-      const rows = filteredQuarterlySections.value.map(s => [
+      const headers = [
+        ...(showCampus ? ['Campus'] : []),
+        'Grade Level', 'Section', 'Adviser', 'School Days', 'Enrolled Male', 'Enrolled Female', 'Total Enrolled', 'ADA Male', 'ADA Female', 'ADA Total', 'Att % Male', 'Att % Female', 'Att % Total'
+      ]
+      rows = filteredQuarterlySections.value.map(s => [
+        ...(showCampus ? [`"${s.schoolShort || s.schoolName || ''}"`] : []),
         `"${s.grade}"`, `"${s.section}"`, `"${s.adviser || 'Unassigned'}"`, s.schoolDays, s.enrolment.male, s.enrolment.female, s.enrolment.total, s.ada.male, s.ada.female, s.ada.total, `"${s.attendanceRate.male}%"`, `"${s.attendanceRate.female}%"`, `"${s.attendanceRate.total}%"`
       ])
-      const grandTotalRow = ['"Grand Total"', '""', '""', filteredQuarterlySummary.value.schoolDays, filteredQuarterlySummary.value.maleEnrolled, filteredQuarterlySummary.value.femaleEnrolled, filteredQuarterlySummary.value.totalEnrolled, filteredQuarterlySummary.value.ada.male, filteredQuarterlySummary.value.ada.female, filteredQuarterlySummary.value.ada.total, '', '', `"${filteredQuarterlySummary.value.attendanceRate}%"`]
+      const grandTotalRow = [
+        ...(showCampus ? ['""'] : []),
+        '"Grand Total"', '""', '""', filteredQuarterlySummary.value.schoolDays, filteredQuarterlySummary.value.maleEnrolled, filteredQuarterlySummary.value.femaleEnrolled, filteredQuarterlySummary.value.totalEnrolled, filteredQuarterlySummary.value.ada.male, filteredQuarterlySummary.value.ada.female, filteredQuarterlySummary.value.ada.total, '', '', `"${filteredQuarterlySummary.value.attendanceRate}%"`
+      ]
       contentData = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(',')), grandTotalRow.join(',')].join('\r\n')
     } else {
       contentData = `Report: ${title}\nGenerated on: ${new Date().toISOString()}`
@@ -1996,6 +2193,18 @@ async function archiveCurrentReport(type) {
 
 .empty-cell {
   padding: 0 !important;
+}
+
+.campus-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 5px;
+  background: var(--muted);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .unassigned-badge {

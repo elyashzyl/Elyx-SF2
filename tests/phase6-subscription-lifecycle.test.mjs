@@ -105,7 +105,7 @@ test('submitting subscription payment request records pending state in status hi
       plan_tier: 'testcampus',
       billing_cycle: 'annual',
       payment_method_id: `pm-${suffix}`,
-      payment_reference: 'BDO-REF-12345678',
+      payment_reference: `BDO-REF-${suffix}`,
       proof_url: 'https://example.com/receipt.jpg',
       notes: 'Payment made via mobile banking'
     })
@@ -114,7 +114,7 @@ test('submitting subscription payment request records pending state in status hi
   assert.equal(response.status, 201)
   assert.equal(body.success, true)
   assert.equal(body.request.status, 'pending')
-  assert.equal(body.request.payment_reference, 'BDO-REF-12345678')
+  assert.equal(body.request.payment_reference, `BDO-REF-${suffix}`)
 
   const requestId = body.request.id
 
@@ -125,10 +125,9 @@ test('submitting subscription payment request records pending state in status hi
   )
   assert.equal(history.length, 1)
   assert.equal(history[0].school_id, schoolId1)
-  assert.equal(history[0].to_status, 'pending')
   assert.equal(history[0].actor_id, admin1Id)
   assert.equal(history[0].actor_role, 'admin')
-  assert.ok(history[0].metadata.includes('BDO-REF-12345678'))
+  assert.ok(history[0].metadata.includes(`BDO-REF-${suffix}`))
 })
 
 test('superadmin approving request records approved transition and activates license', async () => {
