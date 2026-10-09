@@ -19,8 +19,22 @@
         </div>
       </div>
 
-      <div class="form-card" style="max-width: 860px;">
-        <h3>Generate SF2</h3>
+      <div class="form-card generator-card">
+        <div class="card-header-clean">
+          <div class="card-header-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div>
+            <h3>Generate SF2 Monthly Report</h3>
+            <p class="card-subtitle">Select class grade, section, and month to view or generate the monthly attendance sheet.</p>
+          </div>
+        </div>
         <div class="form-group" v-if="auth.isSuperadmin">
           <label>School</label>
           <select v-model="selectedSchoolId" required @change="onSchoolChange">
@@ -28,7 +42,7 @@
             <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}{{ s.school_id ? ' (' + s.school_id + ')' : '' }}</option>
           </select>
         </div>
-        <div class="form-row">
+        <div class="form-row generator-form-row">
           <div class="form-group">
             <label>Month</label>
             <select v-model="form.month">
@@ -104,11 +118,15 @@
       <div class="sheet-header">
         <div class="school-info">
           <h1>{{ school.school_name }}</h1>
-          <p>School ID: {{ school.school_id }}</p>
-          <p v-if="school.school_address">{{ school.school_address }}</p>
+          <div class="school-sub-row">
+            <span class="school-id-badge">School ID: {{ school.school_id }}</span>
+            <span v-if="school.school_address" class="school-address-badge">{{ school.school_address }}</span>
+          </div>
         </div>
       </div>
-      <div class="sheet-date">{{ months[form.month-1] }} {{ form.year }}</div>
+      <div class="sheet-date-pill-wrap">
+        <div class="sheet-date">{{ months[form.month-1] }} {{ form.year }}</div>
+      </div>
       <h2 class="sheet-title">MONTHLY ATTENDANCE RECORD</h2>
       <!-- Metadata Bar -->
       <div class="sheet-info sheet-info-bar">
@@ -299,7 +317,7 @@
         <table class="attendance-table monthly-table">
           <thead>
             <tr>
-              <th rowspan="2">No.</th>
+              <th rowspan="2" class="no-col">No.</th>
               <th rowspan="2" class="name-col">NAME (Last Name, First Name, Middle Name)</th>
               <th v-for="d in daysInMonth" :key="d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
                 <div class="date-cell-head">
@@ -347,7 +365,7 @@
                 <td :colspan="totalCols">{{ group.label }}</td>
               </tr>
               <tr v-for="(entry, idx) in group.entries" :key="entry.studentId">
-                <td>{{ startNum(gi) + idx }}</td>
+                <td class="no-col">{{ startNum(gi) + idx }}</td>
                 <td class="name-col">{{ entry.name }}</td>
                 <td v-for="d in daysInMonth" :key="d"
                     :class="['day-cell', { weekend: isWeekend(d), excluded: isExcluded(d) }]">
@@ -411,90 +429,121 @@
             <span>Recalculate Summary</span>
           </button>
         </div>
-        <table class="summary-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>M</th>
-              <th>F</th>
-              <th>TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="summary-label">Enrolment as of 1st Friday of the SY</td>
-              <td><input type="number" v-model.number="summaryEdits.enr_m" @change="onSummaryChange('enr')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.enr_f" @change="onSummaryChange('enr')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.enr_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">Late enrolment during the month</td>
-              <td><input type="number" v-model.number="summaryEdits.late_m" @change="onSummaryChange('late')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.late_f" @change="onSummaryChange('late')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.late_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">Registered Learners as of end of month</td>
-              <td><input type="number" v-model.number="summaryEdits.reg_m" @change="onSummaryChange('reg')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.reg_f" @change="onSummaryChange('reg')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.reg_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">Percentage of Enrolment</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_enr_m" @change="saveSummary" class="summary-input" />%</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_enr_f" @change="saveSummary" class="summary-input" />%</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_enr_t" @change="saveSummary" class="summary-input" />%</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Average Daily Attendance</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_m" @change="onSummaryChange('ada')" class="summary-input" /></td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_f" @change="onSummaryChange('ada')" class="summary-input" /></td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">Percentage of Attendance</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_m" @change="saveSummary" class="summary-input" />%</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_f" @change="saveSummary" class="summary-input" />%</td>
-              <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_t" @change="saveSummary" class="summary-input" />%</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Number of students absent for 5 consecutive days</td>
-              <td><input type="number" v-model.number="summaryEdits.abs5_m" @change="onSummaryChange('abs5')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.abs5_f" @change="onSummaryChange('abs5')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.abs5_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">NLS</td>
-              <td><input type="number" v-model.number="summaryEdits.nls_m" @change="onSummaryChange('nls')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.nls_f" @change="onSummaryChange('nls')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.nls_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">Transferred out</td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_out_m" @change="onSummaryChange('transfer_out')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_out_f" @change="onSummaryChange('transfer_out')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_out_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-            <tr>
-              <td class="summary-label">Transferred in</td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_in_m" @change="onSummaryChange('transfer_in')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_in_f" @change="onSummaryChange('transfer_in')" class="summary-input" /></td>
-              <td><input type="number" v-model.number="summaryEdits.transfer_in_t" @change="saveSummary" class="summary-input" /></td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="summary-table-wrap">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>M</th>
+                <th>F</th>
+                <th>TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="summary-label">Enrolment as of 1st Friday of the SY</td>
+                <td><input type="number" v-model.number="summaryEdits.enr_m" @change="onSummaryChange('enr')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.enr_f" @change="onSummaryChange('enr')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.enr_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">Late enrolment during the month</td>
+                <td><input type="number" v-model.number="summaryEdits.late_m" @change="onSummaryChange('late')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.late_f" @change="onSummaryChange('late')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.late_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">Registered Learners as of end of month</td>
+                <td><input type="number" v-model.number="summaryEdits.reg_m" @change="onSummaryChange('reg')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.reg_f" @change="onSummaryChange('reg')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.reg_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">Percentage of Enrolment</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_enr_m" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_enr_f" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_enr_t" @change="saveSummary" class="summary-input" />%</td>
+              </tr>
+              <tr>
+                <td class="summary-label">Average Daily Attendance</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_m" @change="onSummaryChange('ada')" class="summary-input" /></td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_f" @change="onSummaryChange('ada')" class="summary-input" /></td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">Percentage of Attendance</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_m" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_f" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_t" @change="saveSummary" class="summary-input" />%</td>
+              </tr>
+              <tr>
+                <td class="summary-label">Number of students absent for 5 consecutive days</td>
+                <td><input type="number" v-model.number="summaryEdits.abs5_m" @change="onSummaryChange('abs5')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.abs5_f" @change="onSummaryChange('abs5')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.abs5_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">NLS</td>
+                <td><input type="number" v-model.number="summaryEdits.nls_m" @change="onSummaryChange('nls')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.nls_f" @change="onSummaryChange('nls')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.nls_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">Transferred out</td>
+                <td><input type="number" v-model.number="summaryEdits.transfer_out_m" @change="onSummaryChange('transfer_out')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.transfer_out_f" @change="onSummaryChange('transfer_out')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.transfer_out_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+              <tr>
+                <td class="summary-label">Transferred in</td>
+                <td><input type="number" v-model.number="summaryEdits.transfer_in_m" @change="onSummaryChange('transfer_in')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.transfer_in_f" @change="onSummaryChange('transfer_in')" class="summary-input" /></td>
+                <td><input type="number" v-model.number="summaryEdits.transfer_in_t" @change="saveSummary" class="summary-input" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div class="legends">
-        <h3>LEGENDS:</h3>
-        <div class="legend-grid">
-          <span><strong>(blank)</strong> - Present</span>
-          <span><strong>x</strong> - Absent</span>
-          <span><strong>◤</strong> - Tardy</span>
-          <span><strong>◢</strong> - Half Day</span>
-          <span><strong>E</strong> - Entered (days before are absent)</span>
+        <div class="legends-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <h3>LEGENDS &amp; CODES:</h3>
         </div>
-        <p class="legend-note">Sunday is always disabled. Saturday is configurable for this report. Other dates with no classes are grayed out and disabled. Click ✕ on a date header to mark it as no classes.</p>
+        <div class="legend-grid">
+          <div class="legend-chip">
+            <span class="legend-symbol legend-symbol--blank"></span>
+            <span class="legend-label"><strong>(blank)</strong> - Present</span>
+          </div>
+          <div class="legend-chip">
+            <span class="legend-symbol legend-symbol--absent">✕</span>
+            <span class="legend-label"><strong>x</strong> - Absent</span>
+          </div>
+          <div class="legend-chip">
+            <span class="legend-symbol legend-symbol--tardy">◤</span>
+            <span class="legend-label"><strong>◤</strong> - Tardy</span>
+          </div>
+          <div class="legend-chip">
+            <span class="legend-symbol legend-symbol--half">◢</span>
+            <span class="legend-label"><strong>◢</strong> - Half Day</span>
+          </div>
+          <div class="legend-chip">
+            <span class="legend-symbol legend-symbol--entered">E</span>
+            <span class="legend-label"><strong>E</strong> - Entered</span>
+          </div>
+        </div>
+        <p class="legend-note">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Sunday is always disabled. Saturday is configurable for this report. Other dates with no classes are grayed out and disabled. Click the exclude icon on a date header to mark it as a holiday or class suspension.</span>
+        </p>
       </div>
 
       <div class="sheet-actions screen-only">
@@ -526,7 +575,7 @@
 
     <!-- SF2 Export Validation Modal -->
     <div v-if="showValidationModal" class="modal-overlay" @click.self="showValidationModal = false">
-      <div class="form-card" style="max-width: 520px;">
+      <div class="form-card modal-card" style="max-width: 520px;">
         <div class="modal-header-compact">
           <h3>SF2 Export Pre-Check Results</h3>
           <p class="modal-subtext">{{ record?.grade }} — {{ record?.section }} ({{ months[form.month-1] }} {{ form.year }})</p>
@@ -574,7 +623,7 @@
 
     <!-- Confirm Delete Monthly Report Modal -->
     <div v-if="showDeleteConfirmModal" class="modal-overlay" @click.self="showDeleteConfirmModal = false">
-      <div class="form-card" style="max-width: 480px;">
+      <div class="form-card modal-card" style="max-width: 480px;">
         <h3 style="color: var(--destructive, #ef4444);">Delete Monthly SF2 Report?</h3>
         <p class="modal-subtext">
           Are you sure you want to delete the saved SF2 report for <strong>{{ months[form.month-1] }} {{ form.year }}</strong> ({{ record?.grade }} - {{ record?.section }})?
@@ -599,7 +648,7 @@
 
     <!-- Add / Edit Holiday / Suspension Modal -->
     <div v-if="showHolidayModal" class="modal-overlay" @click.self="showHolidayModal = false">
-      <div class="form-card" style="max-width: 480px;">
+      <div class="form-card modal-card" style="max-width: 480px;">
         <div class="modal-header-compact">
           <h3>{{ holidayForm.isEditing ? 'Edit Holiday / Suspension' : 'Exclude Holiday or Class Suspension' }}</h3>
           <p class="modal-subtext">Exclude this date so it won't be counted in total school days or attendance calculation.</p>
@@ -1829,6 +1878,101 @@ async function updateRemarks(entry) {
 </script>
 
 <style scoped>
+/* SF2 Generator Card */
+.generator-card {
+  max-width: 860px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--card);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.04));
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.card-header-clean {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--primary-bg, rgba(12, 83, 87, 0.1));
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.card-header-clean h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--foreground);
+  line-height: 1.2;
+}
+
+.card-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.generator-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+/* School Header Badges */
+.school-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.school-id-badge,
+.school-address-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+
+.sheet-date-pill-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 12px;
+}
+
+.sheet-date-pill-wrap .sheet-date {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 16px;
+  border-radius: 999px;
+  background: var(--primary-bg, rgba(12, 83, 87, 0.08));
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
 /* SF2 Design System Buttons */
 .sf2-btn {
   display: inline-flex;
@@ -2304,6 +2448,135 @@ async function updateRemarks(entry) {
   font-size: 0.88rem;
 }
 
+/* Sticky Column 1 & 2 Fix for Monthly Table */
+.monthly-table th.no-col,
+.monthly-table td.no-col {
+  position: sticky;
+  left: 0;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  z-index: 2;
+  background: var(--card) !important;
+  text-align: center;
+  box-sizing: border-box;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.monthly-table th.name-col,
+.monthly-table td.name-col {
+  position: sticky;
+  left: 44px !important; /* Offset by column 1 width to fix overlap bug */
+  min-width: 220px;
+  max-width: 260px;
+  z-index: 2;
+  background: var(--card) !important;
+  box-sizing: border-box;
+  border-right: 2px solid var(--border) !important;
+}
+
+/* Corner Headers (sticky top AND sticky left) */
+.monthly-table thead th.no-col {
+  top: 0;
+  left: 0;
+  z-index: 6 !important;
+  background: var(--muted) !important;
+}
+
+.monthly-table thead th.name-col {
+  top: 0;
+  left: 44px !important;
+  z-index: 6 !important;
+  background: var(--muted) !important;
+  border-right: 2px solid var(--border) !important;
+}
+
+/* Sticky cell hover effect */
+.monthly-table tbody tr:hover td.no-col,
+.monthly-table tbody tr:hover td.name-col {
+  background: var(--secondary) !important;
+}
+
+/* Summary rows: pinned label spanning cols 1 & 2 */
+.monthly-table .summary-row .summary-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--muted) !important;
+  text-align: left;
+  padding-left: 14px;
+  border-right: 2px solid var(--border) !important;
+  font-weight: 800;
+}
+
+/* Monthly Table Cells & Inputs */
+.day-cell {
+  padding: 2px 3px !important;
+  min-width: 28px;
+  width: 28px;
+  text-align: center;
+}
+
+.day-select {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  text-align: center;
+  text-align-last: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs, 4px);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.day-select:hover {
+  background: var(--muted);
+  border-color: var(--border);
+}
+
+.day-select:focus {
+  background: var(--card);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--primary-bg);
+}
+
+.total-cell {
+  min-width: 44px;
+  font-weight: 700;
+  font-size: 0.74rem;
+}
+
+.total-cell.present {
+  color: var(--primary);
+}
+
+.total-cell.absent {
+  color: var(--destructive);
+}
+
+.remarks-input {
+  min-width: 130px;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--card);
+  color: var(--foreground);
+  outline: none;
+}
+
+.remarks-input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--primary-bg);
+}
+
 /* Summary Header */
 .summary-header-row {
   display: flex;
@@ -2319,6 +2592,186 @@ async function updateRemarks(entry) {
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--foreground);
+}
+
+/* Summary Section & Table Wrapper */
+.summary-section {
+  padding: clamp(16px, 2.5vw, 24px);
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--card);
+  box-shadow: var(--shadow-xs, 0 1px 3px rgba(0, 0, 0, 0.03));
+}
+
+.summary-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--card);
+}
+
+.summary-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font-size: 0.74rem;
+}
+
+.summary-table th,
+.summary-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.summary-table th {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.summary-label {
+  font-weight: 600;
+  color: var(--foreground);
+  font-size: 0.74rem;
+}
+
+.summary-input {
+  width: 72px;
+  padding: 4px 6px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--card);
+  color: var(--foreground);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.summary-input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--primary-bg);
+}
+
+/* Modern Legends Chips */
+.legends {
+  padding: 16px 20px;
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--muted);
+}
+
+.legends-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: var(--foreground);
+}
+
+.legends-header h3 {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.legend-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.74rem;
+  color: var(--foreground);
+  box-shadow: var(--shadow-xs);
+}
+
+.legend-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs, 4px);
+  font-weight: 800;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.legend-symbol--blank {
+  background: var(--muted);
+  border: 1px dashed var(--border);
+}
+
+.legend-symbol--absent {
+  background: var(--red-bg);
+  color: var(--destructive);
+}
+
+.legend-symbol--tardy,
+.legend-symbol--half {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.legend-symbol--entered {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.legend-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.legend-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--primary);
+}
+
+/* Modal Responsiveness */
+.modal-card {
+  width: 100%;
+  max-width: min(520px, calc(100vw - 32px)) !important;
+  box-sizing: border-box;
+}
+
+/* Print Overrides to ensure clean output */
+@media print {
+  .monthly-table th.no-col,
+  .monthly-table td.no-col,
+  .monthly-table th.name-col,
+  .monthly-table td.name-col,
+  .monthly-table .summary-row .summary-label {
+    position: static !important;
+  }
 }
 
 /* Bottom Sheet Actions */
@@ -2374,6 +2827,7 @@ async function updateRemarks(entry) {
   .sheet-info-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
   }
 
   .sheet-meta-group,
@@ -2382,9 +2836,27 @@ async function updateRemarks(entry) {
     justify-content: flex-start;
   }
 
+  .sheet-signatories-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .signatory-label {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .adviser-input {
+    flex: 1;
+    max-width: 240px;
+  }
+
   .sheet-toolbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
   }
 
   .sheet-toolbar-left,
@@ -2396,6 +2868,7 @@ async function updateRemarks(entry) {
   .sheet-actions {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
   }
 
   .sheet-actions-left,
@@ -2415,19 +2888,47 @@ async function updateRemarks(entry) {
   }
 }
 
-@media (max-width: 600px) {
-  .form-card[style*="max-width"] {
-    max-width: none !important;
+@media (max-width: 640px) {
+  .generator-card {
+    padding: 16px;
+  }
+
+  .generator-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .school-days-pill {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sheet-toolbar-left > .sf2-btn,
+  .sheet-toolbar-right > .sf2-btn {
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  .sheet-header h1 {
+    font-size: 1.15rem;
+  }
+
+  .summary-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .summary-header-row > .sf2-btn {
+    width: 100%;
+  }
+
+  .legend-chip {
+    flex: 1 1 calc(50% - 4px);
   }
 
   .sheet-info > span {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-  }
-
-  .summary-filters-bar {
-    grid-template-columns: 1fr;
   }
 }
 </style>
