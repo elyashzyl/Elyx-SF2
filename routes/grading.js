@@ -476,6 +476,12 @@ router.get('/form138/:studentId', async (req, res) => {
     const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [student.school_id])
     const school = schoolRows[0] || {}
 
+    const adviserRows = await query(
+      "SELECT name FROM users WHERE school_id = ? AND role = 'teacher' AND grade = ? AND section = ? LIMIT 1",
+      [student.school_id, student.grade, student.section]
+    )
+    const adviserName = adviserRows[0]?.name || ''
+
     const schoolYear = String(req.query.schoolYear || school.school_year || '2025-2026').trim()
 
     // Fetch subjects for learner's grade
@@ -650,7 +656,10 @@ router.get('/form138/:studentId', async (req, res) => {
       student,
       school,
       schoolYear,
+      adviserName,
+      principalName: school.principal_name || '',
       subjects: learningAreas,
+      learningAreas,
       generalAverage,
       proficiencyLevel,
       honors,

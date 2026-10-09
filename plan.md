@@ -37,6 +37,7 @@ The following capabilities already exist or are substantially implemented:
 - [x] Monthly SF2 attendance calculations and Excel export.
   - Saturday is configurable per report and defaults off for existing and new reports; Sunday remains disabled.
   - Teacher generation and export now use the authenticated advisory grade/section, reject cross-class requests, and surface scoped API errors instead of silently opening an empty report.
+  - Learners marked "TRANSFERRED OUT" are automatically deducted from registered learners, counted under transferred out, and marked as withdrawn in student enrollment records.
 - SARDO early-warning indicators.
 - Grade levels and sections.
 - Student and user management.

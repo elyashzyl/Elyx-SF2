@@ -690,12 +690,23 @@ router.post('/sf2', async (req, res) => {
     const totalCount = maleCount + femaleCount
     const mTotalPresent = sumPresent(maleEntriesAll)
     const fTotalPresent = sumPresent(femaleEntriesAll)
+    // ── Transferred out and registered learners ──
+    const isTransferredOut = (r) => /transferred\s*out/i.test(String(r || ''))
+    const mTransferredEntries = maleEntriesAll.filter(e => isTransferredOut(e.remarks)).length
+    const fTransferredEntries = femaleEntriesAll.filter(e => isTransferredOut(e.remarks)).length
+    const toM2 = sd.transfer_out_m != null ? Number(sd.transfer_out_m) : mTransferredEntries
+    const toF2 = sd.transfer_out_f != null ? Number(sd.transfer_out_f) : fTransferredEntries
+    const toT2 = sd.transfer_out_t != null ? Number(sd.transfer_out_t) : (toM2 + toF2)
+    const regM = sd.reg_m != null ? Number(sd.reg_m) : Math.max(0, maleCount - toM2)
+    const regF = sd.reg_f != null ? Number(sd.reg_f) : Math.max(0, femaleCount - toF2)
+    const regT = sd.reg_t != null ? Number(sd.reg_t) : (regM + regF)
+
     const mADA = effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays) * 100) / 100 : 0
     const fADA = effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays) * 100) / 100 : 0
     const tADA = effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays) * 100) / 100 : 0
-    const mPct = maleCount > 0 && effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays / maleCount) * 100 * 100) / 100 : 0
-    const fPct = femaleCount > 0 && effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays / femaleCount) * 100 * 100) / 100 : 0
-    const tPct = totalCount > 0 && effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays / totalCount) * 100 * 100) / 100 : 0
+    const mPct = regM > 0 && effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays / regM) * 100 * 100) / 100 : 0
+    const fPct = regF > 0 && effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays / regF) * 100 * 100) / 100 : 0
+    const tPct = regT > 0 && effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays / regT) * 100 * 100) / 100 : 0
 
     // ── Compute late/enrolment values for summary section ──
     const lateM = sd.late_m != null ? sd.late_m : 0
@@ -936,11 +947,11 @@ router.post('/sf2', async (req, res) => {
     descRow(newWs, S + 7, S + 8, '(beyond cut-off)', { font: { name: 'Arial', sz: 9, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } })
     // Registered Learners (rows 59-60)
     descRow(newWs, S + 9, S + 10, 'Registered Learners as of end of month', S9_ITALIC_CENTER_WRAP)
-    valCols(newWs, S + 9, S + 10, maleCount, femaleCount, maleCount + femaleCount)
+    valCols(newWs, S + 9, S + 10, regM, regF, regT)
     // Percentage of Enrolment (rows 61-62)
-    const pctEnrM = sd.pct_enr_m != null ? sd.pct_enr_m : (initM > 0 ? Math.round((maleCount - lateM) / maleCount * 100) : 0)
-    const pctEnrF = sd.pct_enr_f != null ? sd.pct_enr_f : (initF > 0 ? Math.round((femaleCount - lateF) / femaleCount * 100) : 0)
-    const pctEnrT = sd.pct_enr_t != null ? sd.pct_enr_t : (initT > 0 ? Math.round((maleCount + femaleCount - lateM - lateF) / (maleCount + femaleCount) * 100) : 0)
+    const pctEnrM = sd.pct_enr_m != null ? sd.pct_enr_m : (initM > 0 ? Math.round((regM / initM) * 100) : (regM > 0 ? 100 : 0))
+    const pctEnrF = sd.pct_enr_f != null ? sd.pct_enr_f : (initF > 0 ? Math.round((regF / initF) * 100) : (regF > 0 ? 100 : 0))
+    const pctEnrT = sd.pct_enr_t != null ? sd.pct_enr_t : (initT > 0 ? Math.round((regT / initT) * 100) : (regT > 0 ? 100 : 0))
     descRow(newWs, S + 11, S + 12, 'Percentage of Enrolment as of end of month', S9_ITALIC_CENTER_WRAP)
     valCols(newWs, S + 11, S + 12, `${pctEnrM}%`, `${pctEnrF}%`, `${pctEnrT}%`)
     // ADA (rows 63-64)
@@ -967,9 +978,6 @@ router.post('/sf2', async (req, res) => {
     descRow(newWs, S + 18, S + 18, 'NLS', S9_BOLD_CENTER)
     valCols(newWs, S + 18, S + 18, nlsM2, nlsF2, nlsT2)
     // Transferred out (rows 63-64)
-    const toM2 = sd.transfer_out_m != null ? sd.transfer_out_m : 0
-    const toF2 = sd.transfer_out_f != null ? sd.transfer_out_f : 0
-    const toT2 = sd.transfer_out_t != null ? sd.transfer_out_t : 0
     descRow(newWs, S + 19, S + 20, 'Transferred out', { font: { name: 'Arial', sz: 9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } })
     valCols(newWs, S + 19, S + 20, toM2, toF2, toT2)
     // Transferred in (rows 65-66)

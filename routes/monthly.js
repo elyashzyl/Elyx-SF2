@@ -3,8 +3,115 @@ import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
 import { requireRole, resolveScopeSchool, actingUser, assertValidClass, audit } from './_context.js'
 import { calculateMonthlyEntryTotals } from '../lib/monthly-calendar.js'
+import { ensureEnrollmentStatusColumn, addEnrollmentEvent } from './students.js'
 
 const router = Router()
+
+export function isTransferredOutRemark(remarks) {
+  return /transferred\s*out/i.test(String(remarks || ''))
+}
+
+export async function markStudentTransferredOut(studentId, schoolId, grade, section, remarks, year, month, actor) {
+  try {
+    await ensureEnrollmentStatusColumn()
+    let students = await query('SELECT * FROM students WHERE id = ?', [studentId])
+    if (!students || students.length === 0) {
+      students = await query('SELECT * FROM students WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND school_id = ?', [studentId, schoolId])
+    }
+    if (!students || students.length === 0) return null
+    const student = students[0]
+
+    const effectiveSchoolId = student.school_id || schoolId || ''
+    const effGrade = grade || student.grade || ''
+    const effSection = section || student.section || ''
+    const reason = String(remarks || 'Transferred out (Monthly SF2)').trim()
+
+    const now = new Date()
+    const currentY = now.getFullYear()
+    const currentM = now.getMonth() + 1
+    let effectiveOn
+    if (year && month && Number(year) === currentY && Number(month) === currentM) {
+      effectiveOn = now.toISOString().slice(0, 10)
+    } else if (year && month) {
+      const lastDay = new Date(Number(year), Number(month), 0).getDate()
+      effectiveOn = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    } else {
+      effectiveOn = now.toISOString().slice(0, 10)
+    }
+
+    if (student.enrollment_status !== 'withdrawn') {
+      await addEnrollmentEvent({
+        student: { id: student.id, school_id: effectiveSchoolId },
+        eventType: 'transfer_out',
+        status: 'withdrawn',
+        effectiveOn,
+        grade: effGrade,
+        section: effSection,
+        reason,
+        actor
+      })
+
+      try {
+        await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [student.id])
+      } catch (err) {
+        if (!/unknown column 'enrollment_status'/i.test(String(err.message || ''))) throw err
+      }
+
+      await audit(
+        actor,
+        'student.withdraw',
+        { type: 'student', id: student.id, name: student.name, schoolId: effectiveSchoolId },
+        `Withdrawn "${student.name}" via Monthly SF2 remarks: ${reason}`
+      )
+    }
+
+    return student
+  } catch (err) {
+    console.error('Failed to mark student as transferred out:', err.message)
+    return null
+  }
+}
+
+export async function recalculateRecordSummary(recordId) {
+  const records = await query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
+  if (records.length === 0) return null
+  const record = records[0]
+
+  const rawEntries = await query(`
+    SELECT me.*, COALESCE(s.gender, '') as student_gender
+    FROM monthly_entries me
+    LEFT JOIN students s ON (s.id = me.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(me.student_name)))
+    WHERE me.record_id = ?
+    ORDER BY me.id
+  `, [recordId])
+
+  const curSummary = JSON.parse(record.summary_data || '{}')
+  const mEntries = rawEntries.filter(e => (e.student_gender || '').toLowerCase() === 'male')
+  const fEntries = rawEntries.filter(e => (e.student_gender || '').toLowerCase() === 'female')
+  const otherEntries = rawEntries.filter(e => !['male', 'female'].includes((e.student_gender || '').toLowerCase()))
+
+  const mTransferred = mEntries.filter(e => isTransferredOutRemark(e.remarks)).length
+  const fTransferred = fEntries.filter(e => isTransferredOutRemark(e.remarks)).length
+  const otherTransferred = otherEntries.filter(e => isTransferredOutRemark(e.remarks)).length
+
+  curSummary.transfer_out_m = Math.max(Number(curSummary.transfer_out_m) || 0, mTransferred)
+  curSummary.transfer_out_f = Math.max(Number(curSummary.transfer_out_f) || 0, fTransferred)
+  curSummary.transfer_out_t = (Number(curSummary.transfer_out_m) || 0) + (Number(curSummary.transfer_out_f) || 0) + otherTransferred
+
+  curSummary.reg_m = Math.max(0, mEntries.length - curSummary.transfer_out_m)
+  curSummary.reg_f = Math.max(0, fEntries.length - curSummary.transfer_out_f)
+  curSummary.reg_t = curSummary.reg_m + curSummary.reg_f
+
+  const enrM = Number(curSummary.enr_m) || (mEntries.length - (Number(curSummary.late_m) || 0))
+  const enrF = Number(curSummary.enr_f) || (fEntries.length - (Number(curSummary.late_f) || 0))
+  const enrT = enrM + enrF
+  curSummary.pct_enr_m = enrM > 0 ? Math.round((curSummary.reg_m / enrM) * 1000) / 10 : (curSummary.reg_m > 0 ? 100 : 0)
+  curSummary.pct_enr_f = enrF > 0 ? Math.round((curSummary.reg_f / enrF) * 1000) / 10 : (curSummary.reg_f > 0 ? 100 : 0)
+  curSummary.pct_enr_t = enrT > 0 ? Math.round((curSummary.reg_t / enrT) * 1000) / 10 : (curSummary.reg_t > 0 ? 100 : 0)
+
+  await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSummary), recordId])
+  return curSummary
+}
 
 function resolveClassScope(me, grade, section) {
   if (me.role === 'teacher') {
@@ -205,9 +312,18 @@ router.get('/', async (req, res) => {
     const curSummary = JSON.parse(record.summary_data || '{}')
     const mEntries = record.entries.filter(e => (e.gender || '').toLowerCase() === 'male')
     const fEntries = record.entries.filter(e => (e.gender || '').toLowerCase() === 'female')
-    curSummary.reg_m = mEntries.length
-    curSummary.reg_f = fEntries.length
-    curSummary.reg_t = mEntries.length + fEntries.length
+    const otherEntries = record.entries.filter(e => !['male', 'female'].includes((e.gender || '').toLowerCase()))
+    const mTransferred = mEntries.filter(e => isTransferredOutRemark(e.remarks)).length
+    const fTransferred = fEntries.filter(e => isTransferredOutRemark(e.remarks)).length
+    const otherTransferred = otherEntries.filter(e => isTransferredOutRemark(e.remarks)).length
+
+    curSummary.transfer_out_m = Math.max(Number(curSummary.transfer_out_m) || 0, mTransferred)
+    curSummary.transfer_out_f = Math.max(Number(curSummary.transfer_out_f) || 0, fTransferred)
+    curSummary.transfer_out_t = (Number(curSummary.transfer_out_m) || 0) + (Number(curSummary.transfer_out_f) || 0) + otherTransferred
+
+    curSummary.reg_m = Math.max(0, mEntries.length - curSummary.transfer_out_m)
+    curSummary.reg_f = Math.max(0, fEntries.length - curSummary.transfer_out_f)
+    curSummary.reg_t = curSummary.reg_m + curSummary.reg_f
     const lateM = record.entries.filter(e => Boolean(e.late_enrollee) && (e.gender || '').toLowerCase() === 'male').length
     const lateF = record.entries.filter(e => Boolean(e.late_enrollee) && (e.gender || '').toLowerCase() === 'female').length
     if (newlyInserted || curSummary.late_m === undefined) {
@@ -215,7 +331,7 @@ router.get('/', async (req, res) => {
       curSummary.late_f = lateF
       curSummary.late_t = lateM + lateF
     }
-    if (newlyInserted) {
+    if (newlyInserted || mTransferred > 0 || fTransferred > 0 || otherTransferred > 0) {
       await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSummary), record.id])
     }
     record.summary_data = curSummary
@@ -348,16 +464,35 @@ router.post('/', async (req, res) => {
     for (const entry of sortedEntriesToSave) {
       await run('INSERT INTO monthly_entries (record_id, student_id, student_name, days, present, absent, remarks, late_enrollee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [recordId, entry.studentId, entry.name, JSON.stringify(entry.days || {}), entry.present || 0, entry.absent || 0, entry.remarks || '', entry.late_enrollee ? 1 : 0])
+      if (isTransferredOutRemark(entry.remarks)) {
+        await markStudentTransferredOut(
+          entry.studentId,
+          scope.schoolId,
+          cls.grade,
+          cls.section,
+          entry.remarks,
+          year,
+          month,
+          me
+        )
+      }
     }
 
-    // Synchronize registered counts in summary_data with the newly saved entries
+    // Synchronize registered counts in summary_data with the newly saved entries (accounting for transferred out)
     const mSavedCount = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'male').length
     const fSavedCount = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'female').length
+    const otherSavedCount = sortedEntriesToSave.filter(e => !['male', 'female'].includes((e.gender || '').toLowerCase())).length
+    const mTransferred = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'male' && isTransferredOutRemark(e.remarks)).length
+    const fTransferred = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'female' && isTransferredOutRemark(e.remarks)).length
+    const otherTransferred = sortedEntriesToSave.filter(e => !['male', 'female'].includes((e.gender || '').toLowerCase()) && isTransferredOutRemark(e.remarks)).length
     const latestRec = (await query('SELECT summary_data FROM monthly_records WHERE id = ?', [recordId]))[0]
     const curSum = JSON.parse(latestRec?.summary_data || '{}')
-    curSum.reg_m = mSavedCount
-    curSum.reg_f = fSavedCount
-    curSum.reg_t = mSavedCount + fSavedCount
+    curSum.transfer_out_m = Math.max(Number(curSum.transfer_out_m) || 0, mTransferred)
+    curSum.transfer_out_f = Math.max(Number(curSum.transfer_out_f) || 0, fTransferred)
+    curSum.transfer_out_t = (Number(curSum.transfer_out_m) || 0) + (Number(curSum.transfer_out_f) || 0) + otherTransferred
+    curSum.reg_m = Math.max(0, mSavedCount - curSum.transfer_out_m)
+    curSum.reg_f = Math.max(0, fSavedCount - curSum.transfer_out_f)
+    curSum.reg_t = curSum.reg_m + curSum.reg_f
     await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSum), recordId])
 
     const updated = await query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
@@ -483,7 +618,41 @@ router.put('/:recordId/remarks', async (req, res) => {
     const { studentId, remarks } = req.body
     await run('UPDATE monthly_entries SET remarks=? WHERE record_id=? AND student_id=?',
       [remarks, recordId, studentId])
-    res.json({ success: true })
+
+    let withdrawn = false
+    let student = null
+    if (isTransferredOutRemark(remarks)) {
+      student = await markStudentTransferredOut(
+        studentId,
+        g.record.school_id,
+        g.record.grade,
+        g.record.section,
+        remarks,
+        g.record.year,
+        g.record.month,
+        g.me
+      )
+      if (!student) {
+        const meRows = await query('SELECT student_name FROM monthly_entries WHERE record_id = ? AND student_id = ?', [recordId, studentId])
+        if (meRows[0]?.student_name) {
+          student = await markStudentTransferredOut(
+            meRows[0].student_name,
+            g.record.school_id,
+            g.record.grade,
+            g.record.section,
+            remarks,
+            g.record.year,
+            g.record.month,
+            g.me
+          )
+        }
+      }
+      withdrawn = true
+    }
+
+    const updatedSummary = await recalculateRecordSummary(recordId)
+
+    res.json({ success: true, withdrawn, student, summary_data: updatedSummary })
   } catch (err) {
     console.error('Failed to update remarks:', err.message)
     res.status(500).json({ error: 'Failed to update remarks' })

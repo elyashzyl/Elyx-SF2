@@ -296,6 +296,12 @@ Remaining attendance follow-ups:
   - Preserved DepEd cell coordinates in `routes/export.js`, computing effective days and reflecting custom days and holiday exclusions in SF2 export.
   - Regression verified with `tests/monthly-calendar.test.mjs`.
 
+- [x] **Monthly SF2 Transferred Out Handling & Learner Status Synchronization**
+  - Automatically detect "TRANSFERRED OUT" remarks (case-insensitive) in Monthly SF2 grid, updating student enrollment status to `withdrawn` with an enrollment event and audit log.
+  - Deduct transferred-out learners from month-end Registered Learners (`reg_m`, `reg_f`, `reg_t`) and populate Transferred Out counts (`transfer_out_m`, `transfer_out_f`, `transfer_out_t`).
+  - Synced summary calculations in `MonthlyAttendance.vue` and SF2 Excel export in `routes/export.js` (rows 59–60 and 63–64).
+  - Added unit test suite `tests/monthly-transfer-out.test.mjs`.
+
 - [x] **DepEd Form 138 / SF9 Academic Grading System**
   - Added migration `031_academic_grading_and_form138.mjs` defining `grading_subjects` and `learner_grades` tables.
   - Added `lib/grading.js` with DepEd Order No. 8, s. 2015 transmutation table (60–100 scale), initial grade calculation (WW, PT, QA), and academic honors criteria.

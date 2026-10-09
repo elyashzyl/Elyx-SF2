@@ -7,7 +7,7 @@ import { asTrimmedString } from '../lib/validation.js'
 const router = Router()
 
 let enrollmentColumnEnsured = false
-async function ensureEnrollmentStatusColumn() {
+export async function ensureEnrollmentStatusColumn() {
   if (enrollmentColumnEnsured) return
   try {
     const isMysql = DB_MODE === 'mysql'
@@ -248,7 +248,7 @@ export async function resequenceEnrollmentEvents(studentId, schoolId, tx = null)
   }
 }
 
-async function addEnrollmentEvent({ student, eventType, status, effectiveOn, grade, section, reason, actor, transferGroupId = '', tx = null }) {
+export async function addEnrollmentEvent({ student, eventType, status, effectiveOn, grade, section, reason, actor, transferGroupId = '', tx = null }) {
   const runner = tx || { query, run }
   const id = uuidv4()
   const sequenceRows = await runner.query(

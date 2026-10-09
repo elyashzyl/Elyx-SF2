@@ -531,12 +531,96 @@
               </svg>
               {{ loadingForm138 ? 'Loading…' : 'Generate Form 138' }}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty / Welcome state -->
+      <div v-if="!form138Data && !loadingForm138" class="card empty-card sf9-welcome-card">
+        <div class="sf9-welcome-icon">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+        </div>
+        <h3>DepEd Form 138 (SF9 Progress Report Card)</h3>
+        <p>Select a Grade Level, Section, and Student above, then click <strong>Generate Form 138</strong> to view and print their official progress report card.</p>
+      </div>
+
+      <!-- Loading State -->
+      <div v-if="loadingForm138" class="card empty-card">
+        <div class="spinner" style="margin: 0 auto 12px;"></div>
+        <p>Compiling Form 138 report card, learning progress ratings, and attendance record…</p>
+      </div>
+
+      <!-- Official DepEd Form 138 Document Container -->
+      <div v-if="form138Data" class="sf9-workspace">
+        <!-- Document Preview Toolbar -->
+        <div class="sf9-preview-toolbar no-print">
+          <div class="sf9-toolbar-left">
+            <span class="sf9-doc-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              DepEd Form 138 (SF9)
+            </span>
+            <span class="sf9-student-tag">{{ form138Data.student?.name }}</span>
+            <span v-if="form138Data.student?.lrn" class="sf9-lrn-tag">LRN: {{ form138Data.student.lrn }}</span>
+          </div>
+
+          <div class="sf9-toolbar-center">
+            <div class="view-mode-pills">
+              <button
+                type="button"
+                class="mode-pill"
+                :class="{ active: form138ViewMode === 'all' }"
+                @click="form138ViewMode = 'all'"
+              >
+                Two-Page Booklet
+              </button>
+              <button
+                type="button"
+                class="mode-pill"
+                :class="{ active: form138ViewMode === 'p1' }"
+                @click="form138ViewMode = 'p1'"
+              >
+                Page 1: Front &amp; Attendance
+              </button>
+              <button
+                type="button"
+                class="mode-pill"
+                :class="{ active: form138ViewMode === 'p2' }"
+                @click="form138ViewMode = 'p2'"
+              >
+                Page 2: Academic &amp; Values
+              </button>
+            </div>
+          </div>
+
+          <div class="sf9-toolbar-right">
+            <div class="zoom-controls">
+              <button type="button" class="btn-zoom" @click="form138Zoom = Math.max(70, form138Zoom - 10)" title="Zoom Out">−</button>
+              <span class="zoom-level">{{ form138Zoom }}%</span>
+              <button type="button" class="btn-zoom" @click="form138Zoom = Math.min(120, form138Zoom + 10)" title="Zoom In">+</button>
+              <button type="button" class="btn-zoom btn-zoom-reset" @click="form138Zoom = 100" title="Reset Zoom">Reset</button>
+            </div>
             <button
-              v-if="form138Data"
               type="button"
-              class="btn-secondary"
-              @click="printForm138"
+              class="btn-sig-toggle"
+              :class="{ active: showSignatureEditor }"
+              @click="showSignatureEditor = !showSignatureEditor"
+              title="Edit Signatures for Report Card"
             >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              Signatures
+            </button>
+            <button type="button" class="btn-print-sf9" @click="printForm138">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 6 2 18 2 18 9"></polyline>
                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
@@ -546,164 +630,454 @@
             </button>
           </div>
         </div>
-      </div>
 
-      <!-- Official DepEd Form 138 Document Container -->
-      <div v-if="form138Data" class="form138-document printable-card">
-        <!-- DepEd Header -->
-        <div class="sf9-header text-center">
-          <p class="deped-sub">Republic of the Philippines</p>
-          <p class="deped-main">Department of Education</p>
-          <p class="deped-division">{{ form138Data.school?.name || 'Elementary / Secondary School' }}</p>
-          <p class="deped-id">School ID: <strong>{{ form138Data.school?.school_id || '—' }}</strong></p>
-          <h2 class="sf9-title">PROGRESS REPORT CARD (SF 9)</h2>
-          <p class="sf9-sy">School Year: <strong>{{ form138Data.schoolYear }}</strong></p>
-        </div>
-
-        <!-- Learner Profile Strip -->
-        <div class="sf9-profile-grid">
-          <div class="profile-field"><span>Name:</span> <strong>{{ form138Data.student?.name }}</strong></div>
-          <div class="profile-field"><span>LRN:</span> <strong>{{ form138Data.student?.lrn || '—' }}</strong></div>
-          <div class="profile-field"><span>Grade &amp; Section:</span> <strong>{{ form138Data.student?.grade }} - {{ form138Data.student?.section }}</strong></div>
-          <div class="profile-field"><span>Sex:</span> <strong>{{ form138Data.student?.gender || '—' }}</strong></div>
-        </div>
-
-        <div class="sf9-sections-grid">
-          <!-- Left Column: Academic Learning Areas -->
-          <div class="sf9-col-left">
-            <h4 class="sf9-section-heading">REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</h4>
-            <table class="sf9-table">
-              <thead>
-                <tr>
-                  <th rowspan="2" class="text-left">Learning Areas</th>
-                  <th colspan="4">Quarterly Rating</th>
-                  <th rowspan="2">Final</th>
-                  <th rowspan="2">Remarks</th>
-                </tr>
-                <tr>
-                  <th>1</th>
-                  <th>2</th>
-                  <th>3</th>
-                  <th>4</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="la in form138Data.learningAreas" :key="la.subjectId">
-                  <td class="text-left">{{ la.subjectName }}</td>
-                  <td>{{ la.q1 ?? '—' }}</td>
-                  <td>{{ la.q2 ?? '—' }}</td>
-                  <td>{{ la.q3 ?? '—' }}</td>
-                  <td>{{ la.q4 ?? '—' }}</td>
-                  <td><strong>{{ la.finalRating ?? '—' }}</strong></td>
-                  <td>
-                    <span :class="la.finalRating >= 75 ? 'text-success' : 'text-danger'">
-                      {{ la.remarks || '—' }}
-                    </span>
-                  </td>
-                </tr>
-                <tr class="sf9-row-average">
-                  <td class="text-left"><strong>General Average</strong></td>
-                  <td colspan="4"></td>
-                  <td><strong>{{ form138Data.generalAverage ?? '—' }}</strong></td>
-                  <td>
-                    <strong :class="form138Data.generalAverage >= 75 ? 'text-success' : 'text-danger'">
-                      {{ form138Data.generalAverage >= 75 ? 'Promoted' : (form138Data.generalAverage ? 'Retained' : '—') }}
-                    </strong>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <!-- Descriptors -->
-            <div class="sf9-descriptors">
-              <div><strong>Descriptors:</strong></div>
-              <div>Outstanding: 90–100</div>
-              <div>Very Satisfactory: 85–89</div>
-              <div>Satisfactory: 80–84</div>
-              <div>Fairly Satisfactory: 75–79</div>
-              <div>Did Not Meet Expectations: Below 75</div>
+        <!-- Collapsible signature customizer -->
+        <div v-if="showSignatureEditor" class="sf9-sig-drawer no-print">
+          <div class="sig-drawer-grid">
+            <div class="form-group">
+              <label>Class Adviser (Signs Report Card)</label>
+              <input v-model="customAdviser" class="form-input form-input-sm" placeholder="e.g. Maria Clara Santos, LPT" />
             </div>
-
-            <div v-if="form138Data.honors?.honorTitle" class="sf9-honors-ribbon">
-              Academic Honor: <strong>{{ form138Data.honors.honorTitle }}</strong>
+            <div class="form-group">
+              <label>School Principal / Head</label>
+              <input v-model="customPrincipal" class="form-input form-input-sm" placeholder="e.g. Dr. Crisostomo Ibarra" />
+            </div>
+            <div class="sig-drawer-action">
+              <button type="button" class="btn-sm btn-primary" @click="showSignatureEditor = false">Apply to Card</button>
             </div>
           </div>
-
-          <!-- Right Column: Attendance & Values -->
-          <div class="sf9-col-right">
-            <!-- Attendance Matrix -->
-            <h4 class="sf9-section-heading">REPORT ON ATTENDANCE</h4>
-            <table class="sf9-table sf9-att-table">
-              <thead>
-                <tr>
-                  <th>Month</th>
-                  <th v-for="m in form138Data.attendanceSummary" :key="m.month">{{ m.monthName }}</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="text-left">Days of School</td>
-                  <td v-for="m in form138Data.attendanceSummary" :key="'sd-'+m.month">{{ m.schoolDays }}</td>
-                  <td><strong>{{ form138Data.totalAttendance?.schoolDays }}</strong></td>
-                </tr>
-                <tr>
-                  <td class="text-left">Days Present</td>
-                  <td v-for="m in form138Data.attendanceSummary" :key="'dp-'+m.month">{{ m.daysPresent }}</td>
-                  <td><strong>{{ form138Data.totalAttendance?.daysPresent }}</strong></td>
-                </tr>
-                <tr>
-                  <td class="text-left">Days Absent</td>
-                  <td v-for="m in form138Data.attendanceSummary" :key="'da-'+m.month">{{ m.daysAbsent }}</td>
-                  <td><strong>{{ form138Data.totalAttendance?.daysAbsent }}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-
-            <!-- Core Values -->
-            <h4 class="sf9-section-heading" style="margin-top: 14px;">REPORT ON LEARNER'S OBSERVED VALUES</h4>
-            <table class="sf9-table sf9-values-table">
-              <thead>
-                <tr>
-                  <th class="text-left">Core Values</th>
-                  <th class="text-left">Behavior Statements</th>
-                  <th>Q1</th>
-                  <th>Q2</th>
-                  <th>Q3</th>
-                  <th>Q4</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template v-for="cv in form138Data.coreValues" :key="cv.coreValue">
-                  <tr v-for="(stmt, si) in cv.behaviorStatements" :key="si">
-                    <td v-if="si === 0" :rowspan="cv.behaviorStatements.length" class="text-left text-bold">
-                      {{ cv.coreValue }}
-                    </td>
-                    <td class="text-left">{{ stmt }}</td>
-                    <td>AO</td>
-                    <td>AO</td>
-                    <td>AO</td>
-                    <td>AO</td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
         </div>
 
-        <!-- Signatures -->
-        <div class="sf9-signatures">
-          <div class="sig-block">
-            <div class="sig-line"></div>
-            <p>Class Adviser</p>
-          </div>
-          <div class="sig-block">
-            <div class="sig-line"></div>
-            <p>School Principal / Head</p>
-          </div>
-          <div class="sig-block">
-            <div class="sig-line"></div>
-            <p>Parent / Guardian</p>
+        <!-- Document Canvas / Desk Area -->
+        <div class="sf9-canvas-viewport">
+          <div
+            class="sf9-document-wrapper sf9-print-zone"
+            :class="`view-${form138ViewMode}`"
+            :style="{ transform: form138Zoom !== 100 ? `scale(${form138Zoom / 100})` : 'none', transformOrigin: 'top center' }"
+          >
+
+            <!-- ========================================== -->
+            <!-- PAGE 1: FRONT COVER & ATTENDANCE & VALUES  -->
+            <!-- ========================================== -->
+            <div v-show="form138ViewMode === 'all' || form138ViewMode === 'p1'" class="sf9-page sf9-page-front">
+              <!-- Visual Sheet Indicator (preview only) -->
+              <div class="sf9-sheet-banner no-print">
+                <span class="sheet-number">PAGE 1 OF 2</span>
+                <span class="sheet-title">Front Cover &bull; Attendance Record &bull; Certificate of Transfer</span>
+              </div>
+
+              <!-- Official DepEd Header with Dual Government Seals -->
+              <div class="sf9-official-header">
+                <!-- Left Crest: Republic of the Philippines -->
+                <div class="header-seal seal-ph">
+                  <svg class="official-crest-svg" viewBox="0 0 100 100" width="74" height="74" aria-label="Seal of the Republic of the Philippines">
+                    <circle cx="50" cy="50" r="48" fill="#f8fafc" stroke="#1e3a8a" stroke-width="2.5" />
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="#b45309" stroke-width="1.2" stroke-dasharray="2,2" />
+                    <path d="M30 32 L70 32 L70 54 Q70 74 50 82 Q30 74 30 54 Z" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+                    <path d="M30 32 L70 32 L70 42 L30 42 Z" fill="#fef3c7" stroke="#1e293b" stroke-width="1" />
+                    <path d="M30 42 L50 42 L50 78 Q38 72 30 54 Z" fill="#1e40af" />
+                    <path d="M50 42 L70 42 L70 54 Q70 72 50 78 Z" fill="#b91c1c" />
+                    <circle cx="50" cy="54" r="6" fill="#f59e0b" stroke="#d97706" stroke-width="0.8" />
+                    <line x1="50" y1="44" x2="50" y2="64" stroke="#f59e0b" stroke-width="1.5" />
+                    <line x1="40" y1="54" x2="60" y2="54" stroke="#f59e0b" stroke-width="1.5" />
+                    <line x1="43" y1="47" x2="57" y2="61" stroke="#f59e0b" stroke-width="1.5" />
+                    <line x1="43" y1="61" x2="57" y2="47" stroke="#f59e0b" stroke-width="1.5" />
+                    <polygon points="50,34 51.5,37.5 55,37.5 52,39.5 53.5,43 50,41 46.5,43 48,39.5 45,37.5 48.5,37.5" fill="#f59e0b" />
+                    <polygon points="36,36 37,38.5 39.5,38.5 37.5,40 38.5,42.5 36,41 33.5,42.5 34.5,40 32.5,38.5 35,38.5" fill="#f59e0b" />
+                    <polygon points="64,36 65,38.5 67.5,38.5 65.5,40 66.5,42.5 64,41 61.5,42.5 62.5,40 60.5,38.5 63,38.5" fill="#f59e0b" />
+                    <text x="50" y="15" text-anchor="middle" font-size="6" font-weight="900" fill="#1e3a8a" font-family="'Times New Roman', serif" letter-spacing="0.5">REPUBLIKA NG PILIPINAS</text>
+                  </svg>
+                </div>
+
+                <!-- Center: Official Hierarchy & Title -->
+                <div class="header-center-info">
+                  <p class="gov-line-1">REPUBLIC OF THE PHILIPPINES</p>
+                  <p class="gov-line-2">DEPARTMENT OF EDUCATION</p>
+                  <p class="gov-division">
+                    {{ form138Data.school?.division ? 'Schools Division Office of ' + form138Data.school.division : 'Schools Division Office' }}
+                  </p>
+                  <p class="gov-school-name">{{ form138Data.school?.name || 'Elementary / Secondary School' }}</p>
+                  <p class="gov-school-meta">
+                    <span>School ID: <strong>{{ form138Data.school?.school_id || '—' }}</strong></span>
+                    <span v-if="form138Data.school?.district">&bull; District: <strong>{{ form138Data.school?.district }}</strong></span>
+                    <span v-if="form138Data.school?.address">&bull; {{ form138Data.school?.address }}</span>
+                  </p>
+                  <div class="sf9-title-banner">
+                    <h3>LEARNER'S PROGRESS REPORT CARD (SF 9)</h3>
+                    <p class="sf9-sub">DepEd Form 138 &bull; School Year <strong>{{ form138Data.schoolYear }}</strong></p>
+                  </div>
+                </div>
+
+                <!-- Right Crest: Department of Education -->
+                <div class="header-seal seal-deped">
+                  <svg class="official-crest-svg" viewBox="0 0 100 100" width="74" height="74" aria-label="Official Seal of the Department of Education">
+                    <circle cx="50" cy="50" r="48" fill="#f8fafc" stroke="#1e3a8a" stroke-width="2.5" />
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="#b45309" stroke-width="1.2" stroke-dasharray="2,2" />
+                    <circle cx="50" cy="50" r="32" fill="#eff6ff" stroke="#3b82f6" stroke-width="1" />
+                    <path d="M28 66 Q50 60 50 74 Q50 60 72 66 L70 75 Q50 70 50 80 Q50 70 30 75 Z" fill="#ffffff" stroke="#1e3a8a" stroke-width="1.2" />
+                    <path d="M48 42 L52 42 L51 68 L49 68 Z" fill="#92400e" stroke="#78350f" stroke-width="0.8" />
+                    <path d="M45 42 L55 42 L53 46 L47 46 Z" fill="#b45309" />
+                    <path d="M50 25 Q56 32 53 38 Q50 42 50 42 Q50 42 47 38 Q44 32 50 25 Z" fill="#ea580c" />
+                    <path d="M50 28 Q53 33 51 38 Q50 40 50 40 Q50 40 49 38 Q47 33 50 28 Z" fill="#facc15" />
+                    <text x="50" y="15" text-anchor="middle" font-size="5.5" font-weight="900" fill="#1e3a8a" font-family="'Times New Roman', serif" letter-spacing="0.3">KAGAWARAN NG EDUKASYON</text>
+                    <text x="50" y="93" text-anchor="middle" font-size="5.5" font-weight="700" fill="#1e3a8a" font-family="'Times New Roman', serif" letter-spacing="0.5">PILIPINAS</text>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Learner Profile Strip -->
+              <div class="sf9-learner-profile">
+                <div class="profile-col profile-col-main">
+                  <div class="profile-entry">
+                    <span class="label">LEARNER NAME:</span>
+                    <strong class="val val-name">{{ form138Data.student?.name }}</strong>
+                  </div>
+                  <div class="profile-entry-group">
+                    <div class="profile-entry">
+                      <span class="label">AGE / BIRTHDATE:</span>
+                      <span class="val">{{ form138Data.student?.birth_date || '—' }}</span>
+                    </div>
+                    <div class="profile-entry">
+                      <span class="label">SEX:</span>
+                      <span class="val">{{ form138Data.student?.gender || '—' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="profile-col profile-col-sub">
+                  <div class="profile-entry">
+                    <span class="label">LRN:</span>
+                    <strong class="val val-lrn font-mono">{{ form138Data.student?.lrn || '—' }}</strong>
+                  </div>
+                  <div class="profile-entry-group">
+                    <div class="profile-entry">
+                      <span class="label">GRADE &amp; SECTION:</span>
+                      <strong class="val">{{ form138Data.student?.grade }} &bull; {{ form138Data.student?.section }}</strong>
+                    </div>
+                    <div class="profile-entry">
+                      <span class="label">CURRICULUM:</span>
+                      <span class="val">K to 12 Basic Ed</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dear Parent Notification Box -->
+              <div class="sf9-dear-parent-box">
+                <h5 class="box-subtitle">DEAR PARENT / GUARDIAN:</h5>
+                <p class="parent-text">
+                  This report card shows the ability and progress your child has made in the different learning areas as well
+                  as his/her core values. The school welcomes you should you desire to know more about your child's progress.
+                </p>
+                <div class="parent-signatures-inline">
+                  <div class="inline-sig">
+                    <span class="sig-line-text">{{ customAdviser || form138Data.adviserName || 'Class Adviser' }}</span>
+                    <span class="sig-role">Teacher / Class Adviser</span>
+                  </div>
+                  <div class="inline-sig">
+                    <span class="sig-line-text">{{ customPrincipal || form138Data.principalName || form138Data.school?.principal_name || 'School Principal / Head' }}</span>
+                    <span class="sig-role">School Principal / Head</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Full-Width REPORT ON ATTENDANCE -->
+              <div class="sf9-panel-box sf9-attendance-box">
+                <div class="panel-header">
+                  <h4>REPORT ON ATTENDANCE</h4>
+                </div>
+                <div class="table-wrap">
+                  <table class="sf9-grid-table sf9-attendance-table">
+                    <thead>
+                      <tr>
+                        <th class="col-att-metric">Month</th>
+                        <th v-for="m in attendanceMonths" :key="m.month">{{ m.monthName }}</th>
+                        <th class="col-att-total">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="text-left font-medium">No. of School Days</td>
+                        <td v-for="m in attendanceMonths" :key="'sd-'+m.month">{{ m.schoolDays ?? '—' }}</td>
+                        <td class="font-bold cell-total">{{ attendanceTotals.schoolDays }}</td>
+                      </tr>
+                      <tr>
+                        <td class="text-left font-medium">No. of Days Present</td>
+                        <td v-for="m in attendanceMonths" :key="'dp-'+m.month">{{ m.daysPresent ?? '—' }}</td>
+                        <td class="font-bold cell-total">{{ attendanceTotals.daysPresent }}</td>
+                      </tr>
+                      <tr>
+                        <td class="text-left font-medium">No. of Days Absent</td>
+                        <td v-for="m in attendanceMonths" :key="'da-'+m.month">{{ m.daysAbsent ?? '—' }}</td>
+                        <td class="font-bold cell-total">{{ attendanceTotals.daysAbsent }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Balanced Side-by-Side: Parent Signatures & Certificate of Transfer -->
+              <div class="sf9-page1-bottom-grid">
+                <!-- Parent / Guardian's Signature Table -->
+                <div class="sf9-panel-box sf9-parent-sig-box">
+                  <div class="panel-header">
+                    <h4>PARENT / GUARDIAN'S SIGNATURE</h4>
+                  </div>
+                  <table class="sf9-grid-table sf9-parent-sig-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 30%;">Quarter</th>
+                        <th style="width: 32%;">Date</th>
+                        <th style="width: 38%;">Signature</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="font-medium">1st Quarter</td>
+                        <td class="dotted-underline"></td>
+                        <td class="dotted-underline"></td>
+                      </tr>
+                      <tr>
+                        <td class="font-medium">2nd Quarter</td>
+                        <td class="dotted-underline"></td>
+                        <td class="dotted-underline"></td>
+                      </tr>
+                      <tr>
+                        <td class="font-medium">3rd Quarter</td>
+                        <td class="dotted-underline"></td>
+                        <td class="dotted-underline"></td>
+                      </tr>
+                      <tr>
+                        <td class="font-medium">4th Quarter</td>
+                        <td class="dotted-underline"></td>
+                        <td class="dotted-underline"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="sig-note-small">
+                    <em>Please sign and return after examining each quarterly progress rating.</em>
+                  </p>
+                </div>
+
+                <!-- Certificate of Transfer Box -->
+                <div class="sf9-panel-box sf9-transfer-box">
+                  <div class="panel-header">
+                    <h4>CERTIFICATE OF TRANSFER</h4>
+                  </div>
+                  <div class="cert-transfer-subbox">
+                    <div class="cert-lines">
+                      <div class="cert-field-row">
+                        <span class="cert-lbl">Admitted to Grade:</span>
+                        <span class="cert-fill"></span>
+                        <span class="cert-lbl">Section:</span>
+                        <span class="cert-fill"></span>
+                      </div>
+                      <div class="cert-field-row">
+                        <span class="cert-lbl">Eligibility for Admission:</span>
+                        <span class="cert-fill"></span>
+                      </div>
+                      <div class="cert-signers">
+                        <div class="cert-sig-block">
+                          <span class="sig-line">{{ customAdviser || form138Data.adviserName || 'Class Adviser' }}</span>
+                          <span class="sig-role">Teacher / Adviser</span>
+                        </div>
+                        <div class="cert-sig-block">
+                          <span class="sig-line">{{ customPrincipal || form138Data.principalName || form138Data.school?.principal_name || 'School Principal / Head' }}</span>
+                          <span class="sig-role">School Principal / Head</span>
+                        </div>
+                      </div>
+
+                      <div class="cert-cancellation-block">
+                        <h6 class="cert-sub-title">CANCELLATION OF ELIGIBILITY TO TRANSFER</h6>
+                        <div class="cert-field-row">
+                          <span class="cert-lbl">Admitted in:</span>
+                          <span class="cert-fill"></span>
+                        </div>
+                        <div class="cert-field-row">
+                          <span class="cert-lbl">Date:</span>
+                          <span class="cert-fill" style="max-width: 100px;"></span>
+                          <span class="cert-lbl">Principal:</span>
+                          <span class="cert-fill"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PAGE 2: ACADEMIC PROGRESS & CORE VALUES   -->
+            <!-- ========================================== -->
+            <div v-show="form138ViewMode === 'all' || form138ViewMode === 'p2'" class="sf9-page sf9-page-back">
+              <!-- Visual Sheet Indicator (preview only) -->
+              <div class="sf9-sheet-banner no-print">
+                <span class="sheet-number">PAGE 2 OF 2</span>
+                <span class="sheet-title">Learning Progress &bull; DepEd Core Values &bull; Signatures</span>
+              </div>
+
+              <!-- Academic Header -->
+              <div class="sf9-academic-header">
+                <h4>REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</h4>
+                <p class="deped-order-tag">DepEd Order No. 8, s. 2015 &bull; Policy Guidelines on Classroom Assessment</p>
+              </div>
+
+              <div class="sf9-page2-grid">
+                <!-- Left Column: Academic Grades -->
+                <div class="sf9-col-academic">
+                  <table class="sf9-grid-table sf9-learning-areas-table">
+                    <thead>
+                      <tr>
+                        <th rowspan="2" class="col-subject text-left">Learning Areas</th>
+                        <th colspan="4" class="col-quarters">Quarterly Rating</th>
+                        <th rowspan="2" class="col-final">Final Rating</th>
+                        <th rowspan="2" class="col-remarks">Remarks</th>
+                      </tr>
+                      <tr>
+                        <th class="sub-q">1</th>
+                        <th class="sub-q">2</th>
+                        <th class="sub-q">3</th>
+                        <th class="sub-q">4</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-if="!learningAreasList.length">
+                        <td colspan="7" class="text-center py-3 text-muted">
+                          No subjects configured for this grade level.
+                        </td>
+                      </tr>
+                      <tr v-for="la in learningAreasList" :key="la.subjectId">
+                        <td class="text-left font-medium subject-name-cell">
+                          {{ la.subjectName }}
+                          <span v-if="la.subjectCode" class="sub-code-tiny">({{ la.subjectCode }})</span>
+                        </td>
+                        <td class="rating-cell">{{ la.q1 ?? '—' }}</td>
+                        <td class="rating-cell">{{ la.q2 ?? '—' }}</td>
+                        <td class="rating-cell">{{ la.q3 ?? '—' }}</td>
+                        <td class="rating-cell">{{ la.q4 ?? '—' }}</td>
+                        <td class="rating-cell font-bold final-cell">{{ la.finalRating ?? '—' }}</td>
+                        <td class="remarks-cell">
+                          <span :class="la.finalRating >= 75 ? 'tag-prom' : (la.finalRating !== null ? 'tag-fail' : '')">
+                            {{ la.remarks || '—' }}
+                          </span>
+                        </td>
+                      </tr>
+                      <!-- General Average Row -->
+                      <tr class="row-general-average">
+                        <td class="text-left font-bold gen-avg-label">
+                          GENERAL AVERAGE
+                        </td>
+                        <td colspan="4" class="gen-avg-blank"></td>
+                        <td class="rating-cell font-black gen-avg-val">
+                          {{ form138Data.generalAverage ?? '—' }}
+                        </td>
+                        <td class="remarks-cell font-bold">
+                          <span
+                            v-if="form138Data.generalAverage !== null"
+                            :class="form138Data.generalAverage >= 75 ? 'status-promoted' : 'status-retained'"
+                          >
+                            {{ form138Data.generalAverage >= 75 ? 'PROMOTED' : 'RETAINED' }}
+                          </span>
+                          <span v-else>—</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <!-- Descriptors & Grading Scale Box -->
+                  <div class="sf9-descriptors-box">
+                    <div class="descriptors-title">DESCRIPTORS &amp; GRADING SCALE (DepEd Order 8, s. 2015)</div>
+                    <div class="descriptors-grid">
+                      <div class="desc-item"><span>Outstanding (O):</span> <strong>90–100</strong> <em class="pass">Passed</em></div>
+                      <div class="desc-item"><span>Very Satisfactory (VS):</span> <strong>85–89</strong> <em class="pass">Passed</em></div>
+                      <div class="desc-item"><span>Satisfactory (S):</span> <strong>80–84</strong> <em class="pass">Passed</em></div>
+                      <div class="desc-item"><span>Fairly Satisfactory (FS):</span> <strong>75–79</strong> <em class="pass">Passed</em></div>
+                      <div class="desc-item desc-fail"><span>Did Not Meet Expectations:</span> <strong>Below 75</strong> <em class="fail">Failed</em></div>
+                    </div>
+                  </div>
+
+                  <!-- Honors Distinction Ribbon (if qualified) -->
+                  <div v-if="form138Data.honors?.honorTitle" class="sf9-academic-honor-badge">
+                    <div class="honor-laurel">★ ★ ★</div>
+                    <div class="honor-content">
+                      <span class="honor-heading">ACADEMIC EXCELLENCE AWARD</span>
+                      <strong class="honor-title">{{ form138Data.honors.honorTitle }}</strong>
+                      <span class="honor-deped-ref">Pursuant to DepEd Order No. 36, s. 2016 (Awards &amp; Recognition)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right Column: Observed Values (DepEd Core Values) -->
+                <div class="sf9-col-values">
+                  <div class="panel-header values-header">
+                    <h4>REPORT ON LEARNER'S OBSERVED VALUES</h4>
+                  </div>
+
+                  <table class="sf9-grid-table sf9-values-table">
+                    <thead>
+                      <tr>
+                        <th class="col-cv text-left">Core Values</th>
+                        <th class="col-stmt text-left">Behavior Statements</th>
+                        <th class="col-vq">Q1</th>
+                        <th class="col-vq">Q2</th>
+                        <th class="col-vq">Q3</th>
+                        <th class="col-vq">Q4</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template v-for="(cv, cvi) in observedValues" :key="cv.coreValue">
+                        <tr v-for="(stmt, si) in cv.behaviorStatements" :key="si">
+                          <td v-if="si === 0" :rowspan="cv.behaviorStatements.length" class="cell-cv-title text-left font-bold">
+                            {{ cv.coreValue }}
+                          </td>
+                          <td class="text-left stmt-text">{{ stmt.text }}</td>
+                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q1')" title="Click to toggle AO/SO/RO/NO">
+                            <span class="rating-tag" :class="`rate-${stmt.q1}`">{{ stmt.q1 }}</span>
+                          </td>
+                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q2')" title="Click to toggle AO/SO/RO/NO">
+                            <span class="rating-tag" :class="`rate-${stmt.q2}`">{{ stmt.q2 }}</span>
+                          </td>
+                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q3')" title="Click to toggle AO/SO/RO/NO">
+                            <span class="rating-tag" :class="`rate-${stmt.q3}`">{{ stmt.q3 }}</span>
+                          </td>
+                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q4')" title="Click to toggle AO/SO/RO/NO">
+                            <span class="rating-tag" :class="`rate-${stmt.q4}`">{{ stmt.q4 }}</span>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+
+                  <!-- Marking Code Legend -->
+                  <div class="sf9-marking-legend">
+                    <div class="legend-header">OBSERVED VALUES MARKING CODE</div>
+                    <div class="legend-items">
+                      <div class="leg-item"><strong class="code code-ao">AO</strong> Always Observed <em>(Pinakikita Lagi &bull; 90-100%)</em></div>
+                      <div class="leg-item"><strong class="code code-so">SO</strong> Sometimes Observed <em>(Paminsan-minsan &bull; 60-89%)</em></div>
+                      <div class="leg-item"><strong class="code code-ro">RO</strong> Rarely Observed <em>(Bihira &bull; 30-59%)</em></div>
+                      <div class="leg-item"><strong class="code code-no">NO</strong> Not Observed <em>(Hindi Kailanman &bull; &lt;30%)</em></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Signatures at base of Page 2 (Spans full width across bottom) -->
+              <div class="sf9-page2-signatures">
+                <div class="sig-col">
+                  <div class="sig-line-wrap">
+                    <span class="signer-name">{{ customAdviser || form138Data.adviserName || 'Class Adviser' }}</span>
+                  </div>
+                  <p class="signer-title">Teacher / Class Adviser</p>
+                </div>
+                <div class="sig-col">
+                  <div class="sig-line-wrap">
+                    <span class="signer-name">{{ customPrincipal || form138Data.principalName || form138Data.school?.principal_name || 'School Principal / Head' }}</span>
+                  </div>
+                  <p class="signer-title">School Principal / Head</p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -1037,6 +1411,43 @@ const form138Sections = computed(() => sectionsByGrade.value[form138Filter.grade
 const form138StudentList = ref([])
 const loadingForm138 = ref(false)
 const form138Data = ref(null)
+
+const form138ViewMode = ref('all') // 'all', 'p1', 'p2'
+const form138Zoom = ref(100)
+const customAdviser = ref('')
+const customPrincipal = ref('')
+const showSignatureEditor = ref(false)
+const observedValues = ref([])
+
+const attendanceMonths = computed(() => {
+  if (!form138Data.value?.attendanceSummary) return []
+  if (Array.isArray(form138Data.value.attendanceSummary)) {
+    return form138Data.value.attendanceSummary
+  }
+  return form138Data.value.attendanceSummary.months || []
+})
+
+const attendanceTotals = computed(() => {
+  if (!form138Data.value?.attendanceSummary) return { schoolDays: 0, daysPresent: 0, daysAbsent: 0 }
+  if (form138Data.value.totalAttendance) return form138Data.value.totalAttendance
+  return {
+    schoolDays: form138Data.value.attendanceSummary.totalSchoolDays || 0,
+    daysPresent: form138Data.value.attendanceSummary.totalPresent || 0,
+    daysAbsent: form138Data.value.attendanceSummary.totalAbsent || 0
+  }
+})
+
+const learningAreasList = computed(() => {
+  if (!form138Data.value) return []
+  return form138Data.value.learningAreas || form138Data.value.subjects || []
+})
+
+function toggleObservedValue(stmt, quarterKey) {
+  const sequence = ['AO', 'SO', 'RO', 'NO']
+  const current = stmt[quarterKey] || 'AO'
+  const nextIdx = (sequence.indexOf(current) + 1) % sequence.length
+  stmt[quarterKey] = sequence[nextIdx]
+}
 
 // Analytics State
 const analyticsFilter = reactive({
@@ -1397,6 +1808,18 @@ async function loadForm138(studentId) {
     if (!res.ok) throw new Error(data.error || 'Failed to load Form 138')
 
     form138Data.value = data
+    customAdviser.value = data.adviserName || ''
+    customPrincipal.value = data.principalName || data.school?.principal_name || ''
+    observedValues.value = (data.coreValues || []).map(cv => ({
+      coreValue: cv.coreValue,
+      behaviorStatements: (cv.behaviorStatements || []).map(stmt => ({
+        text: typeof stmt === 'string' ? stmt : (stmt.text || ''),
+        q1: 'AO',
+        q2: 'AO',
+        q3: 'AO',
+        q4: 'AO'
+      }))
+    }))
     notify(`Loaded Form 138 for ${data.student?.name}`, 'success')
   } catch (err) {
     notify(err.message || 'Error loading Form 138', 'error')
@@ -1858,120 +2281,1065 @@ function getDistPct(count) {
 /* ======================================================== */
 /* FORM 138 (SF9) OFFICIAL PRINTABLE LAYOUT */
 /* ======================================================== */
-.form138-document {
-  background: #ffffff;
-  color: #111111;
-  padding: 36px 40px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  margin-bottom: 30px;
-  font-family: 'DM Sans', serif, sans-serif;
-}
-
-.sf9-header {
-  margin-bottom: 24px;
-  border-bottom: 2px solid #222222;
-  padding-bottom: 12px;
-}
-.deped-sub { font-size: 0.8rem; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; }
-.deped-main { font-size: 1.05rem; font-weight: 800; margin: 2px 0; text-transform: uppercase; }
-.deped-division { font-size: 0.95rem; font-weight: 700; margin: 2px 0; }
-.deped-id { font-size: 0.8rem; margin: 2px 0 8px; }
-.sf9-title { font-size: 1.25rem; font-weight: 900; margin: 8px 0 2px; letter-spacing: 0.02em; }
-.sf9-sy { font-size: 0.85rem; margin: 0; }
-
-.sf9-profile-grid {
-  display: grid;
-  grid-template-columns: 2fr 1.2fr 1.5fr 1fr;
-  gap: 12px;
-  padding: 10px 14px;
-  background: #f8faf9;
-  border: 1px solid #d0dede;
-  border-radius: 6px;
-  margin-bottom: 20px;
-  font-size: 0.88rem;
-}
-.profile-field span { color: #555555; margin-right: 4px; }
-
-.sf9-sections-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-
-.sf9-section-heading {
-  font-size: 0.82rem;
-  font-weight: 800;
+.sf9-welcome-card {
+  padding: 40px 24px;
   text-align: center;
-  padding: 6px 8px;
-  background: #edf6f6;
-  border: 1px solid #d0dede;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.sf9-welcome-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--primary-bg);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.sf9-welcome-card h3 {
   margin: 0 0 8px;
-  letter-spacing: 0.02em;
+  font-size: 1.15rem;
+}
+.sf9-welcome-card p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
-.sf9-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-  margin-bottom: 12px;
+.sf9-workspace {
+  margin-bottom: 30px;
 }
-.sf9-table th, .sf9-table td {
-  border: 1px solid #333333;
-  padding: 6px 8px;
-  text-align: center;
+
+.sf9-preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
 }
-.sf9-table thead th {
-  background: #f1f6f6;
-  font-weight: 700;
+
+.sf9-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.sf9-row-average td {
-  background: #fafafa;
+
+.sf9-doc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--primary);
+  background: var(--primary-bg);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
 }
 
-.sf9-descriptors {
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: #444444;
-  padding: 8px;
-  background: #fafafa;
-  border: 1px dashed #cccccc;
-  margin-top: 10px;
-}
-
-.sf9-honors-ribbon {
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: #fef3c7;
-  border: 1px solid #b45309;
-  color: #b45309;
-  font-size: 0.85rem;
+.sf9-student-tag {
   font-weight: 700;
-  text-align: center;
+  font-size: 0.92rem;
+  color: var(--foreground);
+}
+
+.sf9-lrn-tag {
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 2px 7px;
   border-radius: 4px;
 }
 
-.sf9-signatures {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 30px;
-  margin-top: 48px;
-  padding-top: 16px;
+.sf9-toolbar-center {
+  display: flex;
+  justify-content: center;
 }
-.sig-block {
+
+.view-mode-pills {
+  display: flex;
+  gap: 4px;
+  background: var(--muted);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.mode-pill {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-pill.active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-xs);
+  font-weight: 700;
+}
+
+.sf9-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+}
+
+.btn-zoom {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-zoom-reset {
+  width: auto;
+  padding: 0 6px;
+  font-size: 0.72rem;
+}
+
+.zoom-level {
+  font-size: 0.76rem;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: center;
+  color: var(--foreground);
+}
+
+.btn-print-sf9 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  background: #1e3a8a;
+  color: #ffffff;
+  border: 1px solid #1e3a8a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 4px rgba(30, 58, 138, 0.2);
+}
+
+.btn-print-sf9:hover {
+  background: #1d4ed8;
+}
+
+.btn-sig-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sig-toggle:hover {
+  background: var(--muted);
+}
+
+.btn-sig-toggle.active {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.sf9-sig-drawer {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.sig-drawer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.sig-drawer-grid .form-group {
+  margin-bottom: 0;
+}
+
+.sig-drawer-grid label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.sig-drawer-action {
+  display: flex;
+  align-items: flex-end;
+}
+
+.sf9-sheet-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 5px 12px;
+  background: #f1f5f9;
+  border-left: 3px solid #1e3a8a;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  color: #334155;
+}
+
+.sheet-number {
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #1e3a8a;
+}
+
+.sheet-title {
+  color: #475569;
+}
+
+.sf9-canvas-viewport {
+  background: var(--muted);
+  padding: 28px 20px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  overflow-x: auto;
+  min-height: 600px;
+  display: flex;
+  justify-content: center;
+}
+
+.sf9-document-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+  max-width: 860px;
+}
+
+.sf9-page {
+  background: #ffffff;
+  color: #0f172a;
+  padding: 34px 38px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  position: relative;
+}
+
+.sf9-official-header {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.official-crest-svg {
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+.header-center-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gov-line-1 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+  color: #1e293b;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.gov-line-2 {
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 2px 0 3px;
+  color: #1e3a8a;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.gov-division {
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: #334155;
+}
+
+.gov-school-name {
+  font-size: 1.02rem;
+  font-weight: 800;
+  margin: 2px 0;
+  color: #0f172a;
+}
+
+.gov-school-meta {
+  font-size: 0.75rem;
+  color: #475569;
+  margin: 2px 0 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.sf9-title-banner {
+  background: #f1f5f9;
+  border-top: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 5px 16px;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.sf9-title-banner h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+}
+
+.sf9-sub {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.sf9-learner-profile {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-size: 0.82rem;
+}
+
+.profile-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.profile-entry .label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.profile-entry .val {
+  color: #0f172a;
+  font-size: 0.84rem;
+}
+
+.val-name {
+  font-size: 0.95rem !important;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.val-lrn {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #0f172a;
+}
+
+.profile-entry-group {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.sf9-dear-parent-box {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 12px 18px;
+  margin-bottom: 18px;
+  font-size: 0.8rem;
+}
+
+.box-subtitle {
+  font-size: 0.78rem;
+  font-weight: 900;
+  margin: 0 0 6px;
+  color: #1e3a8a;
+  letter-spacing: 0.03em;
+}
+
+.parent-text {
+  margin: 0 0 12px;
+  line-height: 1.5;
+  color: #1e293b;
+  font-style: italic;
+}
+
+.parent-signatures-inline {
+  display: flex;
+  justify-content: space-around;
+  gap: 24px;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 10px;
+  margin-top: 8px;
+}
+
+.inline-sig {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
 }
-.sig-line {
-  border-bottom: 1px solid #222222;
-  margin-bottom: 6px;
-  height: 20px;
+
+.sig-line-text {
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: #0f172a;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 2px;
+  min-width: 180px;
+  text-align: center;
 }
-.sig-block p {
-  font-size: 0.8rem;
+
+.sig-role {
+  font-size: 0.72rem;
+  color: #475569;
+  margin-top: 3px;
   font-weight: 600;
+}
+
+.sf9-panel-box {
+  border: 1px solid #334155;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.panel-header {
+  background: #f1f5f9;
+  border-bottom: 1px solid #334155;
+  padding: 6px 12px;
+  text-align: center;
+}
+
+.panel-header h4 {
   margin: 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.sf9-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+.sf9-grid-table th, .sf9-grid-table td {
+  border: 1px solid #475569;
+  padding: 5px 6px;
+  text-align: center;
+  color: #0f172a;
+}
+
+.sf9-grid-table thead th {
+  background: #f8fafc;
+  font-weight: 800;
+  font-size: 0.74rem;
+  color: #0f172a;
+}
+
+/* Attendance Full-Width Box */
+.sf9-attendance-box {
+  margin-bottom: 18px;
+  width: 100%;
+}
+
+.sf9-attendance-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.sf9-attendance-table th,
+.sf9-attendance-table td {
+  padding: 5px 3px;
+  font-size: 0.73rem;
+  text-align: center;
+}
+
+.sf9-attendance-table th.col-att-metric,
+.sf9-attendance-table td:first-child {
+  width: 140px;
+  text-align: left !important;
+  padding-left: 8px;
+}
+
+.sf9-attendance-table th.col-att-total,
+.sf9-attendance-table td.col-att-total {
+  width: 52px;
+}
+
+.col-att-metric {
+  width: 140px;
+  text-align: left !important;
+  font-weight: 700;
+}
+
+.col-att-total {
+  font-weight: 800;
+  background: #f1f5f9;
+}
+
+.cell-total {
+  background: #f8fafc;
+  font-weight: 800;
+}
+
+/* Bottom Grid: Parent Signatures & Certificate of Transfer */
+.sf9-page1-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.sf9-parent-sig-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.sf9-parent-sig-table {
+  flex: 1;
+}
+
+.sf9-parent-sig-table th {
+  padding: 4px 6px;
+  font-size: 0.72rem;
+}
+
+.sf9-parent-sig-table td {
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.72rem;
+}
+
+.dotted-underline {
+  border-bottom: 1px dotted #94a3b8 !important;
+}
+
+.sig-note-small {
+  margin: 6px 8px 4px;
+  font-size: 0.68rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.sf9-transfer-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.cert-transfer-subbox {
+  padding: 10px 14px;
+  background: #fafafa;
+  font-size: 0.74rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.cert-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cert-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.cert-lbl {
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+
+.cert-fill {
+  flex: 1;
+  border-bottom: 1px solid #475569;
+  min-height: 14px;
+  display: inline-block;
+}
+
+.cert-signers {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 6px;
+  text-align: center;
+}
+
+.cert-sig-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cert-sig-block .sig-line {
+  border-bottom: 1px solid #334155;
+  font-weight: 800;
+  font-size: 0.74rem;
+  color: #0f172a;
+  min-width: 110px;
+  padding-bottom: 1px;
+  text-align: center;
+}
+
+.cert-sig-block .sig-role {
+  font-size: 0.68rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.cert-cancellation-block {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.cert-sub-title {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-align: center;
+  color: #334155;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Page 2 */
+.sf9-academic-header {
+  text-align: center;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+.sf9-academic-header h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.deped-order-tag {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.sf9-page2-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 20px;
+}
+
+.sf9-learning-areas-table {
+  margin-bottom: 14px;
+}
+
+.subject-name-cell {
+  padding-left: 8px !important;
+}
+
+.sub-code-tiny {
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 600;
+  margin-left: 3px;
+}
+
+.rating-cell {
+  font-size: 0.8rem;
+}
+
+.final-cell {
+  font-size: 0.84rem;
+  background: #f8fafc;
+}
+
+.remarks-cell {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.tag-prom {
+  color: #15803d;
+  font-weight: 800;
+}
+
+.tag-fail {
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.row-general-average td {
+  background: #f1f5f9;
+  border-top: 2px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
+  padding: 7px 6px;
+}
+
+.gen-avg-label {
+  font-size: 0.84rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.gen-avg-val {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #1e3a8a;
+}
+
+.status-promoted {
+  color: #15803d;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.status-retained {
+  color: #b91c1c;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.sf9-descriptors-box {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 0.74rem;
+  margin-bottom: 12px;
+}
+
+.descriptors-title {
+  font-weight: 900;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.descriptors-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.desc-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #e2e8f0;
+  padding-bottom: 2px;
+}
+
+.desc-item span {
+  color: #334155;
+}
+
+.desc-item strong {
+  color: #0f172a;
+}
+
+.desc-item .pass {
+  font-style: normal;
+  font-weight: 700;
+  color: #166534;
+  font-size: 0.7rem;
+}
+
+.desc-item .fail {
+  font-style: normal;
+  font-weight: 700;
+  color: #991b1b;
+  font-size: 0.7rem;
+}
+
+.sf9-academic-honor-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1.5px solid #d97706;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  box-shadow: 0 2px 5px rgba(217, 119, 6, 0.15);
+}
+
+.honor-laurel {
+  font-size: 1.3rem;
+  color: #b45309;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.honor-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.honor-heading {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #92400e;
+}
+
+.honor-title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #78350f;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.honor-deped-ref {
+  font-size: 0.65rem;
+  color: #92400e;
+  margin-top: 2px;
+}
+
+.cell-cv-title {
+  background: #f8fafc;
+  font-size: 0.76rem;
+  width: 110px;
+}
+
+.stmt-text {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 6px 8px !important;
+}
+
+.col-vq {
+  width: 38px;
+}
+
+.cell-rating {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.cell-rating:hover {
+  background: #f1f5f9;
+}
+
+.rating-tag {
+  display: inline-block;
+  padding: 2px 5px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-radius: 3px;
+  min-width: 24px;
+}
+
+.rate-AO {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.rate-SO {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.rate-RO {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.rate-NO {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sf9-marking-legend {
+  margin-top: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: #fafafa;
+  font-size: 0.72rem;
+}
+
+.legend-header {
+  font-weight: 900;
+  font-size: 0.7rem;
+  color: #475569;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.legend-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+}
+
+.leg-item .code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  min-width: 22px;
+  text-align: center;
+}
+
+.code-ao {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.code-so {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.code-ro {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.code-no {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sf9-page2-signatures {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 28px;
+  gap: 24px;
+  padding-top: 12px;
+}
+
+.sig-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.sig-line-wrap {
+  border-bottom: 1px solid #1e293b;
+  min-width: 190px;
+  padding-bottom: 3px;
+}
+
+.signer-name {
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.signer-title {
+  font-size: 0.72rem;
+  color: #475569;
+  margin: 3px 0 0;
+  font-weight: 600;
 }
 
 /* Analytics */
@@ -2097,24 +3465,100 @@ function getDistPct(count) {
 
 /* Print styling */
 @media print {
-  body * {
-    visibility: hidden;
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
   }
-  .form138-document, .form138-document * {
-    visibility: visible;
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .form138-document {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 20px;
+
+  :global(.app-sidebar),
+  :global(.sidebar),
+  :global(.sidebar-scrim),
+  :global(.top-nav),
+  :global(.navbar),
+  :global(header),
+  :global(nav),
+  .page-header,
+  .grading-header,
+  .grading-tabs,
+  .tab-nav,
+  .toolbar-card,
+  .sf9-preview-toolbar,
+  .sf9-sig-drawer,
+  .sf9-sheet-banner,
+  .no-print,
+  button {
+    display: none !important;
+  }
+
+  :global(html),
+  :global(body),
+  :global(#app),
+  :global(.app-body),
+  :global(.main-with-sidebar),
+  .grading-page,
+  .tab-content,
+  .sf9-workspace,
+  .sf9-canvas-viewport {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    width: 100% !important;
   }
-  .no-print {
+
+  .sf9-document-wrapper {
+    max-width: 100% !important;
+    width: 100% !important;
+    transform: none !important;
+    gap: 0 !important;
+    display: block !important;
+  }
+
+  .sf9-page {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1.5px solid #0f172a !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 22px 26px !important;
+    margin: 0 0 20px 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .sf9-page-front {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .sf9-page-back {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .view-p1 .sf9-page-back {
     display: none !important;
+  }
+
+  .view-p2 .sf9-page-front {
+    display: none !important;
+  }
+
+  .view-p1 .sf9-page-front,
+  .view-p2 .sf9-page-back {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
   }
 }
 

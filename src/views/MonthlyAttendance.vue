@@ -974,6 +974,15 @@ const summaryData = computed(() => {
   const mInit = mCount - lateM
   const fInit = fCount - lateF
   const tInit = mInit + fInit
+  const isTransferredOut = (r) => /transferred\s*out/i.test(String(r || ''))
+  const mTransferredOut = boys ? boys.entries.filter(e => isTransferredOut(e.remarks)).length : 0
+  const fTransferredOut = girls ? girls.entries.filter(e => isTransferredOut(e.remarks)).length : 0
+  const otherTransferredOut = record.value.entries.filter(e => !['male', 'female'].includes(normalizeGender(e.gender)) && isTransferredOut(e.remarks)).length
+  const tTransferredOut = mTransferredOut + fTransferredOut + otherTransferredOut
+  const mReg = Math.max(0, mCount - mTransferredOut)
+  const fReg = Math.max(0, fCount - fTransferredOut)
+  const tReg = mReg + fReg
+
   return {
     enrollment: { m: mInit, f: fInit, total: tInit },
     lateEnrolment: {
@@ -981,17 +990,18 @@ const summaryData = computed(() => {
       f: record.value.entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'female').length,
       total: record.value.entries.filter(e => e.late_enrollee).length
     },
-    registeredLearners: { m: mCount, f: fCount, total: mCount + fCount },
+    transferredOut: { m: mTransferredOut, f: fTransferredOut, total: tTransferredOut },
+    registeredLearners: { m: mReg, f: fReg, total: tReg },
     pctEnrolment: {
-      m: mCount > 0 ? Math.round((mCount - lateM) / mCount * 100) : 0,
-      f: fCount > 0 ? Math.round((fCount - lateF) / fCount * 100) : 0,
-      total: (mCount + fCount) > 0 ? Math.round(((mCount + fCount - lateM - lateF) / (mCount + fCount)) * 100) : 0
+      m: mInit > 0 ? Math.round((mReg / mInit) * 1000) / 10 : (mReg > 0 ? 100 : 0),
+      f: fInit > 0 ? Math.round((fReg / fInit) * 1000) / 10 : (fReg > 0 ? 100 : 0),
+      total: tInit > 0 ? Math.round((tReg / tInit) * 1000) / 10 : (tReg > 0 ? 100 : 0)
     },
     avgDailyAttendance: { m: mADA, f: fADA, total: tADA },
     pctAttendance: {
-      m: mCount ? Math.floor((mPresent / sd / mCount) * 100 * 100) / 100 : 0,
-      f: fCount ? Math.floor((fPresent / sd / fCount) * 100 * 100) / 100 : 0,
-      total: (mCount + fCount) ? Math.floor(((mPresent + fPresent) / sd / (mCount + fCount)) * 100 * 100) / 100 : 0
+      m: mReg ? Math.floor((mPresent / sd / mReg) * 100 * 100) / 100 : 0,
+      f: fReg ? Math.floor((fPresent / sd / fReg) * 100 * 100) / 100 : 0,
+      total: tReg ? Math.floor(((mPresent + fPresent) / sd / tReg) * 100 * 100) / 100 : 0
     },
     absent5: {
       m: boys ? boys.entries.filter(e => entryAbsent(e) >= 5).length : 0,
@@ -1183,6 +1193,21 @@ function onSummaryChange(field) {
     summaryEdits.nls_t = (Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0)
   } else if (field === 'transfer_out') {
     summaryEdits.transfer_out_t = (Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0)
+    const entries = record.value?.entries || []
+    const mCount = entries.filter(e => normalizeGender(e.gender) === 'male').length
+    const fCount = entries.filter(e => normalizeGender(e.gender) === 'female').length
+    summaryEdits.reg_m = Math.max(0, mCount - (Number(summaryEdits.transfer_out_m) || 0))
+    summaryEdits.reg_f = Math.max(0, fCount - (Number(summaryEdits.transfer_out_f) || 0))
+    summaryEdits.reg_t = summaryEdits.reg_m + summaryEdits.reg_f
+    summaryEdits.pct_enr_m = summaryEdits.enr_m > 0
+      ? Math.round((summaryEdits.reg_m / summaryEdits.enr_m) * 1000) / 10
+      : (summaryEdits.reg_m > 0 ? 100 : 0)
+    summaryEdits.pct_enr_f = summaryEdits.enr_f > 0
+      ? Math.round((summaryEdits.reg_f / summaryEdits.enr_f) * 1000) / 10
+      : (summaryEdits.reg_f > 0 ? 100 : 0)
+    summaryEdits.pct_enr_t = summaryEdits.enr_t > 0
+      ? Math.round((summaryEdits.reg_t / summaryEdits.enr_t) * 1000) / 10
+      : (summaryEdits.reg_t > 0 ? 100 : 0)
   } else if (field === 'transfer_in') {
     summaryEdits.transfer_in_t = (Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0)
   } else if (field === 'abs5') {
@@ -1366,10 +1391,18 @@ function initSummaryEdits() {
   const lateM = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'male').length
   const lateF = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'female').length
 
-  // Registered learners always matches current class entries count
-  summaryEdits.reg_m = mCount
-  summaryEdits.reg_f = fCount
-  summaryEdits.reg_t = mCount + fCount
+  const isTransferredOut = (r) => /transferred\s*out/i.test(String(r || ''))
+  const mTransferredOut = entries.filter(e => isTransferredOut(e.remarks) && normalizeGender(e.gender) === 'male').length
+  const fTransferredOut = entries.filter(e => isTransferredOut(e.remarks) && normalizeGender(e.gender) === 'female').length
+
+  summaryEdits.transfer_out_m = Math.max(Number(sd.transfer_out_m) || 0, mTransferredOut)
+  summaryEdits.transfer_out_f = Math.max(Number(sd.transfer_out_f) || 0, fTransferredOut)
+  summaryEdits.transfer_out_t = (Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0)
+
+  // Registered learners = class entries count minus transferred out
+  summaryEdits.reg_m = Math.max(0, mCount - summaryEdits.transfer_out_m)
+  summaryEdits.reg_f = Math.max(0, fCount - summaryEdits.transfer_out_f)
+  summaryEdits.reg_t = summaryEdits.reg_m + summaryEdits.reg_f
 
   summaryEdits.late_m = Math.max(Number(sd.late_m) || 0, lateM)
   summaryEdits.late_f = Math.max(Number(sd.late_f) || 0, lateF)
@@ -1410,10 +1443,6 @@ function initSummaryEdits() {
   summaryEdits.nls_m = Number(sd.nls_m) || 0
   summaryEdits.nls_f = Number(sd.nls_f) || 0
   summaryEdits.nls_t = (Number(summaryEdits.nls_m) || 0) + (Number(summaryEdits.nls_f) || 0)
-
-  summaryEdits.transfer_out_m = Number(sd.transfer_out_m) || 0
-  summaryEdits.transfer_out_f = Number(sd.transfer_out_f) || 0
-  summaryEdits.transfer_out_t = (Number(summaryEdits.transfer_out_m) || 0) + (Number(summaryEdits.transfer_out_f) || 0)
 
   summaryEdits.transfer_in_m = Number(sd.transfer_in_m) || 0
   summaryEdits.transfer_in_f = Number(sd.transfer_in_f) || 0
@@ -1519,6 +1548,11 @@ async function updateDay(entry, day, status) {
 function refreshSummaryFromLive(shouldSave = true) {
   const s = summaryData.value
   if (!s) return
+  if (s.transferredOut) {
+    summaryEdits.transfer_out_m = Math.max(Number(summaryEdits.transfer_out_m) || 0, s.transferredOut.m)
+    summaryEdits.transfer_out_f = Math.max(Number(summaryEdits.transfer_out_f) || 0, s.transferredOut.f)
+    summaryEdits.transfer_out_t = summaryEdits.transfer_out_m + summaryEdits.transfer_out_f
+  }
   summaryEdits.reg_m = s.registeredLearners.m
   summaryEdits.reg_f = s.registeredLearners.f
   summaryEdits.reg_t = s.registeredLearners.total
@@ -1711,7 +1745,21 @@ async function handleSyncRoster() {
 }
 
 async function updateRemarks(entry) {
-  await store.updateMonthlyRemarks(record.value.id, entry.studentId, entry.remarks)
+  try {
+    const res = await store.updateMonthlyRemarks(record.value.id, entry.studentId, entry.remarks)
+    if (res?.summary_data) {
+      record.value.summary_data = res.summary_data
+      initSummaryEdits()
+      refreshSummaryFromLive(false)
+    } else {
+      refreshSummaryFromLive(true)
+    }
+    if (res?.withdrawn) {
+      notify(`Learner "${entry.name}" marked TRANSFERRED OUT: status updated to Withdrawn and registered learners updated.`, 'success')
+    }
+  } catch (err) {
+    notify(err.message || 'Failed to update remarks', 'error')
+  }
 }
 </script>
 

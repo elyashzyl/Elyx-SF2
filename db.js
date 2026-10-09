@@ -1591,6 +1591,11 @@ async function initSqlite() {
     try { sqlite.run("ALTER TABLE monthly_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN school_id TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE schools ADD COLUMN attendance_lock_cutoff TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN school_year TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN grading_period TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN division TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN district TEXT DEFAULT ''") } catch {}
+    try { sqlite.run("ALTER TABLE schools ADD COLUMN principal_name TEXT DEFAULT ''") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN locked INTEGER NOT NULL DEFAULT 0") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN locked_at TEXT") } catch {}
     try { sqlite.run("ALTER TABLE attendance_records ADD COLUMN locked_by TEXT DEFAULT ''") } catch {}
