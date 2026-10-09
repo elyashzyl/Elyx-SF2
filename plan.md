@@ -319,7 +319,10 @@ The following capabilities already exist or are substantially implemented:
 These modules should be added only after attendance and subscription workflows are stable:
 
 - [ ] Assignment and lesson tracking.
-- [ ] Grade recording and grading-period management.
+- [x] Grade recording and grading-period management.
+  - Added migration `031_academic_grading_and_form138` with DepEd Order No. 8, s. 2015 compliant assessment weights (Written Work, Performance Tasks, Quarterly Assessments) and transmutation table.
+  - Added backend endpoints for subject CRUD, default curriculum seeding, batch grade encoding with live transmutation, official DepEd Form 138 (SF9) generation, and academic grading analytics.
+  - Added 4-tab `Grading.vue` view for Grade Encoding / Class Record, Subject Setup, Form 138 (SF9 Report Card) with print styling, and Analytics & Honors.
 - [ ] Class schedules with conflict detection.
 - [ ] Room and facility scheduling.
 - [ ] School calendar and academic-year setup.

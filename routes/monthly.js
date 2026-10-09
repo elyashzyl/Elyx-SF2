@@ -219,6 +219,7 @@ router.get('/', async (req, res) => {
       await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSummary), record.id])
     }
     record.summary_data = curSummary
+    record.holiday_labels = curSummary.holiday_labels || {}
     record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
     record.include_saturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     record.schoolHead = record.school_head || ''
@@ -411,13 +412,15 @@ router.put('/:recordId/entry', async (req, res) => {
 
     const rec = records[0]
     const excluded = JSON.parse(rec.excluded_dates || '[]')
+    const curSummary = JSON.parse(rec.summary_data || '{}')
 
     const totals = calculateMonthlyEntryTotals({
       year: rec.year,
       month: rec.month,
       days,
       excludedDates: excluded,
-      includeSaturdays: rec.include_saturdays === true || Number(rec.include_saturdays) === 1
+      includeSaturdays: rec.include_saturdays === true || Number(rec.include_saturdays) === 1,
+      schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
     })
     const present = totals.present
     const absent = totals.absent
@@ -449,6 +452,7 @@ router.put('/:recordId/settings', async (req, res) => {
     const includeSaturdays = req.body.includeSaturdays ?? req.body.include_saturdays
     const record = g.record
     const excluded = JSON.parse(record.excluded_dates || '[]')
+    const curSummary = JSON.parse(record.summary_data || '{}')
     const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [record.id])
     await run('UPDATE monthly_records SET include_saturdays=? WHERE id=?', [includeSaturdays ? 1 : 0, record.id])
     for (const entry of entries) {
@@ -458,7 +462,8 @@ router.put('/:recordId/settings', async (req, res) => {
         month: record.month,
         days,
         excludedDates: excluded,
-        includeSaturdays
+        includeSaturdays,
+        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, record.id, entry.student_id])
     }
@@ -491,9 +496,11 @@ router.put('/:recordId/summary', async (req, res) => {
     if (!g) return
     const { recordId } = req.params
     const { summary_data, adviser, schoolHead } = req.body
+    const prevSummary = JSON.parse(g.record.summary_data || '{}')
+    const mergedSummary = { ...prevSummary, ...(summary_data || {}) }
     await run('UPDATE monthly_records SET summary_data=?, adviser=?, school_head=? WHERE id=?',
-      [JSON.stringify(summary_data || {}), adviser || '', schoolHead || '', recordId])
-    res.json({ success: true })
+      [JSON.stringify(mergedSummary), adviser || '', schoolHead || '', recordId])
+    res.json({ success: true, summary_data: mergedSummary })
   } catch (err) {
     console.error('Failed to update summary:', err.message)
     res.status(500).json({ error: 'Failed to update summary' })
@@ -507,10 +514,19 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
     const { recordId } = req.params
     const excludedDates = Array.isArray(req.body.excluded_dates) ? req.body.excluded_dates : []
     const record = g.record
-    await run('UPDATE monthly_records SET excluded_dates=? WHERE id=?',
-      [JSON.stringify(excludedDates), recordId])
+    const curSummary = JSON.parse(record.summary_data || '{}')
+    if (req.body.holiday_labels && typeof req.body.holiday_labels === 'object') {
+      curSummary.holiday_labels = { ...(curSummary.holiday_labels || {}), ...req.body.holiday_labels }
+      // Remove keys for dates that are no longer excluded
+      const exclSet = new Set(excludedDates.map(Number))
+      for (const k of Object.keys(curSummary.holiday_labels)) {
+        if (!exclSet.has(Number(k))) delete curSummary.holiday_labels[k]
+      }
+    }
+    await run('UPDATE monthly_records SET excluded_dates=?, summary_data=? WHERE id=?',
+      [JSON.stringify(excludedDates), JSON.stringify(curSummary), recordId])
 
-    // Recalculate stored totals immediately so excluding/restoring a Saturday
+    // Recalculate stored totals immediately so excluding/restoring a date
     // stays consistent with the values displayed by the monthly sheet.
     const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [recordId])
     const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
@@ -521,11 +537,12 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
         month: record.month,
         days,
         excludedDates,
-        includeSaturdays
+        includeSaturdays,
+        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
     }
-    res.json({ success: true, excluded_dates: excludedDates })
+    res.json({ success: true, excluded_dates: excludedDates, holiday_labels: curSummary.holiday_labels || {} })
   } catch (err) {
     console.error('Failed to update excluded dates:', err.message)
     res.status(500).json({ error: 'Failed to update excluded dates' })
@@ -551,8 +568,16 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
       ? record.excluded_dates
       : JSON.parse(record.excluded_dates || '[]')
     const merged = Array.from(new Set([...existingExcluded, ...holidayDays])).sort((a, b) => a - b)
+    const curSummary = JSON.parse(record.summary_data || '{}')
+    if (!curSummary.holiday_labels) curSummary.holiday_labels = {}
+    for (const h of holidays) {
+      const day = parseInt(h.event_date.split('-')[2], 10)
+      if (day && h.title) {
+        curSummary.holiday_labels[day] = h.title
+      }
+    }
 
-    await run('UPDATE monthly_records SET excluded_dates=? WHERE id=?', [JSON.stringify(merged), recordId])
+    await run('UPDATE monthly_records SET excluded_dates=?, summary_data=? WHERE id=?', [JSON.stringify(merged), JSON.stringify(curSummary), recordId])
 
     const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [recordId])
     const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
@@ -563,7 +588,8 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
         month: record.month,
         days,
         excludedDates: merged,
-        includeSaturdays
+        includeSaturdays,
+        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
     }

@@ -110,6 +110,43 @@
       <div class="sheet-info">
         <span>Grade: {{ record.grade }}</span>
         <span>Section: {{ record.section }}</span>
+
+        <div class="school-days-control sheet-setting">
+          <label class="school-days-label" for="manual-school-days">Total School Days:</label>
+          <input
+            id="manual-school-days"
+            type="number"
+            min="1"
+            max="31"
+            :value="customSchoolDays !== null ? customSchoolDays : schoolDays"
+            @change="handleSchoolDaysChange($event.target.value)"
+            class="school-days-input"
+            title="Directly enter or override total school days for this month"
+          />
+          <button
+            v-if="customSchoolDays !== null && customSchoolDays !== schoolDays"
+            type="button"
+            class="btn-reset-days"
+            @click="resetSchoolDays"
+            title="Reset to calendar count"
+          >
+            Reset ({{ schoolDays }})
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="btn-secondary add-holiday-btn sheet-setting"
+          @click="openAddHolidayModal()"
+          title="Exclude a date as a holiday or class suspension"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          + Add Holiday / Suspension
+        </button>
+
         <button
           type="button"
           class="btn-secondary saturday-toggle sheet-setting"
@@ -186,12 +223,12 @@
       </div>
 
       <!-- School Calendar Events & Suspensions Strip -->
-      <div v-if="record.calendar_events && record.calendar_events.length" class="calendar-events-strip">
+      <div v-if="(record.calendar_events && record.calendar_events.length) || hasCustomHolidays" class="calendar-events-strip">
         <div class="calendar-events-strip-title">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          <span>School Calendar ({{ months[form.month-1] }} {{ form.year }}):</span>
+          <span>Holidays &amp; Suspensions ({{ months[form.month-1] }} {{ form.year }}):</span>
         </div>
         <div class="calendar-event-pills">
           <span
@@ -207,6 +244,15 @@
           >
             <strong>Day {{ ev.event_date.split('-')[2] }}</strong>: {{ ev.title }} ({{ ev.type }})
           </span>
+          <span
+            v-for="(label, d) in customHolidayList"
+            :key="'custom-'+d"
+            class="calendar-event-pill pill--holiday custom-holiday-pill"
+            :title="`Click to edit holiday or restore day: Day ${d}`"
+            @click="openEditHolidayModal(Number(d))"
+          >
+            <strong>Day {{ d }}</strong>: {{ label }} (Holiday) ✎
+          </span>
         </div>
       </div>
 
@@ -217,17 +263,19 @@
               <th rowspan="2">No.</th>
               <th rowspan="2" class="name-col">NAME (Last Name, First Name, Middle Name)</th>
               <th v-for="d in daysInMonth" :key="d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
-                {{ d }}
-                <button v-if="!isWeekend(d)" @click="toggleExcludeDate(d)" class="exclude-btn" :title="isExcluded(d) ? 'Restore date' : 'Remove date (no classes)'">
+                <span>{{ d }}</span>
+                <button v-if="!isWeekend(d)" @click="handleDateHeaderClick(d)" class="exclude-btn" :title="isExcluded(d) ? `Restore date or edit holiday (${holidayLabels[d] || 'No classes'})` : 'Mark as holiday / suspension'">
                   {{ isExcluded(d) ? '↺' : '✕' }}
                 </button>
               </th>
-              <th colspan="2">Total for the Month ({{ schoolDays }})</th>
+              <th colspan="2">Total for the Month ({{ effectiveSchoolDays }})</th>
               <th rowspan="2">Remarks</th>
             </tr>
             <tr>
               <th v-for="d in daysInMonth" :key="'d'+d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
-                <template v-if="isExcluded(d)">No classes</template>
+                <template v-if="isExcluded(d)">
+                  <span class="holiday-col-title" :title="holidayLabels[d] || 'No classes'">{{ holidayLabels[d] || 'No classes' }}</span>
+                </template>
                 <template v-else>{{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}</template>
               </th>
               <th>Present</th>
@@ -482,6 +530,60 @@
         </div>
       </div>
     </div>
+
+    <!-- Add / Edit Holiday / Suspension Modal -->
+    <div v-if="showHolidayModal" class="modal-overlay" @click.self="showHolidayModal = false">
+      <div class="form-card" style="max-width: 480px;">
+        <div class="modal-header-compact">
+          <h3>{{ holidayForm.isEditing ? 'Edit Holiday / Suspension' : 'Exclude Holiday or Class Suspension' }}</h3>
+          <p class="modal-subtext">Exclude this date so it won't be counted in total school days or attendance calculation.</p>
+        </div>
+
+        <form @submit.prevent="submitHolidayModal" style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
+          <div class="form-group">
+            <label>Day of Month (1 - {{ daysInMonth }})</label>
+            <select v-model.number="holidayForm.day" required :disabled="holidayForm.isEditing">
+              <option v-for="d in daysInMonth" :key="d" :value="d">
+                Day {{ d }} ({{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}){{ isWeekend(d) ? ' - Weekend' : '' }}{{ isExcluded(d) ? ' (Currently Excluded)' : '' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Holiday or Suspension Reason</label>
+            <input
+              type="text"
+              v-model="holidayForm.label"
+              placeholder="e.g. National Heroes Day, Typhoon Suspension"
+              required
+              class="holiday-label-input"
+            />
+          </div>
+
+          <div class="form-actions" style="margin-top: 10px; display: flex; justify-content: space-between; gap: 8px;">
+            <div style="display: flex; gap: 8px;">
+              <button type="submit" class="btn-primary" :disabled="savingHoliday">
+                {{ savingHoliday ? 'Saving…' : (holidayForm.isEditing ? 'Update Holiday' : 'Exclude Date') }}
+              </button>
+              <button
+                v-if="holidayForm.isEditing"
+                type="button"
+                @click="removeHoliday(holidayForm.day)"
+                class="btn-secondary"
+                style="color: var(--destructive, #ef4444); border-color: rgba(239, 68, 68, 0.4);"
+                :disabled="savingHoliday"
+                title="Restore this date back to a regular school day"
+              >
+                Restore Regular Day
+              </button>
+            </div>
+            <button type="button" @click="showHolidayModal = false" class="btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -537,6 +639,11 @@ const studentsLookup = ref({})
 const schools = ref([])
 const selectedSchoolId = ref(savedState?.school || '')
 const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
+const customSchoolDays = ref(null)
+const holidayLabels = ref({})
+const showHolidayModal = ref(false)
+const savingHoliday = ref(false)
+const holidayForm = reactive({ day: 1, label: '', isEditing: false })
 const summaryEdits = reactive({ enr_m: 0, enr_f: 0, enr_t: 0, late_m: 0, late_f: 0, late_t: 0, reg_m: 0, reg_f: 0, reg_t: 0, pct_enr_m: 0, pct_enr_f: 0, pct_enr_t: 0, ada_m: 0, ada_f: 0, ada_t: 0, pct_m: 0, pct_f: 0, pct_t: 0, abs5_m: 0, abs5_f: 0, abs5_t: 0, nls_m: 0, nls_f: 0, nls_t: 0, transfer_out_m: 0, transfer_out_f: 0, transfer_out_t: 0, transfer_in_m: 0, transfer_in_f: 0, transfer_in_t: 0 })
 
 async function onSchoolChange() {
@@ -647,6 +754,8 @@ async function exportToSF2() {
         adviser: record.value.adviser || '',
         schoolHead: record.value.schoolHead || '',
         summary_data: {
+          schoolDays: effectiveSchoolDays.value,
+          holiday_labels: holidayLabels.value,
           enr_m: summaryEdits.enr_m,
           enr_f: summaryEdits.enr_f,
           enr_t: summaryEdits.enr_t,
@@ -726,6 +835,16 @@ const schoolDays = computed(() => {
   return count
 })
 
+const effectiveSchoolDays = computed(() => {
+  if (customSchoolDays.value !== null && Number(customSchoolDays.value) > 0) {
+    return Number(customSchoolDays.value)
+  }
+  return schoolDays.value
+})
+
+const hasCustomHolidays = computed(() => Object.keys(holidayLabels.value || {}).length > 0)
+const customHolidayList = computed(() => holidayLabels.value || {})
+
 const totalCols = computed(() => daysInMonth.value + 5)
 
 function normalizeGender(g) {
@@ -782,7 +901,7 @@ function entryAbsent(entry) {
 }
 
 function entryPresent(entry) {
-  return Math.max(0, schoolDays.value - entryAbsent(entry))
+  return Math.max(0, effectiveSchoolDays.value - entryAbsent(entry))
 }
 
 function sumPresent(gender) {
@@ -848,7 +967,7 @@ const summaryData = computed(() => {
   const lateF = summaryEdits.late_f || 0
   const mPresent = boys ? boys.sumPresent : 0
   const fPresent = girls ? girls.sumPresent : 0
-  const sd = schoolDays.value || 1
+  const sd = effectiveSchoolDays.value || 1
   const mADA = Math.floor((mPresent / sd) * 100) / 100
   const fADA = Math.floor((fPresent / sd) * 100) / 100
   const tADA = Math.floor(((mPresent + fPresent) / sd) * 100) / 100
@@ -1074,10 +1193,172 @@ function onSummaryChange(field) {
   saveSummary()
 }
 
+function handleSchoolDaysChange(val) {
+  const num = parseInt(val, 10)
+  if (!isNaN(num) && num > 0 && num <= 31) {
+    customSchoolDays.value = num
+  } else if (!val || val === '') {
+    customSchoolDays.value = null
+  }
+  refreshSummaryFromLive(true)
+}
+
+function resetSchoolDays() {
+  customSchoolDays.value = null
+  refreshSummaryFromLive(true)
+}
+
+function openAddHolidayModal(preferredDay) {
+  holidayForm.isEditing = false
+  holidayForm.day = preferredDay || 1
+  holidayForm.label = ''
+  showHolidayModal.value = true
+}
+
+function openEditHolidayModal(day) {
+  holidayForm.isEditing = true
+  holidayForm.day = day
+  holidayForm.label = holidayLabels.value[day] || ''
+  showHolidayModal.value = true
+}
+
+function handleDateHeaderClick(d) {
+  if (isExcluded(d)) {
+    openEditHolidayModal(d)
+  } else {
+    openAddHolidayModal(d)
+  }
+}
+
+async function submitHolidayModal() {
+  if (!record.value) return
+  savingHoliday.value = true
+  try {
+    const day = Number(holidayForm.day)
+    const label = (holidayForm.label || '').trim() || 'Holiday'
+    const excluded = Array.from(new Set([...(record.value.excluded_dates || []), day])).sort((a, b) => a - b)
+
+    holidayLabels.value[day] = label
+
+    if (record.value.entries) {
+      for (const entry of record.value.entries) {
+        if (entry.days && entry.days[day]) {
+          delete entry.days[day]
+          await store.updateMonthlyEntry(record.value.id, entry.studentId, day, '', auth.user?.id, auth.user?.role)
+        }
+      }
+    }
+
+    const res = await fetch(`/api/monthly/${record.value.id}/excluded-dates`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: auth.user?.id || '',
+        userRole: auth.user?.role || '',
+        ...(effectiveSchoolId.value ? { schoolId: effectiveSchoolId.value } : {}),
+        excluded_dates: excluded,
+        holiday_labels: holidayLabels.value
+      })
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to save holiday')
+    }
+
+    const json = await res.json()
+    record.value.excluded_dates = json.excluded_dates || excluded
+    if (json.holiday_labels) {
+      holidayLabels.value = { ...json.holiday_labels }
+    }
+    if (!record.value.summary_data) record.value.summary_data = {}
+    record.value.summary_data.holiday_labels = { ...holidayLabels.value }
+
+    const refreshed = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined)
+    if (refreshed) {
+      for (const entry of refreshed.entries || []) {
+        entry.gender = studentsLookup.value[entry.studentId] || entry.gender || ''
+      }
+      record.value = refreshed
+    }
+
+    showHolidayModal.value = false
+    refreshSummaryFromLive(true)
+    notify(`Day ${day} (${label}) excluded from school days.`, 'success')
+  } catch (err) {
+    notify(err.message || 'Failed to update holiday', 'error')
+  } finally {
+    savingHoliday.value = false
+  }
+}
+
+async function removeHoliday(day) {
+  if (!record.value) return
+  savingHoliday.value = true
+  try {
+    const d = Number(day)
+    const excluded = (record.value.excluded_dates || []).filter(x => Number(x) !== d)
+    delete holidayLabels.value[d]
+
+    const res = await fetch(`/api/monthly/${record.value.id}/excluded-dates`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: auth.user?.id || '',
+        userRole: auth.user?.role || '',
+        ...(effectiveSchoolId.value ? { schoolId: effectiveSchoolId.value } : {}),
+        excluded_dates: excluded,
+        holiday_labels: holidayLabels.value
+      })
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to restore day')
+    }
+
+    const json = await res.json()
+    record.value.excluded_dates = json.excluded_dates || excluded
+    if (json.holiday_labels) {
+      holidayLabels.value = { ...json.holiday_labels }
+    }
+    if (!record.value.summary_data) record.value.summary_data = {}
+    record.value.summary_data.holiday_labels = { ...holidayLabels.value }
+
+    const refreshed = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined)
+    if (refreshed) {
+      for (const entry of refreshed.entries || []) {
+        entry.gender = studentsLookup.value[entry.studentId] || entry.gender || ''
+      }
+      record.value = refreshed
+    }
+
+    showHolidayModal.value = false
+    refreshSummaryFromLive(true)
+    notify(`Day ${d} restored as regular school day.`, 'success')
+  } catch (err) {
+    notify(err.message || 'Failed to restore day', 'error')
+  } finally {
+    savingHoliday.value = false
+  }
+}
+
 function initSummaryEdits() {
   if (!record.value) return
   const sd = record.value.summary_data || {}
   const s = summaryData.value || {}
+
+  if (sd.schoolDays !== undefined && sd.schoolDays !== null && Number(sd.schoolDays) > 0) {
+    customSchoolDays.value = Number(sd.schoolDays)
+  } else if (sd.school_days !== undefined && sd.school_days !== null && Number(sd.school_days) > 0) {
+    customSchoolDays.value = Number(sd.school_days)
+  } else {
+    customSchoolDays.value = null
+  }
+  const hl = (sd.holiday_labels && typeof sd.holiday_labels === 'object')
+    ? sd.holiday_labels
+    : ((record.value.holiday_labels && typeof record.value.holiday_labels === 'object') ? record.value.holiday_labels : {})
+  holidayLabels.value = { ...hl }
 
   const entries = record.value.entries || []
   const mCount = entries.filter(e => normalizeGender(e.gender) === 'male').length
@@ -1170,6 +1451,8 @@ async function saveSummary() {
       adviser: record.value.adviser,
       schoolHead: record.value.schoolHead,
       summary_data: {
+        schoolDays: effectiveSchoolDays.value,
+        holiday_labels: holidayLabels.value,
         enr_m: summaryEdits.enr_m,
         enr_f: summaryEdits.enr_f,
         enr_t: summaryEdits.enr_t,
@@ -1271,6 +1554,7 @@ async function toggleExcludeDate(d) {
   const idx = excluded.indexOf(d)
   if (idx >= 0) {
     excluded.splice(idx, 1)
+    delete holidayLabels.value[d]
   } else {
     excluded.push(d)
     for (const entry of record.value.entries) {
@@ -1287,7 +1571,8 @@ async function toggleExcludeDate(d) {
       userId: auth.user?.id || '',
       userRole: auth.user?.role || '',
       ...(effectiveSchoolId.value ? { schoolId: effectiveSchoolId.value } : {}),
-      excluded_dates: excluded
+      excluded_dates: excluded,
+      holiday_labels: holidayLabels.value
     })
   })
   const res = await store.fetchMonthly(form.grade, form.section, form.month, form.year, effectiveSchoolId.value || undefined)
@@ -1352,7 +1637,7 @@ async function handleDeleteReport() {
     notify(`Monthly SF2 report for ${months[form.month - 1]} ${form.year} deleted.`, 'success')
     showDeleteConfirmModal.value = false
     record.value = null
-    await loadRecord()
+    await openMonthly()
   } catch (err) {
     notify(err.message || 'Failed to delete monthly report', 'error')
   } finally {
@@ -1584,6 +1869,92 @@ async function updateRemarks(entry) {
   background: var(--info-bg);
   color: var(--info);
   border-color: color-mix(in srgb, var(--info) 30%, var(--border));
+}
+
+/* Manual School Days & Holiday Controls */
+.school-days-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+}
+
+.school-days-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.school-days-input {
+  width: 52px;
+  padding: 2px 6px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.88rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.btn-reset-days {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: var(--radius-xs, 4px);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-reset-days:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.add-holiday-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.custom-holiday-pill {
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.custom-holiday-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.holiday-col-title {
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.1;
+  max-width: 38px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: var(--destructive, #ef4444);
+}
+
+.holiday-label-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.88rem;
 }
 .validation-status {
   font-weight: 800;

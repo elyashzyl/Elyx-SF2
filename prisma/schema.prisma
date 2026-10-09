@@ -540,3 +540,46 @@ model QuarterlyTerm {
   @@index([schoolId, schoolYear, quarterNumber], map: "idx_quarterly_school_sy")
   @@map("quarterly_terms")
 }
+
+model GradingSubject {
+  id           String   @id @default(uuid()) @db.VarChar(96)
+  schoolId     String   @default("") @map("school_id") @db.VarChar(96)
+  gradeLevel   String   @default("") @map("grade_level") @db.VarChar(64)
+  subjectName  String   @map("subject_name") @db.VarChar(128)
+  subjectCode  String   @default("") @map("subject_code") @db.VarChar(32)
+  weightWw     Int      @default(30) @map("weight_ww")
+  weightPt     Int      @default(50) @map("weight_pt")
+  weightQa     Int      @default(20) @map("weight_qa")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  @@index([schoolId, gradeLevel], map: "idx_grading_subjects_school_grade")
+  @@map("grading_subjects")
+}
+
+model LearnerGrade {
+  id              String   @id @default(uuid()) @db.VarChar(96)
+  schoolId        String   @default("") @map("school_id") @db.VarChar(96)
+  studentId       String   @map("student_id") @db.VarChar(96)
+  subjectId       String   @map("subject_id") @db.VarChar(96)
+  schoolYear      String   @default("") @map("school_year") @db.VarChar(32)
+  quarter         String   @default("Q1") @db.VarChar(8)
+  wwScore         Decimal  @default(0.00) @map("ww_score") @db.Decimal(6, 2)
+  wwTotal         Decimal  @default(100.00) @map("ww_total") @db.Decimal(6, 2)
+  ptScore         Decimal  @default(0.00) @map("pt_score") @db.Decimal(6, 2)
+  ptTotal         Decimal  @default(100.00) @map("pt_total") @db.Decimal(6, 2)
+  qaScore         Decimal  @default(0.00) @map("qa_score") @db.Decimal(6, 2)
+  qaTotal         Decimal  @default(50.00) @map("qa_total") @db.Decimal(6, 2)
+  initialGrade    Decimal  @default(0.00) @map("initial_grade") @db.Decimal(5, 2)
+  transmutedGrade Int      @default(75) @map("transmuted_grade")
+  remarks         String   @default("Passed") @db.VarChar(64)
+  isLocked        Int      @default(0) @map("is_locked")
+  encodedBy       String   @default("") @map("encoded_by") @db.VarChar(96)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  @@index([schoolId, studentId, schoolYear, quarter], map: "idx_learner_grades_lookup")
+  @@index([subjectId, schoolYear, quarter], map: "idx_learner_grades_subject")
+  @@map("learner_grades")
+}

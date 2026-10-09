@@ -418,7 +418,9 @@ router.post('/sf2', async (req, res) => {
     }
     const dateColMap = {}
     const numDateCols = Math.min(schoolDays.length, MAX_DATE_COLS)
-    setVal(newWs, COL_HEADER_ROW, 32, 'n', numDateCols)
+    const customDays = Number(summary_data?.schoolDays || summary_data?.school_days)
+    const effectiveDays = (customDays > 0) ? customDays : numDateCols
+    setVal(newWs, COL_HEADER_ROW, 32, 'n', effectiveDays)
 
     // Build dateColMap first (used everywhere)
     for (let ci = 0; ci < numDateCols; ci++)
@@ -541,7 +543,7 @@ router.post('/sf2', async (req, res) => {
       return absent
     }
     function calcEntryPresent(entry) {
-      return numDateCols - calcEntryAbsent(entry)
+      return Math.max(0, effectiveDays - calcEntryAbsent(entry))
     }
     function sumAbsent(el) { return el.reduce((s, e) => s + calcEntryAbsent(e), 0) }
     function sumPresent(el) { return el.reduce((s, e) => s + calcEntryPresent(e), 0) }
@@ -629,8 +631,8 @@ router.post('/sf2', async (req, res) => {
     // ── Write COMBINED TOTAL ──
     addMerge(newWs, combinedTotalRow, 0, combinedTotalRow, 1)
     addMerge(newWs, combinedTotalRow, 2, combinedTotalRow, 3)
-    setVal(newWs, combinedTotalRow, NAME_COL, 's', `<=== COMBINED | ${numDateCols} TOTAL Per Day ===>`)
-    setVal(newWs, combinedTotalRow, NUM_COL, 'n', numDateCols)
+    setVal(newWs, combinedTotalRow, NAME_COL, 's', `<=== COMBINED | ${effectiveDays} TOTAL Per Day ===>`)
+    setVal(newWs, combinedTotalRow, NUM_COL, 'n', effectiveDays)
     for (const [dayNum, col] of Object.entries(dateColMap))
       setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, parseInt(dayNum)))
     setVal(newWs, combinedTotalRow, ABSENT_COL, 'n', sumAbsent(entries))
@@ -688,12 +690,12 @@ router.post('/sf2', async (req, res) => {
     const totalCount = maleCount + femaleCount
     const mTotalPresent = sumPresent(maleEntriesAll)
     const fTotalPresent = sumPresent(femaleEntriesAll)
-    const mADA = numDateCols > 0 ? Math.floor((mTotalPresent / numDateCols) * 100) / 100 : 0
-    const fADA = numDateCols > 0 ? Math.floor((fTotalPresent / numDateCols) * 100) / 100 : 0
-    const tADA = numDateCols > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / numDateCols) * 100) / 100 : 0
-    const mPct = maleCount > 0 ? Math.floor((mTotalPresent / numDateCols / maleCount) * 100 * 100) / 100 : 0
-    const fPct = femaleCount > 0 ? Math.floor((fTotalPresent / numDateCols / femaleCount) * 100 * 100) / 100 : 0
-    const tPct = totalCount > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / numDateCols / totalCount) * 100 * 100) / 100 : 0
+    const mADA = effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays) * 100) / 100 : 0
+    const fADA = effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays) * 100) / 100 : 0
+    const tADA = effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays) * 100) / 100 : 0
+    const mPct = maleCount > 0 && effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays / maleCount) * 100 * 100) / 100 : 0
+    const fPct = femaleCount > 0 && effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays / femaleCount) * 100 * 100) / 100 : 0
+    const tPct = totalCount > 0 && effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays / totalCount) * 100 * 100) / 100 : 0
 
     // ── Compute late/enrolment values for summary section ──
     const lateM = sd.late_m != null ? sd.late_m : 0
@@ -905,7 +907,7 @@ router.post('/sf2', async (req, res) => {
     }
     // Header rows (50-51): Month + No. of Days + Summary
     sec(newWs, S, 29, S + 1, 31, `Month : ${monthName}`, { font: { ...A9, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: THIN_BORDER })
-    sec(newWs, S, 32, S + 1, 33, `No. of Days of Classes: ${numDateCols}`, S9_BOLD_LEFT_WRAP)
+    sec(newWs, S, 32, S + 1, 33, `No. of Days of Classes: ${effectiveDays}`, S9_BOLD_LEFT_WRAP)
     sec(newWs, S, 34, S, 37, 'Summary', { font: { ...A9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: THIN_BORDER })
     // Column headers (row 51): M | F | TOTAL with thin + medium bottom border
     const S9_MED_BOTTOM_FULL = { font: { ...A9, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'FF000000' } }, bottom: { style: 'medium', color: { rgb: 'FF000000' } }, left: { style: 'thin', color: { rgb: 'FF000000' } }, right: { style: 'thin', color: { rgb: 'FF000000' } } } }

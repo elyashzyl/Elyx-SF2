@@ -287,7 +287,28 @@ Remaining attendance follow-ups:
 
 ---
 
-## Completed Milestones (Reference)
+## 8. Phase 9 Academic Grading & Monthly SF2 Enhancements
+
+- [x] **Monthly SF2 Manual School Days Input & Named Holiday Exclusions**
+  - Added direct teacher/admin entry of total school days with dynamic recalculation of individual present counts, ADA, and attendance percentages in `MonthlyAttendance.vue`.
+  - Added named holiday/suspension date exclusions with interactive table header badges and event strip pills.
+  - Persisted `holiday_labels` in `summary_data` across `routes/monthly.js` endpoints (`/entry`, `/settings`, `/summary`, `/excluded-dates`, `/sync-calendar`).
+  - Preserved DepEd cell coordinates in `routes/export.js`, computing effective days and reflecting custom days and holiday exclusions in SF2 export.
+  - Regression verified with `tests/monthly-calendar.test.mjs`.
+
+- [x] **DepEd Form 138 / SF9 Academic Grading System**
+  - Added migration `031_academic_grading_and_form138.mjs` defining `grading_subjects` and `learner_grades` tables.
+  - Added `lib/grading.js` with DepEd Order No. 8, s. 2015 transmutation table (60–100 scale), initial grade calculation (WW, PT, QA), and academic honors criteria.
+  - Added `routes/grading.js` providing subjects CRUD, default curriculum seeding, batch grade sheet upsert, Form 138 report card generation, and grading analytics.
+  - Added 4-tab `src/views/Grading.vue` interface:
+    1. **Grade Encoding / Class Record**: Raw scores input, live client-side transmutation, passing remarks, and admin lock controls.
+    2. **Subject Setup**: Subject list, weight validation (WW + PT + QA = 100%), and DepEd default seeding.
+    3. **DepEd Form 138 (SF9 Card)**: Official progress report card with academic ratings, 10-month attendance matrix, core values, general average, honors distinction, and `@media print` layout.
+    4. **Analytics & Honors**: Campus average, passing rate, proficiency distribution bars, and honor roll candidates.
+  - Registered `/grading` route in `src/router/index.js` and added "Academic Grading (SF9)" sidebar link in `src/App.vue`.
+  - Regression verified with `tests/phase9-academic-grading.test.mjs` and clean Vite build.
+
+---
 
 - [x] Dynamic database URL resolution supporting Laravel-style `DB_*` variables (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
 - [x] Removed runtime and deployment data seeding. Accounts, schools, plans, licenses, payment methods, and sample records are created only by explicit API or seed-file actions.
