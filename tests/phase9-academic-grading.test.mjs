@@ -319,3 +319,51 @@ test('enforces school isolation on Form 138 and subject access', async () => {
 
   await run('DELETE FROM users WHERE id = ?', [admin2Id])
 })
+
+test('allows direct card grade editing on Form 138 and persists school logo', async () => {
+  // Update school with logo_url
+  await run('UPDATE schools SET logo_url = ? WHERE id = ?', ['https://example.com/logo.png', school1Id])
+
+  // Get subject ID for Math
+  const listRes = await request(`/api/grading/subjects?schoolId=${school1Id}&gradeLevel=Grade 7`, {
+    headers: headers(teacher1Id, 'teacher')
+  })
+  const mathSubject = listRes.body.subjects[0]
+  assert.ok(mathSubject)
+
+  // Save quarterly grades directly via Form 138 card endpoint
+  const saveCardRes = await request(`/api/grading/form138/${student1Id}/save`, {
+    method: 'POST',
+    headers: headers(teacher1Id, 'teacher'),
+    body: JSON.stringify({
+      schoolYear: '2025-2026',
+      grades: [
+        {
+          subjectId: mathSubject.id,
+          q1: 91,
+          q2: 93,
+          q3: 94,
+          q4: 95
+        }
+      ]
+    })
+  })
+  assert.equal(saveCardRes.response.status, 200)
+  assert.equal(saveCardRes.body.success, true)
+  assert.ok(saveCardRes.body.updatedCount >= 1)
+
+  // Verify Form 138 reflects updated grades and school logo_url
+  const cardRes = await request(`/api/grading/form138/${student1Id}?schoolYear=2025-2026`, {
+    headers: headers(teacher1Id, 'teacher')
+  })
+  assert.equal(cardRes.response.status, 200)
+  assert.equal(cardRes.body.school.logo_url, 'https://example.com/logo.png')
+  const mathCard = cardRes.body.learningAreas.find(s => s.subjectId === mathSubject.id)
+  assert.ok(mathCard)
+  assert.equal(mathCard.q1, 91)
+  assert.equal(mathCard.q2, 93)
+  assert.equal(mathCard.q3, 94)
+  assert.equal(mathCard.q4, 95)
+  assert.equal(mathCard.finalRating, 93)
+  assert.equal(mathCard.remarks, 'Passed')
+})

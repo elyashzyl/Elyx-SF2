@@ -27,7 +27,7 @@ test('school profile fields are exposed through scoped API and settings UI', () 
   const db = read('db.js')
   const ui = read('src/views/Settings.vue')
 
-  for (const field of ['contact_email', 'contact_phone', 'division', 'district', 'principal_name', 'school_year', 'grading_period']) {
+  for (const field of ['contact_email', 'contact_phone', 'division', 'district', 'principal_name', 'school_year', 'grading_period', 'logo_url']) {
     assert.ok(context.includes(field), `school response should include ${field}`)
     assert.ok(settings.includes(field), `settings endpoint should support ${field}`)
     assert.ok(schools.includes(field), `school endpoint should support ${field}`)

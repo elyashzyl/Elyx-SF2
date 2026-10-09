@@ -291,6 +291,7 @@ const MYSQL_DDL = [
     principal_name VARCHAR(255) NOT NULL DEFAULT (''),
     school_year VARCHAR(32) NOT NULL DEFAULT (''),
     grading_period VARCHAR(64) NOT NULL DEFAULT (''),
+    logo_url VARCHAR(2048) NOT NULL DEFAULT (''),
     archived_at DATETIME NULL,
     archived_by VARCHAR(96) NOT NULL DEFAULT (''),
     archive_reason VARCHAR(1000) NOT NULL DEFAULT (''),
@@ -1067,6 +1068,7 @@ async function initSqlite() {
       principal_name TEXT DEFAULT '',
       school_year TEXT DEFAULT '',
       grading_period TEXT DEFAULT '',
+      logo_url TEXT DEFAULT '',
       archived_at TEXT,
       archived_by TEXT DEFAULT '',
       archive_reason TEXT DEFAULT '',
@@ -1562,6 +1564,7 @@ async function initSqlite() {
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_school_sent ON license_expiration_reminders (school_id, sent_at)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_reminders_license ON license_expiration_reminders (license_id)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_school ON subscription_invoices (school_id, created_at)') } catch {}
+  try { sqlite.run("ALTER TABLE schools ADD COLUMN logo_url TEXT DEFAULT ''") } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_request ON subscription_invoices (request_id)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_quarterly_school_sy ON quarterly_terms (school_id, school_year, quarter_number)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_grading_subjects_school_grade ON grading_subjects (school_id, grade_level)') } catch {}
@@ -1865,7 +1868,7 @@ export async function logAudit({ actor_id = '', actor_name = '', actor_role = ''
   }
 }
 
-export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, sardo_consecutive_absences, sardo_cumulative_absences }) {
+export async function updateSchoolRow(schoolId, { school_name, school_id, school_address, school_short, attendance_lock_cutoff, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url, sardo_consecutive_absences, sardo_cumulative_absences }) {
   const sets = []
   const params = []
   if (school_name !== undefined) { sets.push('name = ?'); params.push(String(school_name)) }
@@ -1879,6 +1882,7 @@ export async function updateSchoolRow(schoolId, { school_name, school_id, school
   if (principal_name !== undefined) { sets.push('principal_name = ?'); params.push(String(principal_name).trim()) }
   if (school_year !== undefined) { sets.push('school_year = ?'); params.push(String(school_year).trim()) }
   if (grading_period !== undefined) { sets.push('grading_period = ?'); params.push(String(grading_period).trim()) }
+  if (logo_url !== undefined) { sets.push('logo_url = ?'); params.push(String(logo_url).trim()) }
   if (sardo_consecutive_absences !== undefined) {
     sets.push('sardo_consecutive_absences = ?')
     params.push(Math.max(1, parseInt(sardo_consecutive_absences, 10) || 3))

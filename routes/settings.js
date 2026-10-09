@@ -60,7 +60,8 @@ function toLegacy(s) {
     district: s?.district || '',
     principal_name: s?.principal_name || '',
     school_year: s?.school_year || '',
-    grading_period: s?.grading_period || ''
+    grading_period: s?.grading_period || '',
+    logo_url: s?.logo_url || ''
   }
 }
 
@@ -117,6 +118,7 @@ router.put('/school', async (req, res) => {
       principal_name: req.body?.principal_name,
       school_year: req.body?.school_year,
       grading_period: req.body?.grading_period,
+      logo_url: req.body?.logo_url,
       sardo_consecutive_absences: req.body?.sardo_consecutive_absences,
       sardo_cumulative_absences: req.body?.sardo_cumulative_absences
     })

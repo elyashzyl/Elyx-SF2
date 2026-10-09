@@ -31,7 +31,8 @@
         <div class="top-nav-spacer"></div>
 
         <div class="top-nav-school" :title="pillName">
-          <span class="top-nav-school-dot"></span>
+          <img v-if="auth.school?.logo_url" :src="auth.school.logo_url" alt="" class="top-nav-school-logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
+          <span v-else class="top-nav-school-dot"></span>
           <span class="top-nav-school-copy">
             <small>Active school</small>
             <strong>{{ pillName }}</strong>
