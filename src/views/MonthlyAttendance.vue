@@ -64,8 +64,8 @@
             </div>
             <button
               type="button"
-              class="btn-secondary saturday-toggle"
-              :class="{ active: form.includeSaturdays }"
+              class="sf2-btn sf2-btn--toggle saturday-toggle-btn"
+              :class="{ 'is-active': form.includeSaturdays }"
               :aria-pressed="form.includeSaturdays"
               @click="form.includeSaturdays = !form.includeSaturdays"
             >
@@ -73,7 +73,10 @@
                 <rect x="3" y="4" width="18" height="17" rx="2"/>
                 <path d="m9 12 2 2 4-4"/>
               </svg>
-              <span>{{ form.includeSaturdays ? 'Saturdays included' : 'Include Saturdays' }}</span>
+              <span>Saturdays</span>
+              <span class="toggle-status-badge" :class="{ 'is-on': form.includeSaturdays }">
+                {{ form.includeSaturdays ? 'ON' : 'OFF' }}
+              </span>
             </button>
           </div>
           <div class="calendar-note-box">
@@ -86,11 +89,11 @@
           </div>
         </div>
         <div class="form-actions">
-          <button @click="openMonthly" class="btn-primary">
+          <button @click="openMonthly" class="sf2-btn sf2-btn--primary sf2-btn--lg">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
-            Generate SF2
+            <span>Generate SF2</span>
           </button>
         </div>
         <p v-if="loadError" class="error-msg">{{ loadError }}</p>
@@ -107,105 +110,141 @@
       </div>
       <div class="sheet-date">{{ months[form.month-1] }} {{ form.year }}</div>
       <h2 class="sheet-title">MONTHLY ATTENDANCE RECORD</h2>
-      <div class="sheet-info">
-        <span>Grade: {{ record.grade }}</span>
-        <span>Section: {{ record.section }}</span>
+      <!-- Metadata Bar -->
+      <div class="sheet-info sheet-info-bar">
+        <div class="sheet-meta-group">
+          <span class="sheet-badge"><strong>Grade:</strong> {{ record.grade }}</span>
+          <span class="sheet-badge"><strong>Section:</strong> {{ record.section }}</span>
+          <span class="sheet-badge sheet-badge--muted"><strong>Month:</strong> {{ months[form.month-1] }} {{ form.year }}</span>
+        </div>
+        <div class="sheet-signatories-group">
+          <label class="signatory-label">
+            <span>Adviser:</span>
+            <input v-model="record.adviser" @change="saveSummary" class="adviser-input" placeholder="Adviser name" />
+          </label>
+          <label class="signatory-label">
+            <span>School Head:</span>
+            <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" placeholder="School head name" />
+          </label>
+        </div>
+      </div>
 
-        <div class="school-days-control sheet-setting">
-          <label class="school-days-label" for="manual-school-days">Total School Days:</label>
-          <input
-            id="manual-school-days"
-            type="number"
-            min="1"
-            max="31"
-            :value="customSchoolDays !== null ? customSchoolDays : schoolDays"
-            @change="handleSchoolDaysChange($event.target.value)"
-            class="school-days-input"
-            title="Directly enter or override total school days for this month"
-          />
+      <!-- Operational Toolbar (Screen only) -->
+      <div class="sheet-toolbar screen-only">
+        <div class="sheet-toolbar-left">
+          <!-- Total School Days pill control -->
+          <div class="school-days-pill">
+            <div class="pill-label-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <label for="manual-school-days" class="school-days-label">School Days:</label>
+            </div>
+            <input
+              id="manual-school-days"
+              type="number"
+              min="1"
+              max="31"
+              :value="customSchoolDays !== null ? customSchoolDays : schoolDays"
+              @change="handleSchoolDaysChange($event.target.value)"
+              class="school-days-input"
+              title="Directly enter or override total school days for this month"
+            />
+            <button
+              v-if="customSchoolDays !== null && customSchoolDays !== schoolDays"
+              type="button"
+              class="sf2-btn sf2-btn--xs sf2-btn--secondary btn-reset-days"
+              @click="resetSchoolDays"
+              title="Reset to calendar count"
+            >
+              Reset ({{ schoolDays }})
+            </button>
+          </div>
+
+          <!-- Add Holiday / Suspension Button -->
           <button
-            v-if="customSchoolDays !== null && customSchoolDays !== schoolDays"
             type="button"
-            class="btn-reset-days"
-            @click="resetSchoolDays"
-            title="Reset to calendar count"
+            class="sf2-btn sf2-btn--secondary add-holiday-btn"
+            @click="openAddHolidayModal()"
+            title="Exclude a date as a holiday or class suspension"
           >
-            Reset ({{ schoolDays }})
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>+ Holiday / Suspension</span>
+          </button>
+
+          <!-- Saturdays Toggle Button -->
+          <button
+            type="button"
+            class="sf2-btn sf2-btn--toggle saturday-toggle-btn"
+            :class="{ 'is-active': record.include_saturdays }"
+            :aria-pressed="record.include_saturdays"
+            @click="updateIncludeSaturdays(!record.include_saturdays)"
+            title="Toggle Saturday reporting for make-up classes"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="17" rx="2"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span>Saturdays</span>
+            <span class="toggle-status-badge" :class="{ 'is-on': record.include_saturdays }">
+              {{ record.include_saturdays ? 'ON' : 'OFF' }}
+            </span>
           </button>
         </div>
 
-        <button
-          type="button"
-          class="btn-secondary add-holiday-btn sheet-setting"
-          @click="openAddHolidayModal()"
-          title="Exclude a date as a holiday or class suspension"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          + Add Holiday / Suspension
-        </button>
+        <div class="sheet-toolbar-right">
+          <!-- Sync Calendar Button -->
+          <button
+            type="button"
+            class="sf2-btn sf2-btn--secondary sync-calendar-btn"
+            :disabled="syncingCalendar"
+            title="Import official school calendar holidays and suspensions into excluded school days"
+            @click="handleSyncCalendar"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              <path d="M16 21h5v-5"/>
+            </svg>
+            <span>{{ syncingCalendar ? 'Syncing…' : 'Sync Calendar' }}</span>
+          </button>
 
-        <button
-          type="button"
-          class="btn-secondary saturday-toggle sheet-setting"
-          :class="{ active: record.include_saturdays }"
-          :aria-pressed="record.include_saturdays"
-          @click="updateIncludeSaturdays(!record.include_saturdays)"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="17" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-            <path d="m8 15 2 2 5-5"/>
-          </svg>
-          {{ record.include_saturdays ? 'Saturdays included' : 'Include Saturdays' }}
-        </button>
-        <button
-          type="button"
-          class="btn-secondary sync-calendar-btn sheet-setting"
-          :disabled="syncingCalendar"
-          title="Import official school calendar holidays and suspensions into excluded school days"
-          @click="handleSyncCalendar"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-            <path d="M16 21h5v-5"/>
-          </svg>
-          {{ syncingCalendar ? 'Syncing…' : 'Sync Calendar' }}
-        </button>
-        <button
-          type="button"
-          class="btn-secondary sync-roster-btn sheet-setting"
-          :disabled="syncingRoster"
-          title="Sync with school roster to automatically add missing learners without losing existing attendance marks"
-          @click="handleSyncRoster"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-          </svg>
-          {{ syncingRoster ? 'Syncing…' : 'Sync Students' }}
-        </button>
-        <button
-          type="button"
-          class="btn-secondary delete-report-btn sheet-setting"
-          :disabled="deletingReport"
-          title="Delete this saved monthly SF2 report so you can generate a fresh report"
-          @click="showDeleteConfirmModal = true"
-          style="color: var(--destructive, #ef4444); border-color: rgba(239, 68, 68, 0.4);"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-          {{ deletingReport ? 'Deleting…' : 'Delete / Reset Report' }}
-        </button>
-        <span>Adviser: <input v-model="record.adviser" @change="saveSummary" class="adviser-input" /></span>
-        <span>School Head: <input v-model="record.schoolHead" @change="saveSummary" class="adviser-input" /></span>
+          <!-- Sync Students Button -->
+          <button
+            type="button"
+            class="sf2-btn sf2-btn--secondary sync-roster-btn"
+            :disabled="syncingRoster"
+            title="Sync with school roster to automatically add missing learners without losing existing attendance marks"
+            @click="handleSyncRoster"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+            <span>{{ syncingRoster ? 'Syncing…' : 'Sync Students' }}</span>
+          </button>
+
+          <!-- Delete Report Button -->
+          <button
+            type="button"
+            class="sf2-btn sf2-btn--danger delete-report-btn"
+            :disabled="deletingReport"
+            title="Delete this saved monthly SF2 report so you can generate a fresh report"
+            @click="showDeleteConfirmModal = true"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>{{ deletingReport ? 'Deleting…' : 'Delete Report' }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- Schedule Settings Note Card -->
@@ -263,10 +302,27 @@
               <th rowspan="2">No.</th>
               <th rowspan="2" class="name-col">NAME (Last Name, First Name, Middle Name)</th>
               <th v-for="d in daysInMonth" :key="d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
-                <span>{{ d }}</span>
-                <button v-if="!isWeekend(d)" @click="handleDateHeaderClick(d)" class="exclude-btn" :title="isExcluded(d) ? `Restore date or edit holiday (${holidayLabels[d] || 'No classes'})` : 'Mark as holiday / suspension'">
-                  {{ isExcluded(d) ? '↺' : '✕' }}
-                </button>
+                <div class="date-cell-head">
+                  <span class="date-num">{{ d }}</span>
+                  <button
+                    v-if="!isWeekend(d)"
+                    @click="handleDateHeaderClick(d)"
+                    class="exclude-btn"
+                    :class="{ 'is-excluded': isExcluded(d) }"
+                    :title="isExcluded(d) ? `Restore date or edit holiday (${holidayLabels[d] || 'No classes'})` : 'Mark as holiday / suspension'"
+                    type="button"
+                    :aria-label="isExcluded(d) ? `Restore date ${d}` : `Exclude date ${d}`"
+                  >
+                    <svg v-if="isExcluded(d)" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                      <path d="M3 3v5h5"/>
+                    </svg>
+                    <svg v-else width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
               </th>
               <th colspan="2">Total for the Month ({{ effectiveSchoolDays }})</th>
               <th rowspan="2">Remarks</th>
@@ -338,13 +394,12 @@
       </div>
 
       <div class="summary-section" v-if="record.entries && record.entries.length">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-          <h3 style="margin: 0;">SUMMARY</h3>
+        <div class="summary-header-row">
+          <h3>SUMMARY</h3>
           <button
             type="button"
             @click="recalculateSummary(true)"
-            class="btn-secondary"
-            style="padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;"
+            class="sf2-btn sf2-btn--secondary sf2-btn--sm"
             title="Recalculate summary metrics from current learner roster and daily attendance marks"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -353,7 +408,7 @@
               <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
               <path d="M16 21h5v-5"/>
             </svg>
-            Recalculate Summary
+            <span>Recalculate Summary</span>
           </button>
         </div>
         <table class="summary-table">
@@ -442,26 +497,30 @@
         <p class="legend-note">Sunday is always disabled. Saturday is configurable for this report. Other dates with no classes are grayed out and disabled. Click ✕ on a date header to mark it as no classes.</p>
       </div>
 
-      <div class="sheet-actions">
-        <button @click="runPreExportValidation" class="btn-secondary" :disabled="validatingExport">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-          {{ validatingExport ? 'Validating…' : 'Validate Data' }}
-        </button>
-        <button @click="exportToSF2" class="btn-primary" :disabled="exporting">
-          <span v-if="exporting" class="spinner" style="margin-right: 6px;"></span>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          {{ exporting ? 'Exporting...' : 'Export to SF2 (Excel)' }}
-        </button>
-        <button @click="goBack" class="btn-secondary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m15 18-6-6 6-6"/>
-          </svg>
-          Back to Selection
-        </button>
+      <div class="sheet-actions screen-only">
+        <div class="sheet-actions-left">
+          <button @click="goBack" class="sf2-btn sf2-btn--secondary sf2-btn--lg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 18-6-6 6-6"/>
+            </svg>
+            <span>Back to Selection</span>
+          </button>
+        </div>
+        <div class="sheet-actions-right">
+          <button @click="runPreExportValidation" class="sf2-btn sf2-btn--secondary sf2-btn--lg" :disabled="validatingExport">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>{{ validatingExport ? 'Validating…' : 'Validate Data' }}</span>
+          </button>
+          <button @click="exportToSF2" class="sf2-btn sf2-btn--primary sf2-btn--lg" :disabled="exporting">
+            <span v-if="exporting" class="spinner" style="margin-right: 6px;"></span>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>{{ exporting ? 'Exporting...' : 'Export to SF2 (Excel)' }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -500,10 +559,13 @@
         </div>
 
         <div class="form-actions" style="margin-top: 18px;">
-          <button @click="showValidationModal = false; exportToSF2()" class="btn-primary" :disabled="exporting">
-            Export SF2 Excel Now
+          <button @click="showValidationModal = false; exportToSF2()" class="sf2-btn sf2-btn--primary" :disabled="exporting">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export SF2 Excel Now</span>
           </button>
-          <button @click="showValidationModal = false" class="btn-secondary">
+          <button @click="showValidationModal = false" class="sf2-btn sf2-btn--secondary">
             Close
           </button>
         </div>
@@ -521,10 +583,14 @@
           This will remove the saved report and all its attendance marks for this month so you can generate a fresh report with the latest class roster.
         </p>
         <div class="form-actions">
-          <button type="button" @click="handleDeleteReport" class="btn-primary" style="background: var(--destructive, #ef4444); border-color: var(--destructive, #ef4444);" :disabled="deletingReport">
-            {{ deletingReport ? 'Deleting…' : 'Yes, Delete Report' }}
+          <button type="button" @click="handleDeleteReport" class="sf2-btn sf2-btn--danger" :disabled="deletingReport">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>{{ deletingReport ? 'Deleting…' : 'Yes, Delete Report' }}</span>
           </button>
-          <button type="button" @click="showDeleteConfirmModal = false" class="btn-secondary" :disabled="deletingReport">
+          <button type="button" @click="showDeleteConfirmModal = false" class="sf2-btn sf2-btn--secondary" :disabled="deletingReport">
             Cancel
           </button>
         </div>
@@ -562,22 +628,21 @@
 
           <div class="form-actions" style="margin-top: 10px; display: flex; justify-content: space-between; gap: 8px;">
             <div style="display: flex; gap: 8px;">
-              <button type="submit" class="btn-primary" :disabled="savingHoliday">
-                {{ savingHoliday ? 'Saving…' : (holidayForm.isEditing ? 'Update Holiday' : 'Exclude Date') }}
+              <button type="submit" class="sf2-btn sf2-btn--primary" :disabled="savingHoliday">
+                <span>{{ savingHoliday ? 'Saving…' : (holidayForm.isEditing ? 'Update Holiday' : 'Exclude Date') }}</span>
               </button>
               <button
                 v-if="holidayForm.isEditing"
                 type="button"
                 @click="removeHoliday(holidayForm.day)"
-                class="btn-secondary"
-                style="color: var(--destructive, #ef4444); border-color: rgba(239, 68, 68, 0.4);"
+                class="sf2-btn sf2-btn--danger"
                 :disabled="savingHoliday"
                 title="Restore this date back to a regular school day"
               >
-                Restore Regular Day
+                <span>Restore Regular Day</span>
               </button>
             </div>
-            <button type="button" @click="showHolidayModal = false" class="btn-secondary">
+            <button type="button" @click="showHolidayModal = false" class="sf2-btn sf2-btn--secondary">
               Cancel
             </button>
           </div>
@@ -1764,6 +1829,136 @@ async function updateRemarks(entry) {
 </script>
 
 <style scoped>
+/* SF2 Design System Buttons */
+.sf2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1;
+}
+
+.sf2-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.sf2-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sf2-btn--primary {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: var(--primary-foreground, #ffffff);
+  box-shadow: 0 2px 6px var(--primary-glow, rgba(12, 83, 87, 0.2));
+}
+
+.sf2-btn--primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--primary-glow, rgba(12, 83, 87, 0.25));
+}
+
+.sf2-btn--secondary {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+.sf2-btn--secondary:hover:not(:disabled) {
+  background: var(--secondary);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.sf2-btn--danger {
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--destructive) 40%, var(--border));
+  color: var(--destructive);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+.sf2-btn--danger:hover:not(:disabled) {
+  background: var(--red-bg, rgba(217, 67, 59, 0.09));
+  border-color: var(--destructive);
+  color: var(--destructive-hover, #b8332c);
+}
+
+.sf2-btn--toggle {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  padding: 0 10px;
+  gap: 8px;
+}
+
+.sf2-btn--toggle:hover:not(:disabled) {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.sf2-btn--toggle.is-active {
+  background: var(--secondary);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary-glow, rgba(12, 83, 87, 0.15));
+}
+
+.toggle-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  transition: all 0.15s ease;
+}
+
+.toggle-status-badge.is-on {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.sf2-btn--xs {
+  min-height: 24px;
+  padding: 0 6px;
+  font-size: 0.68rem;
+  border-radius: var(--radius-xs, 4px);
+  gap: 4px;
+}
+
+.sf2-btn--sm {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.72rem;
+  border-radius: var(--radius-xs, 4px);
+  gap: 5px;
+}
+
+.sf2-btn--lg {
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 0.82rem;
+  border-radius: var(--radius-sm, 8px);
+}
+
 .calendar-config-card {
   display: flex;
   flex-direction: column;
@@ -1837,26 +2032,136 @@ async function updateRemarks(entry) {
   color: var(--primary);
 }
 
-.saturday-toggle {
-  display: inline-flex;
+/* Metadata Bar */
+.sheet-info-bar {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--muted);
+}
+
+.sheet-meta-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.saturday-toggle.active {
-  border-color: var(--primary);
-  color: var(--primary);
+.sheet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs, 4px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.74rem;
+  color: var(--foreground);
 }
 
-.sheet-setting {
-  margin: 0;
+.sheet-badge--muted {
+  color: var(--muted-foreground);
 }
 
-.sync-calendar-btn {
+.sheet-signatories-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.signatory-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.adviser-input {
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--card);
+  color: var(--foreground);
+  min-width: 130px;
+  box-sizing: border-box;
+}
+
+/* Operational Toolbar */
+.sheet-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: var(--shadow-xs, 0 1px 3px rgba(0, 0, 0, 0.03));
+}
+
+.sheet-toolbar-left,
+.sheet-toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* School Days Pill */
+.school-days-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 3px 8px;
+  min-height: 36px;
+  box-sizing: border-box;
+}
+
+.pill-label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+}
+
+.school-days-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.school-days-input {
+  width: 44px;
+  padding: 3px 4px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--card);
+  color: var(--foreground);
+  box-sizing: border-box;
+}
+
+.btn-reset-days {
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 /* Calendar Events Strip */
@@ -1919,60 +2224,6 @@ async function updateRemarks(entry) {
   border-color: color-mix(in srgb, var(--info) 30%, var(--border));
 }
 
-/* Manual School Days & Holiday Controls */
-.school-days-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 10px;
-}
-
-.school-days-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  margin: 0;
-}
-
-.school-days-input {
-  width: 52px;
-  padding: 2px 6px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 0.88rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs, 4px);
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.btn-reset-days {
-  padding: 2px 8px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  border-radius: var(--radius-xs, 4px);
-  background: var(--muted);
-  color: var(--muted-foreground);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-reset-days:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.add-holiday-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-}
-
 .custom-holiday-pill {
   cursor: pointer;
   transition: transform 0.12s ease;
@@ -1981,6 +2232,54 @@ async function updateRemarks(entry) {
 .custom-holiday-pill:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Table Header Date Cell */
+.date-cell-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 30px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.date-num {
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.exclude-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  opacity: 0.65;
+  box-sizing: border-box;
+}
+
+.exclude-btn:hover {
+  opacity: 1;
+  background: var(--muted);
+  color: var(--destructive);
+}
+
+.exclude-btn.is-excluded {
+  opacity: 1;
+  color: var(--warning, #b45309);
+  background: var(--warning-bg, #fef3c7);
+  border-color: color-mix(in srgb, var(--warning) 35%, transparent);
 }
 
 .holiday-col-title {
@@ -2004,6 +2303,44 @@ async function updateRemarks(entry) {
   color: var(--foreground);
   font-size: 0.88rem;
 }
+
+/* Summary Header */
+.summary-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summary-header-row h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+/* Bottom Sheet Actions */
+.sheet-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.sheet-actions-left,
+.sheet-actions-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .validation-status {
   font-weight: 800;
 }
@@ -2033,24 +2370,43 @@ async function updateRemarks(entry) {
   color: var(--warning);
 }
 
-@media (max-width: 720px) {
-  .sheet-info {
+@media (max-width: 768px) {
+  .sheet-info-bar {
+    flex-direction: column;
     align-items: stretch;
   }
 
-  .sheet-info > span,
-  .sheet-info > .sheet-setting {
-    max-width: 100%;
-  }
-
-  .sheet-setting,
-  .sync-calendar-btn {
-    justify-content: center;
+  .sheet-meta-group,
+  .sheet-signatories-group {
     width: 100%;
+    justify-content: flex-start;
   }
 
-  .adviser-input {
-    max-width: 100%;
+  .sheet-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sheet-toolbar-left,
+  .sheet-toolbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .sheet-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sheet-actions-left,
+  .sheet-actions-right {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .sheet-actions-left > .sf2-btn,
+  .sheet-actions-right > .sf2-btn {
+    flex: 1 1 100%;
   }
 
   .calendar-events-strip-title,
