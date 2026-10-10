@@ -23,6 +23,7 @@ function mapPrismaSchool(row) {
     principal_name: row.principalName,
     school_year: row.schoolYear,
     grading_period: row.gradingPeriod,
+    logo_url: row.logoUrl || row.logo_url || '',
     archived_at: row.archivedAt,
     archived_by: row.archivedBy,
     archive_reason: row.archiveReason,
@@ -107,17 +108,17 @@ router.post('/', async (req, res) => {
   try {
     const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
-    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, admin } = req.body || {}
+    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url, admin } = req.body || {}
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'School name is required' })
     const email = String(contact_email || '').trim()
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Contact email is invalid' })
     const id = uuidv4()
     await run(`INSERT INTO schools
-      (id, name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, String(name).trim(), String(school_id || '').trim(), String(address || '').trim(), String(short || '').trim(), email,
         String(contact_phone || '').trim(), String(division || '').trim(), String(district || '').trim(), String(principal_name || '').trim(),
-        String(school_year || '').trim(), String(grading_period || '').trim()])
+        String(school_year || '').trim(), String(grading_period || '').trim(), String(logo_url || '').trim()])
     // New schools start with NO grades — the school admin defines its own
     // grade levels + sections in Settings → Grade Levels & Sections.
     // Optional first school admin created together with the school
@@ -167,7 +168,7 @@ router.put('/:id', async (req, res) => {
     if (me.role !== 'superadmin' && me.school_id !== req.params.id) {
       return res.status(403).json({ error: 'Forbidden: outside your school' })
     }
-    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period } = req.body || {}
+    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url } = req.body || {}
     const sets = []
     const params = []
     if (name !== undefined) { sets.push('name = ?'); params.push(String(name).trim()) }
@@ -179,7 +180,7 @@ router.put('/:id', async (req, res) => {
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Contact email is invalid' })
       sets.push('contact_email = ?'); params.push(email)
     }
-    for (const [field, value] of Object.entries({ contact_phone, division, district, principal_name, school_year, grading_period })) {
+    for (const [field, value] of Object.entries({ contact_phone, division, district, principal_name, school_year, grading_period, logo_url })) {
       if (value !== undefined) { sets.push(`${field} = ?`); params.push(String(value).trim()) }
     }
     if (req.body?.sardo_consecutive_absences !== undefined) {

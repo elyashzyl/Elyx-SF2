@@ -608,6 +608,38 @@
               <button type="button" class="btn-zoom btn-zoom-reset" @click="form138Zoom = 100" title="Reset Zoom">Reset</button>
             </div>
             <button
+              v-if="!editCardGrades"
+              type="button"
+              class="btn-sig-toggle"
+              @click="startEditingCardGrades"
+              title="Directly enter or edit quarterly grades on the Form 138 card"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              Edit Grades on Card
+            </button>
+            <template v-else>
+              <button
+                type="button"
+                class="btn-sm btn-secondary"
+                @click="cancelEditingCardGrades"
+                :disabled="savingCardGrades"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn-sm btn-primary"
+                @click="saveCardGrades"
+                :disabled="savingCardGrades"
+              >
+                <span v-if="savingCardGrades" class="spinner" style="margin-right: 4px;"></span>
+                {{ savingCardGrades ? 'Saving…' : 'Save Card Grades' }}
+              </button>
+            </template>
+            <button
               type="button"
               class="btn-sig-toggle"
               :class="{ active: showSignatureEditor }"
@@ -708,9 +740,16 @@
                   </div>
                 </div>
 
-                <!-- Right Crest: Department of Education -->
+                <!-- Right Crest: Department of Education or Official School Logo -->
                 <div class="header-seal seal-deped">
-                  <svg class="official-crest-svg" viewBox="0 0 100 100" width="74" height="74" aria-label="Official Seal of the Department of Education">
+                  <img
+                    v-if="form138Data.school?.logo_url"
+                    :src="form138Data.school.logo_url"
+                    class="official-crest-svg"
+                    style="width: 74px; height: 74px; object-fit: contain; border-radius: 50%;"
+                    alt="School Official Seal"
+                  />
+                  <svg v-else class="official-crest-svg" viewBox="0 0 100 100" width="74" height="74" aria-label="Official Seal of the Department of Education">
                     <circle cx="50" cy="50" r="48" fill="#f8fafc" stroke="#1e3a8a" stroke-width="2.5" />
                     <circle cx="50" cy="50" r="44" fill="none" stroke="#b45309" stroke-width="1.2" stroke-dasharray="2,2" />
                     <circle cx="50" cy="50" r="32" fill="#eff6ff" stroke="#3b82f6" stroke-width="1" />
@@ -951,10 +990,54 @@
                           {{ la.subjectName }}
                           <span v-if="la.subjectCode" class="sub-code-tiny">({{ la.subjectCode }})</span>
                         </td>
-                        <td class="rating-cell">{{ la.q1 ?? '—' }}</td>
-                        <td class="rating-cell">{{ la.q2 ?? '—' }}</td>
-                        <td class="rating-cell">{{ la.q3 ?? '—' }}</td>
-                        <td class="rating-cell">{{ la.q4 ?? '—' }}</td>
+                        <td class="rating-cell">
+                          <input
+                            v-if="editCardGrades"
+                            type="number"
+                            min="60"
+                            max="100"
+                            v-model.number="la.q1"
+                            @input="recalcCardGrade(la)"
+                            class="sf9-inline-grade-input"
+                          />
+                          <span v-else>{{ la.q1 ?? '—' }}</span>
+                        </td>
+                        <td class="rating-cell">
+                          <input
+                            v-if="editCardGrades"
+                            type="number"
+                            min="60"
+                            max="100"
+                            v-model.number="la.q2"
+                            @input="recalcCardGrade(la)"
+                            class="sf9-inline-grade-input"
+                          />
+                          <span v-else>{{ la.q2 ?? '—' }}</span>
+                        </td>
+                        <td class="rating-cell">
+                          <input
+                            v-if="editCardGrades"
+                            type="number"
+                            min="60"
+                            max="100"
+                            v-model.number="la.q3"
+                            @input="recalcCardGrade(la)"
+                            class="sf9-inline-grade-input"
+                          />
+                          <span v-else>{{ la.q3 ?? '—' }}</span>
+                        </td>
+                        <td class="rating-cell">
+                          <input
+                            v-if="editCardGrades"
+                            type="number"
+                            min="60"
+                            max="100"
+                            v-model.number="la.q4"
+                            @input="recalcCardGrade(la)"
+                            class="sf9-inline-grade-input"
+                          />
+                          <span v-else>{{ la.q4 ?? '—' }}</span>
+                        </td>
                         <td class="rating-cell font-bold final-cell">{{ la.finalRating ?? '—' }}</td>
                         <td class="remarks-cell">
                           <span :class="la.finalRating >= 75 ? 'tag-prom' : (la.finalRating !== null ? 'tag-fail' : '')">
@@ -1418,6 +1501,71 @@ const customAdviser = ref('')
 const customPrincipal = ref('')
 const showSignatureEditor = ref(false)
 const observedValues = ref([])
+const editCardGrades = ref(false)
+const savingCardGrades = ref(false)
+
+function startEditingCardGrades() {
+  editCardGrades.value = true
+}
+
+function cancelEditingCardGrades() {
+  editCardGrades.value = false
+  if (form138Filter.studentId) {
+    loadForm138(form138Filter.studentId)
+  }
+}
+
+function recalcCardGrade(la) {
+  const quarters = [la.q1, la.q2, la.q3, la.q4]
+    .map(v => (v !== null && v !== undefined && v !== '' ? Number(v) : null))
+    .filter(v => v !== null && !isNaN(v))
+  if (quarters.length > 0) {
+    const avg = Math.round(quarters.reduce((a, b) => a + b, 0) / quarters.length)
+    la.finalRating = avg
+    la.remarks = avg >= 75 ? 'Passed' : 'Failed'
+  } else {
+    la.finalRating = null
+    la.remarks = ''
+  }
+  const rated = learningAreasList.value.filter(s => s.finalRating !== null && s.finalRating !== undefined && !isNaN(Number(s.finalRating)))
+  if (rated.length > 0 && form138Data.value) {
+    form138Data.value.generalAverage = Math.round(rated.reduce((a, b) => a + Number(b.finalRating), 0) / rated.length)
+  }
+}
+
+async function saveCardGrades() {
+  if (!form138Filter.studentId) return
+  savingCardGrades.value = true
+  try {
+    const payload = {
+      schoolYear: form138Data.value?.schoolYear || form138Filter.schoolYear || '2026-2027',
+      grades: learningAreasList.value.map(la => ({
+        subjectId: la.subjectId || la.id,
+        q1: la.q1 !== null && la.q1 !== undefined && la.q1 !== '' ? Number(la.q1) : null,
+        q2: la.q2 !== null && la.q2 !== undefined && la.q2 !== '' ? Number(la.q2) : null,
+        q3: la.q3 !== null && la.q3 !== undefined && la.q3 !== '' ? Number(la.q3) : null,
+        q4: la.q4 !== null && la.q4 !== undefined && la.q4 !== '' ? Number(la.q4) : null,
+      }))
+    }
+    const res = await fetch(`/api/grading/form138/${form138Filter.studentId}/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify(payload)
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to save grades from card')
+    notify(`Saved quarterly ratings to Form 138 (${data.updatedCount || 0} entries)`, 'success')
+    editCardGrades.value = false
+    await loadForm138(form138Filter.studentId)
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    savingCardGrades.value = false
+  }
+}
 
 const attendanceMonths = computed(() => {
   if (!form138Data.value?.attendanceSummary) return []
@@ -3570,5 +3718,37 @@ function getDistPct(count) {
     grid-template-columns: 1fr;
     gap: 4px;
   }
+}
+
+@media (max-width: 600px) {
+  .sf9-canvas-viewport {
+    padding: 10px 4px;
+  }
+  .sf9-page {
+    padding: 18px 12px;
+  }
+  .sig-drawer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sf9-inline-grade-input {
+  width: 48px;
+  height: 28px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0;
+  margin: 0 auto;
+  display: block;
+}
+.sf9-inline-grade-input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--primary-bg);
 }
 </style>

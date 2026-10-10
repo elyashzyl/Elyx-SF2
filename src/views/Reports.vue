@@ -68,9 +68,20 @@
         <span>Quarterly Summary</span>
       </button>
 
-      <button 
-        class="report-tab-btn" 
-        :class="{ active: activeTab === 'validation' }" 
+      <button
+        class="report-tab-btn"
+        :class="{ active: activeTab === 'analytics' }"
+        @click="activeTab = 'analytics'; loadActiveTab()"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
+        </svg>
+        <span>Analytics &amp; Insights</span>
+      </button>
+
+      <button
+        class="report-tab-btn"
+        :class="{ active: activeTab === 'validation' }"
         @click="activeTab = 'validation'; inspectTemplateVersion()"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -137,6 +148,15 @@
             <select v-model="filterSection" @change="loadSectionComparison">
               <option value="">All Sections</option>
               <option v-for="s in (sectionsByGrade[filterGrade] || [])" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+
+          <!-- School Year Filter -->
+          <div class="filter-group">
+            <label>School Year</label>
+            <select v-model="comparisonSchoolYear" @change="loadSectionComparison">
+              <option value="">All School Years</option>
+              <option v-for="year in schoolYearOptions" :key="year" :value="year">{{ year }}</option>
             </select>
           </div>
 
@@ -626,7 +646,7 @@
                 <th style="text-align: center;">School Days</th>
                 <th style="text-align: center;">Enrolment (M / F / Total)</th>
                 <th style="text-align: center;">ADA (M / F / Total)</th>
-                <th style="width: 220px; text-align: center;">Att. % (M / F / Total)</th>
+                <th style="width: 220px; text-align: center;">Attendance %</th>
                 <th style="text-align: right;">Action</th>
               </tr>
             </thead>
@@ -635,8 +655,13 @@
                 <td v-if="!effectiveSchoolId">
                   <span class="campus-tag">{{ sec.schoolShort || sec.schoolName || '—' }}</span>
                 </td>
-                <td><strong>{{ sec.grade }} — {{ sec.section }}</strong></td>
-                <td>{{ sec.adviser || 'Unassigned' }}</td>
+                <td>
+                  <strong>{{ sec.grade }} — {{ sec.section }}</strong>
+                </td>
+                <td>
+                  <span v-if="sec.adviser">{{ sec.adviser }}</span>
+                  <span v-else class="unassigned-badge">Unassigned</span>
+                </td>
                 <td style="text-align: center;">{{ sec.schoolDays }}</td>
                 <td style="text-align: center;">
                   {{ sec.enrolment.male }} / {{ sec.enrolment.female }} / <strong>{{ sec.enrolment.total }}</strong>
@@ -672,6 +697,204 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: ATTENDANCE ANALYTICS & VISUAL INSIGHTS -->
+    <div v-if="activeTab === 'analytics'" class="tab-content-pane">
+      <!-- Toolbar -->
+      <div class="filter-action-toolbar card-box">
+        <div class="toolbar-left">
+          <div class="filter-group">
+            <label>School Year</label>
+            <select v-model="comparisonSchoolYear" @change="loadSectionComparison">
+              <option value="">All School Years</option>
+              <option v-for="year in schoolYearOptions" :key="year" :value="year">{{ year }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Grade Level Scope</label>
+            <select v-model="filterGrade" @change="loadSectionComparison">
+              <option value="">All Grades</option>
+              <option v-for="g in availableGrades" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button @click="loadSectionComparison" class="btn-sm btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>Refresh Analytics</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- DepEd DO 8 Performance Distribution -->
+      <div class="card-box" style="margin-bottom: 20px;">
+        <div class="card-box-header">
+          <div>
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20V10M18 20V4M6 20v-4"/>
+              </svg>
+              <span>DepEd Order No. 8 Compliance Tiers</span>
+            </h3>
+            <p>Target threshold distribution across active school sections</p>
+          </div>
+        </div>
+
+        <div class="analytics-tier-grid">
+          <div class="analytics-tier-card tier--compliant">
+            <div class="tier-badge">COMPLIANT (≥ 95%)</div>
+            <div class="tier-val">{{ analyticsTiers.compliantCount }} <small>sections</small></div>
+            <div class="tier-meter">
+              <div class="tier-fill tier-fill--teal" :style="{ width: `${analyticsTiers.compliantPct}%` }"></div>
+            </div>
+            <span class="tier-sub">{{ analyticsTiers.compliantPct }}% of classes meet DepEd threshold</span>
+          </div>
+
+          <div class="analytics-tier-card tier--caution">
+            <div class="tier-badge">ATTENTION (90% – 94.9%)</div>
+            <div class="tier-val">{{ analyticsTiers.cautionCount }} <small>sections</small></div>
+            <div class="tier-meter">
+              <div class="tier-fill tier-fill--amber" :style="{ width: `${analyticsTiers.cautionPct}%` }"></div>
+            </div>
+            <span class="tier-sub">{{ analyticsTiers.cautionPct }}% of classes need attendance monitoring</span>
+          </div>
+
+          <div class="analytics-tier-card tier--risk">
+            <div class="tier-badge">INTERVENTION (&lt; 90%)</div>
+            <div class="tier-val">{{ analyticsTiers.atRiskCount }} <small>sections</small></div>
+            <div class="tier-meter">
+              <div class="tier-fill tier-fill--danger" :style="{ width: `${analyticsTiers.atRiskPct}%` }"></div>
+            </div>
+            <span class="tier-sub">{{ analyticsTiers.atRiskPct }}% of classes require home visits / guidance</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grade-Level Attendance Matrix & Gender Breakdown -->
+      <div class="analytics-two-col-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
+        <!-- Grade Levels Comparison -->
+        <div class="card-box">
+          <div class="card-box-header">
+            <div>
+              <h3>Grade Level Comparison</h3>
+              <p>Attendance averages aggregated by grade level</p>
+            </div>
+          </div>
+          <div class="grade-matrix-list" v-if="gradeLevelBreakdown.length">
+            <div v-for="g in gradeLevelBreakdown" :key="g.grade" class="grade-matrix-item" style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <strong>{{ g.grade }}</strong>
+                <span class="rate-badge" :class="g.attendanceRate >= 95 ? 'text-teal' : g.attendanceRate >= 90 ? 'text-amber' : 'text-danger'" style="font-weight: 800;">
+                  {{ g.attendanceRate }}%
+                </span>
+              </div>
+              <div class="rate-track" style="height: 6px; background: var(--muted); border-radius: 999px; overflow: hidden;">
+                <div
+                  class="rate-fill"
+                  :class="g.attendanceRate >= 95 ? 'fill-teal' : g.attendanceRate >= 90 ? 'fill-amber' : 'fill-danger'"
+                  :style="{ width: `${Math.min(g.attendanceRate, 100)}%` }"
+                  style="height: 100%; border-radius: 999px;"
+                ></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted-foreground); margin-top: 4px;">
+                <span>{{ g.sectionsCount }} sections · {{ g.enrolled }} learners</span>
+                <span v-if="g.sardo > 0" class="text-danger">{{ g.sardo }} SARDO alerts</span>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-muted" style="text-align: center; padding: 20px;">No grade levels recorded yet.</p>
+        </div>
+
+        <!-- Gender Attendance Parity & SARDO Watchlist -->
+        <div class="card-box">
+          <div class="card-box-header">
+            <div>
+              <h3>Gender Attendance &amp; SARDO Watchlist</h3>
+              <p>Enrolment ratio &amp; retention risk indicators</p>
+            </div>
+          </div>
+          <div class="gender-parity-block" style="margin-bottom: 18px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem; font-weight: 700;">
+              <span>Male: {{ genderParity.male }} ({{ genderParity.malePct }}%)</span>
+              <span>Female: {{ genderParity.female }} ({{ genderParity.femalePct }}%)</span>
+            </div>
+            <div style="display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--muted);">
+              <div :style="{ width: `${genderParity.malePct}%` }" style="background: #3b82f6;"></div>
+              <div :style="{ width: `${genderParity.femalePct}%` }" style="background: #ec4899;"></div>
+            </div>
+          </div>
+
+          <div class="sardo-summary-box" style="padding: 14px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--destructive) 6%, var(--card)); border: 1px solid color-mix(in srgb, var(--destructive) 25%, var(--border));">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <strong style="color: var(--destructive); font-size: 0.95rem;">Chronic Absenteeism / SARDO</strong>
+                <p style="margin: 2px 0 0; font-size: 0.75rem; color: var(--muted-foreground);">Students at risk of dropping out due to unexcused absences</p>
+              </div>
+              <span style="font-size: 1.6rem; font-weight: 800; color: var(--destructive);">{{ totalSardoAlerts }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Performing & Attention Sections -->
+      <div class="analytics-two-col-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Top 5 Classes -->
+        <div class="card-box">
+          <div class="card-box-header">
+            <div>
+              <h3>Top 5 Highest Attendance Classes</h3>
+              <p>Sections exceeding DepEd compliance targets</p>
+            </div>
+          </div>
+          <table class="overview-table" v-if="topSections.length">
+            <thead>
+              <tr>
+                <th>Section</th>
+                <th style="text-align: center;">Learners</th>
+                <th style="text-align: right;">Attendance %</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in topSections" :key="'top-' + s.grade + s.section">
+                <td><strong>{{ s.grade }} - {{ s.section }}</strong></td>
+                <td style="text-align: center;">{{ s.enrolled }}</td>
+                <td style="text-align: right; font-weight: 800;" class="text-teal">{{ s.attendanceRate }}%</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="text-muted" style="text-align: center; padding: 20px;">No sections available.</p>
+        </div>
+
+        <!-- Attention Classes -->
+        <div class="card-box">
+          <div class="card-box-header">
+            <div>
+              <h3>Priority Attention Classes</h3>
+              <p>Sections with the lowest attendance rates</p>
+            </div>
+          </div>
+          <table class="overview-table" v-if="focusSections.length">
+            <thead>
+              <tr>
+                <th>Section</th>
+                <th style="text-align: center;">Learners</th>
+                <th style="text-align: right;">Attendance %</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in focusSections" :key="'foc-' + s.grade + s.section">
+                <td><strong>{{ s.grade }} - {{ s.section }}</strong></td>
+                <td style="text-align: center;">{{ s.enrolled }}</td>
+                <td style="text-align: right; font-weight: 800;" :class="s.attendanceRate >= 95 ? 'text-teal' : s.attendanceRate >= 90 ? 'text-amber' : 'text-danger'">{{ s.attendanceRate }}%</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="text-muted" style="text-align: center; padding: 20px;">No sections available.</p>
         </div>
       </div>
     </div>
@@ -719,6 +942,13 @@
         </div>
 
         <div class="validator-controls">
+          <div class="filter-group">
+            <label>School Year</label>
+            <select v-model="validatorSchoolYear">
+              <option v-for="y in schoolYearOptions" :key="y" :value="y">{{ y }}</option>
+            </select>
+          </div>
+
           <div class="filter-group">
             <label>Grade Level</label>
             <select v-model="validatorGrade" @change="onValidatorGradeChange">
@@ -980,6 +1210,7 @@ const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.v
 
 // Section Comparison State & Filters
 const comparisonData = ref(null)
+const comparisonSchoolYear = ref('')
 const filterGrade = ref('')
 const filterSection = ref('')
 const searchQuery = ref('')
@@ -1000,6 +1231,7 @@ const quarterlySearch = ref('')
 
 // Template & Validation State
 const templateVersion = ref(null)
+const validatorSchoolYear = ref('')
 const validatorGrade = ref('')
 const validatorSection = ref('')
 const validatorMonth = ref(new Date().getMonth() + 1)
@@ -1009,6 +1241,12 @@ const monthNamesList = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
+
+function schoolYearParts(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{4})$/)
+  if (!match) return null
+  return { start: Number(match[1]), end: Number(match[2]) }
+}
 
 // Archives & Saved Views State
 const archives = ref([])
@@ -1023,6 +1261,68 @@ function academicYearForDate(date = new Date()) {
 }
 
 const schoolYearOptions = ref([])
+
+// Analytics Computed Indicators
+const analyticsTiers = computed(() => {
+  const sections = comparisonData.value?.sections || []
+  const total = Math.max(1, sections.length)
+  const compliant = sections.filter(s => s.attendanceRate >= 95)
+  const caution = sections.filter(s => s.attendanceRate >= 90 && s.attendanceRate < 95)
+  const atRisk = sections.filter(s => s.attendanceRate < 90)
+  return {
+    compliantCount: compliant.length,
+    compliantPct: Math.round((compliant.length / total) * 100),
+    cautionCount: caution.length,
+    cautionPct: Math.round((caution.length / total) * 100),
+    atRiskCount: atRisk.length,
+    atRiskPct: Math.round((atRisk.length / total) * 100),
+    totalSections: sections.length
+  }
+})
+
+const gradeLevelBreakdown = computed(() => {
+  const sections = comparisonData.value?.sections || []
+  const map = {}
+  for (const s of sections) {
+    if (!map[s.grade]) {
+      map[s.grade] = { grade: s.grade, sectionsCount: 0, enrolled: 0, present: 0, absent: 0, sardo: 0 }
+    }
+    const item = map[s.grade]
+    item.sectionsCount++
+    item.enrolled += Number(s.enrolled || 0)
+    item.present += Number(s.present || 0)
+    item.absent += Number(s.absent || 0)
+    item.sardo += Number(s.sardoAlerts || 0)
+  }
+  return Object.values(map).map(g => {
+    const totalLog = g.present + g.absent
+    const rate = totalLog > 0 ? Number(((g.present / totalLog) * 100).toFixed(1)) : 0
+    return { ...g, attendanceRate: rate }
+  }).sort((a, b) => b.attendanceRate - a.attendanceRate)
+})
+
+const topSections = computed(() => {
+  const sections = [...(comparisonData.value?.sections || [])]
+  return sections.sort((a, b) => b.attendanceRate - a.attendanceRate).slice(0, 5)
+})
+
+const focusSections = computed(() => {
+  const sections = [...(comparisonData.value?.sections || [])]
+  return sections.sort((a, b) => a.attendanceRate - b.attendanceRate).slice(0, 5)
+})
+
+const genderParity = computed(() => {
+  const sections = comparisonData.value?.sections || []
+  const totalMale = sections.reduce((sum, s) => sum + Number(s.male || 0), 0)
+  const totalFemale = sections.reduce((sum, s) => sum + Number(s.female || 0), 0)
+  const totalEnrolled = totalMale + totalFemale
+  return {
+    male: totalMale,
+    female: totalFemale,
+    malePct: totalEnrolled > 0 ? Math.round((totalMale / totalEnrolled) * 100) : 50,
+    femalePct: totalEnrolled > 0 ? Math.round((totalFemale / totalEnrolled) * 100) : 50
+  }
+})
 
 // Computed: Total SARDO Alerts in Current Comparison Scope
 const filteredComparisonSummary = computed(() => {
@@ -1085,6 +1385,7 @@ const filteredSections = computed(() => {
 
 const hasActiveComparisonFilters = computed(() => {
   return !!(
+    comparisonSchoolYear.value ||
     filterGrade.value ||
     filterSection.value ||
     searchQuery.value.trim() ||
@@ -1095,6 +1396,7 @@ const hasActiveComparisonFilters = computed(() => {
 })
 
 function resetComparisonFilters() {
+  comparisonSchoolYear.value = ''
   filterGrade.value = ''
   filterSection.value = ''
   searchQuery.value = ''
@@ -1200,7 +1502,7 @@ async function onSchoolChange() {
 }
 
 function loadActiveTab() {
-  if (activeTab.value === 'comparison') loadSectionComparison()
+  if (activeTab.value === 'comparison' || activeTab.value === 'analytics') loadSectionComparison()
   else if (activeTab.value === 'quarterly') loadQuarterlySummary()
   else if (activeTab.value === 'validation') inspectTemplateVersion()
   else if (activeTab.value === 'archive') loadArchives()
@@ -1213,8 +1515,10 @@ async function loadSchoolYears() {
     if (effectiveSchoolId.value) params.set('schoolId', effectiveSchoolId.value)
     const years = await auth.api(`/reports/school-years?${params.toString()}`)
     schoolYearOptions.value = Array.isArray(years) && years.length ? years : [academicYearForDate()]
+    if (!validatorSchoolYear.value) validatorSchoolYear.value = schoolYearOptions.value[0] || academicYearForDate()
   } catch (err) {
     schoolYearOptions.value = [academicYearForDate()]
+    if (!validatorSchoolYear.value) validatorSchoolYear.value = schoolYearOptions.value[0] || academicYearForDate()
     errorMessage.value = err.message || 'Failed to load school years'
   }
 }
@@ -1295,6 +1599,7 @@ async function loadSectionComparison() {
     }
     const params = new URLSearchParams()
     if (effectiveSchoolId.value) params.set('schoolId', effectiveSchoolId.value)
+    if (comparisonSchoolYear.value) params.set('schoolYear', comparisonSchoolYear.value)
     if (filterGrade.value) params.set('grade', filterGrade.value)
     if (filterSection.value) params.set('section', filterSection.value)
     if (startDate.value && endDate.value) {
@@ -1302,7 +1607,7 @@ async function loadSectionComparison() {
       params.set('endDate', endDate.value)
     }
     comparisonData.value = await auth.api(`/reports/section-comparison?${params.toString()}`)
-    if (!effectiveSchoolId.value && Array.isArray(comparisonData.value?.sections)) {
+    if (!effectiveSchoolId.value && !filterGrade.value && Array.isArray(comparisonData.value?.sections)) {
       const grades = [...new Set(comparisonData.value.sections.map(s => s.grade).filter(Boolean))]
       availableGrades.value = grades
       const map = {}
@@ -1362,7 +1667,11 @@ async function runValidationCheck() {
   validationResult.value = null
   try {
     const sid = effectiveSchoolId.value || auth.schoolId
-    const year = new Date().getFullYear()
+    const syParts = schoolYearParts(validatorSchoolYear.value)
+    let year = new Date().getFullYear()
+    if (syParts) {
+      year = Number(validatorMonth.value) >= 6 ? syParts.start : syParts.end
+    }
     let entries = []
 
     // Fetch existing monthly sheet entries first
@@ -2499,6 +2808,68 @@ async function archiveCurrentReport(type) {
   background: var(--muted);
   color: var(--foreground);
   border: 1px solid var(--border);
+}
+
+.analytics-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.analytics-tier-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tier-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+.tier-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.tier-val small {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.tier-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--muted);
+  overflow: hidden;
+}
+
+.tier-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.tier-fill--teal { background: var(--primary); }
+.tier-fill--amber { background: var(--warning); }
+.tier-fill--danger { background: var(--destructive); }
+
+.tier-sub {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 900px) {
+  .analytics-tier-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .text-teal { color: var(--primary); }

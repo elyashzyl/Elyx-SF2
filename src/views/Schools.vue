@@ -85,8 +85,9 @@
           <div v-for="(s, idx) in pagedSchools" :key="s?.id || idx" class="school-card" :class="{ 'school-card--archived': !!s?.archived_at }">
             <div class="school-card-top">
               <div class="school-card-identity">
-                <div class="school-card-avatar" aria-hidden="true">
-                  {{ (s?.short || s?.name || 'S').charAt(0).toUpperCase() }}
+                <div class="school-card-avatar" aria-hidden="true" :style="s?.logo_url ? 'overflow: hidden; padding: 0;' : ''">
+                  <img v-if="s?.logo_url" :src="s.logo_url" alt="" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
+                  <span v-else>{{ (s?.short || s?.name || 'S').charAt(0).toUpperCase() }}</span>
                 </div>
                 <div class="school-card-heading">
                   <h3 class="school-card-name">{{ s?.name || 'School' }}</h3>
@@ -148,7 +149,9 @@
             <div class="school-card-footer">
               <span class="badge badge-info" v-if="s?.school_id">ID: {{ s.school_id }}</span>
               <span class="badge badge-success" v-if="s?.short">{{ s.short }}</span>
-              <span v-if="!s?.school_id && !s?.short" class="school-card-footer-empty">Profile details pending</span>
+              <span class="badge badge-warning" v-if="s?.school_year">SY: {{ s.school_year }}</span>
+              <span class="badge badge-primary" v-if="s?.grading_period">{{ s.grading_period }}</span>
+              <span v-if="!s?.school_id && !s?.short && !s?.school_year" class="school-card-footer-empty">Profile details pending</span>
             </div>
           </div>
         </div>
@@ -218,6 +221,37 @@
             <div class="form-group">
               <label>Address</label>
               <input v-model="form.address" placeholder="e.g. Santa Maria, Bulacan" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>School Year</label>
+                <input v-model="form.school_year" placeholder="e.g. 2026-2027" />
+              </div>
+              <div class="form-group">
+                <label>Current Grading Period</label>
+                <input v-model="form.grading_period" placeholder="e.g. First Grading" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>School Official Seal / Logo</label>
+              <div class="modal-logo-uploader" style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
+                <div style="width: 48px; height: 48px; border-radius: 50%; border: 1.5px dashed var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--muted); flex-shrink: 0;">
+                  <img v-if="form.logo_url" :src="form.logo_url" alt="" style="width: 100%; height: 100%; object-fit: cover;" />
+                  <span v-else style="font-size: 0.65rem; color: var(--muted-foreground); font-weight: 700;">LOGO</span>
+                </div>
+                <div style="flex: 1;">
+                  <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                    <label class="btn-xs btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                      <span>Choose File</span>
+                      <input type="file" accept="image/*" @change="handleSchoolLogoUpload" style="display: none;" />
+                    </label>
+                    <button v-if="form.logo_url" type="button" class="btn-xs btn-secondary" @click="form.logo_url = ''" style="color: var(--destructive);">
+                      Remove
+                    </button>
+                  </div>
+                  <input v-model="form.logo_url" placeholder="Or enter image URL (https://...)" style="font-size: 0.78rem;" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -316,7 +350,7 @@ const editingSchool = ref(null)
 const saving = ref(false)
 const formError = ref('')
 const pageSize = ref(Number.isFinite(Number(savedState?.pageSize)) && Number(savedState.pageSize) > 0 ? Number(savedState.pageSize) : 6)
-const form = ref({ name: '', school_id: '', short: '', address: '', adminName: '', adminUsername: '', adminPassword: '' })
+const form = ref({ name: '', school_id: '', short: '', address: '', logo_url: '', school_year: '', grading_period: '', adminName: '', adminUsername: '', adminPassword: '' })
 const showArchiveModal = ref(false)
 const archiveSchoolData = ref(null)
 const archiveAction = ref('archive')
@@ -408,9 +442,27 @@ async function loadSchools() {
 
 function openAddForm() {
   editingSchool.value = null
-  form.value = { name: '', school_id: '', short: '', address: '', adminName: '', adminUsername: '', adminPassword: '' }
+  form.value = { name: '', school_id: '', short: '', address: '', logo_url: '', school_year: '', grading_period: '', adminName: '', adminUsername: '', adminPassword: '' }
   formError.value = ''
   showForm.value = true
+}
+
+function handleSchoolLogoUpload(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    notify('Please select an image file', 'error')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    notify('Image file must be under 2MB', 'error')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    form.value.logo_url = String(e.target?.result || '')
+  }
+  reader.readAsDataURL(file)
 }
 
 function cancelForm() {
@@ -428,7 +480,10 @@ async function handleSave() {
         name: form.value.name,
         school_id: form.value.school_id,
         address: form.value.address,
-        short: form.value.short
+        short: form.value.short,
+        logo_url: form.value.logo_url,
+        school_year: form.value.school_year,
+        grading_period: form.value.grading_period
       })
       notify('School updated', 'success')
     } else {
@@ -436,7 +491,10 @@ async function handleSave() {
         name: form.value.name,
         school_id: form.value.school_id,
         address: form.value.address,
-        short: form.value.short
+        short: form.value.short,
+        logo_url: form.value.logo_url,
+        school_year: form.value.school_year,
+        grading_period: form.value.grading_period
       }
       if (form.value.adminUsername && form.value.adminPassword && form.value.adminName) {
         payload.admin = {
@@ -463,7 +521,18 @@ async function handleSave() {
 function editSchool(s) {
   if (s?.archived_at) return
   editingSchool.value = s
-  form.value = { name: s.name, school_id: s.school_id || '', short: s.short || '', address: s.address || '', adminName: '', adminUsername: '', adminPassword: '' }
+  form.value = {
+    name: s.name,
+    school_id: s.school_id || '',
+    short: s.short || '',
+    address: s.address || '',
+    logo_url: s.logo_url || '',
+    school_year: s.school_year || '',
+    grading_period: s.grading_period || '',
+    adminName: '',
+    adminUsername: '',
+    adminPassword: ''
+  }
   formError.value = ''
   showForm.value = true
 }
@@ -664,7 +733,7 @@ function removeSchool(id) {
 /* School Cards Grid */
 .schools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 20px;
 }
 

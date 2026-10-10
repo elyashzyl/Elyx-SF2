@@ -177,6 +177,60 @@
               Add
             </button>
           </div>
+
+          <!-- Subjects / Learning Areas for this Grade Level -->
+          <div class="grade-card-subjects" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+              <label class="grade-card-label" style="margin: 0;">Subjects / Learning Areas</label>
+              <button
+                v-if="!getSubjectsForGrade(g.grade).length && g.grade"
+                type="button"
+                class="btn-xs btn-outline"
+                style="font-size: 0.68rem; padding: 2px 8px; border-radius: 4px;"
+                @click="seedDefaultSubjects(g.grade)"
+                title="Populate standard DepEd K-12 learning areas"
+              >
+                + DepEd Defaults
+              </button>
+            </div>
+            <div class="section-tags" v-if="getSubjectsForGrade(g.grade).length">
+              <span v-for="sub in getSubjectsForGrade(g.grade)" :key="sub.id" class="section-tag" style="background: var(--primary-bg); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 25%, transparent);">
+                {{ sub.subject_name }}
+                <button
+                  type="button"
+                  class="section-tag-remove"
+                  @click="removeSubject(sub.id, sub.subject_name)"
+                  :aria-label="`Remove ${sub.subject_name}`"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6 6 18"/>
+                    <path d="m6 6 12 12"/>
+                  </svg>
+                </button>
+              </span>
+            </div>
+            <p v-else class="grade-card-hint">No subjects assigned yet. Add subjects or click "+ DepEd Defaults".</p>
+            <div class="section-input-row" style="margin-top: 8px;">
+              <input
+                v-model="g.newSubject"
+                class="section-input"
+                placeholder="e.g. Mathematics, English, Science..."
+                @keydown.enter.prevent="addSubjectForGrade(i)"
+              />
+              <button
+                type="button"
+                class="btn-sm section-add-btn"
+                @click="addSubjectForGrade(i)"
+                :disabled="!g.newSubject || !g.newSubject.trim()"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -197,6 +251,8 @@ const schools = ref([])
 const savedState = loadPageState(auth.user)
 const selectedSchoolId = ref(savedState?.school || '')
 const gradeRows = ref([])
+const subjectsList = ref([])
+const loadingSubjects = ref(false)
 const savingGrades = ref(false)
 const gradesError = ref('')
 
@@ -214,6 +270,103 @@ const totalSections = computed(() =>
   gradeRows.value.reduce((sum, g) => sum + g.sections.length, 0)
 )
 
+function getSubjectsForGrade(gradeName) {
+  const g = String(gradeName || '').trim().toLowerCase()
+  if (!g) return []
+  return subjectsList.value.filter(s => String(s.grade_level || '').trim().toLowerCase() === g)
+}
+
+async function loadSubjects() {
+  const sid = gradesSchoolId()
+  if (!sid) {
+    subjectsList.value = []
+    return
+  }
+  loadingSubjects.value = true
+  try {
+    const res = await fetch(`/api/grading/subjects?schoolId=${sid}`, {
+      headers: auth.actorHeaders()
+    })
+    const data = await res.json()
+    subjectsList.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    console.error('Failed to load subjects:', e)
+    subjectsList.value = []
+  } finally {
+    loadingSubjects.value = false
+  }
+}
+
+async function addSubjectForGrade(i) {
+  const row = gradeRows.value[i]
+  if (!row || !row.grade || !row.newSubject?.trim()) return
+  const sid = gradesSchoolId()
+  if (!sid) return
+  const name = row.newSubject.trim()
+  try {
+    const res = await fetch('/api/grading/subjects', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify({
+        schoolId: sid,
+        gradeLevel: row.grade.trim(),
+        subjectName: name,
+        subjectCode: name.slice(0, 8).toUpperCase().replace(/\s+/g, '')
+      })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to add subject')
+    row.newSubject = ''
+    notify(`Added ${name} to ${row.grade}`, 'success')
+    await loadSubjects()
+  } catch (e) {
+    notify(e.message, 'error')
+  }
+}
+
+async function removeSubject(subId, subName) {
+  if (!confirm(`Remove subject "${subName}"?`)) return
+  try {
+    const res = await fetch(`/api/grading/subjects/${subId}`, {
+      method: 'DELETE',
+      headers: auth.actorHeaders()
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to delete subject')
+    notify(`Subject ${subName} removed`, 'success')
+    await loadSubjects()
+  } catch (e) {
+    notify(e.message, 'error')
+  }
+}
+
+async function seedDefaultSubjects(gradeName) {
+  const sid = gradesSchoolId()
+  if (!sid || !gradeName) return
+  try {
+    const res = await fetch('/api/grading/subjects/seed-defaults', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify({
+        schoolId: sid,
+        gradeLevel: gradeName.trim()
+      })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to seed subjects')
+    notify(`DepEd learning areas populated for ${gradeName}`, 'success')
+    await loadSubjects()
+  } catch (e) {
+    notify(e.message, 'error')
+  }
+}
+
 onMounted(async () => {
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
@@ -222,6 +375,7 @@ onMounted(async () => {
     selectedSchoolId.value = auth.schoolId || ''
   }
   await loadGrades()
+  await loadSubjects()
 })
 
 watch(selectedSchoolId, () => {
@@ -243,15 +397,17 @@ async function loadGrades() {
     gradeRows.value = (Array.isArray(data) ? data : []).map(g => ({
       grade: g.grade || '',
       sections: Array.isArray(g.sections) ? [...g.sections] : [],
-      newSection: ''
+      newSection: '',
+      newSubject: ''
     }))
+    await loadSubjects()
   } catch (e) {
     gradesError.value = e.message
   }
 }
 
 function addRow() {
-  gradeRows.value.push({ grade: '', sections: [], newSection: '' })
+  gradeRows.value.push({ grade: '', sections: [], newSection: '', newSubject: '' })
 }
 
 function removeRow(i) {

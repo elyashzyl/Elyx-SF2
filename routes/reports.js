@@ -171,7 +171,8 @@ router.delete('/saved-views/:id', async (req, res) => {
 
 // ── Section Comparison Report Helper ──
 
-async function computeSectionComparison(sid, { grade, section, month, year, startDate, endDate }) {
+async function computeSectionComparison(sid, { grade, section, month, year, schoolYear, startDate, endDate }) {
+  const syParts = schoolYearParts(schoolYear || year)
   // 1. Get all active sections and teachers
   let teacherFilter = sid ? "WHERE role = 'teacher' AND school_id = ?" : "WHERE role = 'teacher'"
   const teacherRows = await query(`SELECT id, name, grade, section, school_id FROM users ${teacherFilter}`, sid ? [sid] : [])
@@ -243,7 +244,13 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
     if (grade) { mConditions.push('mr.grade = ?'); mParams.push(grade) }
     if (section) { mConditions.push('mr.section = ?'); mParams.push(section) }
     if (month) { mConditions.push('mr.month = ?'); mParams.push(parseInt(month, 10)) }
-    if (year) { mConditions.push('mr.year = ?'); mParams.push(parseInt(year, 10)) }
+    if (syParts) {
+      mConditions.push('((mr.year = ? AND mr.month >= 6) OR (mr.year = ? AND mr.month <= 5))')
+      mParams.push(syParts.start, syParts.end)
+    } else if (year) {
+      mConditions.push('mr.year = ?')
+      mParams.push(parseInt(year, 10))
+    }
 
     const mWhere = mConditions.length ? 'WHERE ' + mConditions.join(' AND ') : ''
     const attRows = await query(`
@@ -320,6 +327,13 @@ async function computeSectionComparison(sid, { grade, section, month, year, star
   if (sid) { sardoConditions.push('mr.school_id = ?'); sardoParams.push(sid) }
   if (grade) { sardoConditions.push('mr.grade = ?'); sardoParams.push(grade) }
   if (section) { sardoConditions.push('mr.section = ?'); sardoParams.push(section) }
+  if (syParts) {
+    sardoConditions.push('((mr.year = ? AND mr.month >= 6) OR (mr.year = ? AND mr.month <= 5))')
+    sardoParams.push(syParts.start, syParts.end)
+  } else if (year) {
+    sardoConditions.push('mr.year = ?')
+    sardoParams.push(parseInt(year, 10))
+  }
   sardoParams.push(sardoCumulative)
   const sardoRows = await query(`
     SELECT mr.school_id, mr.grade, mr.section, COUNT(DISTINCT me.student_id) as alert_count

@@ -677,6 +677,78 @@ router.get('/form138/:studentId', async (req, res) => {
   }
 })
 
+// ── POST /api/grading/form138/:studentId/save ──
+// Save quarterly grades directly from the Form 138 report card table
+router.post('/form138/:studentId/save', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+
+    const studentId = req.params.studentId
+    const studentRows = await query('SELECT * FROM students WHERE id = ?', [studentId])
+    if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
+    const student = studentRows[0]
+
+    if (me.role !== 'superadmin' && student.school_id && student.school_id !== me.school_id) {
+      return res.status(403).json({ error: 'Forbidden: outside your school' })
+    }
+
+    const schoolYear = String(req.body?.schoolYear || student.school_year || '2026-2027').trim()
+    const gradesList = Array.isArray(req.body?.grades) ? req.body.grades : []
+
+    let updatedCount = 0
+
+    for (const item of gradesList) {
+      const subjectId = String(item.subjectId || item.id || '').trim()
+      if (!subjectId) continue
+
+      const quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+      for (const q of quarters) {
+        const key = q.toLowerCase()
+        const rawVal = item[key]
+        if (rawVal === undefined || rawVal === null || rawVal === '') continue
+
+        const numVal = Math.min(100, Math.max(60, Math.round(Number(rawVal))))
+        if (isNaN(numVal)) continue
+
+        const remarks = numVal >= 75 ? 'Passed' : 'Failed'
+
+        const existing = (await query(
+          'SELECT id, is_locked FROM learner_grades WHERE student_id = ? AND subject_id = ? AND quarter = ? AND school_year = ?',
+          [studentId, subjectId, q, schoolYear]
+        ))[0]
+
+        if (existing) {
+          if (existing.is_locked && !['superadmin', 'admin'].includes(me.role)) continue
+          await run(
+            `UPDATE learner_grades SET
+               initial_grade = ?, transmuted_grade = ?, remarks = ?, encoded_by = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [numVal, numVal, remarks, me.id || '', existing.id]
+          )
+          updatedCount++
+        } else {
+          const id = 'lg-' + uuidv4()
+          await run(
+            `INSERT INTO learner_grades
+               (id, school_id, student_id, subject_id, school_year, quarter,
+                ww_score, ww_total, pt_score, pt_total, qa_score, qa_total,
+                initial_grade, transmuted_grade, remarks, is_locked, encoded_by)
+             VALUES (?, ?, ?, ?, ?, ?, 0, 100, 0, 100, 0, 50, ?, ?, ?, 0, ?)`,
+            [id, student.school_id || me.school_id || '', studentId, subjectId, schoolYear, q, numVal, numVal, remarks, me.id || '']
+          )
+          updatedCount++
+        }
+      }
+    }
+
+    res.json({ success: true, updatedCount })
+  } catch (err) {
+    console.error('Error saving Form 138 card grades:', err.message)
+    res.status(500).json({ error: 'Failed to save card grades: ' + err.message })
+  }
+})
+
 // ── GET /api/grading/analytics ──
 // Class- and school-level grade distribution, passing rates, and honors
 router.get('/analytics', async (req, res) => {

@@ -288,6 +288,38 @@
                 <input v-model="form.district" :disabled="!canEditSchool" placeholder="District" />
               </div>
             </div>
+            <div class="form-section-title" style="margin-top: 14px; margin-bottom: 8px; font-weight: 700; font-size: 0.85rem; color: var(--foreground);">
+              School Seal / Official Logo
+            </div>
+            <div class="logo-uploader-card" style="display: flex; gap: 16px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); margin-bottom: 16px; flex-wrap: wrap;">
+              <div class="logo-preview-box" style="width: 72px; height: 72px; border-radius: 50%; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--muted); flex-shrink: 0;">
+                <img v-if="form.logo_url" :src="form.logo_url" alt="School Logo" style="width: 100%; height: 100%; object-fit: cover;" />
+                <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color: var(--muted-foreground);">
+                  <circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/>
+                </svg>
+              </div>
+              <div class="logo-inputs-col" style="flex: 1; min-width: 200px;">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <label v-if="canEditSchool" class="btn-sm btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span>Upload Image</span>
+                    <input type="file" accept="image/*" @change="handleLogoUpload" style="display: none;" />
+                  </label>
+                  <button v-if="form.logo_url && canEditSchool" type="button" class="btn-sm btn-secondary" @click="form.logo_url = ''" style="color: var(--destructive);">
+                    Remove Logo
+                  </button>
+                </div>
+                <div class="form-group" style="margin-top: 8px; margin-bottom: 0;">
+                  <input v-model="form.logo_url" :disabled="!canEditSchool" placeholder="Or enter image URL (https://...)" style="font-size: 0.8rem;" />
+                </div>
+                <span class="label-hint" style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 4px;">
+                  Displays on DepEd Form 138 (SF9 report card), SF2 sheets, and system branding. Recommended: PNG or JPG (square or circular).
+                </span>
+              </div>
+            </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label>Principal</label>
@@ -490,6 +522,7 @@ const form = reactive({
   principal_name: '',
   school_year: '',
   grading_period: '',
+  logo_url: '',
   attendance_lock_cutoff: '',
   sardo_consecutive_absences: 3,
   sardo_cumulative_absences: 5
@@ -545,6 +578,7 @@ async function onSchoolChange() {
     form.principal_name = ''
     form.school_year = ''
     form.grading_period = ''
+    form.logo_url = ''
     form.attendance_lock_cutoff = ''
     form.sardo_consecutive_absences = 3
     form.sardo_cumulative_absences = 5
@@ -580,6 +614,7 @@ async function loadSchool() {
     form.principal_name = ''
     form.school_year = ''
     form.grading_period = ''
+    form.logo_url = ''
     form.attendance_lock_cutoff = ''
     form.sardo_consecutive_absences = 3
     form.sardo_cumulative_absences = 5
@@ -599,10 +634,29 @@ async function loadSchool() {
     form.principal_name = data?.principal_name || fallback?.principal_name || ''
     form.school_year = data?.school_year || fallback?.school_year || ''
     form.grading_period = data?.grading_period || fallback?.grading_period || ''
+    form.logo_url = data?.logo_url || fallback?.logo_url || ''
     form.attendance_lock_cutoff = data?.attendance_lock_cutoff || fallback?.attendance_lock_cutoff || ''
     form.sardo_consecutive_absences = data?.sardo_consecutive_absences ?? fallback?.sardo_consecutive_absences ?? 3
     form.sardo_cumulative_absences = data?.sardo_cumulative_absences ?? fallback?.sardo_cumulative_absences ?? 5
   }
+}
+
+function handleLogoUpload(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    notify('Please select an image file', 'error')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    notify('Image file must be under 2MB', 'error')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    form.logo_url = String(e.target?.result || '')
+  }
+  reader.readAsDataURL(file)
 }
 
 async function resendVerification() {
