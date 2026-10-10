@@ -55,6 +55,19 @@
           </button>
           <button
             class="settings-nav-item"
+            :class="{ active: activeTab === 'academic' }"
+            @click="activeTab = 'academic'"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span>School Year Configuration</span>
+          </button>
+          <button
+            class="settings-nav-item"
             :class="{ active: activeTab === 'notifications' }"
             @click="activeTab = 'notifications'"
           >
@@ -247,6 +260,60 @@
             <h2>School Information</h2>
             <p>{{ canEditSchool ? 'Edit your school details.' : 'View school details.' }}</p>
           </div>
+
+          <!-- Superadmin Multi-School Selector -->
+          <div v-if="auth.isSuperadmin && schools.length > 1" class="form-group" style="max-width: 480px; margin-bottom: 20px;">
+            <label style="font-weight: 700; color: var(--foreground); display: flex; align-items: center; gap: 6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>Selected School to Manage</span>
+            </label>
+            <select v-model="selectedSchoolId" @change="onSchoolChange" class="form-select">
+              <option value="">None Selected</option>
+              <option v-for="s in schools" :key="s.id" :value="s.id">
+                {{ s.name }} {{ s.short ? `(${s.short})` : '' }} &bull; {{ Number(s.quarter_count) === 3 ? '3 Quarters' : '4 Quarters' }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Superadmin Global School Year Broadcast Section -->
+          <div v-if="auth.isSuperadmin" class="global-sy-box" style="margin-bottom: 24px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted-subtle, var(--card));">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 240px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <strong style="font-size: 0.95rem; color: var(--foreground);">Global School Year Broadcast</strong>
+                </div>
+                <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--muted-foreground);">
+                  Apply an academic year to all registered schools at once. Each school retains its own independent Quarter system (3 Quarters vs 4 Quarters).
+                </p>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <input
+                  v-model="globalSchoolYearInput"
+                  placeholder="e.g. 2026-2027"
+                  style="width: 140px; padding: 7px 10px; font-size: 0.85rem;"
+                  class="form-input"
+                />
+                <button
+                  type="button"
+                  class="btn-primary"
+                  :disabled="applyingGlobalSy || !globalSchoolYearInput"
+                  @click="applyGlobalSchoolYear"
+                >
+                  <span v-if="applyingGlobalSy" class="spinner" style="margin-right: 6px;"></span>
+                  {{ applyingGlobalSy ? 'Applying...' : 'Apply to All Schools' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <form @submit.prevent="save" class="settings-form">
             <div class="form-row">
               <div class="form-group">
@@ -326,8 +393,23 @@
                 <input v-model="form.principal_name" :disabled="!canEditSchool" placeholder="Principal name" />
               </div>
               <div class="form-group">
-                <label>School Year</label>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label>School Year</label>
+                  <button
+                    v-if="auth.isSuperadmin && form.school_year"
+                    type="button"
+                    class="btn-xs btn-outline"
+                    style="font-size: 0.72rem; padding: 2px 8px; cursor: pointer;"
+                    @click="applyFormSyToAll"
+                    title="Apply this school year to all active schools"
+                  >
+                    Apply to All Schools
+                  </button>
+                </div>
                 <input v-model="form.school_year" :disabled="!canEditSchool" placeholder="e.g. 2026-2027" />
+                <span class="label-hint" style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 4px;">
+                  Active school year for attendance, quarterly records, and Form 138 (SF9).
+                </span>
               </div>
             </div>
             <div class="form-row">
@@ -335,6 +417,18 @@
                 <label>Current Grading Period</label>
                 <input v-model="form.grading_period" :disabled="!canEditSchool" placeholder="e.g. First Grading" />
               </div>
+              <div class="form-group">
+                <label>Quarter / Term Setting</label>
+                <select v-model.number="form.quarter_count" :disabled="!canEditSchool" class="form-select">
+                  <option :value="4">4 Quarters (Standard DepEd Calendar)</option>
+                  <option :value="3">3 Quarters (Trimester Academic Calendar)</option>
+                </select>
+                <span class="label-hint" style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 4px;">
+                  Configure whether this school operates on standard 4 quarters or 3 trimesters. Adjusts quarterly consolidation and Form 138 (SF9).
+                </span>
+              </div>
+            </div>
+            <div class="form-row">
               <div class="form-group">
                 <label>Attendance Lock Cutoff <span class="label-hint">Optional; records on or before this date are locked</span></label>
                 <input v-model="form.attendance_lock_cutoff" :disabled="!canEditSchool" type="date" />
@@ -357,6 +451,182 @@
             </div>
             <p v-if="error" class="error-msg">{{ error }}</p>
           </form>
+        </div>
+
+        <!-- School Year Configuration Tab -->
+        <div v-if="activeTab === 'academic'" class="table-card">
+          <div class="settings-panel-header">
+            <h2>School Year Configuration</h2>
+            <p>Configure the system-wide active School Year applicable across all schools in ElyTrack.</p>
+          </div>
+
+          <!-- Active System Year Banner -->
+          <div class="global-sy-summary-card" style="padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted-subtle, var(--card)); margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+              <div>
+                <span class="badge badge-success" style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px; display: inline-block;">
+                  System-Wide Active Academic Year
+                </span>
+                <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 4px;">
+                  <span style="font-size: 1.85rem; font-weight: 800; color: var(--foreground); letter-spacing: -0.5px;">
+                    {{ globalSchoolYearInput || form.school_year || '2026-2027' }}
+                  </span>
+                  <span style="font-size: 0.85rem; color: var(--muted-foreground);">
+                    Applicable to all registered schools
+                  </span>
+                </div>
+                <p style="margin: 8px 0 0; font-size: 0.82rem; color: var(--muted-foreground); max-width: 600px; line-height: 1.5;">
+                  Defines the active calendar year for daily attendance logs, Monthly SF2 generation, quarterly attendance records, and SF9 (Form 138) grading sheets.
+                </p>
+              </div>
+
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <div style="text-align: right; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 14px;">
+                  <div style="font-size: 1.25rem; font-weight: 700; color: var(--foreground);">
+                    {{ schools.filter(s => (s.school_year || globalSchoolYearInput) === (globalSchoolYearInput || '2026-2027') && !s.archived_at).length }} / {{ schools.filter(s => !s.archived_at).length }}
+                  </div>
+                  <div style="font-size: 0.72rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">
+                    Schools Synchronized
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration Form (Superadmin) -->
+          <div v-if="auth.isSuperadmin" class="pref-group-card">
+            <h3 class="pref-group-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              <span>Update System School Year</span>
+            </h3>
+            <p class="pref-group-sub">
+              Set the global academic year and broadcast it to all schools. Each school will preserve its independent 3-Quarter (Trimester) or 4-Quarter (Standard DepEd) setting.
+            </p>
+
+            <form @submit.prevent="saveGlobalSchoolYearConfig" style="margin-top: 16px;">
+              <div class="form-row" style="margin-bottom: 14px;">
+                <div class="form-group" style="flex: 1; min-width: 260px;">
+                  <label style="font-weight: 600;">Academic School Year <span class="required">*</span></label>
+                  <input
+                    v-model="globalSchoolYearInput"
+                    placeholder="e.g. 2026-2027"
+                    class="form-input"
+                    required
+                  />
+                  <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 0.75rem; color: var(--muted-foreground);">Presets:</span>
+                    <button
+                      v-for="preset in ['2024-2025', '2025-2026', '2026-2027', '2027-2028']"
+                      :key="preset"
+                      type="button"
+                      class="btn-xs btn-outline"
+                      style="font-size: 0.72rem; padding: 2px 7px; cursor: pointer;"
+                      @click="globalSchoolYearInput = preset"
+                    >
+                      {{ preset }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group" style="flex: 1; min-width: 260px; justify-content: flex-end;">
+                  <label class="custom-checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-top: 6px;">
+                    <input type="checkbox" v-model="applySchoolYearToAllActive" style="margin-top: 3px;" />
+                    <div>
+                      <strong style="font-size: 0.85rem; color: var(--foreground); display: block;">Apply to All Registered Schools</strong>
+                      <span style="font-size: 0.75rem; color: var(--muted-foreground); display: block; line-height: 1.35;">
+                        Instantly updates the school year for all active campuses without touching their 3Q or 4Q quarter format.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-actions" style="margin-top: 16px;">
+                <button type="submit" class="btn-primary" :disabled="savingGlobalSy || !globalSchoolYearInput">
+                  <span v-if="savingGlobalSy" class="spinner" style="margin-right: 6px;"></span>
+                  {{ savingGlobalSy ? 'Saving...' : 'Save & Apply School Year Configuration' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- All Registered Schools Status -->
+          <div class="schools-sy-overview" style="margin-top: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <h3 style="font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--foreground);">School Year by Campus</h3>
+                <p style="font-size: 0.78rem; color: var(--muted-foreground); margin: 2px 0 0;">
+                  Overview of current school year and quarter calendar structure for each school.
+                </p>
+              </div>
+              <button
+                v-if="auth.isSuperadmin && schools.length > 0"
+                type="button"
+                class="btn-sm btn-secondary"
+                @click="syncAllSchoolsToActiveSy"
+                :disabled="savingGlobalSy"
+                title="Sync all schools to the active global school year"
+              >
+                Sync All Campuses to {{ globalSchoolYearInput || 'Active Year' }}
+              </button>
+            </div>
+
+            <div class="table-responsive" style="border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;">
+              <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: var(--muted-subtle, var(--card)); border-bottom: 1px solid var(--border); text-align: left; font-size: 0.75rem; text-transform: uppercase;">
+                    <th style="padding: 10px 14px;">School Name</th>
+                    <th style="padding: 10px 14px;">School ID / Code</th>
+                    <th style="padding: 10px 14px;">Current School Year</th>
+                    <th style="padding: 10px 14px;">Quarter Calendar</th>
+                    <th style="padding: 10px 14px; text-align: right;" v-if="auth.isSuperadmin">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="s in schools.filter(s => !s.archived_at)" :key="s.id" style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+                    <td style="padding: 12px 14px; font-weight: 600;">
+                      {{ s.name }}
+                    </td>
+                    <td style="padding: 12px 14px; color: var(--muted-foreground);">
+                      {{ s.school_id || s.short || '—' }}
+                    </td>
+                    <td style="padding: 12px 14px;">
+                      <span class="badge" :class="(s.school_year || globalSchoolYearInput) === (globalSchoolYearInput || '2026-2027') ? 'badge-success' : 'badge-warning'">
+                        {{ s.school_year || globalSchoolYearInput || '2026-2027' }}
+                      </span>
+                    </td>
+                    <td style="padding: 12px 14px;">
+                      <span class="badge" :class="Number(s.quarter_count) === 3 ? 'badge-warning' : 'badge-secondary'">
+                        {{ Number(s.quarter_count) === 3 ? '3 Quarters (Trimester)' : '4 Quarters (DepEd)' }}
+                      </span>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: right;" v-if="auth.isSuperadmin">
+                      <button
+                        v-if="s.school_year !== globalSchoolYearInput"
+                        type="button"
+                        class="btn-xs btn-outline"
+                        style="padding: 2px 8px; font-size: 0.72rem; cursor: pointer;"
+                        @click="syncSingleSchoolSy(s.id)"
+                        title="Set this school to global school year"
+                      >
+                        Sync Year
+                      </button>
+                      <span v-else style="font-size: 0.75rem; color: var(--success, #10b981); font-weight: 600;">
+                        In Sync
+                      </span>
+                    </td>
+                  </tr>
+                  <tr v-if="schools.filter(s => !s.archived_at).length === 0">
+                    <td colspan="5" style="text-align: center; padding: 24px; color: var(--muted-foreground);">
+                      No active schools registered.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- Switch School Tab (Superadmin) -->
@@ -510,6 +780,17 @@ const saving = ref(false)
 const error = ref('')
 const schools = ref([])
 const selectedSchoolId = ref('')
+const globalSchoolYearInput = ref('')
+const applyingGlobalSy = ref(false)
+const savingGlobalSy = ref(false)
+const applySchoolYearToAllActive = ref(true)
+const schoolYearConfig = ref({
+  school_year: '',
+  active_school_year: '',
+  total_schools: 0,
+  synced_schools: 0,
+  schools: []
+})
 const form = reactive({
   school_name: '',
   school_id: '',
@@ -522,6 +803,7 @@ const form = reactive({
   principal_name: '',
   school_year: '',
   grading_period: '',
+  quarter_count: 4,
   logo_url: '',
   attendance_lock_cutoff: '',
   sardo_consecutive_absences: 3,
@@ -562,6 +844,7 @@ onMounted(async () => {
     selectedSchoolId.value = auth.schoolId || ''
   }
   await loadSchool()
+  await loadSchoolYearConfig()
   await loadNotificationPreferences()
 })
 
@@ -578,6 +861,7 @@ async function onSchoolChange() {
     form.principal_name = ''
     form.school_year = ''
     form.grading_period = ''
+    form.quarter_count = 4
     form.logo_url = ''
     form.attendance_lock_cutoff = ''
     form.sardo_consecutive_absences = 3
@@ -614,6 +898,7 @@ async function loadSchool() {
     form.principal_name = ''
     form.school_year = ''
     form.grading_period = ''
+    form.quarter_count = 4
     form.logo_url = ''
     form.attendance_lock_cutoff = ''
     form.sardo_consecutive_absences = 3
@@ -634,6 +919,7 @@ async function loadSchool() {
     form.principal_name = data?.principal_name || fallback?.principal_name || ''
     form.school_year = data?.school_year || fallback?.school_year || ''
     form.grading_period = data?.grading_period || fallback?.grading_period || ''
+    form.quarter_count = Number(data?.quarter_count || fallback?.quarter_count || 4) === 3 ? 3 : 4
     form.logo_url = data?.logo_url || fallback?.logo_url || ''
     form.attendance_lock_cutoff = data?.attendance_lock_cutoff || fallback?.attendance_lock_cutoff || ''
     form.sardo_consecutive_absences = data?.sardo_consecutive_absences ?? fallback?.sardo_consecutive_absences ?? 3
@@ -769,8 +1055,117 @@ async function loadPlatformSettings() {
     if (res.ok) {
       const data = await res.json()
       supportEmail.value = data.support_email || ''
+      if (data.school_year || data.active_school_year) {
+        globalSchoolYearInput.value = data.school_year || data.active_school_year || ''
+      }
     }
   } catch {}
+}
+
+async function loadSchoolYearConfig() {
+  try {
+    const res = await fetch('/api/settings/school-year', {
+      headers: auth.actorHeaders()
+    })
+    if (res.ok) {
+      const data = await res.json()
+      schoolYearConfig.value = data
+      if (data.school_year && !globalSchoolYearInput.value) {
+        globalSchoolYearInput.value = data.school_year
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load school year config:', err)
+  }
+}
+
+async function saveGlobalSchoolYearConfig() {
+  const sy = String(globalSchoolYearInput.value || '').trim()
+  if (!sy) {
+    notify('Please enter a valid school year', 'error')
+    return
+  }
+  savingGlobalSy.value = true
+  try {
+    const res = await auth.updateSchoolYearConfig(sy, applySchoolYearToAllActive.value)
+    notify(`Academic school year "${sy}" saved${applySchoolYearToAllActive.value ? ` and applied to ${res?.updatedSchoolsCount || schools.value.length} schools!` : '!'}`, 'success')
+    schools.value = await auth.getSchools()
+    await loadSchool()
+    await loadSchoolYearConfig()
+  } catch (err) {
+    notify(err.message || 'Failed to save school year configuration', 'error')
+  } finally {
+    savingGlobalSy.value = false
+  }
+}
+
+async function syncAllSchoolsToActiveSy() {
+  const sy = String(globalSchoolYearInput.value || form.school_year || '2026-2027').trim()
+  if (!confirm(`Apply School Year "${sy}" to all active schools? Each school retains its independent Quarter setting.`)) {
+    return
+  }
+  savingGlobalSy.value = true
+  try {
+    const res = await auth.bulkUpdateSchoolYear(sy)
+    notify(`Applied School Year "${sy}" across all active schools (${res?.updatedCount || schools.value.length})!`, 'success')
+    schools.value = await auth.getSchools()
+    await loadSchool()
+    await loadSchoolYearConfig()
+  } catch (err) {
+    notify(err.message || 'Failed to sync school year', 'error')
+  } finally {
+    savingGlobalSy.value = false
+  }
+}
+
+async function syncSingleSchoolSy(schoolId) {
+  const sy = String(globalSchoolYearInput.value || '2026-2027').trim()
+  try {
+    await auth.updateSchool(schoolId, { school_year: sy })
+    notify(`Updated school year to "${sy}"`, 'success')
+    schools.value = await auth.getSchools()
+    await loadSchool()
+    await loadSchoolYearConfig()
+  } catch (err) {
+    notify(err.message || 'Failed to update school year', 'error')
+  }
+}
+
+async function applyGlobalSchoolYear() {
+  const sy = String(globalSchoolYearInput.value || '').trim()
+  if (!sy) {
+    notify('Please enter a valid school year', 'error')
+    return
+  }
+  if (!confirm(`Are you sure you want to broadcast School Year "${sy}" to all registered schools? Each school's 3-quarter or 4-quarter configuration will be preserved.`)) {
+    return
+  }
+  applyingGlobalSy.value = true
+  try {
+    const res = await auth.applyGlobalSchoolYear(sy)
+    notify(`Applied School Year "${sy}" across all ${res?.updatedSchoolsCount || schools.value.length} active schools!`, 'success')
+    // Refresh school data
+    schools.value = await auth.getSchools()
+    await loadSchool()
+    await loadSchoolYearConfig()
+  } catch (err) {
+    notify(err.message || 'Failed to apply school year globally', 'error')
+  } finally {
+    applyingGlobalSy.value = false
+  }
+}
+
+async function applyFormSyToAll() {
+  const sy = String(form.school_year || '').trim()
+  if (!sy) {
+    notify('School year field is empty', 'error')
+    return
+  }
+  if (!confirm(`Apply School Year "${sy}" to all active schools? Each school retains its independent Quarter setting.`)) {
+    return
+  }
+  globalSchoolYearInput.value = sy
+  await applyGlobalSchoolYear()
 }
 
 async function saveSupportEmail() {

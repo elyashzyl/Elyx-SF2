@@ -24,6 +24,7 @@ function mapPrismaSchool(row) {
     school_year: row.schoolYear,
     grading_period: row.gradingPeriod,
     logo_url: row.logoUrl || row.logo_url || '',
+    quarter_count: Number(row.quarterCount ?? row.quarter_count ?? 4) === 3 ? 3 : 4,
     archived_at: row.archivedAt,
     archived_by: row.archivedBy,
     archive_reason: row.archiveReason,
@@ -108,17 +109,22 @@ router.post('/', async (req, res) => {
   try {
     const { me, error } = await requireRole(req, res, 'superadmin')
     if (error) return
-    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url, admin } = req.body || {}
+    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url, quarter_count, admin } = req.body || {}
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'School name is required' })
     const email = String(contact_email || '').trim()
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Contact email is invalid' })
     const id = uuidv4()
+    let effectiveSchoolYear = String(school_year || '').trim()
+    if (!effectiveSchoolYear) {
+      const sySettings = await query('SELECT `value` FROM settings WHERE `key` = ? OR `key` = ? LIMIT 1', ['school_year', 'active_school_year'])
+      effectiveSchoolYear = sySettings[0]?.value || '2026-2027'
+    }
     await run(`INSERT INTO schools
-      (id, name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url, quarter_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, String(name).trim(), String(school_id || '').trim(), String(address || '').trim(), String(short || '').trim(), email,
         String(contact_phone || '').trim(), String(division || '').trim(), String(district || '').trim(), String(principal_name || '').trim(),
-        String(school_year || '').trim(), String(grading_period || '').trim(), String(logo_url || '').trim()])
+        effectiveSchoolYear, String(grading_period || '').trim(), String(logo_url || '').trim(), Number(quarter_count) === 3 ? 3 : 4])
     // New schools start with NO grades — the school admin defines its own
     // grade levels + sections in Settings → Grade Levels & Sections.
     // Optional first school admin created together with the school
@@ -138,6 +144,50 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Failed to create school', err.message)
     res.status(500).json({ error: 'Failed to create school' })
+  }
+})
+
+// Bulk update school year across all or selected schools (superadmin only)
+// Preserves each school's individual quarter_count (3 vs 4 quarters).
+router.post('/bulk-school-year', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin')
+    if (error) return
+    const schoolYear = String(req.body?.school_year || req.body?.schoolYear || '').trim()
+    if (!schoolYear) return res.status(400).json({ error: 'School year is required' })
+
+    const schoolIds = Array.isArray(req.body?.school_ids) ? req.body.school_ids.filter(Boolean) : null
+    let updatedCount = 0
+
+    if (schoolIds && schoolIds.length > 0) {
+      const placeholders = schoolIds.map(() => '?').join(',')
+      await run(`UPDATE schools SET school_year = ? WHERE id IN (${placeholders})`, [schoolYear, ...schoolIds])
+      updatedCount = schoolIds.length
+    } else {
+      await run('UPDATE schools SET school_year = ? WHERE archived_at IS NULL', [schoolYear])
+      const countRows = await query('SELECT COUNT(*) as count FROM schools WHERE archived_at IS NULL')
+      updatedCount = Number(countRows[0]?.count || 0)
+
+      // Also persist in global settings
+      const existing = await query('SELECT `key` FROM settings WHERE `key` = ?', ['school_year'])
+      if (existing.length > 0) {
+        await run('UPDATE settings SET `value` = ? WHERE `key` = ?', [schoolYear, 'school_year'])
+      } else {
+        await run('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', ['school_year', schoolYear])
+      }
+      const existingActive = await query('SELECT `key` FROM settings WHERE `key` = ?', ['active_school_year'])
+      if (existingActive.length > 0) {
+        await run('UPDATE settings SET `value` = ? WHERE `key` = ?', [schoolYear, 'active_school_year'])
+      } else {
+        await run('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', ['active_school_year', schoolYear])
+      }
+    }
+
+    await audit(me, 'schools.bulk_school_year', { school_year: schoolYear, updated_count: updatedCount }, `Bulk updated school year to "${schoolYear}" for ${updatedCount} schools`)
+    res.json({ success: true, school_year: schoolYear, updatedCount })
+  } catch (err) {
+    console.error('Failed to bulk update school year:', err.message)
+    res.status(500).json({ error: 'Failed to update school year' })
   }
 })
 
@@ -168,7 +218,7 @@ router.put('/:id', async (req, res) => {
     if (me.role !== 'superadmin' && me.school_id !== req.params.id) {
       return res.status(403).json({ error: 'Forbidden: outside your school' })
     }
-    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url } = req.body || {}
+    const { name, school_id, address, short, contact_email, contact_phone, division, district, principal_name, school_year, grading_period, logo_url, quarter_count } = req.body || {}
     const sets = []
     const params = []
     if (name !== undefined) { sets.push('name = ?'); params.push(String(name).trim()) }
@@ -182,6 +232,10 @@ router.put('/:id', async (req, res) => {
     }
     for (const [field, value] of Object.entries({ contact_phone, division, district, principal_name, school_year, grading_period, logo_url })) {
       if (value !== undefined) { sets.push(`${field} = ?`); params.push(String(value).trim()) }
+    }
+    if (quarter_count !== undefined) {
+      sets.push('quarter_count = ?')
+      params.push(Number(quarter_count) === 3 ? 3 : 4)
     }
     if (req.body?.sardo_consecutive_absences !== undefined) {
       sets.push('sardo_consecutive_absences = ?')

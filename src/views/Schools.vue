@@ -62,6 +62,15 @@
             </svg>
             Add School
           </button>
+          <button v-if="auth.isSuperadmin" @click="openBulkSyModal" class="btn-secondary" title="Broadcast School Year to all active schools">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Set School Year for All
+          </button>
         </div>
         <div class="table-toolbar-right">
           <label v-if="auth.isSuperadmin" class="archive-toggle" :class="{ 'is-checked': includeArchived }">
@@ -151,6 +160,9 @@
               <span class="badge badge-success" v-if="s?.short">{{ s.short }}</span>
               <span class="badge badge-warning" v-if="s?.school_year">SY: {{ s.school_year }}</span>
               <span class="badge badge-primary" v-if="s?.grading_period">{{ s.grading_period }}</span>
+              <span class="badge" :class="Number(s?.quarter_count) === 3 ? 'badge-warning' : 'badge-secondary'">
+                {{ Number(s?.quarter_count) === 3 ? '3 Quarters (Trimester)' : '4 Quarters (DepEd)' }}
+              </span>
               <span v-if="!s?.school_id && !s?.short && !s?.school_year" class="school-card-footer-empty">Profile details pending</span>
             </div>
           </div>
@@ -181,6 +193,41 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Bulk School Year Modal (Superadmin) -->
+    <div v-if="showBulkSyModal" class="modal-overlay" @click.self="showBulkSyModal = false">
+      <div class="form-card" style="max-width: 480px; width: 100%;">
+        <div class="schools-modal-header">
+          <div>
+            <h2>Set School Year for All Schools</h2>
+            <p>Broadcast an academic year to all active schools in the system.</p>
+          </div>
+          <button @click="showBulkSyModal = false" class="btn-icon" title="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+            </svg>
+          </button>
+        </div>
+        <form @submit.prevent="handleBulkSySubmit" style="padding: 18px 20px;">
+          <div class="form-group">
+            <label>Academic School Year <span class="required">*</span></label>
+            <input v-model="bulkSchoolYear" required placeholder="e.g. 2026-2027" class="form-input" />
+            <span class="label-hint" style="font-size: 0.74rem; color: var(--muted-foreground); display: block; margin-top: 6px; line-height: 1.4;">
+              This updates the active school year for all {{ schools.filter(s => !s.archived_at).length }} registered schools. 
+              <strong>Note:</strong> Each school's individual Quarter configuration (3 Quarters vs 4 Quarters) is preserved.
+            </span>
+          </div>
+          <p v-if="bulkSyError" class="error-msg" style="margin-top: 8px;">{{ bulkSyError }}</p>
+          <div class="form-actions" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" class="btn-secondary" @click="showBulkSyModal = false">Cancel</button>
+            <button type="submit" class="btn-primary" :disabled="bulkSySubmitting || !bulkSchoolYear">
+              <span v-if="bulkSySubmitting" class="spinner" style="margin-right: 6px;"></span>
+              {{ bulkSySubmitting ? 'Applying...' : 'Apply School Year' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -230,6 +277,18 @@
               <div class="form-group">
                 <label>Current Grading Period</label>
                 <input v-model="form.grading_period" placeholder="e.g. First Grading" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Quarter / Term Setting</label>
+                <select v-model.number="form.quarter_count" class="form-select">
+                  <option :value="4">4 Quarters (Standard DepEd)</option>
+                  <option :value="3">3 Quarters (Trimester Calendar)</option>
+                </select>
+                <span class="label-hint" style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 4px;">
+                  Controls SF9 Form 138 report cards, quarterly terms, and grading computations.
+                </span>
               </div>
             </div>
             <div class="form-group">
@@ -350,7 +409,7 @@ const editingSchool = ref(null)
 const saving = ref(false)
 const formError = ref('')
 const pageSize = ref(Number.isFinite(Number(savedState?.pageSize)) && Number(savedState.pageSize) > 0 ? Number(savedState.pageSize) : 6)
-const form = ref({ name: '', school_id: '', short: '', address: '', logo_url: '', school_year: '', grading_period: '', adminName: '', adminUsername: '', adminPassword: '' })
+const form = ref({ name: '', school_id: '', short: '', address: '', logo_url: '', school_year: '', grading_period: '', quarter_count: 4, adminName: '', adminUsername: '', adminPassword: '' })
 const showArchiveModal = ref(false)
 const archiveSchoolData = ref(null)
 const archiveAction = ref('archive')
@@ -359,6 +418,40 @@ const archiveReason = ref('')
 const archiveError = ref('')
 const archiving = ref(false)
 const exportingSchoolId = ref('')
+
+// Bulk School Year State
+const showBulkSyModal = ref(false)
+const bulkSchoolYear = ref('')
+const bulkSySubmitting = ref(false)
+const bulkSyError = ref('')
+
+function openBulkSyModal() {
+  const existing = schools.value.find(s => s && s.school_year && !s.archived_at)
+  bulkSchoolYear.value = existing?.school_year || '2026-2027'
+  bulkSyError.value = ''
+  showBulkSyModal.value = true
+}
+
+async function handleBulkSySubmit() {
+  const sy = String(bulkSchoolYear.value || '').trim()
+  if (!sy) {
+    bulkSyError.value = 'School year is required'
+    return
+  }
+  bulkSySubmitting.value = true
+  bulkSyError.value = ''
+  try {
+    const res = await auth.bulkUpdateSchoolYear(sy)
+    notify(`Applied School Year "${sy}" across all active schools (${res?.updatedCount || schools.value.length})!`, 'success')
+    await loadSchools()
+    showBulkSyModal.value = false
+  } catch (err) {
+    bulkSyError.value = err.message || 'Failed to update school year'
+    notify(err.message || 'Failed to update school year', 'error')
+  } finally {
+    bulkSySubmitting.value = false
+  }
+}
 
 onMounted(loadSchools)
 
@@ -442,7 +535,8 @@ async function loadSchools() {
 
 function openAddForm() {
   editingSchool.value = null
-  form.value = { name: '', school_id: '', short: '', address: '', logo_url: '', school_year: '', grading_period: '', adminName: '', adminUsername: '', adminPassword: '' }
+  const defaultSy = schools.value.find(s => s && s.school_year && !s.archived_at)?.school_year || '2026-2027'
+  form.value = { name: '', school_id: '', short: '', address: '', logo_url: '', school_year: defaultSy, grading_period: '', quarter_count: 4, adminName: '', adminUsername: '', adminPassword: '' }
   formError.value = ''
   showForm.value = true
 }
@@ -483,7 +577,8 @@ async function handleSave() {
         short: form.value.short,
         logo_url: form.value.logo_url,
         school_year: form.value.school_year,
-        grading_period: form.value.grading_period
+        grading_period: form.value.grading_period,
+        quarter_count: Number(form.value.quarter_count) === 3 ? 3 : 4
       })
       notify('School updated', 'success')
     } else {
@@ -494,7 +589,8 @@ async function handleSave() {
         short: form.value.short,
         logo_url: form.value.logo_url,
         school_year: form.value.school_year,
-        grading_period: form.value.grading_period
+        grading_period: form.value.grading_period,
+        quarter_count: Number(form.value.quarter_count) === 3 ? 3 : 4
       }
       if (form.value.adminUsername && form.value.adminPassword && form.value.adminName) {
         payload.admin = {
@@ -529,6 +625,7 @@ function editSchool(s) {
     logo_url: s.logo_url || '',
     school_year: s.school_year || '',
     grading_period: s.grading_period || '',
+    quarter_count: Number(s.quarter_count) === 3 ? 3 : 4,
     adminName: '',
     adminUsername: '',
     adminPassword: ''

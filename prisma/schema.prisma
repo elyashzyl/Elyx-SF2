@@ -74,6 +74,7 @@ model School {
   principalName        String @default("") @map("principal_name") @db.VarChar(255)
   schoolYear           String @default("") @map("school_year") @db.VarChar(32)
   gradingPeriod        String @default("") @map("grading_period") @db.VarChar(64)
+  quarterCount         Int @default(4) @map("quarter_count")
   archivedAt           DateTime? @map("archived_at")
   archivedBy           String @default("") @map("archived_by") @db.VarChar(96)
   archiveReason        String @default("") @map("archive_reason") @db.VarChar(1000)

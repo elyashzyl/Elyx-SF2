@@ -52,6 +52,10 @@ router.get('/school-years', async (req, res) => {
     schoolRows.forEach(row => {
       if (row.school_year) years.add(String(row.school_year).trim())
     })
+    const sySettings = await query('SELECT `value` FROM settings WHERE `key` = ? OR `key` = ?', ['school_year', 'active_school_year'])
+    sySettings.forEach(row => {
+      if (row.value) years.add(String(row.value).trim())
+    })
     res.json([...years].filter(Boolean).sort((a, b) => b.localeCompare(a)))
   } catch (err) {
     console.error('Failed to load report school years:', err.message)

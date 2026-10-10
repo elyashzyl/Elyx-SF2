@@ -475,6 +475,7 @@ router.get('/form138/:studentId', async (req, res) => {
 
     const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [student.school_id])
     const school = schoolRows[0] || {}
+    const quarterCount = Number(school.quarter_count) === 3 ? 3 : 4
 
     const adviserRows = await query(
       "SELECT name FROM users WHERE school_id = ? AND role = 'teacher' AND grade = ? AND section = ? LIMIT 1",
@@ -520,7 +521,7 @@ router.get('/form138/:studentId', async (req, res) => {
       const q3 = q3Row ? Number(q3Row.transmuted_grade) : null
       const q4 = q4Row ? Number(q4Row.transmuted_grade) : null
 
-      const quarterList = [q1, q2, q3, q4]
+      const quarterList = quarterCount === 3 ? [q1, q2, q3] : [q1, q2, q3, q4]
       quarterList.forEach(g => {
         if (g !== null) allQuarterlyGrades.push(g)
       })
@@ -542,7 +543,7 @@ router.get('/form138/:studentId', async (req, res) => {
         q1,
         q2,
         q3,
-        q4,
+        q4: quarterCount === 3 ? null : q4,
         finalRating,
         remarks
       })
@@ -617,6 +618,7 @@ router.get('/form138/:studentId', async (req, res) => {
     const totalAbsent = validAbsents.length > 0 ? validAbsents.reduce((acc, curr) => acc + curr.daysAbsent, 0) : '-'
 
     // DepEd Core Values
+    const cvRatings = quarterCount === 3 ? ['AO', 'AO', 'AO'] : ['AO', 'AO', 'AO', 'AO']
     const coreValues = [
       {
         coreValue: '1. Maka-Diyos',
@@ -624,7 +626,7 @@ router.get('/form138/:studentId', async (req, res) => {
           'Expresses one’s spiritual beliefs while respecting others',
           'Shows adherence to ethical and moral principles'
         ],
-        ratings: ['AO', 'AO', 'AO', 'AO']
+        ratings: [...cvRatings]
       },
       {
         coreValue: '2. Makatao',
@@ -632,14 +634,14 @@ router.get('/form138/:studentId', async (req, res) => {
           'Is sensitive to individual, social, and cultural differences',
           'Demonstrates solidarity and works collaboratively'
         ],
-        ratings: ['AO', 'AO', 'AO', 'AO']
+        ratings: [...cvRatings]
       },
       {
         coreValue: '3. Makakalikasan',
         behaviorStatements: [
           'Cares for the environment and utilizes resources prudently'
         ],
-        ratings: ['AO', 'AO', 'AO', 'AO']
+        ratings: [...cvRatings]
       },
       {
         coreValue: '4. Makabansa',
@@ -647,7 +649,7 @@ router.get('/form138/:studentId', async (req, res) => {
           'Demonstrates pride in being a Filipino',
           'Exercises civic rights and responsibilities'
         ],
-        ratings: ['AO', 'AO', 'AO', 'AO']
+        ratings: [...cvRatings]
       }
     ]
 
@@ -655,6 +657,7 @@ router.get('/form138/:studentId', async (req, res) => {
       success: true,
       student,
       school,
+      quarterCount,
       schoolYear,
       adviserName,
       principalName: school.principal_name || '',
@@ -693,6 +696,10 @@ router.post('/form138/:studentId/save', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: outside your school' })
     }
 
+    const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [student.school_id])
+    const school = schoolRows[0] || {}
+    const quarterCount = Number(school.quarter_count) === 3 ? 3 : 4
+
     const schoolYear = String(req.body?.schoolYear || student.school_year || '2026-2027').trim()
     const gradesList = Array.isArray(req.body?.grades) ? req.body.grades : []
 
@@ -702,7 +709,7 @@ router.post('/form138/:studentId/save', async (req, res) => {
       const subjectId = String(item.subjectId || item.id || '').trim()
       if (!subjectId) continue
 
-      const quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+      const quarters = quarterCount === 3 ? ['Q1', 'Q2', 'Q3'] : ['Q1', 'Q2', 'Q3', 'Q4']
       for (const q of quarters) {
         const key = q.toLowerCase()
         const rawVal = item[key]

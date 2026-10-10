@@ -435,5 +435,30 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, api, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, unlockUser, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, exportSchoolData, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, getLogs, getLogActions }
+  async function applyGlobalSchoolYear(schoolYear) {
+    return await api('/settings/apply-school-year', {
+      method: 'POST',
+      body: JSON.stringify({ school_year: schoolYear })
+    })
+  }
+
+  async function getSchoolYearConfig() {
+    return await api('/settings/school-year')
+  }
+
+  async function updateSchoolYearConfig(schoolYear, applyToAll = true) {
+    return await api('/settings/school-year', {
+      method: 'PUT',
+      body: JSON.stringify({ school_year: schoolYear, apply_to_all: applyToAll })
+    })
+  }
+
+  async function bulkUpdateSchoolYear(schoolYear, schoolIds = null) {
+    return await api('/schools/bulk-school-year', {
+      method: 'POST',
+      body: JSON.stringify({ school_year: schoolYear, school_ids: schoolIds })
+    })
+  }
+
+  return { user, impersonatedBy, isSuperadmin, isAdmin, isTeacher, isImpersonating, schoolId, school, setUser, login, restoreSession, logout, impersonate, stopImpersonating, actorParams, actorHeaders, api, getUsers, addUser, inviteUser, resendInvitation, requestUserPasswordReset, updateUser, updateUserStatus, unlockUser, deleteUser, inspectInvitation, acceptInvitation, requestPasswordReset, inspectPasswordReset, resetPassword, verifyEmail, resendEmailVerification, getSchools, addSchool, updateSchool, deleteSchool, exportSchoolData, getSchoolDependencyPreview, archiveSchool, restoreSchool, deleteLicense, getSchoolInfo, saveSchoolInfo, applyGlobalSchoolYear, getSchoolYearConfig, updateSchoolYearConfig, bulkUpdateSchoolYear, getLogs, getLogActions }
 })

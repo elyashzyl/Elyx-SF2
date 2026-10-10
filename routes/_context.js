@@ -233,6 +233,7 @@ export function schoolToResponse(row) {
     school_year: row.school_year || '',
     grading_period: row.grading_period || '',
     logo_url: row.logo_url || '',
+    quarter_count: Number(row.quarter_count ?? 4) === 3 ? 3 : 4,
     archived_at: row.archived_at || null,
     archived_by: row.archived_by || '',
     archive_reason: row.archive_reason || '',

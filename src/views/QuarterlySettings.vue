@@ -69,6 +69,11 @@
         <select v-model="selectedSchoolYear" @change="loadQuarters" class="sy-select">
           <option v-for="sy in schoolYearOptions" :key="sy" :value="sy">{{ sy }}</option>
         </select>
+        <span class="scope-label" style="margin-left: 8px;">Terms:</span>
+        <select v-model.number="selectedQuarterCount" @change="onQuarterCountChange" class="sy-select">
+          <option :value="4">4 Quarters (Standard)</option>
+          <option :value="3">3 Quarters (Trimester)</option>
+        </select>
         <span v-if="isCustomConfig" class="badge-custom-pill">Custom Configuration Active</span>
         <span v-else class="badge-default-pill">Using Standard DepEd Defaults</span>
       </div>
@@ -109,6 +114,10 @@
             <input type="checkbox" v-model="q.is_active" :true-value="1" :false-value="0" />
             <span class="active-text">{{ q.is_active ? 'Active' : 'Disabled' }}</span>
           </label>
+        </div>
+
+        <div v-if="q.quarter_number === 4 && selectedQuarterCount === 3" class="quarter-trimester-note" style="margin: 8px 16px 0; padding: 6px 10px; background: var(--muted); border-radius: 6px; font-size: 0.75rem; color: var(--muted-foreground); border-left: 3px solid var(--warning, #eab308);">
+          <span>Disabled by 3-Quarter (Trimester) calendar setting.</span>
         </div>
 
         <div class="quarter-card-body">
@@ -251,7 +260,7 @@
               <label class="form-label">3rd Grading Date / Details</label>
               <input v-model="eventForm.third_grading" type="text" placeholder="e.g. Mar 19-20, 2026" class="form-input" />
             </div>
-            <div class="form-group" style="margin-bottom: 14px;">
+            <div v-if="selectedQuarterCount !== 3" class="form-group" style="margin-bottom: 14px;">
               <label class="form-label">4th Grading Date / Details</label>
               <input v-model="eventForm.fourth_grading" type="text" placeholder="e.g. May 21-22, 2026" class="form-input" />
             </div>
@@ -303,6 +312,7 @@ const selectedSchoolYear = ref(academicYearForDate())
 const schoolYearOptions = ref([academicYearForDate()])
 
 const quarters = ref([])
+const selectedQuarterCount = ref(4)
 const isCustomConfig = ref(false)
 const events = ref([])
 
@@ -340,6 +350,16 @@ function toggleMonth(quarter, monthNum) {
   }
 }
 
+function onQuarterCountChange() {
+  if (selectedQuarterCount.value === 3) {
+    const q4 = quarters.value.find(q => q.quarter_number === 4)
+    if (q4) q4.is_active = 0
+  } else if (selectedQuarterCount.value === 4) {
+    const q4 = quarters.value.find(q => q.quarter_number === 4)
+    if (q4 && q4.is_active === 0) q4.is_active = 1
+  }
+}
+
 async function loadSchoolYears() {
   try {
     const params = new URLSearchParams()
@@ -367,6 +387,7 @@ async function loadQuarters() {
 
     const res = await auth.api(`/quarterly/terms?${params.toString()}`)
     quarters.value = res.quarters || []
+    if (res.quarter_count) selectedQuarterCount.value = Number(res.quarter_count) === 3 ? 3 : 4
     isCustomConfig.value = !!res.is_custom
   } catch (err) {
     errorMsg.value = err.message || 'Failed to load quarterly terms'
@@ -384,6 +405,7 @@ async function saveQuarters() {
       body: JSON.stringify({
         schoolId: effectiveSchoolId.value,
         schoolYear: selectedSchoolYear.value,
+        quarterCount: selectedQuarterCount.value,
         quarters: quarters.value
       })
     })

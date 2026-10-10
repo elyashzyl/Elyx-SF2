@@ -118,10 +118,9 @@
           <div class="form-group">
             <label>Quarter</label>
             <select v-model="filter.quarter" class="form-select">
-              <option value="Q1">1st Quarter (Q1)</option>
-              <option value="Q2">2nd Quarter (Q2)</option>
-              <option value="Q3">3rd Quarter (Q3)</option>
-              <option value="Q4">4th Quarter (Q4)</option>
+              <option v-for="q in availableQuarterOptions" :key="q.value" :value="q.value">
+                {{ q.label }}
+              </option>
             </select>
           </div>
 
@@ -515,10 +514,10 @@
 
           <div class="form-group">
             <label>School Year</label>
-            <input v-model="form138Filter.schoolYear" class="form-input" placeholder="2025-2026" />
+            <input v-model="form138Filter.schoolYear" class="form-input" :placeholder="currentSchool?.school_year || '2026-2027'" />
           </div>
 
-          <div class="toolbar-actions">
+          <div class="toolbar-actions" style="display: flex; align-items: flex-end; gap: 8px;">
             <button
               type="button"
               class="btn-primary"
@@ -531,6 +530,9 @@
               </svg>
               {{ loadingForm138 ? 'Loading…' : 'Generate Form 138' }}
             </button>
+            <span class="badge" :class="activeQuarterCount === 3 ? 'badge-warning' : 'badge-secondary'" style="padding: 6px 10px; font-size: 0.75rem; white-space: nowrap;">
+              {{ activeQuarterCount === 3 ? '3 Quarters (Trimester)' : '4 Quarters (DepEd)' }}
+            </span>
           </div>
         </div>
       </div>
@@ -569,6 +571,9 @@
             </span>
             <span class="sf9-student-tag">{{ form138Data.student?.name }}</span>
             <span v-if="form138Data.student?.lrn" class="sf9-lrn-tag">LRN: {{ form138Data.student.lrn }}</span>
+            <span class="sf9-lrn-tag" style="background: var(--muted); color: var(--foreground); font-weight: 600;">
+              {{ activeQuarterCount === 3 ? '3 Quarters (Trimester Calendar)' : 'Standard DepEd (4 Quarters)' }}
+            </span>
           </div>
 
           <div class="sf9-toolbar-center">
@@ -871,23 +876,8 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td class="font-medium">1st Quarter</td>
-                        <td class="dotted-underline"></td>
-                        <td class="dotted-underline"></td>
-                      </tr>
-                      <tr>
-                        <td class="font-medium">2nd Quarter</td>
-                        <td class="dotted-underline"></td>
-                        <td class="dotted-underline"></td>
-                      </tr>
-                      <tr>
-                        <td class="font-medium">3rd Quarter</td>
-                        <td class="dotted-underline"></td>
-                        <td class="dotted-underline"></td>
-                      </tr>
-                      <tr>
-                        <td class="font-medium">4th Quarter</td>
+                      <tr v-for="q in activeQuarterList" :key="q.num">
+                        <td class="font-medium">{{ q.label }}</td>
                         <td class="dotted-underline"></td>
                         <td class="dotted-underline"></td>
                       </tr>
@@ -968,20 +958,17 @@
                     <thead>
                       <tr>
                         <th rowspan="2" class="col-subject text-left">Learning Areas</th>
-                        <th colspan="4" class="col-quarters">Quarterly Rating</th>
+                        <th :colspan="activeQuarterCount" class="col-quarters">Quarterly Rating</th>
                         <th rowspan="2" class="col-final">Final Rating</th>
                         <th rowspan="2" class="col-remarks">Remarks</th>
                       </tr>
                       <tr>
-                        <th class="sub-q">1</th>
-                        <th class="sub-q">2</th>
-                        <th class="sub-q">3</th>
-                        <th class="sub-q">4</th>
+                        <th v-for="q in activeQuarterCount" :key="q" class="sub-q">{{ q }}</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr v-if="!learningAreasList.length">
-                        <td colspan="7" class="text-center py-3 text-muted">
+                        <td :colspan="activeQuarterCount + 3" class="text-center py-3 text-muted">
                           No subjects configured for this grade level.
                         </td>
                       </tr>
@@ -990,53 +977,17 @@
                           {{ la.subjectName }}
                           <span v-if="la.subjectCode" class="sub-code-tiny">({{ la.subjectCode }})</span>
                         </td>
-                        <td class="rating-cell">
+                        <td v-for="q in activeQuarterList" :key="q.key" class="rating-cell">
                           <input
                             v-if="editCardGrades"
                             type="number"
                             min="60"
                             max="100"
-                            v-model.number="la.q1"
+                            v-model.number="la[q.key]"
                             @input="recalcCardGrade(la)"
                             class="sf9-inline-grade-input"
                           />
-                          <span v-else>{{ la.q1 ?? '—' }}</span>
-                        </td>
-                        <td class="rating-cell">
-                          <input
-                            v-if="editCardGrades"
-                            type="number"
-                            min="60"
-                            max="100"
-                            v-model.number="la.q2"
-                            @input="recalcCardGrade(la)"
-                            class="sf9-inline-grade-input"
-                          />
-                          <span v-else>{{ la.q2 ?? '—' }}</span>
-                        </td>
-                        <td class="rating-cell">
-                          <input
-                            v-if="editCardGrades"
-                            type="number"
-                            min="60"
-                            max="100"
-                            v-model.number="la.q3"
-                            @input="recalcCardGrade(la)"
-                            class="sf9-inline-grade-input"
-                          />
-                          <span v-else>{{ la.q3 ?? '—' }}</span>
-                        </td>
-                        <td class="rating-cell">
-                          <input
-                            v-if="editCardGrades"
-                            type="number"
-                            min="60"
-                            max="100"
-                            v-model.number="la.q4"
-                            @input="recalcCardGrade(la)"
-                            class="sf9-inline-grade-input"
-                          />
-                          <span v-else>{{ la.q4 ?? '—' }}</span>
+                          <span v-else>{{ la[q.key] ?? '—' }}</span>
                         </td>
                         <td class="rating-cell font-bold final-cell">{{ la.finalRating ?? '—' }}</td>
                         <td class="remarks-cell">
@@ -1050,7 +1001,7 @@
                         <td class="text-left font-bold gen-avg-label">
                           GENERAL AVERAGE
                         </td>
-                        <td colspan="4" class="gen-avg-blank"></td>
+                        <td :colspan="activeQuarterCount" class="gen-avg-blank"></td>
                         <td class="rating-cell font-black gen-avg-val">
                           {{ form138Data.generalAverage ?? '—' }}
                         </td>
@@ -1101,10 +1052,7 @@
                       <tr>
                         <th class="col-cv text-left">Core Values</th>
                         <th class="col-stmt text-left">Behavior Statements</th>
-                        <th class="col-vq">Q1</th>
-                        <th class="col-vq">Q2</th>
-                        <th class="col-vq">Q3</th>
-                        <th class="col-vq">Q4</th>
+                        <th v-for="q in activeQuarterList" :key="q.upper" class="col-vq">{{ q.upper }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1114,17 +1062,8 @@
                             {{ cv.coreValue }}
                           </td>
                           <td class="text-left stmt-text">{{ stmt.text }}</td>
-                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q1')" title="Click to toggle AO/SO/RO/NO">
-                            <span class="rating-tag" :class="`rate-${stmt.q1}`">{{ stmt.q1 }}</span>
-                          </td>
-                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q2')" title="Click to toggle AO/SO/RO/NO">
-                            <span class="rating-tag" :class="`rate-${stmt.q2}`">{{ stmt.q2 }}</span>
-                          </td>
-                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q3')" title="Click to toggle AO/SO/RO/NO">
-                            <span class="rating-tag" :class="`rate-${stmt.q3}`">{{ stmt.q3 }}</span>
-                          </td>
-                          <td class="cell-rating" @click="toggleObservedValue(stmt, 'q4')" title="Click to toggle AO/SO/RO/NO">
-                            <span class="rating-tag" :class="`rate-${stmt.q4}`">{{ stmt.q4 }}</span>
+                          <td v-for="q in activeQuarterList" :key="q.key" class="cell-rating" @click="toggleObservedValue(stmt, q.key)" title="Click to toggle AO/SO/RO/NO">
+                            <span class="rating-tag" :class="`rate-${stmt[q.key]}`">{{ stmt[q.key] }}</span>
                           </td>
                         </tr>
                       </template>
@@ -1184,10 +1123,9 @@
           <div class="form-group">
             <label>Quarter</label>
             <select v-model="analyticsFilter.quarter" @change="loadAnalytics" class="form-select">
-              <option value="Q1">1st Quarter (Q1)</option>
-              <option value="Q2">2nd Quarter (Q2)</option>
-              <option value="Q3">3rd Quarter (Q3)</option>
-              <option value="Q4">4th Quarter (Q4)</option>
+              <option v-for="q in availableQuarterOptions" :key="q.value" :value="q.value">
+                {{ q.label }}
+              </option>
             </select>
           </div>
 
@@ -1430,7 +1368,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { useToast } from '../composables/useToast'
@@ -1444,6 +1382,59 @@ const activeTab = ref('encoding')
 const schools = ref([])
 const selectedSchoolId = ref(auth.schoolId || '')
 const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
+
+const currentSchool = computed(() => {
+  if (schools.value.length) {
+    const s = schools.value.find(x => x.id === effectiveSchoolId.value)
+    if (s) return s
+  }
+  return null
+})
+
+const activeQuarterCount = computed(() => {
+  if (activeTab.value === 'form138' && form138Data.value) {
+    if (form138Data.value.quarterCount) return Number(form138Data.value.quarterCount) === 3 ? 3 : 4
+    if (form138Data.value.school?.quarter_count) return Number(form138Data.value.school.quarter_count) === 3 ? 3 : 4
+  }
+  if (currentSchool.value?.quarter_count) {
+    return Number(currentSchool.value.quarter_count) === 3 ? 3 : 4
+  }
+  if (form138Data.value?.quarterCount) {
+    return Number(form138Data.value.quarterCount) === 3 ? 3 : 4
+  }
+  if (form138Data.value?.school?.quarter_count) {
+    return Number(form138Data.value.school.quarter_count) === 3 ? 3 : 4
+  }
+  return 4
+})
+
+const activeQuarterList = computed(() => {
+  const count = activeQuarterCount.value
+  const isTrimester = count === 3
+  const list = [
+    { num: 1, key: 'q1', upper: 'Q1', label: isTrimester ? '1st Trimester' : '1st Quarter' },
+    { num: 2, key: 'q2', upper: 'Q2', label: isTrimester ? '2nd Trimester' : '2nd Quarter' },
+    { num: 3, key: 'q3', upper: 'Q3', label: isTrimester ? '3rd Trimester' : '3rd Quarter' }
+  ]
+  if (count === 4) {
+    list.push({ num: 4, key: 'q4', upper: 'Q4', label: '4th Quarter' })
+  }
+  return list
+})
+
+const availableQuarterOptions = computed(() => {
+  const count = activeQuarterCount.value
+  const isTrimester = count === 3
+  const opts = [
+    { value: 'Q1', label: isTrimester ? '1st Trimester (Q1)' : '1st Quarter (Q1)' },
+    { value: 'Q2', label: isTrimester ? '2nd Trimester (Q2)' : '2nd Quarter (Q2)' },
+    { value: 'Q3', label: isTrimester ? '3rd Trimester (Q3)' : '3rd Quarter (Q3)' }
+  ]
+  if (count === 4) {
+    opts.push({ value: 'Q4', label: '4th Quarter (Q4)' })
+  }
+  return opts
+})
 
 // Filter for Grade Encoding
 const filter = reactive({
@@ -1516,8 +1507,9 @@ function cancelEditingCardGrades() {
 }
 
 function recalcCardGrade(la) {
-  const quarters = [la.q1, la.q2, la.q3, la.q4]
-    .map(v => (v !== null && v !== undefined && v !== '' ? Number(v) : null))
+  const activeKeys = activeQuarterList.value.map(q => q.key)
+  const quarters = activeKeys
+    .map(k => (la[k] !== null && la[k] !== undefined && la[k] !== '' ? Number(la[k]) : null))
     .filter(v => v !== null && !isNaN(v))
   if (quarters.length > 0) {
     const avg = Math.round(quarters.reduce((a, b) => a + b, 0) / quarters.length)
@@ -1539,13 +1531,13 @@ async function saveCardGrades() {
   try {
     const payload = {
       schoolYear: form138Data.value?.schoolYear || form138Filter.schoolYear || '2026-2027',
-      grades: learningAreasList.value.map(la => ({
-        subjectId: la.subjectId || la.id,
-        q1: la.q1 !== null && la.q1 !== undefined && la.q1 !== '' ? Number(la.q1) : null,
-        q2: la.q2 !== null && la.q2 !== undefined && la.q2 !== '' ? Number(la.q2) : null,
-        q3: la.q3 !== null && la.q3 !== undefined && la.q3 !== '' ? Number(la.q3) : null,
-        q4: la.q4 !== null && la.q4 !== undefined && la.q4 !== '' ? Number(la.q4) : null,
-      }))
+      grades: learningAreasList.value.map(la => {
+        const item = { subjectId: la.subjectId || la.id }
+        for (const q of activeQuarterList.value) {
+          item[q.key] = la[q.key] !== null && la[q.key] !== undefined && la[q.key] !== '' ? Number(la[q.key]) : null
+        }
+        return item
+      })
     }
     const res = await fetch(`/api/grading/form138/${form138Filter.studentId}/save`, {
       method: 'POST',
@@ -1607,13 +1599,19 @@ const loadingAnalytics = ref(false)
 const analyticsData = ref(null)
 
 onMounted(async () => {
-  if (auth.isSuperadmin) {
-    try {
-      schools.value = await auth.getSchools()
-      if (schools.value.length && !selectedSchoolId.value) {
-        selectedSchoolId.value = schools.value[0].id
-      }
-    } catch {}
+  try {
+    schools.value = await auth.getSchools()
+    if (auth.isSuperadmin && schools.value.length && !selectedSchoolId.value) {
+      selectedSchoolId.value = schools.value[0].id
+    }
+  } catch {}
+  if (currentSchool.value?.school_year) {
+    if (!filter.schoolYear || filter.schoolYear === '2025-2026') filter.schoolYear = currentSchool.value.school_year
+    if (!form138Filter.schoolYear || form138Filter.schoolYear === '2025-2026') form138Filter.schoolYear = currentSchool.value.school_year
+    if (!analyticsFilter.schoolYear || analyticsFilter.schoolYear === '2025-2026') analyticsFilter.schoolYear = currentSchool.value.school_year
+  }
+  if (activeQuarterCount.value === 3 && filter.quarter === 'Q4') {
+    filter.quarter = 'Q3'
   }
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   if (grades.value.length && !filter.grade) {
@@ -1622,7 +1620,27 @@ onMounted(async () => {
   await loadSubjects()
 })
 
+watch(currentSchool, (school) => {
+  if (school?.school_year) {
+    if (!filter.schoolYear || filter.schoolYear === '2025-2026') filter.schoolYear = school.school_year
+    if (!form138Filter.schoolYear || form138Filter.schoolYear === '2025-2026') form138Filter.schoolYear = school.school_year
+    if (!analyticsFilter.schoolYear || analyticsFilter.schoolYear === '2025-2026') analyticsFilter.schoolYear = school.school_year
+  }
+  if (activeQuarterCount.value === 3) {
+    if (filter.quarter === 'Q4') filter.quarter = 'Q3'
+    if (analyticsFilter.quarter === 'Q4') analyticsFilter.quarter = 'Q3'
+  }
+}, { immediate: true })
+
 async function onSchoolChange() {
+  if (currentSchool.value?.school_year) {
+    filter.schoolYear = currentSchool.value.school_year
+    form138Filter.schoolYear = currentSchool.value.school_year
+    analyticsFilter.schoolYear = currentSchool.value.school_year
+  }
+  if (activeQuarterCount.value === 3 && filter.quarter === 'Q4') {
+    filter.quarter = 'Q3'
+  }
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   await loadSubjects()
 }

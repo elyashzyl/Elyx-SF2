@@ -95,6 +95,14 @@ router.get('/terms', async (req, res) => {
     const sid = scope.schoolId || ''
     const sy = String(req.query.schoolYear || '').trim()
 
+    let schoolQuarterCount = 4
+    if (sid) {
+      const schoolRows = await query('SELECT quarter_count, school_year FROM schools WHERE id = ?', [sid])
+      if (schoolRows.length) {
+        schoolQuarterCount = Number(schoolRows[0].quarter_count) === 3 ? 3 : 4
+      }
+    }
+
     let sql = 'SELECT * FROM quarterly_terms WHERE school_id = ?'
     const params = [sid]
     if (sy) {
@@ -129,10 +137,10 @@ router.get('/terms', async (req, res) => {
         start_date: q.start_date,
         end_date: q.end_date,
         target_days: q.target_days,
-        is_active: q.is_active,
+        is_active: schoolQuarterCount === 3 && q.quarter_number === 4 ? 0 : q.is_active,
         is_custom: false
       }))
-      return res.json({ quarters: defaults, is_custom: false })
+      return res.json({ quarters: defaults, is_custom: false, quarter_count: schoolQuarterCount })
     }
 
     // Map DB rows to structured response
@@ -151,7 +159,7 @@ router.get('/terms', async (req, res) => {
       updated_at: r.updated_at
     }))
 
-    res.json({ quarters, is_custom: true })
+    res.json({ quarters, is_custom: true, quarter_count: schoolQuarterCount })
   } catch (err) {
     console.error('Failed to fetch quarterly terms:', err.message)
     res.status(500).json({ error: 'Failed to fetch quarterly terms' })
@@ -172,6 +180,11 @@ router.put('/terms', async (req, res) => {
 
     const sy = String(schoolYear || '').trim()
     const sid = s.schoolId || ''
+
+    const requestedQuarterCount = req.body.quarter_count !== undefined ? req.body.quarter_count : req.body.quarterCount
+    if (requestedQuarterCount !== undefined && sid) {
+      await run('UPDATE schools SET quarter_count = ? WHERE id = ?', [Number(requestedQuarterCount) === 3 ? 3 : 4, sid])
+    }
 
     await withTransaction(async (conn) => {
       for (const q of quarters) {
