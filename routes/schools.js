@@ -269,7 +269,33 @@ router.get('/:id/grades', async (req, res) => {
     const row = prismaSchool ? prismaSchool.row : await getSchoolById(req.params.id)
     if (!row) return res.status(404).json({ error: 'School not found' })
     const prismaLevels = await listGradeLevelsWithPrisma(req.params.id)
-    res.json(prismaLevels !== null ? prismaLevels : await getGradeLevels(req.params.id))
+    const baseLevels = prismaLevels !== null ? prismaLevels : await getGradeLevels(req.params.id)
+
+    // Ensure any grade levels and sections where students are enrolled in this school are also included
+    const levelsMap = new Map()
+    for (const l of (baseLevels || [])) {
+      levelsMap.set(l.grade, { grade: l.grade, sections: [...(l.sections || [])] })
+    }
+
+    try {
+      const studentRows = await query(
+        `SELECT DISTINCT grade, section FROM students WHERE school_id = ? AND grade IS NOT NULL AND grade != '' ORDER BY grade, section`,
+        [req.params.id]
+      )
+      for (const sr of studentRows) {
+        if (!sr.grade) continue
+        let item = levelsMap.get(sr.grade)
+        if (!item) {
+          item = { grade: sr.grade, sections: [] }
+          levelsMap.set(sr.grade, item)
+        }
+        if (sr.section && !item.sections.includes(sr.section)) {
+          item.sections.push(sr.section)
+        }
+      }
+    } catch {}
+
+    res.json(Array.from(levelsMap.values()))
   } catch (err) {
     console.error('Failed to fetch grade levels', err.message)
     res.status(500).json({ error: 'Failed to fetch grade levels' })

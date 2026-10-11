@@ -30,7 +30,30 @@
 
         <div class="top-nav-spacer"></div>
 
-        <div class="top-nav-school" :title="pillName">
+        <!-- Superadmin Switch School on Topbar -->
+        <div v-if="auth.isSuperadmin && schoolsList.length > 0" class="top-nav-school top-nav-school-switcher">
+          <img v-if="currentTopNavSchool?.logo_url" :src="currentTopNavSchool.logo_url" alt="" class="top-nav-school-logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="top-nav-school-icon">
+            <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/>
+          </svg>
+          <div class="top-nav-school-select-wrap">
+            <span class="top-nav-school-label">Switch School</span>
+            <select
+              :value="activeSchool?.id || ''"
+              @change="handleTopNavSchoolChange"
+              class="top-nav-school-select"
+              title="Switch active campus"
+            >
+              <option value="">All Schools</option>
+              <option v-for="s in schoolsList" :key="s.id" :value="s.id">
+                {{ s.name }}{{ s.short ? ' (' + s.short + ')' : '' }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Regular Admin / Teacher School Indicator -->
+        <div v-else class="top-nav-school" :title="pillName">
           <img v-if="auth.school?.logo_url" :src="auth.school.logo_url" alt="" class="top-nav-school-logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
           <span v-else class="top-nav-school-dot"></span>
           <span class="top-nav-school-copy">
@@ -206,6 +229,7 @@ import { useToast } from './composables/useToast'
 import { useNotifications } from './composables/useNotifications'
 import { useTheme } from './composables/useTheme'
 import { useActiveSchool } from './composables/useActiveSchool'
+import { savePageState } from './composables/usePageState'
 import { useSidebar } from './composables/useSidebar'
 import { restoreScrollAfterLoad } from './router'
 import Sidebar from './components/Sidebar.vue'
@@ -218,8 +242,58 @@ const userAvatar = computed(() => auth.user?.avatar_url || '')
 const { toasts, removeToast } = useToast()
 const { notifications, unreadCount, syncAnnouncements, markRead, markAllRead, dismiss, clearAll, formatTimeAgo } = useNotifications()
 const { theme, toggleTheme } = useTheme()
-const { hasActive, displayName, displayShort, displayAvatar, noneSelected } = useActiveSchool()
+const { hasActive, displayName, displayShort, displayAvatar, noneSelected, activeSchool, setActiveSchool, clearActiveSchool } = useActiveSchool()
 const { isCollapsed, isMobile, openMobile, toggleSidebar, closeSidebar } = useSidebar()
+const schoolsList = ref([])
+
+async function loadSchoolsList() {
+  if (auth.isSuperadmin) {
+    try {
+      const res = await auth.getSchools()
+      schoolsList.value = (res || []).filter(s => !s.archived_at)
+      if (schoolsList.value.length && !activeSchool.value && !noneSelected.value) {
+        setActiveSchool(schoolsList.value[0])
+      }
+    } catch {}
+  }
+}
+
+function handleTopNavSchoolChange(e) {
+  const sid = e.target.value
+  if (!sid) {
+    clearActiveSchool()
+    if (auth.user) savePageState(auth.user, { school: '' })
+    loadSchool()
+    window.dispatchEvent(new CustomEvent('elytrack:school-switched', { detail: { schoolId: '' } }))
+    return
+  }
+  const chosen = schoolsList.value.find(s => s.id === sid)
+  if (chosen) {
+    setActiveSchool({
+      id: chosen.id,
+      name: chosen.name,
+      school_name: chosen.name,
+      short: chosen.short || chosen.school_short,
+      school_short: chosen.short || chosen.school_short,
+      school_id: chosen.school_id,
+      school_year: chosen.school_year,
+      quarter_count: chosen.quarter_count,
+      logo_url: chosen.logo_url
+    })
+    if (auth.user) savePageState(auth.user, { school: chosen.id })
+    loadSchool()
+    window.dispatchEvent(new CustomEvent('elytrack:school-switched', { detail: { schoolId: sid } }))
+  }
+}
+
+const currentTopNavSchool = computed(() => {
+  if (activeSchool.value) return activeSchool.value
+  if (ownSchool.value) return ownSchool.value
+  if (schoolsList.value.length && auth.isSuperadmin) {
+    return schoolsList.value.find(s => s.id === activeSchool.value?.id) || schoolsList.value[0]
+  }
+  return auth.school || null
+})
 
 const showNotifications = ref(false)
 const notifPanelRef = ref(null)
@@ -348,6 +422,7 @@ onMounted(() => {
     headerResizeObserver.observe(headerRef.value)
   }
   loadSchool()
+  loadSchoolsList()
   checkLicenseStatus()
   restoreScrollAfterLoad()
 
@@ -381,6 +456,7 @@ watch(() => auth.user?.school_id, () => {
 
 watch(() => auth.user, (newUser) => {
   if (newUser) {
+    loadSchoolsList()
     maybeShowTutorial()
   } else if (router.currentRoute.value?.meta?.role) {
     router.push('/login')
@@ -492,6 +568,61 @@ function notifIcon(type) {
 
 .top-nav-school {
   flex: 0 1 240px;
+}
+
+.top-nav-school-switcher {
+  flex: 0 1 280px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease;
+}
+
+.top-nav-school-switcher:focus-within {
+  border-color: var(--primary);
+}
+
+.top-nav-school-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.top-nav-school-select-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.top-nav-school-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.top-nav-school-select {
+  background: transparent;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--foreground);
+  padding: 0;
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+.top-nav-school-select option {
+  background: var(--card);
+  color: var(--foreground);
 }
 
 .top-nav-school-copy strong {

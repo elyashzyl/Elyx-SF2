@@ -1807,11 +1807,33 @@ export { MYSQL_DDL }
 
 export async function getGradeLevels(schoolDbId) {
   const rows = await query('SELECT grade, sections, sort FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [schoolDbId])
-  return rows.map(r => {
+  const levelsMap = new Map()
+  for (const r of rows) {
     let sections = []
     try { sections = JSON.parse(r.sections || '[]') } catch {}
-    return { grade: r.grade, sections }
-  })
+    levelsMap.set(r.grade, { grade: r.grade, sections: Array.isArray(sections) ? sections : [] })
+  }
+
+  // Also include any grades and sections that students are actively enrolled in
+  try {
+    const studentRows = await query(
+      `SELECT DISTINCT grade, section FROM students WHERE school_id = ? AND grade IS NOT NULL AND grade != '' ORDER BY grade, section`,
+      [schoolDbId]
+    )
+    for (const sr of studentRows) {
+      if (!sr.grade) continue
+      let existing = levelsMap.get(sr.grade)
+      if (!existing) {
+        existing = { grade: sr.grade, sections: [] }
+        levelsMap.set(sr.grade, existing)
+      }
+      if (sr.section && !existing.sections.includes(sr.section)) {
+        existing.sections.push(sr.section)
+      }
+    }
+  } catch {}
+
+  return Array.from(levelsMap.values())
 }
 
 export async function setGradeLevels(schoolDbId, levels) {

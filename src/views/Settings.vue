@@ -88,20 +88,6 @@
             </svg>
             <span>System Configuration</span>
           </button>
-          <button
-            v-if="auth.isSuperadmin && schools.length > 1"
-            class="settings-nav-item"
-            :class="{ active: activeTab === 'switchschool' }"
-            @click="activeTab = 'switchschool'"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <span>Switch School</span>
-          </button>
         </nav>
       </aside>
 
@@ -638,21 +624,6 @@
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-
-        <!-- Switch School Tab (Superadmin) -->
-        <div v-if="activeTab === 'switchschool'" class="table-card">
-          <div class="settings-panel-header">
-            <h2>Switch School</h2>
-            <p>Select which school to manage.</p>
-          </div>
-          <div class="form-group" style="max-width: 480px;">
-            <label>School</label>
-            <select v-model="selectedSchoolId" @change="onSchoolChange">
-              <option value="">None</option>
-              <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}</option>
-            </select>
           </div>
         </div>
 

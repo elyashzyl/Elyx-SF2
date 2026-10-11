@@ -38,16 +38,6 @@
           <span class="campus-badge badge-trimester" v-if="activeQuarterCount === 3">3 Quarters (Trimester)</span>
         </div>
 
-        <!-- Superadmin School Selector -->
-        <div v-if="auth.isSuperadmin" class="school-select-wrapper">
-          <label class="school-select-label">School:</label>
-          <select v-model="selectedSchoolId" @change="onSchoolChange" class="form-select school-select">
-            <option v-for="s in schools" :key="s.id" :value="s.id">
-              {{ s.name }}{{ s.school_id ? ' (' + s.school_id + ')' : '' }}
-            </option>
-          </select>
-        </div>
-
         <router-link to="/grading" class="btn-secondary link-to-sf9">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -75,18 +65,28 @@
     <!-- Filter Toolbar -->
     <div class="card toolbar-card no-print">
       <div class="toolbar-grid">
+        <div v-if="auth.isSuperadmin && schools.length > 1" class="form-group">
+          <label>School / Campus</label>
+          <select v-model="selectedSchoolId" @change="onSchoolChange" class="form-select">
+            <option v-for="s in schools" :key="s.id" :value="s.id">
+              {{ s.name }}{{ s.school_id ? ' (' + s.school_id + ')' : '' }}
+            </option>
+          </select>
+        </div>
+
         <div class="form-group">
           <label>Grade Level</label>
           <select v-model="filter.grade" @change="onGradeChange" class="form-select">
-            <option value="">Select Grade</option>
+            <option value="" disabled v-if="!grades.length">No grades found</option>
+            <option value="" v-else>Select Grade</option>
             <option v-for="g in grades" :key="g" :value="g">{{ g }}</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>Section</label>
-          <select v-model="filter.section" @change="onSectionChange" class="form-select">
-            <option value="">Select Section</option>
+          <select v-model="filter.section" @change="onSectionChange" class="form-select" :disabled="!filter.grade">
+            <option value="" disabled>{{ !filter.grade ? 'Select Grade first' : (availableSections.length ? 'Select Section' : 'No sections found') }}</option>
             <option v-for="s in availableSections" :key="s" :value="s">{{ s }}</option>
           </select>
         </div>
@@ -911,10 +911,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
+import { useActiveSchool } from '../composables/useActiveSchool'
 import { useToast } from '../composables/useToast'
 
 const router = useRouter()
@@ -922,10 +923,16 @@ const route = useRoute()
 const auth = useAuthStore()
 const { addToast } = useToast()
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
+const { activeSchool, setActiveSchool } = useActiveSchool()
 
 const schools = ref([])
-const selectedSchoolId = ref(auth.schoolId || '')
-const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
+const selectedSchoolId = ref(auth.isSuperadmin ? (activeSchool.value?.id || auth.schoolId || '') : (auth.schoolId || ''))
+const effectiveSchoolId = computed(() => {
+  if (auth.isSuperadmin) {
+    return activeSchool.value?.id || selectedSchoolId.value || (schools.value[0]?.id || '')
+  }
+  return auth.schoolId || activeSchool.value?.id || ''
+})
 const quarterTerms = ref([])
 const configuredQuarterCount = ref(4)
 const showFormulaGuide = ref(false)
@@ -1419,13 +1426,52 @@ async function loadQuarterlyTerms() {
 }
 
 async function onSchoolChange() {
+  if (auth.isSuperadmin && selectedSchoolId.value) {
+    const chosen = schools.value.find(s => s.id === selectedSchoolId.value)
+    if (chosen) {
+      setActiveSchool({
+        id: chosen.id,
+        name: chosen.name,
+        school_name: chosen.name,
+        short: chosen.short || chosen.school_short,
+        school_short: chosen.short || chosen.school_short,
+        school_id: chosen.school_id,
+        school_year: chosen.school_year,
+        quarter_count: chosen.quarter_count,
+        logo_url: chosen.logo_url
+      })
+    }
+  }
+
   await checkLicense()
   await loadGradeLevels(effectiveSchoolId.value || undefined)
+  if (currentSchool.value?.school_year) {
+    filter.schoolYear = currentSchool.value.school_year
+  }
   await loadQuarterlyTerms()
+
+  // Connect Grade: ensure filter.grade belongs to the active school
+  if (!grades.value.includes(filter.grade)) {
+    filter.grade = grades.value[0] || ''
+  }
+
+  // Connect Section: ensure filter.section belongs to the selected grade
+  if (!availableSections.value.includes(filter.section)) {
+    filter.section = availableSections.value[0] || ''
+  }
+
   await loadSubjects()
+  if (subjectList.value.length && (!filter.subjectId || !subjectList.value.some(s => s.id === filter.subjectId))) {
+    filter.subjectId = subjectList.value[0].id
+  }
+
   students.value = []
   activeSubject.value = null
   isModified.value = false
+
+  if (filter.grade && filter.section && filter.subjectId) {
+    await loadClassRecord()
+  }
 }
 
 async function loadSubjects() {
@@ -1445,20 +1491,64 @@ async function loadSubjects() {
 }
 
 async function onGradeChange() {
+  // Connect Section to the first section of the selected grade
   if (availableSections.value.length) {
     filter.section = availableSections.value[0]
   } else {
     filter.section = ''
   }
+
   await loadSubjects()
-  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+  if (subjectList.value.length && (!filter.subjectId || !subjectList.value.some(s => s.id === filter.subjectId))) {
+    filter.subjectId = subjectList.value[0].id
+  }
+
+  students.value = []
+  activeSubject.value = null
+  isModified.value = false
+
+  if (filter.grade && filter.section && filter.subjectId) {
     await loadClassRecord()
   }
 }
 
 async function onSectionChange() {
-  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+  students.value = []
+  activeSubject.value = null
+  isModified.value = false
+
+  if (filter.grade && filter.section && filter.subjectId) {
     await loadClassRecord()
+  }
+}
+
+// Watch availableSections to keep filter.section connected
+watch(availableSections, (newSecs) => {
+  if (newSecs && newSecs.length > 0) {
+    if (!filter.section || !newSecs.includes(filter.section)) {
+      filter.section = newSecs[0]
+      if (filter.grade && filter.section && filter.subjectId && !students.value.length) {
+        loadClassRecord()
+      }
+    }
+  } else if (!newSecs || newSecs.length === 0) {
+    filter.section = ''
+  }
+})
+
+// React when active school changes from topbar
+watch(() => activeSchool.value?.id, async (newSid) => {
+  if (newSid && newSid !== selectedSchoolId.value) {
+    selectedSchoolId.value = newSid
+    await onSchoolChange()
+  }
+})
+
+function onGlobalSchoolSwitched(e) {
+  const sid = e.detail?.schoolId
+  if (sid && sid !== selectedSchoolId.value) {
+    selectedSchoolId.value = sid
+    onSchoolChange()
   }
 }
 
@@ -1624,7 +1714,11 @@ function goToForm138(studentId) {
 }
 
 onMounted(async () => {
+  window.addEventListener('elytrack:school-switched', onGlobalSchoolSwitched)
   await loadSchools()
+  if (auth.isSuperadmin && activeSchool.value?.id) {
+    selectedSchoolId.value = activeSchool.value.id
+  }
   await checkLicense()
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   if (currentSchool.value?.school_year) {
@@ -1644,6 +1738,7 @@ onMounted(async () => {
 
   await loadSubjects()
   if (route.query?.subjectId) filter.subjectId = String(route.query.subjectId)
+  else if (subjectList.value.length && !filter.subjectId) filter.subjectId = subjectList.value[0].id
 
   // Clamp quarter if 3 quarters
   if (activeQuarterCount.value === 3 && filter.quarter === 'Q4') {
@@ -1653,6 +1748,10 @@ onMounted(async () => {
   if (filter.grade && filter.section && filter.subjectId) {
     await loadClassRecord()
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('elytrack:school-switched', onGlobalSchoolSwitched)
 })
 </script>
 
