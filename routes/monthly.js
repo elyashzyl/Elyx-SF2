@@ -137,34 +137,36 @@ export async function getUnifiedClassRoster(schoolId, grade, section) {
   // 1. Current class students in students table
   try {
     const rows = await query(
-      `SELECT id, name, gender, enrollment_status FROM students
-       WHERE (school_id = ? OR school_id = '' OR school_id IS NULL)
+      `SELECT id, name, gender, lrn, enrollment_status FROM students
+       WHERE (${schoolId ? '(school_id = ? OR school_id = "" OR school_id IS NULL)' : '1=1'})
          AND LOWER(TRIM(grade)) = LOWER(TRIM(?))
          AND LOWER(TRIM(section)) = LOWER(TRIM(?))`,
-      [schoolId, grade, section]
+      schoolId ? [schoolId, grade, section] : [grade, section]
     )
     for (const r of rows) {
-      studentMap.set(String(r.id), { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
+      studentMap.set(String(r.id), { id: r.id, name: r.name, gender: r.gender || '', lrn: r.lrn || '', late_enrollee: false })
     }
   } catch {}
 
   // 2. Students who appeared in ANY monthly record of this class in this school
   try {
     const rows = await query(`
-      SELECT DISTINCT me.student_id as id, me.student_name as name, COALESCE(s.gender, '') as gender, me.late_enrollee
+      SELECT DISTINCT me.student_id as id, me.student_name as name, COALESCE(s.gender, '') as gender, COALESCE(s.lrn, '') as lrn, me.late_enrollee
       FROM monthly_entries me
       JOIN monthly_records mr ON mr.id = me.record_id
       LEFT JOIN students s ON (s.id = me.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(me.student_name)))
-      WHERE (mr.school_id = ? OR mr.school_id = '' OR mr.school_id IS NULL)
+      WHERE (${schoolId ? '(mr.school_id = ? OR mr.school_id = "" OR mr.school_id IS NULL)' : '1=1'})
         AND LOWER(TRIM(mr.grade)) = LOWER(TRIM(?))
         AND LOWER(TRIM(mr.section)) = LOWER(TRIM(?))
-    `, [schoolId, grade, section])
+    `, schoolId ? [schoolId, grade, section] : [grade, section])
     for (const r of rows) {
       const sid = String(r.id || r.name)
       if (!studentMap.has(sid)) {
-        studentMap.set(sid, { id: r.id || sid, name: r.name, gender: r.gender || '', late_enrollee: Boolean(r.late_enrollee) })
-      } else if (r.gender && !studentMap.get(sid).gender) {
-        studentMap.get(sid).gender = r.gender
+        studentMap.set(sid, { id: r.id || sid, name: r.name, gender: r.gender || '', lrn: r.lrn || '', late_enrollee: Boolean(r.late_enrollee) })
+      } else {
+        const cur = studentMap.get(sid)
+        if (r.gender && !cur.gender) cur.gender = r.gender
+        if (r.lrn && !cur.lrn) cur.lrn = r.lrn
       }
     }
   } catch {}
@@ -172,19 +174,21 @@ export async function getUnifiedClassRoster(schoolId, grade, section) {
   // 3. Students with historical enrollment events for this class
   try {
     const rows = await query(`
-      SELECT DISTINCT s.id, s.name, COALESCE(s.gender, '') as gender
+      SELECT DISTINCT s.id, s.name, COALESCE(s.gender, '') as gender, COALESCE(s.lrn, '') as lrn
       FROM student_enrollment_events e
       JOIN students s ON s.id = e.student_id
-      WHERE (e.school_id = ? OR e.school_id = '' OR e.school_id IS NULL)
+      WHERE (${schoolId ? '(e.school_id = ? OR e.school_id = "" OR e.school_id IS NULL)' : '1=1'})
         AND LOWER(TRIM(e.grade)) = LOWER(TRIM(?))
         AND LOWER(TRIM(e.section)) = LOWER(TRIM(?))
-    `, [schoolId, grade, section])
+    `, schoolId ? [schoolId, grade, section] : [grade, section])
     for (const r of rows) {
       const sid = String(r.id)
       if (!studentMap.has(sid)) {
-        studentMap.set(sid, { id: r.id, name: r.name, gender: r.gender || '', late_enrollee: false })
-      } else if (r.gender && !studentMap.get(sid).gender) {
-        studentMap.get(sid).gender = r.gender
+        studentMap.set(sid, { id: r.id, name: r.name, gender: r.gender || '', lrn: r.lrn || '', late_enrollee: false })
+      } else {
+        const cur = studentMap.get(sid)
+        if (r.gender && !cur.gender) cur.gender = r.gender
+        if (r.lrn && !cur.lrn) cur.lrn = r.lrn
       }
     }
   } catch {}
@@ -192,20 +196,22 @@ export async function getUnifiedClassRoster(schoolId, grade, section) {
   // 4. Students who appeared in daily attendance records for this class
   try {
     const rows = await query(`
-      SELECT DISTINCT ae.student_id as id, ae.name, COALESCE(s.gender, '') as gender
+      SELECT DISTINCT ae.student_id as id, ae.name, COALESCE(s.gender, '') as gender, COALESCE(s.lrn, '') as lrn
       FROM attendance_entries ae
       JOIN attendance_records ar ON ar.id = ae.record_id
       LEFT JOIN students s ON (s.id = ae.student_id OR LOWER(TRIM(s.name)) = LOWER(TRIM(ae.name)))
-      WHERE (ar.school_id = ? OR ar.school_id = '' OR ar.school_id IS NULL)
+      WHERE (${schoolId ? '(ar.school_id = ? OR ar.school_id = "" OR ar.school_id IS NULL)' : '1=1'})
         AND LOWER(TRIM(ar.grade)) = LOWER(TRIM(?))
         AND LOWER(TRIM(ar.section)) = LOWER(TRIM(?))
-    `, [schoolId, grade, section])
+    `, schoolId ? [schoolId, grade, section] : [grade, section])
     for (const r of rows) {
       const sid = String(r.id || r.name)
       if (!studentMap.has(sid)) {
-        studentMap.set(sid, { id: r.id || sid, name: r.name, gender: r.gender || '', late_enrollee: false })
-      } else if (r.gender && !studentMap.get(sid).gender) {
-        studentMap.get(sid).gender = r.gender
+        studentMap.set(sid, { id: r.id || sid, name: r.name, gender: r.gender || '', lrn: r.lrn || '', late_enrollee: false })
+      } else {
+        const cur = studentMap.get(sid)
+        if (r.gender && !cur.gender) cur.gender = r.gender
+        if (r.lrn && !cur.lrn) cur.lrn = r.lrn
       }
     }
   } catch {}
@@ -226,12 +232,29 @@ router.get('/roster', async (req, res) => {
     if (error) return
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
-    if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
+    let schoolId = scope.schoolId
+    if (!schoolId && me.role === 'superadmin') {
+      const { grade, section } = req.query
+      if (grade && section) {
+        const matched = await query(
+          `SELECT school_id FROM students WHERE LOWER(TRIM(grade)) = LOWER(TRIM(?)) AND LOWER(TRIM(section)) = LOWER(TRIM(?)) AND school_id != '' LIMIT 1`,
+          [grade, section]
+        )
+        if (matched.length > 0 && matched[0].school_id) {
+          schoolId = matched[0].school_id
+        }
+      }
+      if (!schoolId) {
+        const first = await query('SELECT id FROM schools LIMIT 1')
+        if (first.length > 0) schoolId = first[0].id
+      }
+    }
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' })
     const { grade, section } = req.query
     const cls = resolveClassScope(me, grade, section)
     if (cls.error) return res.status(403).json({ error: cls.error })
 
-    const roster = await getUnifiedClassRoster(scope.schoolId, cls.grade, cls.section)
+    const roster = await getUnifiedClassRoster(schoolId, cls.grade, cls.section)
     res.json(roster)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -244,20 +267,46 @@ router.get('/', async (req, res) => {
     if (error) return
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
-    if (!scope.schoolId) return res.status(400).json({ error: 'schoolId is required' })
+    let schoolId = scope.schoolId
+    if (!schoolId && me.role === 'superadmin') {
+      const { month, year, grade, section } = req.query
+      if (month && year && grade && section) {
+        const matched = await query(
+          `SELECT school_id FROM monthly_records WHERE month = ? AND year = ? AND LOWER(TRIM(grade)) = LOWER(TRIM(?)) AND LOWER(TRIM(section)) = LOWER(TRIM(?)) AND school_id != '' LIMIT 1`,
+          [month, year, grade, section]
+        )
+        if (matched.length > 0 && matched[0].school_id) {
+          schoolId = matched[0].school_id
+        }
+      }
+      if (!schoolId && grade && section) {
+        const studentMatch = await query(
+          `SELECT school_id FROM students WHERE LOWER(TRIM(grade)) = LOWER(TRIM(?)) AND LOWER(TRIM(section)) = LOWER(TRIM(?)) AND school_id != '' LIMIT 1`,
+          [grade, section]
+        )
+        if (studentMatch.length > 0 && studentMatch[0].school_id) {
+          schoolId = studentMatch[0].school_id
+        }
+      }
+      if (!schoolId) {
+        const first = await query('SELECT id FROM schools LIMIT 1')
+        if (first.length > 0) schoolId = first[0].id
+      }
+    }
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' })
     const { month, year, grade, section } = req.query
     const cls = resolveClassScope(me, grade, section)
     if (cls.error) return res.status(403).json({ error: cls.error })
     const records = await query(
       'SELECT * FROM monthly_records WHERE month = ? AND year = ? AND grade = ? AND section = ? AND school_id = ?',
-      [month, year, cls.grade, cls.section, scope.schoolId]
+      [month, year, cls.grade, cls.section, schoolId]
     )
     if (records.length === 0) return res.json(null)
     const record = records[0]
 
     // Reconcile entries: ensure any student who belongs to this class (or appeared in any other month)
     // is automatically present in this monthly record so they are never missing from previous months.
-    const roster = await getUnifiedClassRoster(scope.schoolId, cls.grade, cls.section)
+    const roster = await getUnifiedClassRoster(schoolId, cls.grade, cls.section)
     const existingEntries = await query(`
       SELECT me.*, COALESCE(s.gender, '') as student_gender 
       FROM monthly_entries me 

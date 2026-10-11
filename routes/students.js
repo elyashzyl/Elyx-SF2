@@ -111,7 +111,23 @@ router.get('/', async (req, res) => {
     await ensureEnrollmentStatusColumn()
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
-    const { me, schoolId } = scope
+    let { me, schoolId } = scope
+    if (!schoolId && me.role === 'superadmin') {
+      const { grade, section } = req.query
+      if (grade && section) {
+        const matched = await query(
+          `SELECT school_id FROM students WHERE LOWER(TRIM(grade)) = LOWER(TRIM(?)) AND LOWER(TRIM(section)) = LOWER(TRIM(?)) AND school_id != '' LIMIT 1`,
+          [grade, section]
+        )
+        if (matched.length > 0 && matched[0].school_id) {
+          schoolId = matched[0].school_id
+        }
+      }
+      if (!schoolId) {
+        const first = await query('SELECT id FROM schools LIMIT 1')
+        if (first.length > 0) schoolId = first[0].id
+      }
+    }
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' })
     const { grade, section, gender, search, asOf } = req.query
     const includeWithdrawn = String(req.query.includeWithdrawn || '').toLowerCase() === 'true'

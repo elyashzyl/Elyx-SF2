@@ -946,6 +946,14 @@
         </div>
 
         <div class="validator-controls">
+          <!-- Superadmin Campus Selector for Pre-Flight Validation -->
+          <div v-if="auth.isSuperadmin && schoolsList.length > 1" class="filter-group">
+            <label>School / Campus</label>
+            <select v-model="selectedSchoolId" @change="onSchoolChange" aria-label="Select Campus for Pre-Flight">
+              <option v-for="s in schoolsList" :key="s.id" :value="s.id">{{ s.short || s.name }}</option>
+            </select>
+          </div>
+
           <div class="filter-group">
             <label>School Year</label>
             <select v-model="validatorSchoolYear">
@@ -1198,20 +1206,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useActiveSchool } from '../composables/useActiveSchool'
 import DatePicker from '../components/DatePicker.vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { activeSchool } = useActiveSchool()
 const loading = ref(false)
 const errorMessage = ref('')
 const activeTab = ref('comparison')
 const schoolsList = ref([])
-const selectedSchoolId = ref(String(route.query.schoolId || ''))
-const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.value || '') : (auth.schoolId || ''))
+const selectedSchoolId = ref(String(route.query.schoolId || activeSchool.value?.id || ''))
+const effectiveSchoolId = computed(() => {
+  if (!auth.isSuperadmin) return auth.schoolId || ''
+  return selectedSchoolId.value || activeSchool.value?.id || (schoolsList.value[0]?.id || '')
+})
 
 // Section Comparison State & Filters
 const comparisonData = ref(null)
@@ -1484,6 +1497,9 @@ onMounted(async () => {
   if (auth.isSuperadmin) {
     try {
       schoolsList.value = await auth.getSchools()
+      if (!selectedSchoolId.value && schoolsList.value.length) {
+        selectedSchoolId.value = activeSchool.value?.id || schoolsList.value[0].id
+      }
     } catch (err) {
       errorMessage.value = err.message || 'Unable to load schools'
     }
@@ -1492,6 +1508,13 @@ onMounted(async () => {
   if (!selectedSchoolYear.value) selectedSchoolYear.value = schoolYearOptions.value[0] || academicYearForDate()
   await loadGradeLevels()
   await loadSectionComparison()
+})
+
+watch(activeSchool, async (newSchool) => {
+  if (auth.isSuperadmin && newSchool?.id && selectedSchoolId.value !== newSchool.id) {
+    selectedSchoolId.value = newSchool.id
+    await onSchoolChange()
+  }
 })
 
 async function onSchoolChange() {
@@ -1671,7 +1694,7 @@ async function runValidationCheck() {
   validating.value = true
   validationResult.value = null
   try {
-    const sid = effectiveSchoolId.value || auth.schoolId
+    const sid = effectiveSchoolId.value || activeSchool.value?.id || (schoolsList.value[0]?.id || '') || auth.schoolId || ''
     const syParts = schoolYearParts(validatorSchoolYear.value)
     let year = new Date().getFullYear()
     if (syParts) {
@@ -1679,18 +1702,78 @@ async function runValidationCheck() {
     }
     let entries = []
 
-    // Fetch existing monthly sheet entries first
+    // 1. Fetch existing monthly sheet entries first
     try {
-      const mRes = await auth.api(`/monthly?schoolId=${sid}&grade=${encodeURIComponent(validatorGrade.value)}&section=${encodeURIComponent(validatorSection.value)}&month=${validatorMonth.value}&year=${year}`)
+      const q = new URLSearchParams({
+        grade: validatorGrade.value,
+        section: validatorSection.value,
+        month: String(validatorMonth.value),
+        year: String(year)
+      })
+      if (sid) q.set('schoolId', sid)
+      const mRes = await auth.api(`/monthly?${q.toString()}`)
       if (mRes && Array.isArray(mRes.entries) && mRes.entries.length > 0) {
         entries = mRes.entries
       }
-    } catch {}
+    } catch (e) {
+      console.warn('Could not fetch existing monthly entries:', e)
+    }
 
-    // Fall back to class roster if no monthly sheet generated yet
+    // 2. Fall back to class roster if no monthly sheet generated yet
     if (!entries.length) {
       try {
-        const rosterRes = await auth.api(`/monthly/roster?schoolId=${sid}&grade=${encodeURIComponent(validatorGrade.value)}&section=${encodeURIComponent(validatorSection.value)}`)
+        const q = new URLSearchParams({
+          grade: validatorGrade.value,
+          section: validatorSection.value
+        })
+        if (sid) q.set('schoolId', sid)
+        const rosterRes = await auth.api(`/monthly/roster?${q.toString()}`)
+        if (Array.isArray(rosterRes) && rosterRes.length > 0) {
+          entries = rosterRes.map(s => ({
+            student_id: s.id,
+            name: s.name,
+            gender: s.gender,
+            lrn: s.lrn,
+            days: {}
+          }))
+        }
+      } catch (e) {
+        console.warn('Could not fetch monthly roster:', e)
+      }
+    }
+
+    // 3. Fall back to students endpoint if roster was empty
+    if (!entries.length) {
+      try {
+        const q = new URLSearchParams({
+          grade: validatorGrade.value,
+          section: validatorSection.value
+        })
+        if (sid) q.set('schoolId', sid)
+        const stRes = await auth.api(`/students?${q.toString()}`)
+        const list = Array.isArray(stRes) ? stRes : (stRes?.students || [])
+        if (Array.isArray(list) && list.length > 0) {
+          entries = list.map(s => ({
+            student_id: s.id,
+            name: s.name,
+            gender: s.gender,
+            lrn: s.lrn,
+            days: {}
+          }))
+        }
+      } catch (e) {
+        console.warn('Could not fetch students list fallback:', e)
+      }
+    }
+
+    // 4. Wide fallback without schoolId if sid was scoped too strictly
+    if (!entries.length && sid) {
+      try {
+        const q = new URLSearchParams({
+          grade: validatorGrade.value,
+          section: validatorSection.value
+        })
+        const rosterRes = await auth.api(`/monthly/roster?${q.toString()}`)
         if (Array.isArray(rosterRes) && rosterRes.length > 0) {
           entries = rosterRes.map(s => ({
             student_id: s.id,
@@ -1706,7 +1789,7 @@ async function runValidationCheck() {
     if (!entries.length) {
       validationResult.value = {
         valid: false,
-        errors: ['No learners enrolled or found in this section. Please enroll students first.'],
+        errors: [`No learners enrolled or found in ${validatorGrade.value} - ${validatorSection.value}. Please enroll students in Student Management or check class assignment.`],
         warnings: [],
         summary: { totalLearners: 0, maleCount: 0, femaleCount: 0 }
       }
