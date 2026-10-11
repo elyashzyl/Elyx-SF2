@@ -40,8 +40,23 @@
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
         </svg>
-        Grade Encoding (Class Record)
+        Grade Encoding (Summary)
       </button>
+
+      <router-link
+        to="/class-record"
+        class="tab-btn"
+        style="text-decoration: none;"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>
+          <line x1="9" y1="7" x2="15" y2="7"/>
+          <line x1="9" y1="11" x2="15" y2="11"/>
+          <line x1="9" y1="15" x2="13" y2="15"/>
+        </svg>
+        DepEd E-Class Record (Raw Scores)
+      </router-link>
 
       <button
         v-if="auth.isAdmin"
@@ -169,6 +184,13 @@
             <p class="sub-text">Enter raw scores. Initial grade and transmuted grade calculate automatically.</p>
           </div>
           <div class="card-header-actions">
+            <router-link
+              :to="{ path: '/class-record', query: { grade: filter.grade, section: filter.section, subjectId: filter.subjectId, quarter: filter.quarter, schoolYear: filter.schoolYear } }"
+              class="btn-secondary"
+              style="font-size: 0.78rem; text-decoration: none;"
+            >
+              Raw Scores E-Class Record &rarr;
+            </router-link>
             <button
               type="button"
               class="btn-primary"
@@ -1370,10 +1392,12 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { useToast } from '../composables/useToast'
 
+const route = useRoute()
 const auth = useAuthStore()
 const { addToast } = useToast()
 const notify = (msg, type = 'info') => addToast(msg, type)
@@ -1619,6 +1643,19 @@ onMounted(async () => {
     filter.grade = grades.value[0]
   }
   await loadSubjects()
+
+  // Handle incoming routing query parameters
+  if (route.query?.tab) {
+    activeTab.value = route.query.tab
+  }
+  if (route.query?.studentId) {
+    activeTab.value = 'form138'
+    form138Filter.studentId = route.query.studentId
+    if (route.query.schoolYear) form138Filter.schoolYear = route.query.schoolYear
+    if (route.query.grade) form138Filter.grade = route.query.grade
+    if (route.query.section) form138Filter.section = route.query.section
+    await loadForm138(route.query.studentId)
+  }
 })
 
 watch(currentSchool, (school) => {

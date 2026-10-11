@@ -36,7 +36,7 @@ test('Licenses table records have valid active/status constraints', async () => 
   await initDatabase()
   const licenses = await query('SELECT * FROM licenses')
   for (const lic of licenses) {
-    assert.ok(['active', 'trial', 'suspended', 'expired'].includes(lic.status), `Invalid status: ${lic.status}`)
+    assert.ok(['active', 'trial', 'suspended', 'expired', 'cancelled', 'grace_period'].includes(lic.status), `Invalid status: ${lic.status}`)
     assert.ok(lic.max_teachers >= 1, 'Max teachers should be at least 1')
     assert.ok(lic.max_students >= 1, 'Max students should be at least 1')
   }

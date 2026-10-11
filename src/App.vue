@@ -198,6 +198,18 @@
               </span>
               <span>Academic Grading (SF9)</span>
             </router-link>
+            <router-link to="/class-record" @click="closeSidebar">
+              <span class="nav-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>
+                  <line x1="9" y1="7" x2="15" y2="7"/>
+                  <line x1="9" y1="11" x2="15" y2="11"/>
+                  <line x1="9" y1="15" x2="13" y2="15"/>
+                </svg>
+              </span>
+              <span>E-Class Record (Raw Scores)</span>
+            </router-link>
           </div>
 
           <div v-if="auth.isAdmin" class="sidebar-section-title">People</div>

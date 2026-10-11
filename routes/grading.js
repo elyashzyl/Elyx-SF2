@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
 import { requireRole, resolveScopeSchool, audit } from './_context.js'
-import { calculateInitialGrade, transmuteGrade, determineHonors, getProficiencyLevel } from '../lib/grading.js'
+import { calculateInitialGrade, transmuteGrade, determineHonors, getProficiencyLevel, calculateDepEdComponent, calculateLearnerEClassRecord } from '../lib/grading.js'
 
 const router = Router()
 
@@ -330,6 +330,7 @@ router.get('/sheet', async (req, res) => {
         lrn: st.lrn || '',
         gender: st.gender || '',
         enrollment_status: st.enrollment_status || 'active',
+        raw_scores: g?.raw_scores || null,
         ww_score: g ? Number(g.ww_score) : 0,
         ww_total: g ? Number(g.ww_total) : 100,
         pt_score: g ? Number(g.pt_score) : 0,
@@ -355,6 +356,533 @@ router.get('/sheet', async (req, res) => {
   } catch (err) {
     console.error('Error fetching grade sheet:', err)
     res.status(500).json({ error: 'Failed to fetch grade sheet' })
+  }
+})
+
+// ── GET /api/grading/class-record ──
+// Fetch full DepEd E-Class Record (WW, PT, QA raw scores breakdown, HPS, and teacher-adjustable weights)
+router.get('/class-record', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+
+    const schoolId = scope.schoolId || ''
+    const gradeLevel = String(req.query.gradeLevel || '').trim()
+    const section = String(req.query.section || '').trim()
+    const subjectId = String(req.query.subjectId || '').trim()
+    const quarter = String(req.query.quarter || 'Q1').trim()
+    const schoolYear = String(req.query.schoolYear || '').trim()
+
+    if (!subjectId) {
+      return res.status(400).json({ error: 'Subject ID is required' })
+    }
+    if (!gradeLevel || !section) {
+      return res.status(400).json({ error: 'Grade level and section are required' })
+    }
+
+    const subjectRows = await query('SELECT * FROM grading_subjects WHERE id = ?', [subjectId])
+    if (!subjectRows.length) {
+      return res.status(404).json({ error: 'Subject not found' })
+    }
+    const subject = subjectRows[0]
+
+    // Fetch school
+    const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [schoolId])
+    const school = schoolRows[0] || {}
+    const quarterCount = Number(school.quarter_count) === 3 ? 3 : 4
+    const resolvedSchoolYear = schoolYear || school.school_year || '2026-2027'
+
+    if (quarterCount === 3 && quarter === 'Q4') {
+      return res.status(400).json({ error: '4th Quarter is not available for schools with 3 Quarters (Trimester)' })
+    }
+
+    // Fetch saved class record config or fall back to defaults
+    let configSql = `
+      SELECT * FROM class_record_configs
+      WHERE school_id = ? AND grade_level = ? AND section = ? AND subject_id = ? AND quarter = ?
+    `
+    const configParams = [schoolId, gradeLevel, section, subjectId, quarter]
+    if (resolvedSchoolYear) {
+      configSql += ' AND (school_year = ? OR school_year = "")'
+      configParams.push(resolvedSchoolYear)
+    }
+    configSql += ' ORDER BY created_at DESC LIMIT 1'
+
+    const configRows = await query(configSql, configParams)
+    let weightWw = subject.weight_ww !== undefined ? Number(subject.weight_ww) : 30
+    let weightPt = subject.weight_pt !== undefined ? Number(subject.weight_pt) : 50
+    let weightQa = subject.weight_qa !== undefined ? Number(subject.weight_qa) : 20
+    let wwHps = [20, 20, 25, 20, 15] // default 5 items, sum = 100
+    let ptHps = [25, 25, 25, 25]     // default 4 items, sum = 100
+    let qaHps = [50]                 // default 1 item, sum = 50
+
+    if (configRows.length > 0) {
+      const cfg = configRows[0]
+      if (typeof cfg.weight_ww === 'number' && typeof cfg.weight_pt === 'number' && typeof cfg.weight_qa === 'number') {
+        weightWw = Number(cfg.weight_ww)
+        weightPt = Number(cfg.weight_pt)
+        weightQa = Number(cfg.weight_qa)
+      }
+      try {
+        const parsedWw = JSON.parse(cfg.ww_hps)
+        if (Array.isArray(parsedWw) && parsedWw.length > 0) wwHps = parsedWw.map(n => Math.max(1, Number(n) || 1))
+      } catch {}
+      try {
+        const parsedPt = JSON.parse(cfg.pt_hps)
+        if (Array.isArray(parsedPt) && parsedPt.length > 0) ptHps = parsedPt.map(n => Math.max(1, Number(n) || 1))
+      } catch {}
+      try {
+        const parsedQa = JSON.parse(cfg.qa_hps)
+        if (Array.isArray(parsedQa) && parsedQa.length > 0) qaHps = parsedQa.map(n => Math.max(1, Number(n) || 1))
+      } catch {}
+    }
+
+    // Fetch enrolled students
+    const students = await query(
+      `SELECT id, name, lrn, gender, enrollment_status
+       FROM students
+       WHERE school_id = ? AND grade = ? AND section = ?
+       ORDER BY CASE WHEN UPPER(gender) = 'MALE' THEN 1 ELSE 2 END ASC, name ASC`,
+      [schoolId, gradeLevel, section]
+    )
+
+    // Fetch existing grades
+    let gradeQuery = 'SELECT * FROM learner_grades WHERE subject_id = ? AND quarter = ?'
+    const gradeParams = [subjectId, quarter]
+    if (schoolYear) {
+      gradeQuery += ' AND school_year = ?'
+      gradeParams.push(schoolYear)
+    }
+
+    const existingGrades = await query(gradeQuery, gradeParams)
+    const gradeMap = new Map()
+    for (const g of existingGrades) {
+      gradeMap.set(g.student_id, g)
+    }
+
+    // Build learners list
+    const learners = students.map(st => {
+      const g = gradeMap.get(st.id)
+      let rawObj = { ww: [], pt: [], qa: [] }
+      if (g?.raw_scores) {
+        try {
+          const parsed = JSON.parse(g.raw_scores)
+          if (parsed && typeof parsed === 'object') {
+            rawObj.ww = Array.isArray(parsed.ww) ? parsed.ww : []
+            rawObj.pt = Array.isArray(parsed.pt) ? parsed.pt : []
+            rawObj.qa = Array.isArray(parsed.qa) ? parsed.qa : []
+          }
+        } catch {}
+      }
+
+      const wwScores = wwHps.map((_, idx) => (rawObj.ww[idx] !== undefined ? Number(rawObj.ww[idx]) : 0))
+      const ptScores = ptHps.map((_, idx) => (rawObj.pt[idx] !== undefined ? Number(rawObj.pt[idx]) : 0))
+      const qaScores = qaHps.map((_, idx) => (rawObj.qa[idx] !== undefined ? Number(rawObj.qa[idx]) : 0))
+
+      const calc = calculateLearnerEClassRecord({
+        wwScores, wwHps, weightWw,
+        ptScores, ptHps, weightPt,
+        qaScores, qaHps, weightQa
+      })
+
+      return {
+        id: st.id,
+        name: st.name,
+        lrn: st.lrn || '',
+        gender: st.gender || '',
+        enrollment_status: st.enrollment_status || 'active',
+        ww_scores: wwScores,
+        ww_total: calc.ww.totalRaw,
+        ww_hps_total: calc.ww.totalHps,
+        ww_ps: calc.ww.ps,
+        ww_ws: calc.ww.ws,
+        pt_scores: ptScores,
+        pt_total: calc.pt.totalRaw,
+        pt_hps_total: calc.pt.totalHps,
+        pt_ps: calc.pt.ps,
+        pt_ws: calc.pt.ws,
+        qa_scores: qaScores,
+        qa_total: calc.qa.totalRaw,
+        qa_hps_total: calc.qa.totalHps,
+        qa_ps: calc.qa.ps,
+        qa_ws: calc.qa.ws,
+        initial_grade: calc.initialGrade,
+        transmuted_grade: calc.transmutedGrade,
+        remarks: calc.remarks,
+        is_locked: g ? Number(g.is_locked) : 0
+      }
+    })
+
+    res.json({
+      success: true,
+      subject,
+      school,
+      quarterCount,
+      quarter,
+      schoolYear: resolvedSchoolYear,
+      gradeLevel,
+      section,
+      config: {
+        weight_ww: weightWw,
+        weight_pt: weightPt,
+        weight_qa: weightQa,
+        ww_hps: wwHps,
+        pt_hps: ptHps,
+        qa_hps: qaHps
+      },
+      students: learners
+    })
+  } catch (err) {
+    console.error('Error fetching class record:', err)
+    res.status(500).json({ error: 'Failed to fetch class record' })
+  }
+})
+
+// ── POST /api/grading/class-record/save ──
+// Save DepEd E-Class Record with custom weights, item HPS, and learner raw scores
+router.post('/class-record/save', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+
+    const scope = await resolveScopeSchool(req, res, req.body?.schoolId)
+    if (!scope) return
+
+    const schoolId = scope.schoolId || ''
+    const gradeLevel = String(req.body?.gradeLevel || '').trim()
+    const section = String(req.body?.section || '').trim()
+    const subjectId = String(req.body?.subjectId || '').trim()
+    const quarter = String(req.body?.quarter || 'Q1').trim()
+    const schoolYear = String(req.body?.schoolYear || '').trim()
+
+    const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [schoolId])
+    const school = schoolRows[0] || {}
+    const quarterCount = Number(school.quarter_count) === 3 ? 3 : 4
+    const resolvedSchoolYear = schoolYear || school.school_year || '2026-2027'
+
+    if (quarterCount === 3 && quarter === 'Q4') {
+      return res.status(400).json({ error: '4th Quarter is not available for schools with 3 Quarters (Trimester)' })
+    }
+
+    const weightWw = parseInt(req.body?.weightWw, 10)
+    const weightPt = parseInt(req.body?.weightPt, 10)
+    const weightQa = parseInt(req.body?.weightQa, 10)
+
+    if (isNaN(weightWw) || isNaN(weightPt) || isNaN(weightQa) || (weightWw + weightPt + weightQa) !== 100) {
+      return res.status(400).json({
+        error: `Assessment weights must total exactly 100% (currently ${weightWw + weightPt + weightQa}%)`
+      })
+    }
+
+    const wwHps = Array.isArray(req.body?.wwHps) && req.body.wwHps.length > 0
+      ? req.body.wwHps.map(v => Math.max(1, Number(v) || 1))
+      : [20, 20, 25, 20, 15]
+    const ptHps = Array.isArray(req.body?.ptHps) && req.body.ptHps.length > 0
+      ? req.body.ptHps.map(v => Math.max(1, Number(v) || 1))
+      : [25, 25, 25, 25]
+    const qaHps = Array.isArray(req.body?.qaHps) && req.body.qaHps.length > 0
+      ? req.body.qaHps.map(v => Math.max(1, Number(v) || 1))
+      : [50]
+
+    const learners = Array.isArray(req.body?.learners) ? req.body.learners : []
+
+    const subjectRows = await query('SELECT * FROM grading_subjects WHERE id = ?', [subjectId])
+    if (!subjectRows.length) return res.status(404).json({ error: 'Subject not found' })
+    const subject = subjectRows[0]
+
+    // 1. Upsert class_record_configs
+    const existingConfig = (await query(
+      `SELECT id FROM class_record_configs
+       WHERE school_id = ? AND grade_level = ? AND section = ? AND subject_id = ? AND quarter = ? AND school_year = ?`,
+      [schoolId, gradeLevel, section, subjectId, quarter, resolvedSchoolYear]
+    ))[0]
+
+    if (existingConfig) {
+      await run(
+        `UPDATE class_record_configs SET
+           weight_ww = ?, weight_pt = ?, weight_qa = ?,
+           ww_hps = ?, pt_hps = ?, qa_hps = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps), existingConfig.id]
+      )
+    } else {
+      const cfgId = uuidv4()
+      await run(
+        `INSERT INTO class_record_configs
+           (id, school_id, grade_level, section, subject_id, school_year, quarter, weight_ww, weight_pt, weight_qa, ww_hps, pt_hps, qa_hps)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [cfgId, schoolId, gradeLevel, section, subjectId, resolvedSchoolYear, quarter, weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps)]
+      )
+    }
+
+    // 2. Upsert learner_grades
+    let savedCount = 0
+    for (const item of learners) {
+      const studentId = String(item.studentId || item.id || '').trim()
+      if (!studentId) continue
+
+      const wwScores = wwHps.map((max, idx) => Math.min(max, Math.max(0, Number(item.wwScores?.[idx] ?? item.ww_scores?.[idx]) || 0)))
+      const ptScores = ptHps.map((max, idx) => Math.min(max, Math.max(0, Number(item.ptScores?.[idx] ?? item.pt_scores?.[idx]) || 0)))
+      const qaScores = qaHps.map((max, idx) => Math.min(max, Math.max(0, Number(item.qaScores?.[idx] ?? item.qa_scores?.[idx]) || 0)))
+
+      const calc = calculateLearnerEClassRecord({
+        wwScores, wwHps, weightWw,
+        ptScores, ptHps, weightPt,
+        qaScores, qaHps, weightQa
+      })
+
+      const rawScoresJson = JSON.stringify({ ww: wwScores, pt: ptScores, qa: qaScores })
+      const isLocked = item.isLocked ? 1 : 0
+
+      const existing = (await query(
+        'SELECT id, is_locked FROM learner_grades WHERE student_id = ? AND subject_id = ? AND quarter = ? AND school_year = ?',
+        [studentId, subjectId, quarter, resolvedSchoolYear]
+      ))[0]
+
+      if (existing) {
+        if (existing.is_locked && !['superadmin', 'admin'].includes(me.role)) {
+          continue
+        }
+        await run(
+          `UPDATE learner_grades SET
+             ww_score = ?, ww_total = ?, pt_score = ?, pt_total = ?,
+             qa_score = ?, qa_total = ?, initial_grade = ?, transmuted_grade = ?,
+             remarks = ?, raw_scores = ?, is_locked = ?, encoded_by = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [calc.ww.totalRaw, calc.ww.totalHps, calc.pt.totalRaw, calc.pt.totalHps,
+           calc.qa.totalRaw, calc.qa.totalHps, calc.initialGrade, calc.transmutedGrade,
+           calc.remarks, rawScoresJson, isLocked, me.id || '', existing.id]
+        )
+      } else {
+        const gradeId = uuidv4()
+        await run(
+          `INSERT INTO learner_grades
+             (id, school_id, student_id, subject_id, school_year, quarter,
+              ww_score, ww_total, pt_score, pt_total, qa_score, qa_total,
+              initial_grade, transmuted_grade, remarks, raw_scores, is_locked, encoded_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [gradeId, schoolId, studentId, subjectId, resolvedSchoolYear, quarter,
+           calc.ww.totalRaw, calc.ww.totalHps, calc.pt.totalRaw, calc.pt.totalHps,
+           calc.qa.totalRaw, calc.qa.totalHps, calc.initialGrade, calc.transmutedGrade,
+           calc.remarks, rawScoresJson, isLocked, me.id || '']
+        )
+      }
+      savedCount++
+    }
+
+    await audit(
+      me,
+      'save_class_record',
+      { type: 'subject', id: subjectId, name: subject.subject_name, schoolId },
+      `Saved E-Class Record with ${savedCount} raw score entries for ${subject.subject_name} (${gradeLevel}-${section}, ${quarter} SY ${resolvedSchoolYear})`
+    )
+
+    res.json({
+      success: true,
+      message: `Successfully saved ${savedCount} learner scores and updated assessment weights`,
+      count: savedCount
+    })
+  } catch (err) {
+    console.error('Error saving class record:', err)
+    res.status(500).json({ error: 'Failed to save class record' })
+  }
+})
+
+// ── GET /api/grading/class-record/export ──
+// Export DepEd Electronic Class Record as standard CSV spreadsheet
+router.get('/class-record/export', async (req, res) => {
+  try {
+    const { me, error } = await requireRole(req, res, 'superadmin', 'admin', 'teacher')
+    if (error) return
+
+    const scope = await resolveScopeSchool(req, res, req.query.schoolId)
+    if (!scope) return
+
+    const schoolId = scope.schoolId || ''
+    const gradeLevel = String(req.query.gradeLevel || '').trim()
+    const section = String(req.query.section || '').trim()
+    const subjectId = String(req.query.subjectId || '').trim()
+    const quarter = String(req.query.quarter || 'Q1').trim()
+    const schoolYear = String(req.query.schoolYear || '').trim()
+
+    if (!subjectId || !gradeLevel || !section) {
+      return res.status(400).json({ error: 'Subject ID, grade level, and section are required' })
+    }
+
+    const subjectRows = await query('SELECT * FROM grading_subjects WHERE id = ?', [subjectId])
+    if (!subjectRows.length) return res.status(404).json({ error: 'Subject not found' })
+    const subject = subjectRows[0]
+
+    const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [schoolId])
+    const school = schoolRows[0] || {}
+    const quarterCount = Number(school.quarter_count) === 3 ? 3 : 4
+    const resolvedSchoolYear = schoolYear || school.school_year || '2026-2027'
+
+    if (quarterCount === 3 && quarter === 'Q4') {
+      return res.status(400).json({ error: '4th Quarter is not available for schools with 3 Quarters (Trimester)' })
+    }
+
+    // Fetch config
+    let configSql = `
+      SELECT * FROM class_record_configs
+      WHERE school_id = ? AND grade_level = ? AND section = ? AND subject_id = ? AND quarter = ?
+    `
+    const configParams = [schoolId, gradeLevel, section, subjectId, quarter]
+    if (resolvedSchoolYear) {
+      configSql += ' AND (school_year = ? OR school_year = "")'
+      configParams.push(resolvedSchoolYear)
+    }
+    configSql += ' ORDER BY created_at DESC LIMIT 1'
+
+    const configRows = await query(configSql, configParams)
+    let weightWw = subject.weight_ww !== undefined ? Number(subject.weight_ww) : 30
+    let weightPt = subject.weight_pt !== undefined ? Number(subject.weight_pt) : 50
+    let weightQa = subject.weight_qa !== undefined ? Number(subject.weight_qa) : 20
+    let wwHps = [20, 20, 25, 20, 15]
+    let ptHps = [25, 25, 25, 25]
+    let qaHps = [50]
+
+    if (configRows.length > 0) {
+      const cfg = configRows[0]
+      weightWw = Number(cfg.weight_ww) || weightWw
+      weightPt = Number(cfg.weight_pt) || weightPt
+      weightQa = Number(cfg.weight_qa) || weightQa
+      try {
+        const parsedWw = JSON.parse(cfg.ww_hps)
+        if (Array.isArray(parsedWw) && parsedWw.length > 0) wwHps = parsedWw.map(n => Math.max(1, Number(n) || 1))
+      } catch {}
+      try {
+        const parsedPt = JSON.parse(cfg.pt_hps)
+        if (Array.isArray(parsedPt) && parsedPt.length > 0) ptHps = parsedPt.map(n => Math.max(1, Number(n) || 1))
+      } catch {}
+      try {
+        const parsedQa = JSON.parse(cfg.qa_hps)
+        if (Array.isArray(parsedQa) && parsedQa.length > 0) qaHps = parsedQa.map(n => Math.max(1, Number(n) || 1))
+      } catch {}
+    }
+
+    const students = await query(
+      `SELECT id, name, lrn, gender, enrollment_status
+       FROM students
+       WHERE school_id = ? AND grade = ? AND section = ?
+       ORDER BY CASE WHEN UPPER(gender) = 'MALE' THEN 1 ELSE 2 END ASC, name ASC`,
+      [schoolId, gradeLevel, section]
+    )
+
+    let gradeQuery = 'SELECT * FROM learner_grades WHERE subject_id = ? AND quarter = ?'
+    const gradeParams = [subjectId, quarter]
+    if (resolvedSchoolYear) {
+      gradeQuery += ' AND (school_year = ? OR school_year = "")'
+      gradeParams.push(resolvedSchoolYear)
+    }
+    const existingGrades = await query(gradeQuery, gradeParams)
+    const gradeMap = new Map()
+    for (const g of existingGrades) {
+      gradeMap.set(g.student_id, g)
+    }
+
+    function esc(val) {
+      if (val === null || val === undefined) return '""'
+      const str = String(val)
+      return `"${str.replace(/"/g, '""')}"`
+    }
+
+    const rows = []
+    rows.push([esc('DEPARTMENT OF EDUCATION - ELECTRONIC CLASS RECORD (E-CLASS RECORD)')])
+    rows.push([esc('DepEd Order No. 8, s. 2015 Policy Guidelines on Classroom Assessment for K to 12 Basic Education')])
+    rows.push([])
+    rows.push([esc('School:'), esc(school.name || ''), esc('School ID:'), esc(school.school_id || school.short || '')])
+    rows.push([esc('Grade & Section:'), esc(`${gradeLevel} - ${section}`), esc('Quarter:'), esc(quarter), esc('School Year:'), esc(schoolYear || '2026-2027')])
+    rows.push([esc('Subject:'), esc(subject.subject_name), esc('Subject Code:'), esc(subject.subject_code || '')])
+    rows.push([
+      esc('Assessment Weights:'),
+      esc(`Written Works: ${weightWw}%`),
+      esc(`Performance Tasks: ${weightPt}%`),
+      esc(`Quarterly Assessment: ${weightQa}%`),
+      esc(`Total Weight: ${weightWw + weightPt + weightQa}%`)
+    ])
+    rows.push([])
+
+    // Headers
+    const headerRow = [esc('#'), esc("LEARNER'S FULL NAME"), esc('DEPED LRN'), esc('SEX')]
+    wwHps.forEach((_, idx) => headerRow.push(esc(`WW ${idx + 1}`)))
+    headerRow.push(esc('TOTAL WW'), esc('HPS WW'), esc('PS WW (%)'), esc(`WS WW (${weightWw}%)`))
+    ptHps.forEach((_, idx) => headerRow.push(esc(`PT ${idx + 1}`)))
+    headerRow.push(esc('TOTAL PT'), esc('HPS PT'), esc('PS PT (%)'), esc(`WS PT (${weightPt}%)`))
+    qaHps.forEach((_, idx) => headerRow.push(esc(`QA ${idx + 1}`)))
+    headerRow.push(esc('TOTAL QA'), esc('HPS QA'), esc('PS QA (%)'), esc(`WS QA (${weightQa}%)`))
+    headerRow.push(esc('INITIAL GRADE'), esc('QUARTER GRADE'), esc('REMARKS'))
+    rows.push(headerRow)
+
+    // HPS Row
+    const hpsRow = [esc(''), esc('HIGHEST POSSIBLE SCORE (HPS)'), esc(''), esc('')]
+    const wwHpsTotal = wwHps.reduce((a, b) => a + b, 0)
+    wwHps.forEach(h => hpsRow.push(esc(h)))
+    hpsRow.push(esc(wwHpsTotal), esc(wwHpsTotal), esc('100.00'), esc(Number(weightWw).toFixed(2)))
+    const ptHpsTotal = ptHps.reduce((a, b) => a + b, 0)
+    ptHps.forEach(h => hpsRow.push(esc(h)))
+    hpsRow.push(esc(ptHpsTotal), esc(ptHpsTotal), esc('100.00'), esc(Number(weightPt).toFixed(2)))
+    const qaHpsTotal = qaHps.reduce((a, b) => a + b, 0)
+    qaHps.forEach(h => hpsRow.push(esc(h)))
+    hpsRow.push(esc(qaHpsTotal), esc(qaHpsTotal), esc('100.00'), esc(Number(weightQa).toFixed(2)))
+    hpsRow.push(esc('100.00'), esc('100'), esc('Passed'))
+    rows.push(hpsRow)
+
+    const males = students.filter(s => String(s.gender).toUpperCase() === 'MALE')
+    const females = students.filter(s => String(s.gender).toUpperCase() !== 'MALE')
+
+    function appendLearners(list, groupLabel) {
+      rows.push([esc(`--- ${groupLabel} (${list.length}) ---`)])
+      list.forEach((st, idx) => {
+        const g = gradeMap.get(st.id)
+        let rawObj = { ww: [], pt: [], qa: [] }
+        if (g?.raw_scores) {
+          try {
+            const parsed = JSON.parse(g.raw_scores)
+            if (parsed && typeof parsed === 'object') {
+              rawObj.ww = Array.isArray(parsed.ww) ? parsed.ww : []
+              rawObj.pt = Array.isArray(parsed.pt) ? parsed.pt : []
+              rawObj.qa = Array.isArray(parsed.qa) ? parsed.qa : []
+            }
+          } catch {}
+        }
+        const wwScores = wwHps.map((_, i) => (rawObj.ww[i] !== undefined ? Number(rawObj.ww[i]) : 0))
+        const ptScores = ptHps.map((_, i) => (rawObj.pt[i] !== undefined ? Number(rawObj.pt[i]) : 0))
+        const qaScores = qaHps.map((_, i) => (rawObj.qa[i] !== undefined ? Number(rawObj.qa[i]) : 0))
+
+        const calc = calculateLearnerEClassRecord({
+          wwScores, wwHps, weightWw,
+          ptScores, ptHps, weightPt,
+          qaScores, qaHps, weightQa
+        })
+
+        const r = [esc(idx + 1), esc(st.name), esc(st.lrn || ''), esc(st.gender || '')]
+        wwScores.forEach(s => r.push(esc(s)))
+        r.push(esc(calc.ww.totalRaw), esc(calc.ww.totalHps), esc(calc.ww.ps.toFixed(2)), esc(calc.ww.ws.toFixed(2)))
+        ptScores.forEach(s => r.push(esc(s)))
+        r.push(esc(calc.pt.totalRaw), esc(calc.pt.totalHps), esc(calc.pt.ps.toFixed(2)), esc(calc.pt.ws.toFixed(2)))
+        qaScores.forEach(s => r.push(esc(s)))
+        r.push(esc(calc.qa.totalRaw), esc(calc.qa.totalHps), esc(calc.qa.ps.toFixed(2)), esc(calc.qa.ws.toFixed(2)))
+        r.push(esc(calc.initialGrade.toFixed(2)), esc(calc.transmutedGrade), esc(calc.remarks))
+        rows.push(r)
+      })
+    }
+
+    appendLearners(males, 'MALE LEARNERS')
+    appendLearners(females, 'FEMALE LEARNERS')
+
+    const csvContent = '\uFEFF' + rows.map(r => r.join(',')).join('\r\n')
+    const filename = `EClassRecord_${gradeLevel.replace(/\s+/g, '_')}_${section.replace(/\s+/g, '_')}_${subject.subject_code || 'SUB'}_${quarter}.csv`
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(csvContent)
+  } catch (err) {
+    console.error('Error exporting class record:', err)
+    res.status(500).json({ error: 'Failed to export class record' })
   }
 })
 

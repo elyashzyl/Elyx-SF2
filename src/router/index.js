@@ -108,6 +108,12 @@ const routes = [
     name: 'Grading',
     component: () => import('../views/Grading.vue'),
     meta: { role: ['superadmin', 'admin', 'teacher'] }
+  },
+  {
+    path: '/class-record',
+    name: 'ClassRecord',
+    component: () => import('../views/ClassRecord.vue'),
+    meta: { role: ['superadmin', 'admin', 'teacher'] }
   }
 ]
 
