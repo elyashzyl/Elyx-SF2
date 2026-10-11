@@ -1,7 +1,16 @@
 <template>
   <div class="class-record-page">
+    <!-- Breadcrumb -->
+    <div class="breadcrumb no-print">
+      <router-link to="/grading">Academic</router-link>
+      <span class="sep">/</span>
+      <router-link to="/grading">Grading &amp; SF9</router-link>
+      <span class="sep">/</span>
+      <span class="current">DepEd E-Class Record (Raw Scores)</span>
+    </div>
+
     <!-- Header -->
-    <div class="page-header class-record-header">
+    <div class="page-header class-record-header no-print">
       <div class="page-header-text">
         <div class="dashboard-header-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -14,7 +23,7 @@
         </div>
         <div>
           <h1>DepEd E-Class Record (Raw Scores)</h1>
-          <p>DepEd Order No. 8, s. 2015 Electronic Class Record with adjustable component percentages, item-level raw scores, Percentage Scores (PS), and Weighted Scores (WS).</p>
+          <p>Official DepEd Order No. 8, s. 2015 Electronic Class Record with adjustable component percentages, item-level raw scores, Percentage Scores (PS), Weighted Scores (WS), and live transmutation.</p>
         </div>
       </div>
 
@@ -26,7 +35,7 @@
           </svg>
           <span class="campus-name">{{ currentSchool.name }}</span>
           <span class="campus-badge" v-if="currentSchool.school_id">ID: {{ currentSchool.school_id }}</span>
-          <span class="campus-badge badge-trimester" v-if="activeQuarterCount === 3">3 Quarters</span>
+          <span class="campus-badge badge-trimester" v-if="activeQuarterCount === 3">3 Quarters (Trimester)</span>
         </div>
 
         <!-- Superadmin School Selector -->
@@ -49,8 +58,22 @@
       </div>
     </div>
 
+    <!-- License Lock Banner -->
+    <div v-if="isLicenseLocked" class="license-locked-card no-print">
+      <div class="lock-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div class="lock-copy">
+        <h3>School Workspace Locked</h3>
+        <p>This school's ElyTrack subscription license is currently {{ licenseStatus }}. Saving and modifying class records is temporarily restricted. Please contact your school administrator or ely.ashzyl@gmail.com to restore access.</p>
+      </div>
+    </div>
+
     <!-- Filter Toolbar -->
-    <div class="card toolbar-card">
+    <div class="card toolbar-card no-print">
       <div class="toolbar-grid">
         <div class="form-group">
           <label>Grade Level</label>
@@ -62,7 +85,7 @@
 
         <div class="form-group">
           <label>Section</label>
-          <select v-model="filter.section" class="form-select">
+          <select v-model="filter.section" @change="onSectionChange" class="form-select">
             <option value="">Select Section</option>
             <option v-for="s in availableSections" :key="s" :value="s">{{ s }}</option>
           </select>
@@ -70,7 +93,7 @@
 
         <div class="form-group">
           <label>Subject / Learning Area</label>
-          <select v-model="filter.subjectId" class="form-select">
+          <select v-model="filter.subjectId" @change="onSubjectChange" class="form-select">
             <option value="">Select Subject</option>
             <option v-for="sub in subjectList" :key="sub.id" :value="sub.id">
               {{ sub.subject_name }} ({{ sub.subject_code || 'SUB' }})
@@ -80,7 +103,7 @@
 
         <div class="form-group">
           <label>Quarter / Term</label>
-          <select v-model="filter.quarter" class="form-select">
+          <select v-model="filter.quarter" @change="onQuarterChange" class="form-select">
             <option v-for="q in availableQuarterOptions" :key="q.value" :value="q.value">
               {{ q.label }}
             </option>
@@ -89,13 +112,13 @@
 
         <div class="form-group">
           <label>School Year</label>
-          <input v-model="filter.schoolYear" class="form-input" placeholder="e.g. 2026-2027" />
+          <input v-model="filter.schoolYear" @change="onSchoolYearChange" class="form-input" placeholder="e.g. 2026-2027" />
         </div>
 
         <div class="toolbar-actions">
           <button
             type="button"
-            class="btn-primary"
+            class="btn-primary load-btn"
             :disabled="loadingRecord || !filter.grade || !filter.section || !filter.subjectId"
             @click="loadClassRecord"
           >
@@ -103,7 +126,7 @@
               <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
             </svg>
-            {{ loadingRecord ? 'Loading Record…' : 'Load E-Class Record' }}
+            <span>{{ loadingRecord ? 'Loading…' : 'Load E-Class Record' }}</span>
           </button>
         </div>
       </div>
@@ -111,19 +134,45 @@
 
     <!-- Active Class Record Loaded -->
     <div v-if="activeSubject && students.length" class="class-record-body">
+      <!-- Printable DepEd Header (Visible only on Print) -->
+      <div class="print-header-only">
+        <div class="print-school-name">{{ currentSchool?.name || 'Department of Education' }}</div>
+        <div class="print-school-sub">School ID: {{ currentSchool?.school_id || '—' }} &bull; S.Y. {{ filter.schoolYear }}</div>
+        <h2 class="print-title">ELECTRONIC CLASS RECORD (DEPED ORDER NO. 8, S. 2015)</h2>
+        <div class="print-meta-grid">
+          <div><strong>Grade &amp; Section:</strong> {{ filter.grade }} - {{ filter.section }}</div>
+          <div><strong>Subject / Learning Area:</strong> {{ activeSubject?.subject_name }} ({{ activeSubject?.subject_code || 'SUB' }})</div>
+          <div><strong>Quarter:</strong> {{ filter.quarter }}</div>
+          <div><strong>Weights:</strong> WW: {{ weights.ww }}% | PT: {{ weights.pt }}% | QA: {{ weights.qa }}%</div>
+        </div>
+      </div>
+
       <!-- Editable Assessment Weights & DepEd Presets Panel -->
-      <div class="card weights-panel-card">
+      <div class="card weights-panel-card no-print">
         <div class="weights-panel-header">
           <div>
-            <h3>Assessment Weights &amp; Percentage Distribution</h3>
+            <div class="weights-header-title-row">
+              <h3>Assessment Weights &amp; Percentage Distribution</h3>
+              <span class="deped-order-badge">DepEd Order No. 8, s. 2015</span>
+            </div>
             <p class="sub-text">
               Teachers can adjust the component percentages for this class record. Total must equal <strong>100%</strong>.
             </p>
           </div>
 
-          <div class="weights-total-badge" :class="totalWeight === 100 ? 'total-valid' : 'total-invalid'">
-            <span v-if="totalWeight === 100">Total: 100% ✓ Valid Weight</span>
-            <span v-else>Total: {{ totalWeight }}% ⚠ Must equal 100%</span>
+          <div class="weights-header-right">
+            <div class="weights-total-badge" :class="totalWeight === 100 ? 'total-valid' : 'total-invalid'">
+              <span v-if="totalWeight === 100">Total: 100% ✓ Valid Weight</span>
+              <span v-else>Total: {{ totalWeight }}% ⚠ Must equal 100%</span>
+            </div>
+
+            <div v-if="isModified" class="unsaved-badge" title="You have unsaved changes in raw scores or weights">
+              <span class="dot-unsaved"></span>
+              <span>Unsaved Changes</span>
+            </div>
+            <div v-else class="saved-badge">
+              <span>✓ All saved</span>
+            </div>
           </div>
         </div>
 
@@ -140,7 +189,7 @@
                   min="0"
                   max="100"
                   v-model.number="weights.ww"
-                  @input="recalculateAll"
+                  @input="onWeightInput"
                   class="weight-input"
                 />
                 <span class="unit">%</span>
@@ -158,7 +207,7 @@
                   min="0"
                   max="100"
                   v-model.number="weights.pt"
-                  @input="recalculateAll"
+                  @input="onWeightInput"
                   class="weight-input"
                 />
                 <span class="unit">%</span>
@@ -176,7 +225,7 @@
                   min="0"
                   max="100"
                   v-model.number="weights.qa"
-                  @input="recalculateAll"
+                  @input="onWeightInput"
                   class="weight-input"
                 />
                 <span class="unit">%</span>
@@ -219,41 +268,39 @@
       </div>
 
       <!-- DepEd Formula Reference Guide Card -->
-      <div class="card deped-formula-card" style="margin-bottom: 16px; padding: 14px 20px;">
-        <div class="formula-card-header" @click="showFormulaGuide = !showFormulaGuide" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary);">
+      <div class="card deped-formula-card no-print">
+        <div class="formula-card-header" @click="showFormulaGuide = !showFormulaGuide">
+          <div class="formula-header-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
-            <h3 style="margin: 0; font-size: 0.92rem; font-weight: 700; color: var(--foreground);">
-              DepEd Order No. 8, s. 2015 Assessment Reference &amp; Computation Formulas
-            </h3>
+            <h3>DepEd Order No. 8, s. 2015 Assessment Reference &amp; Computation Formulas</h3>
           </div>
           <button type="button" class="btn-xs btn-outline">{{ showFormulaGuide ? 'Hide Guide' : 'Show Guide' }}</button>
         </div>
-        <div v-if="showFormulaGuide" class="formula-card-body" style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; font-size: 0.8rem;">
-          <div class="formula-box" style="padding: 12px 14px; background: var(--secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <strong style="color: var(--primary); display: block; margin-bottom: 4px;">1. Percentage Score (PS)</strong>
-            <code style="font-size: 0.76rem; background: var(--card); padding: 2px 6px; border-radius: 4px; display: inline-block;">PS = (Learner Total Raw / HPS) × 100%</code>
-            <p style="margin: 6px 0 0; color: var(--muted-foreground); font-size: 0.74rem;">Computed independently for Written Works, Performance Tasks, and Quarterly Exam.</p>
+        <div v-if="showFormulaGuide" class="formula-card-body">
+          <div class="formula-box">
+            <strong class="formula-box-title">1. Percentage Score (PS)</strong>
+            <code>PS = (Learner Total Raw / HPS) &times; 100%</code>
+            <p>Computed independently for Written Works, Performance Tasks, and Quarterly Exam.</p>
           </div>
-          <div class="formula-box" style="padding: 12px 14px; background: var(--secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <strong style="color: var(--primary); display: block; margin-bottom: 4px;">2. Weighted Score (WS)</strong>
-            <code style="font-size: 0.76rem; background: var(--card); padding: 2px 6px; border-radius: 4px; display: inline-block;">WS = PS × Component Weight (%)</code>
-            <p style="margin: 6px 0 0; color: var(--muted-foreground); font-size: 0.74rem;">E.g., with 40% weight, 94.00% PS yields a Weighted Score of 37.60.</p>
+          <div class="formula-box">
+            <strong class="formula-box-title">2. Weighted Score (WS)</strong>
+            <code>WS = PS &times; Component Weight (%)</code>
+            <p>E.g., with 40% weight, 94.00% PS yields a Weighted Score of 37.60.</p>
           </div>
-          <div class="formula-box" style="padding: 12px 14px; background: var(--secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <strong style="color: var(--primary); display: block; margin-bottom: 4px;">3. Initial &amp; Transmuted Grade</strong>
-            <code style="font-size: 0.76rem; background: var(--card); padding: 2px 6px; border-radius: 4px; display: inline-block;">Initial Grade = WS(WW) + WS(PT) + WS(QA)</code>
-            <p style="margin: 6px 0 0; color: var(--muted-foreground); font-size: 0.74rem;">Transmuted via official DepEd Order No. 8 Transmutation Table (60–100; passing grade is ≥75).</p>
+          <div class="formula-box">
+            <strong class="formula-box-title">3. Initial &amp; Transmuted Grade</strong>
+            <code>Initial Grade = WS(WW) + WS(PT) + WS(QA)</code>
+            <p>Transmuted via official DepEd Order No. 8 Transmutation Table (60&ndash;100; passing grade is &ge; 75). Synchronizes with SF9.</p>
           </div>
         </div>
       </div>
 
       <!-- Item Columns Management Toolbar -->
-      <div class="card items-setup-card">
+      <div class="card items-setup-card no-print">
         <div class="items-setup-content">
           <div class="items-group-ctrl">
             <span class="ctrl-title">Written Works:</span>
@@ -305,13 +352,27 @@
           </div>
 
           <div class="items-right-actions">
+            <button type="button" class="btn-secondary btn-sm" @click="printClassRecord" title="Print DepEd Official Class Record">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+              </svg>
+              <span>Print</span>
+            </button>
             <button type="button" class="btn-secondary btn-sm" @click="exportCsv" :disabled="exportingCsv">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <span>Export DepEd CSV</span>
+              <span>Export CSV</span>
             </button>
-            <button type="button" class="btn-primary btn-sm" @click="saveClassRecord" :disabled="savingRecord || totalWeight !== 100">
+            <button
+              type="button"
+              class="btn-primary btn-sm"
+              @click="saveClassRecord"
+              :disabled="savingRecord || totalWeight !== 100 || isLicenseLocked"
+              :title="isLicenseLocked ? 'Workspace is locked' : (totalWeight !== 100 ? 'Weights must equal 100%' : 'Save and synchronize grades with Form 138')"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                 <polyline points="17 21 17 13 7 13 7 21"/>
@@ -328,7 +389,7 @@
         <div class="table-responsive eclass-table-container">
           <table class="data-table eclass-table">
             <thead>
-              <!-- Header Row 1: Groups -->
+              <!-- Header Row 1: Component Groups -->
               <tr class="header-group-row">
                 <th rowspan="2" class="sticky-col col-idx">#</th>
                 <th rowspan="2" class="sticky-col col-name">Learner's Full Name</th>
@@ -339,7 +400,7 @@
                 <th :colspan="wwHps.length + 3" class="group-header group-ww">
                   <div class="group-header-inner">
                     <span>Written Works ({{ weights.ww }}%) &bull; {{ wwHps.length }} Items</span>
-                    <button type="button" @click="addWwItem(20)" class="btn-group-add" title="Add another Written Work item">+ Add WW</button>
+                    <button type="button" @click="addWwItem(20)" class="btn-group-add no-print" title="Add another Written Work item">+ Add WW</button>
                   </div>
                 </th>
 
@@ -347,7 +408,7 @@
                 <th :colspan="ptHps.length + 3" class="group-header group-pt">
                   <div class="group-header-inner">
                     <span>Performance Tasks ({{ weights.pt }}%) &bull; {{ ptHps.length }} Items</span>
-                    <button type="button" @click="addPtItem(25)" class="btn-group-add" title="Add another Performance Task item">+ Add PT</button>
+                    <button type="button" @click="addPtItem(25)" class="btn-group-add no-print" title="Add another Performance Task item">+ Add PT</button>
                   </div>
                 </th>
 
@@ -355,14 +416,14 @@
                 <th :colspan="qaHps.length + 3" class="group-header group-qa">
                   <div class="group-header-inner">
                     <span>Quarterly Exam ({{ weights.qa }}%) &bull; {{ qaHps.length }} Item</span>
-                    <button type="button" @click="addQaItem(50)" class="btn-group-add" title="Add another Exam item">+ Add QA</button>
+                    <button type="button" @click="addQaItem(50)" class="btn-group-add no-print" title="Add another Exam item">+ Add QA</button>
                   </div>
                 </th>
 
                 <th rowspan="2" class="col-init">Initial Grade</th>
                 <th rowspan="2" class="col-trans">Quarter Grade</th>
                 <th rowspan="2" class="col-remarks">Remarks</th>
-                <th rowspan="2" class="col-actions">Card</th>
+                <th rowspan="2" class="col-actions no-print">Card</th>
               </tr>
 
               <!-- Header Row 2: Sub-columns -->
@@ -371,13 +432,21 @@
                 <th v-for="(h, idx) in wwHps" :key="`ww-h-${idx}`" class="sub-col item-header-cell">
                   <div class="sub-col-title-wrap">
                     <span>WW{{ idx + 1 }}</span>
-                    <button 
-                      v-if="wwHps.length > 1" 
-                      type="button" 
-                      @click="removeWwItemAt(idx)" 
-                      class="col-del-btn" 
-                      :title="`Remove Written Work item WW${idx + 1}`"
-                    >&times;</button>
+                    <div class="item-quick-actions no-print">
+                      <button
+                        type="button"
+                        @click="quickFillPrompt('ww', idx)"
+                        class="col-quick-btn"
+                        :title="`Quick fill scores for WW${idx + 1}`"
+                      >&darr;</button>
+                      <button 
+                        v-if="wwHps.length > 1" 
+                        type="button" 
+                        @click="removeWwItemAt(idx)" 
+                        class="col-del-btn" 
+                        :title="`Remove Written Work item WW${idx + 1}`"
+                      >&times;</button>
+                    </div>
                   </div>
                 </th>
                 <th class="sub-col col-sum">Total</th>
@@ -388,13 +457,21 @@
                 <th v-for="(h, idx) in ptHps" :key="`pt-h-${idx}`" class="sub-col item-header-cell">
                   <div class="sub-col-title-wrap">
                     <span>PT{{ idx + 1 }}</span>
-                    <button 
-                      v-if="ptHps.length > 1" 
-                      type="button" 
-                      @click="removePtItemAt(idx)" 
-                      class="col-del-btn" 
-                      :title="`Remove Performance Task item PT${idx + 1}`"
-                    >&times;</button>
+                    <div class="item-quick-actions no-print">
+                      <button
+                        type="button"
+                        @click="quickFillPrompt('pt', idx)"
+                        class="col-quick-btn"
+                        :title="`Quick fill scores for PT${idx + 1}`"
+                      >&darr;</button>
+                      <button 
+                        v-if="ptHps.length > 1" 
+                        type="button" 
+                        @click="removePtItemAt(idx)" 
+                        class="col-del-btn" 
+                        :title="`Remove Performance Task item PT${idx + 1}`"
+                      >&times;</button>
+                    </div>
                   </div>
                 </th>
                 <th class="sub-col col-sum">Total</th>
@@ -405,13 +482,21 @@
                 <th v-for="(h, idx) in qaHps" :key="`qa-h-${idx}`" class="sub-col item-header-cell">
                   <div class="sub-col-title-wrap">
                     <span>QA{{ idx + 1 }}</span>
-                    <button 
-                      v-if="qaHps.length > 1" 
-                      type="button" 
-                      @click="removeQaItemAt(idx)" 
-                      class="col-del-btn" 
-                      :title="`Remove Quarterly Exam item QA${idx + 1}`"
-                    >&times;</button>
+                    <div class="item-quick-actions no-print">
+                      <button
+                        type="button"
+                        @click="quickFillPrompt('qa', idx)"
+                        class="col-quick-btn"
+                        :title="`Quick fill scores for QA${idx + 1}`"
+                      >&darr;</button>
+                      <button 
+                        v-if="qaHps.length > 1" 
+                        type="button" 
+                        @click="removeQaItemAt(idx)" 
+                        class="col-del-btn" 
+                        :title="`Remove Quarterly Exam item QA${idx + 1}`"
+                      >&times;</button>
+                    </div>
                   </div>
                 </th>
                 <th class="sub-col col-sum">Total</th>
@@ -421,7 +506,7 @@
 
               <!-- Row 3: Highest Possible Score (HPS) Row -->
               <tr class="hps-row">
-                <th class="sticky-col" colspan="3">HIGHEST POSSIBLE SCORE (HPS)</th>
+                <th class="sticky-col hps-label-cell" colspan="3">HIGHEST POSSIBLE SCORE (HPS)</th>
                 <th></th>
 
                 <!-- WW HPS Inputs -->
@@ -430,14 +515,14 @@
                     type="number"
                     min="1"
                     v-model.number="wwHps[idx]"
-                    @input="recalculateAll"
+                    @input="onHpsChange"
                     class="hps-input"
                     title="Edit HPS for this Written Work item"
                   />
                 </td>
                 <td class="hps-stat font-bold">{{ wwHpsTotal }}</td>
                 <td class="hps-stat">100.00%</td>
-                <td class="hps-stat font-bold">{{ Number(weights.ww).toFixed(2) }}</td>
+                <td class="hps-stat font-bold text-teal">{{ Number(weights.ww).toFixed(2) }}</td>
 
                 <!-- PT HPS Inputs -->
                 <td v-for="(h, idx) in ptHps" :key="`pt-hps-${idx}`" class="hps-cell">
@@ -445,14 +530,14 @@
                     type="number"
                     min="1"
                     v-model.number="ptHps[idx]"
-                    @input="recalculateAll"
+                    @input="onHpsChange"
                     class="hps-input"
                     title="Edit HPS for this Performance Task item"
                   />
                 </td>
                 <td class="hps-stat font-bold">{{ ptHpsTotal }}</td>
                 <td class="hps-stat">100.00%</td>
-                <td class="hps-stat font-bold">{{ Number(weights.pt).toFixed(2) }}</td>
+                <td class="hps-stat font-bold text-amber">{{ Number(weights.pt).toFixed(2) }}</td>
 
                 <!-- QA HPS Inputs -->
                 <td v-for="(h, idx) in qaHps" :key="`qa-hps-${idx}`" class="hps-cell">
@@ -460,27 +545,27 @@
                     type="number"
                     min="1"
                     v-model.number="qaHps[idx]"
-                    @input="recalculateAll"
+                    @input="onHpsChange"
                     class="hps-input"
                     title="Edit HPS for this Quarterly Exam item"
                   />
                 </td>
                 <td class="hps-stat font-bold">{{ qaHpsTotal }}</td>
                 <td class="hps-stat">100.00%</td>
-                <td class="hps-stat font-bold">{{ Number(weights.qa).toFixed(2) }}</td>
+                <td class="hps-stat font-bold text-emerald">{{ Number(weights.qa).toFixed(2) }}</td>
 
                 <!-- Final HPS -->
                 <td class="hps-stat font-bold">100.00</td>
                 <td class="hps-stat font-bold">100</td>
                 <td class="hps-stat font-bold text-success">Passed</td>
-                <td></td>
+                <td class="no-print"></td>
               </tr>
             </thead>
 
             <tbody>
               <!-- MALE LEARNERS SECTION -->
               <tr class="section-divider-row male-divider">
-                <td :colspan="4 + wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3 + 4">
+                <td :colspan="totalTableCols">
                   <span class="gender-section-tag tag-male">
                     Male Learners ({{ maleStudents.length }})
                   </span>
@@ -493,7 +578,7 @@
                 :class="{ 'row-failed': st.transmuted_grade < 75 && st.transmuted_grade > 0 }"
               >
                 <td class="sticky-col col-idx">{{ idx + 1 }}</td>
-                <td class="sticky-col col-name font-bold">{{ st.name }}</td>
+                <td class="sticky-col col-name font-bold" :title="st.name">{{ st.name }}</td>
                 <td class="sticky-col col-lrn font-mono">{{ st.lrn || '—' }}</td>
                 <td class="col-sex text-center">
                   <span class="sex-pill pill-m">M</span>
@@ -505,11 +590,12 @@
                     type="number"
                     min="0"
                     :max="h"
+                    step="any"
                     v-model.number="st.ww_scores[itemIdx]"
-                    @input="recalculateStudent(st)"
+                    @input="onScoreInput(st)"
                     class="score-input"
-                    :class="{ 'input-exceeded': st.ww_scores[itemIdx] > h }"
-                    title="Enter raw score"
+                    :class="{ 'input-exceeded': Number(st.ww_scores[itemIdx]) > h }"
+                    :title="`Score: ${st.ww_scores[itemIdx] || 0} / ${h}`"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.ww_total }}</td>
@@ -522,11 +608,12 @@
                     type="number"
                     min="0"
                     :max="h"
+                    step="any"
                     v-model.number="st.pt_scores[itemIdx]"
-                    @input="recalculateStudent(st)"
+                    @input="onScoreInput(st)"
                     class="score-input"
-                    :class="{ 'input-exceeded': st.pt_scores[itemIdx] > h }"
-                    title="Enter raw score"
+                    :class="{ 'input-exceeded': Number(st.pt_scores[itemIdx]) > h }"
+                    :title="`Score: ${st.pt_scores[itemIdx] || 0} / ${h}`"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.pt_total }}</td>
@@ -539,11 +626,12 @@
                     type="number"
                     min="0"
                     :max="h"
+                    step="any"
                     v-model.number="st.qa_scores[itemIdx]"
-                    @input="recalculateStudent(st)"
+                    @input="onScoreInput(st)"
                     class="score-input"
-                    :class="{ 'input-exceeded': st.qa_scores[itemIdx] > h }"
-                    title="Enter raw score"
+                    :class="{ 'input-exceeded': Number(st.qa_scores[itemIdx]) > h }"
+                    :title="`Score: ${st.qa_scores[itemIdx] || 0} / ${h}`"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.qa_total }}</td>
@@ -568,22 +656,42 @@
                 </td>
 
                 <!-- Action: Open Card -->
-                <td class="text-center">
-                  <button type="button" @click="goToForm138(st.id)" class="btn-xs btn-outline" title="View Form 138">
+                <td class="text-center no-print">
+                  <button type="button" @click="goToForm138(st.id)" class="btn-xs btn-outline" title="Open DepEd Form 138 (SF9)">
                     SF9
                   </button>
                 </td>
               </tr>
 
               <tr v-if="maleStudents.length === 0">
-                <td :colspan="4 + wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3 + 4" class="empty-group-cell">
-                  No male learners enrolled.
+                <td :colspan="totalTableCols" class="empty-group-cell">
+                  No male learners enrolled in this section.
                 </td>
+              </tr>
+
+              <!-- Male Subtotal Summary Row -->
+              <tr v-else class="subtotal-row male-subtotal-row">
+                <td colspan="4" class="sticky-col subtotal-label-cell">
+                  <strong>MALE SUB-AVERAGE</strong>
+                </td>
+                <td :colspan="wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3" class="subtotal-dash-cell">
+                  <span>{{ maleStudents.length }} Learners</span>
+                </td>
+                <td class="stat-cell font-bold">{{ maleInitialAverage }}</td>
+                <td class="stat-cell font-bold">
+                  <span class="grade-pill" :class="maleAverageGrade >= 75 ? 'grade-passed' : 'grade-failed'">
+                    {{ maleAverageGrade }}
+                  </span>
+                </td>
+                <td class="stat-cell font-bold">
+                  <span class="status-badge badge-info">{{ malePassingRate }}% Pass</span>
+                </td>
+                <td class="no-print"></td>
               </tr>
 
               <!-- FEMALE LEARNERS SECTION -->
               <tr class="section-divider-row female-divider">
-                <td :colspan="4 + wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3 + 4">
+                <td :colspan="totalTableCols">
                   <span class="gender-section-tag tag-female">
                     Female Learners ({{ femaleStudents.length }})
                   </span>
@@ -596,7 +704,7 @@
                 :class="{ 'row-failed': st.transmuted_grade < 75 && st.transmuted_grade > 0 }"
               >
                 <td class="sticky-col col-idx">{{ idx + 1 }}</td>
-                <td class="sticky-col col-name font-bold">{{ st.name }}</td>
+                <td class="sticky-col col-name font-bold" :title="st.name">{{ st.name }}</td>
                 <td class="sticky-col col-lrn font-mono">{{ st.lrn || '—' }}</td>
                 <td class="col-sex text-center">
                   <span class="sex-pill pill-f">F</span>
@@ -608,11 +716,12 @@
                     type="number"
                     min="0"
                     :max="h"
+                    step="any"
                     v-model.number="st.ww_scores[itemIdx]"
-                    @input="recalculateStudent(st)"
+                    @input="onScoreInput(st)"
                     class="score-input"
-                    :class="{ 'input-exceeded': st.ww_scores[itemIdx] > h }"
-                    title="Enter raw score"
+                    :class="{ 'input-exceeded': Number(st.ww_scores[itemIdx]) > h }"
+                    :title="`Score: ${st.ww_scores[itemIdx] || 0} / ${h}`"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.ww_total }}</td>
@@ -625,11 +734,12 @@
                     type="number"
                     min="0"
                     :max="h"
+                    step="any"
                     v-model.number="st.pt_scores[itemIdx]"
-                    @input="recalculateStudent(st)"
+                    @input="onScoreInput(st)"
                     class="score-input"
-                    :class="{ 'input-exceeded': st.pt_scores[itemIdx] > h }"
-                    title="Enter raw score"
+                    :class="{ 'input-exceeded': Number(st.pt_scores[itemIdx]) > h }"
+                    :title="`Score: ${st.pt_scores[itemIdx] || 0} / ${h}`"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.pt_total }}</td>
@@ -642,11 +752,12 @@
                     type="number"
                     min="0"
                     :max="h"
+                    step="any"
                     v-model.number="st.qa_scores[itemIdx]"
-                    @input="recalculateStudent(st)"
+                    @input="onScoreInput(st)"
                     class="score-input"
-                    :class="{ 'input-exceeded': st.qa_scores[itemIdx] > h }"
-                    title="Enter raw score"
+                    :class="{ 'input-exceeded': Number(st.qa_scores[itemIdx]) > h }"
+                    :title="`Score: ${st.qa_scores[itemIdx] || 0} / ${h}`"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.qa_total }}</td>
@@ -671,17 +782,37 @@
                 </td>
 
                 <!-- Action: Open Card -->
-                <td class="text-center">
-                  <button type="button" @click="goToForm138(st.id)" class="btn-xs btn-outline" title="View Form 138">
+                <td class="text-center no-print">
+                  <button type="button" @click="goToForm138(st.id)" class="btn-xs btn-outline" title="Open DepEd Form 138 (SF9)">
                     SF9
                   </button>
                 </td>
               </tr>
 
               <tr v-if="femaleStudents.length === 0">
-                <td :colspan="4 + wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3 + 4" class="empty-group-cell">
-                  No female learners enrolled.
+                <td :colspan="totalTableCols" class="empty-group-cell">
+                  No female learners enrolled in this section.
                 </td>
+              </tr>
+
+              <!-- Female Subtotal Summary Row -->
+              <tr v-else class="subtotal-row female-subtotal-row">
+                <td colspan="4" class="sticky-col subtotal-label-cell">
+                  <strong>FEMALE SUB-AVERAGE</strong>
+                </td>
+                <td :colspan="wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3" class="subtotal-dash-cell">
+                  <span>{{ femaleStudents.length }} Learners</span>
+                </td>
+                <td class="stat-cell font-bold">{{ femaleInitialAverage }}</td>
+                <td class="stat-cell font-bold">
+                  <span class="grade-pill" :class="femaleAverageGrade >= 75 ? 'grade-passed' : 'grade-failed'">
+                    {{ femaleAverageGrade }}
+                  </span>
+                </td>
+                <td class="stat-cell font-bold">
+                  <span class="status-badge badge-info">{{ femalePassingRate }}% Pass</span>
+                </td>
+                <td class="no-print"></td>
               </tr>
             </tbody>
           </table>
@@ -689,44 +820,82 @@
       </div>
 
       <!-- Performance KPI & Quick Summary Banner -->
-      <div class="card summary-strip-card">
-        <div class="summary-kpi">
-          <span class="kpi-label">Total Learners</span>
-          <strong class="kpi-val">{{ students.length }}</strong>
-          <small class="kpi-sub">{{ maleStudents.length }} Male · {{ femaleStudents.length }} Female</small>
-        </div>
+      <div class="card summary-strip-card no-print">
+        <div class="summary-kpis-wrap">
+          <div class="summary-kpi">
+            <span class="kpi-label">Total Learners</span>
+            <strong class="kpi-val">{{ students.length }}</strong>
+            <small class="kpi-sub">{{ maleStudents.length }} Male &bull; {{ femaleStudents.length }} Female</small>
+          </div>
 
-        <div class="summary-kpi">
-          <span class="kpi-label">Class Average Grade</span>
-          <strong class="kpi-val text-primary">{{ classAverageGrade }}</strong>
-          <small class="kpi-sub">Quarter transmuted rating</small>
-        </div>
+          <div class="summary-kpi">
+            <span class="kpi-label">Class Average</span>
+            <strong class="kpi-val text-primary">{{ classAverageGrade }}</strong>
+            <small class="kpi-sub">Quarter Transmuted Rating</small>
+          </div>
 
-        <div class="summary-kpi">
-          <span class="kpi-label">Passing Rate</span>
-          <strong class="kpi-val text-success">{{ passingRate }}%</strong>
-          <small class="kpi-sub">{{ passedLearnersCount }} Passed · {{ failedLearnersCount }} Failed</small>
-        </div>
+          <div class="summary-kpi">
+            <span class="kpi-label">Passing Rate</span>
+            <strong class="kpi-val text-success">{{ passingRate }}%</strong>
+            <small class="kpi-sub">{{ passedLearnersCount }} Passed &bull; {{ failedLearnersCount }} Failed</small>
+          </div>
 
-        <div class="summary-kpi">
-          <span class="kpi-label">Highest Score</span>
-          <strong class="kpi-val">{{ highestGrade }}</strong>
-          <small class="kpi-sub">Lowest: {{ lowestGrade }}</small>
+          <div class="summary-kpi">
+            <span class="kpi-label">Highest &bull; Lowest</span>
+            <strong class="kpi-val">{{ highestGrade }} <span class="kpi-sep">/</span> {{ lowestGrade }}</strong>
+            <small class="kpi-sub">Range across section</small>
+          </div>
         </div>
 
         <div class="summary-actions">
+          <button type="button" class="btn-secondary" @click="printClassRecord" title="Print DepEd Official Class Record">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span>Print</span>
+          </button>
           <button type="button" class="btn-secondary" @click="exportCsv" :disabled="exportingCsv">
-            Export CSV
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export CSV</span>
           </button>
-          <button type="button" class="btn-primary" @click="saveClassRecord" :disabled="savingRecord || totalWeight !== 100">
-            {{ savingRecord ? 'Saving…' : 'Save E-Class Record' }}
+          <button
+            type="button"
+            class="btn-primary"
+            @click="saveClassRecord"
+            :disabled="savingRecord || totalWeight !== 100 || isLicenseLocked"
+            :title="isLicenseLocked ? 'Workspace is locked' : (totalWeight !== 100 ? 'Weights must equal 100%' : 'Save and synchronize grades with Form 138')"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>{{ savingRecord ? 'Saving…' : 'Save E-Class Record' }}</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Printable Signature Block (Only visible on Print) -->
+      <div class="print-signatures-block">
+        <div class="print-signature-box">
+          <div class="print-sig-line"></div>
+          <strong class="print-sig-name">{{ auth.user?.name || 'Class Subject Teacher' }}</strong>
+          <span class="print-sig-role">Subject Teacher</span>
+        </div>
+        <div class="print-signature-box">
+          <div class="print-sig-line"></div>
+          <strong class="print-sig-name">{{ currentSchool?.principal_name || 'School Principal / Head' }}</strong>
+          <span class="print-sig-role">School Principal / Academic Head</span>
         </div>
       </div>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="!loadingRecord" class="card empty-state-card">
+    <div v-else-if="!loadingRecord" class="card empty-state-card no-print">
       <div class="empty-icon-wrap">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -736,7 +905,7 @@
         </svg>
       </div>
       <h3>No Class Record Loaded</h3>
-      <p>Select a Grade Level, Section, and Subject above, then click <strong>Load E-Class Record</strong> to start encoding raw scores with live DepEd Order No. 8 transmutation.</p>
+      <p>Select a Grade Level, Section, and Subject above, then click <strong>Load E-Class Record</strong> to start encoding raw scores with live DepEd Order No. 8 transmutation and Form 138 synchronization.</p>
     </div>
   </div>
 </template>
@@ -760,6 +929,10 @@ const effectiveSchoolId = computed(() => auth.isSuperadmin ? (selectedSchoolId.v
 const quarterTerms = ref([])
 const configuredQuarterCount = ref(4)
 const showFormulaGuide = ref(false)
+const isModified = ref(false)
+
+const licenseStatus = ref('active')
+const isLicenseLocked = ref(false)
 
 const currentSchool = computed(() => {
   if (schools.value.length) {
@@ -841,6 +1014,10 @@ const wwHpsTotal = computed(() => wwHps.value.reduce((a, b) => a + (Math.max(1, 
 const ptHpsTotal = computed(() => ptHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
 const qaHpsTotal = computed(() => qaHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
 
+const totalTableCols = computed(() => {
+  return 4 + wwHps.value.length + 3 + ptHps.value.length + 3 + qaHps.value.length + 3 + 4
+})
+
 // DepEd Transmutation Table (0 - 100 -> 60 - 100)
 function transmuteGrade(initial) {
   const val = Number(initial) || 0
@@ -897,9 +1074,9 @@ function recalculateStudent(st) {
   let wwSum = 0
   st.ww_scores.forEach((s, idx) => {
     const max = wwHps.value[idx] || 1
-    const safe = Math.max(0, Math.min(max, Number(s) || 0))
-    st.ww_scores[idx] = safe
-    wwSum += safe
+    const num = (s === '' || s === null || isNaN(s)) ? 0 : Number(s)
+    const clamped = Math.max(0, Math.min(max, num))
+    wwSum += clamped
   })
   st.ww_total = Math.round(wwSum * 100) / 100
   const wwHpsTot = wwHpsTotal.value || 1
@@ -910,9 +1087,9 @@ function recalculateStudent(st) {
   let ptSum = 0
   st.pt_scores.forEach((s, idx) => {
     const max = ptHps.value[idx] || 1
-    const safe = Math.max(0, Math.min(max, Number(s) || 0))
-    st.pt_scores[idx] = safe
-    ptSum += safe
+    const num = (s === '' || s === null || isNaN(s)) ? 0 : Number(s)
+    const clamped = Math.max(0, Math.min(max, num))
+    ptSum += clamped
   })
   st.pt_total = Math.round(ptSum * 100) / 100
   const ptHpsTot = ptHpsTotal.value || 1
@@ -923,9 +1100,9 @@ function recalculateStudent(st) {
   let qaSum = 0
   st.qa_scores.forEach((s, idx) => {
     const max = qaHps.value[idx] || 1
-    const safe = Math.max(0, Math.min(max, Number(s) || 0))
-    st.qa_scores[idx] = safe
-    qaSum += safe
+    const num = (s === '' || s === null || isNaN(s)) ? 0 : Number(s)
+    const clamped = Math.max(0, Math.min(max, num))
+    qaSum += clamped
   })
   st.qa_total = Math.round(qaSum * 100) / 100
   const qaHpsTot = qaHpsTotal.value || 1
@@ -942,10 +1119,26 @@ function recalculateAll() {
   students.value.forEach(recalculateStudent)
 }
 
+function onScoreInput(st) {
+  isModified.value = true
+  recalculateStudent(st)
+}
+
+function onWeightInput() {
+  isModified.value = true
+  recalculateAll()
+}
+
+function onHpsChange() {
+  isModified.value = true
+  recalculateAll()
+}
+
 function applyPreset(ww, pt, qa) {
   weights.ww = ww
   weights.pt = pt
   weights.qa = qa
+  isModified.value = true
   recalculateAll()
 }
 
@@ -956,6 +1149,7 @@ function addWwItem(defaultHps = 20) {
     if (!Array.isArray(s.ww_scores)) s.ww_scores = []
     s.ww_scores.push(0)
   })
+  isModified.value = true
   recalculateAll()
 }
 
@@ -967,6 +1161,7 @@ function addMultipleWwItems(count = 5, defaultHps = 20) {
       s.ww_scores.push(0)
     })
   }
+  isModified.value = true
   recalculateAll()
   addToast(`Added ${count} Written Work items (total: ${wwHps.value.length})`, 'info')
 }
@@ -977,18 +1172,21 @@ function removeWwItem() {
     students.value.forEach(s => {
       if (Array.isArray(s.ww_scores)) s.ww_scores.pop()
     })
+    isModified.value = true
     recalculateAll()
   }
 }
 
 function removeWwItemAt(index) {
   if (wwHps.value.length <= 1) return
+  if (!confirm(`Remove Written Work item WW${index + 1}? Recorded scores for this column will be discarded.`)) return
   wwHps.value.splice(index, 1)
   students.value.forEach(s => {
     if (Array.isArray(s.ww_scores) && s.ww_scores.length > index) {
       s.ww_scores.splice(index, 1)
     }
   })
+  isModified.value = true
   recalculateAll()
 }
 
@@ -998,6 +1196,7 @@ function addPtItem(defaultHps = 25) {
     if (!Array.isArray(s.pt_scores)) s.pt_scores = []
     s.pt_scores.push(0)
   })
+  isModified.value = true
   recalculateAll()
 }
 
@@ -1009,6 +1208,7 @@ function addMultiplePtItems(count = 5, defaultHps = 25) {
       s.pt_scores.push(0)
     })
   }
+  isModified.value = true
   recalculateAll()
   addToast(`Added ${count} Performance Task items (total: ${ptHps.value.length})`, 'info')
 }
@@ -1019,18 +1219,21 @@ function removePtItem() {
     students.value.forEach(s => {
       if (Array.isArray(s.pt_scores)) s.pt_scores.pop()
     })
+    isModified.value = true
     recalculateAll()
   }
 }
 
 function removePtItemAt(index) {
   if (ptHps.value.length <= 1) return
+  if (!confirm(`Remove Performance Task item PT${index + 1}? Recorded scores for this column will be discarded.`)) return
   ptHps.value.splice(index, 1)
   students.value.forEach(s => {
     if (Array.isArray(s.pt_scores) && s.pt_scores.length > index) {
       s.pt_scores.splice(index, 1)
     }
   })
+  isModified.value = true
   recalculateAll()
 }
 
@@ -1040,6 +1243,7 @@ function addQaItem(defaultHps = 50) {
     if (!Array.isArray(s.qa_scores)) s.qa_scores = []
     s.qa_scores.push(0)
   })
+  isModified.value = true
   recalculateAll()
 }
 
@@ -1049,18 +1253,21 @@ function removeQaItem() {
     students.value.forEach(s => {
       if (Array.isArray(s.qa_scores)) s.qa_scores.pop()
     })
+    isModified.value = true
     recalculateAll()
   }
 }
 
 function removeQaItemAt(index) {
   if (qaHps.value.length <= 1) return
+  if (!confirm(`Remove Quarterly Exam item QA${index + 1}? Recorded scores for this column will be discarded.`)) return
   qaHps.value.splice(index, 1)
   students.value.forEach(s => {
     if (Array.isArray(s.qa_scores) && s.qa_scores.length > index) {
       s.qa_scores.splice(index, 1)
     }
   })
+  isModified.value = true
   recalculateAll()
 }
 
@@ -1075,8 +1282,27 @@ function promptSetAllHps(type) {
   } else {
     ptHps.value = ptHps.value.map(() => val)
   }
+  isModified.value = true
   recalculateAll()
   addToast(`Updated all ${label} items to HPS = ${val}`, 'success')
+}
+
+// Quick fill helper for an entire column
+function quickFillPrompt(type, index) {
+  const label = type === 'ww' ? `WW${index + 1}` : (type === 'pt' ? `PT${index + 1}` : `QA${index + 1}`)
+  const maxHps = type === 'ww' ? (wwHps.value[index] || 20) : (type === 'pt' ? (ptHps.value[index] || 25) : (qaHps.value[index] || 50))
+  const input = prompt(`Quick fill all students for ${label} (Max: ${maxHps}):\nEnter score (or click Cancel):`, String(maxHps))
+  if (input === null) return
+  const val = Math.max(0, Math.min(maxHps, Number(input) || 0))
+
+  students.value.forEach(st => {
+    if (type === 'ww') st.ww_scores[index] = val
+    else if (type === 'pt') st.pt_scores[index] = val
+    else if (type === 'qa') st.qa_scores[index] = val
+  })
+  isModified.value = true
+  recalculateAll()
+  addToast(`Filled all learners with score ${val} for ${label}`, 'success')
 }
 
 // Group students by gender
@@ -1109,6 +1335,39 @@ const lowestGrade = computed(() => {
   return valid.length ? Math.min(...valid) : 0
 })
 
+// Gender-specific subtotals
+const maleAverageGrade = computed(() => {
+  if (!maleStudents.value.length) return 0
+  const sum = maleStudents.value.reduce((acc, curr) => acc + (Number(curr.transmuted_grade) || 0), 0)
+  return Math.round((sum / maleStudents.value.length) * 10) / 10
+})
+const maleInitialAverage = computed(() => {
+  if (!maleStudents.value.length) return 0
+  const sum = maleStudents.value.reduce((acc, curr) => acc + (Number(curr.initial_grade) || 0), 0)
+  return (sum / maleStudents.value.length).toFixed(2)
+})
+const malePassedCount = computed(() => maleStudents.value.filter(s => s.transmuted_grade >= 75).length)
+const malePassingRate = computed(() => {
+  if (!maleStudents.value.length) return 0
+  return Math.round((malePassedCount.value / maleStudents.value.length) * 1000) / 10
+})
+
+const femaleAverageGrade = computed(() => {
+  if (!femaleStudents.value.length) return 0
+  const sum = femaleStudents.value.reduce((acc, curr) => acc + (Number(curr.transmuted_grade) || 0), 0)
+  return Math.round((sum / femaleStudents.value.length) * 10) / 10
+})
+const femaleInitialAverage = computed(() => {
+  if (!femaleStudents.value.length) return 0
+  const sum = femaleStudents.value.reduce((acc, curr) => acc + (Number(curr.initial_grade) || 0), 0)
+  return (sum / femaleStudents.value.length).toFixed(2)
+})
+const femalePassedCount = computed(() => femaleStudents.value.filter(s => s.transmuted_grade >= 75).length)
+const femalePassingRate = computed(() => {
+  if (!femaleStudents.value.length) return 0
+  return Math.round((femalePassedCount.value / femaleStudents.value.length) * 1000) / 10
+})
+
 // Loading & saving methods
 async function loadSchools() {
   if (!auth.isSuperadmin) return
@@ -1123,6 +1382,23 @@ async function loadSchools() {
   } catch (err) {
     console.error('Error fetching schools:', err)
   }
+}
+
+async function checkLicense() {
+  const sid = effectiveSchoolId.value
+  if (!sid) return
+  try {
+    const res = await fetch(`/api/schools/${sid}/license`, {
+      headers: auth.actorHeaders()
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.license) {
+        licenseStatus.value = data.license.status || 'active'
+        isLicenseLocked.value = data.license.status === 'suspended' || data.license.status === 'cancelled' || Boolean(data.license.is_expired)
+      }
+    }
+  } catch {}
 }
 
 async function loadQuarterlyTerms() {
@@ -1143,11 +1419,13 @@ async function loadQuarterlyTerms() {
 }
 
 async function onSchoolChange() {
+  await checkLicense()
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   await loadQuarterlyTerms()
   await loadSubjects()
   students.value = []
   activeSubject.value = null
+  isModified.value = false
 }
 
 async function loadSubjects() {
@@ -1166,13 +1444,40 @@ async function loadSubjects() {
   }
 }
 
-function onGradeChange() {
+async function onGradeChange() {
   if (availableSections.value.length) {
     filter.section = availableSections.value[0]
   } else {
     filter.section = ''
   }
-  loadSubjects()
+  await loadSubjects()
+  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+    await loadClassRecord()
+  }
+}
+
+async function onSectionChange() {
+  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+    await loadClassRecord()
+  }
+}
+
+async function onSubjectChange() {
+  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+    await loadClassRecord()
+  }
+}
+
+async function onQuarterChange() {
+  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+    await loadClassRecord()
+  }
+}
+
+async function onSchoolYearChange() {
+  if (filter.grade && filter.section && filter.subjectId && !isModified.value) {
+    await loadClassRecord()
+  }
 }
 
 async function loadClassRecord() {
@@ -1207,9 +1512,9 @@ async function loadClassRecord() {
       weights.ww = Number(data.config.weight_ww) || 30
       weights.pt = Number(data.config.weight_pt) || 50
       weights.qa = Number(data.config.weight_qa) || 20
-      if (Array.isArray(data.config.ww_hps)) wwHps.value = [...data.config.ww_hps]
-      if (Array.isArray(data.config.pt_hps)) ptHps.value = [...data.config.pt_hps]
-      if (Array.isArray(data.config.qa_hps)) qaHps.value = [...data.config.qa_hps]
+      if (Array.isArray(data.config.ww_hps) && data.config.ww_hps.length) wwHps.value = [...data.config.ww_hps]
+      if (Array.isArray(data.config.pt_hps) && data.config.pt_hps.length) ptHps.value = [...data.config.pt_hps]
+      if (Array.isArray(data.config.qa_hps) && data.config.qa_hps.length) qaHps.value = [...data.config.qa_hps]
     }
 
     students.value = (data.students || []).map(st => {
@@ -1231,6 +1536,7 @@ async function loadClassRecord() {
     })
 
     recalculateAll()
+    isModified.value = false
     addToast(`Loaded ${students.value.length} learners for ${data.subject.subject_name}`, 'success')
   } catch (err) {
     console.error('Error loading class record:', err)
@@ -1241,6 +1547,11 @@ async function loadClassRecord() {
 }
 
 async function saveClassRecord() {
+  if (isLicenseLocked.value) {
+    addToast('Cannot save: Campus subscription license is restricted.', 'error')
+    return
+  }
+
   if (totalWeight.value !== 100) {
     addToast(`Assessment weights must total exactly 100% (currently ${totalWeight.value}%)`, 'warning')
     return
@@ -1263,9 +1574,9 @@ async function saveClassRecord() {
       qaHps: qaHps.value,
       learners: students.value.map(st => ({
         studentId: st.id,
-        wwScores: st.ww_scores,
-        ptScores: st.pt_scores,
-        qaScores: st.qa_scores,
+        wwScores: st.ww_scores.map((s, idx) => Math.min(wwHps.value[idx] || 0, Math.max(0, Number(s) || 0))),
+        ptScores: st.pt_scores.map((s, idx) => Math.min(ptHps.value[idx] || 0, Math.max(0, Number(s) || 0))),
+        qaScores: st.qa_scores.map((s, idx) => Math.min(qaHps.value[idx] || 0, Math.max(0, Number(s) || 0))),
         isLocked: st.is_locked
       }))
     }
@@ -1279,7 +1590,8 @@ async function saveClassRecord() {
       throw new Error(data.error || 'Failed to save class record')
     }
 
-    addToast(data.message || 'E-Class Record saved successfully', 'success')
+    isModified.value = false
+    addToast(data.message || 'E-Class Record saved & synchronized with Form 138 (SF9)', 'success')
   } catch (err) {
     console.error('Error saving class record:', err)
     addToast(err.message || 'Failed to save class record', 'error')
@@ -1300,6 +1612,10 @@ function exportCsv() {
   window.open(`/api/grading/class-record/export?${queryParams.toString()}`, '_blank')
 }
 
+function printClassRecord() {
+  window.print()
+}
+
 function goToForm138(studentId) {
   router.push({
     path: '/grading',
@@ -1309,16 +1625,18 @@ function goToForm138(studentId) {
 
 onMounted(async () => {
   await loadSchools()
+  await checkLicense()
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   if (currentSchool.value?.school_year) {
     filter.schoolYear = currentSchool.value.school_year
   }
   await loadQuarterlyTerms()
 
-  // Apply route query params if provided
+  // Apply route query params if provided (supports grade or gradeLevel)
+  const incomingGrade = route.query?.grade || route.query?.gradeLevel
   if (route.query?.schoolYear) filter.schoolYear = String(route.query.schoolYear)
   if (route.query?.quarter) filter.quarter = String(route.query.quarter)
-  if (route.query?.grade) filter.grade = String(route.query.grade)
+  if (incomingGrade) filter.grade = String(incomingGrade)
   else if (grades.value.length && !filter.grade) filter.grade = grades.value[0]
 
   if (route.query?.section) filter.section = String(route.query.section)
@@ -1340,9 +1658,35 @@ onMounted(async () => {
 
 <style scoped>
 .class-record-page {
-  padding: 24px;
-  max-width: 1540px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  margin-bottom: 2px;
+}
+.breadcrumb a {
+  color: var(--muted-foreground);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.breadcrumb a:hover {
+  color: var(--primary);
+}
+.breadcrumb .sep {
+  opacity: 0.5;
+}
+.breadcrumb .current {
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .class-record-header {
@@ -1350,7 +1694,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
   flex-wrap: wrap;
 }
 
@@ -1360,18 +1703,31 @@ onMounted(async () => {
   gap: 14px;
 }
 
+.dashboard-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--primary-bg);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .page-header-text h1 {
   margin: 0 0 4px;
   font-size: 1.45rem;
   font-weight: 800;
   color: var(--foreground);
+  letter-spacing: -0.01em;
 }
 
 .page-header-text p {
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted-foreground);
-  max-width: 720px;
+  max-width: 780px;
   line-height: 1.45;
 }
 
@@ -1432,6 +1788,8 @@ onMounted(async () => {
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
 }
 
 .link-to-sf9 {
@@ -1443,16 +1801,51 @@ onMounted(async () => {
   text-decoration: none;
 }
 
+/* License Locked Card */
+.license-locked-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--destructive, #ef4444);
+}
+.license-locked-card .lock-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.license-locked-card .lock-copy h3 {
+  margin: 0 0 2px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--destructive);
+}
+.license-locked-card .lock-copy p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+}
+
 /* Toolbar Card */
 .toolbar-card {
   padding: 16px 20px;
-  margin-bottom: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .toolbar-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
   align-items: flex-end;
 }
 
@@ -1461,10 +1854,17 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
+.load-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 /* Weights Panel Card */
 .weights-panel-card {
   padding: 18px 22px;
-  margin-bottom: 16px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1479,17 +1879,41 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.weights-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
 .weights-panel-header h3 {
-  margin: 0 0 4px;
-  font-size: 0.98rem;
+  margin: 0;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--foreground);
+}
+
+.deped-order-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .sub-text {
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted-foreground);
+}
+
+.weights-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .weights-total-badge {
@@ -1510,6 +1934,39 @@ onMounted(async () => {
   background: var(--red-bg, rgba(239, 68, 68, 0.1));
   color: var(--destructive, #ef4444);
   border-color: color-mix(in srgb, var(--destructive) 35%, var(--border));
+}
+
+.unsaved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning, #d97706);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.dot-unsaved {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.saved-badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
 }
 
 .weights-controls-row {
@@ -1599,7 +2056,7 @@ onMounted(async () => {
 .preset-btn {
   font-size: 0.72rem;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 5px 11px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--muted);
@@ -1619,11 +2076,81 @@ onMounted(async () => {
   border-color: var(--primary);
 }
 
+/* Formula Guide Card */
+.deped-formula-card {
+  padding: 14px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.formula-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.formula-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+}
+
+.formula-header-title h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.formula-card-body {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  font-size: 0.8rem;
+}
+
+.formula-box {
+  padding: 12px 14px;
+  background: var(--secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.formula-box-title {
+  color: var(--primary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.formula-box code {
+  font-size: 0.76rem;
+  background: var(--card);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.formula-box p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.74rem;
+}
+
 /* Items Setup Card */
 .items-setup-card {
   padding: 12px 20px;
-  margin-bottom: 16px;
   background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .items-setup-content {
@@ -1638,6 +2165,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .ctrl-title {
@@ -1649,6 +2177,9 @@ onMounted(async () => {
 .ctrl-count {
   font-size: 0.74rem;
   color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .items-divider {
@@ -1664,16 +2195,20 @@ onMounted(async () => {
   margin-left: auto;
 }
 
-/* E-Class Record Table */
+/* E-Class Record Table Card */
 .eclass-table-card {
   padding: 0;
   overflow: hidden;
-  margin-bottom: 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .eclass-table-container {
-  overflow-x: auto;
-  max-height: 700px;
+  overflow: auto;
+  max-height: calc(100vh - 270px);
+  min-height: 420px;
+  position: relative;
 }
 
 .eclass-table {
@@ -1690,41 +2225,97 @@ onMounted(async () => {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
   text-align: center;
+  background: var(--card);
+  color: var(--foreground);
 }
 
+/* Sticky Rows */
+.header-group-row th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--card);
+}
+.header-group-row th.sticky-col {
+  z-index: 25;
+}
+
+.header-sub-row th {
+  position: sticky;
+  top: 35px;
+  z-index: 10;
+  background: var(--muted);
+}
+.header-sub-row th.sticky-col {
+  z-index: 25;
+}
+
+.hps-row th,
+.hps-row td {
+  position: sticky;
+  top: 67px;
+  z-index: 10;
+  background: var(--secondary) !important;
+  border-bottom: 2px solid var(--border);
+}
+.hps-row th.sticky-col {
+  z-index: 25;
+  background: var(--secondary) !important;
+}
+
+/* Sticky Columns */
 .sticky-col {
   position: sticky;
-  left: 0;
   background: var(--card);
-  z-index: 2;
+  z-index: 5;
 }
 
 .col-idx {
-  width: 38px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
   left: 0;
 }
 
 .col-name {
-  min-width: 180px;
+  width: 220px;
+  min-width: 220px;
+  max-width: 260px;
+  left: 44px;
   text-align: left !important;
-  left: 38px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .col-lrn {
-  width: 115px;
-  left: 218px;
+  width: 125px;
+  min-width: 125px;
+  max-width: 125px;
+  left: 264px;
+  box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.12);
+}
+
+.hps-label-cell {
+  left: 0;
+  width: 389px;
+  min-width: 389px;
+  text-align: left !important;
+  padding-left: 14px !important;
+  font-weight: 800;
+  box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.12);
 }
 
 .col-sex {
   width: 42px;
+  min-width: 42px;
 }
 
 .group-header {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--foreground);
 }
 
 .group-header-inner {
@@ -1732,7 +2323,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 3px 6px;
+  padding: 2px 6px;
 }
 
 .btn-group-add {
@@ -1754,7 +2345,7 @@ onMounted(async () => {
 
 .item-header-cell {
   position: relative;
-  padding: 4px 3px !important;
+  padding: 4px 4px !important;
   text-align: center;
 }
 
@@ -1762,7 +2353,29 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+}
+
+.item-quick-actions {
+  display: inline-flex;
+  align-items: center;
   gap: 2px;
+}
+
+.col-quick-btn {
+  background: none;
+  border: none;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 1px 3px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+.col-quick-btn:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
 }
 
 .col-del-btn {
@@ -1806,19 +2419,11 @@ onMounted(async () => {
 
 .col-sum, .col-ps, .col-ws {
   font-weight: 800;
-  background: var(--secondary);
-}
-
-.hps-row th,
-.hps-row td {
-  background: var(--muted) !important;
-  font-size: 0.72rem;
-  font-weight: 800;
-  border-bottom: 2px solid var(--border);
+  background: var(--secondary) !important;
 }
 
 .hps-input {
-  width: 42px;
+  width: 44px;
   height: 26px;
   padding: 2px;
   text-align: center;
@@ -1845,7 +2450,7 @@ onMounted(async () => {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 3px 8px;
+  padding: 3px 10px;
   border-radius: 4px;
 }
 
@@ -1877,7 +2482,7 @@ onMounted(async () => {
 }
 
 .score-input {
-  width: 44px;
+  width: 46px;
   height: 28px;
   padding: 2px 4px;
   text-align: center;
@@ -1886,7 +2491,7 @@ onMounted(async () => {
   border-radius: 4px;
   background: var(--card);
   color: var(--foreground);
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .score-input:focus {
@@ -1897,7 +2502,7 @@ onMounted(async () => {
 .input-exceeded {
   border-color: var(--destructive) !important;
   color: var(--destructive);
-  background: var(--red-bg);
+  background: var(--red-bg) !important;
 }
 
 .stat-cell {
@@ -1944,6 +2549,11 @@ onMounted(async () => {
   color: var(--destructive);
 }
 
+.badge-info {
+  background: rgba(2, 132, 199, 0.12);
+  color: var(--info, #0284c7);
+}
+
 .row-failed {
   background: rgba(239, 68, 68, 0.03);
 }
@@ -1955,6 +2565,30 @@ onMounted(async () => {
   font-style: italic;
 }
 
+/* Subtotal rows */
+.subtotal-row td {
+  background: var(--secondary) !important;
+  border-bottom: 2px solid var(--border);
+  padding: 6px 10px;
+}
+
+.subtotal-label-cell {
+  left: 0;
+  width: 389px;
+  min-width: 389px;
+  text-align: left !important;
+  padding-left: 14px !important;
+  font-size: 0.72rem;
+  color: var(--foreground);
+  box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.12);
+}
+
+.subtotal-dash-cell {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
 /* Summary Strip Card */
 .summary-strip-card {
   padding: 18px 22px;
@@ -1962,6 +2596,16 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.summary-kpis-wrap {
+  display: flex;
+  align-items: center;
+  gap: 24px;
   flex-wrap: wrap;
 }
 
@@ -1980,9 +2624,15 @@ onMounted(async () => {
 }
 
 .kpi-val {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--foreground);
+}
+
+.kpi-sep {
+  font-size: 1.1rem;
+  color: var(--muted-foreground);
+  font-weight: 400;
 }
 
 .kpi-sub {
@@ -2003,6 +2653,8 @@ onMounted(async () => {
   max-width: 540px;
   margin: 40px auto;
   border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
 }
 
 .empty-icon-wrap {
@@ -2028,5 +2680,122 @@ onMounted(async () => {
   font-size: 0.85rem;
   color: var(--muted-foreground);
   line-height: 1.5;
+}
+
+/* Print Only Styling */
+.print-header-only,
+.print-signatures-block {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .class-record-page {
+    padding: 0 !important;
+    max-width: none !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .print-header-only {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .print-school-name {
+    font-size: 14pt;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .print-school-sub {
+    font-size: 9pt;
+    color: #333;
+    margin-bottom: 6px;
+  }
+
+  .print-title {
+    font-size: 11pt;
+    font-weight: 800;
+    margin: 4px 0 8px;
+    letter-spacing: 0.05em;
+  }
+
+  .print-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    font-size: 8.5pt;
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    padding: 6px 0;
+    margin-bottom: 10px;
+    text-align: left;
+  }
+
+  .eclass-table-card {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .eclass-table-container {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .eclass-table {
+    font-size: 7.5pt !important;
+    border: 1px solid #000 !important;
+  }
+
+  .eclass-table th,
+  .eclass-table td {
+    border: 1px solid #000 !important;
+    padding: 4px 5px !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .score-input, .hps-input {
+    border: none !important;
+    background: transparent !important;
+    font-size: 7.5pt !important;
+    width: auto !important;
+    padding: 0 !important;
+    color: #000 !important;
+  }
+
+  .print-signatures-block {
+    display: flex !important;
+    justify-content: space-around;
+    margin-top: 40px;
+    page-break-inside: avoid;
+  }
+
+  .print-signature-box {
+    text-align: center;
+    width: 240px;
+  }
+
+  .print-sig-line {
+    border-bottom: 1px solid #000;
+    height: 30px;
+    margin-bottom: 6px;
+  }
+
+  .print-sig-name {
+    display: block;
+    font-size: 9pt;
+    text-transform: uppercase;
+  }
+
+  .print-sig-role {
+    display: block;
+    font-size: 8pt;
+    color: #333;
+  }
 }
 </style>
