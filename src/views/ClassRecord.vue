@@ -19,6 +19,16 @@
       </div>
 
       <div class="header-right-actions">
+        <!-- Campus Badge & School Info -->
+        <div class="campus-identity-pill" v-if="currentSchool">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/>
+          </svg>
+          <span class="campus-name">{{ currentSchool.name }}</span>
+          <span class="campus-badge" v-if="currentSchool.school_id">ID: {{ currentSchool.school_id }}</span>
+          <span class="campus-badge badge-trimester" v-if="activeQuarterCount === 3">3 Quarters</span>
+        </div>
+
         <!-- Superadmin School Selector -->
         <div v-if="auth.isSuperadmin" class="school-select-wrapper">
           <label class="school-select-label">School:</label>
@@ -1229,6 +1239,40 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.campus-identity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.campus-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campus-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.badge-trimester {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning, #d97706);
 }
 
 .school-select-wrapper {

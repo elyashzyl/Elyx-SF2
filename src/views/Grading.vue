@@ -414,6 +414,13 @@
           </div>
 
           <div class="subjects-actions">
+            <router-link to="/subjects" class="btn-secondary" style="text-decoration: none;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              <span>Manage on /subjects &rarr;</span>
+            </router-link>
+
             <button
               v-if="auth.isAdmin"
               type="button"
@@ -1768,7 +1775,9 @@ async function loadSubjects() {
     } else if (activeTab.value === 'subjects' && subjectFilterGrade.value) {
       params.set('gradeLevel', subjectFilterGrade.value)
     }
-    const res = await fetch(`/api/grading/subjects?${params.toString()}`)
+    const res = await fetch(`/api/grading/subjects?${params.toString()}`, {
+      headers: auth.actorHeaders()
+    })
     const data = await res.json()
     if (data.success) {
       subjectList.value = data.subjects || []
@@ -1908,7 +1917,10 @@ async function submitSubjectForm() {
 
     const res = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
       body: JSON.stringify(body)
     })
     const data = await res.json()
@@ -1927,7 +1939,10 @@ async function submitSubjectForm() {
 async function deleteSubject(id) {
   if (!confirm('Are you sure you want to delete this subject?')) return
   try {
-    const res = await fetch(`/api/grading/subjects/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/grading/subjects/${id}`, {
+      method: 'DELETE',
+      headers: auth.actorHeaders()
+    })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to delete subject')
     notify('Subject deleted', 'success')
@@ -1942,7 +1957,10 @@ async function seedDepEdDefaults() {
   try {
     const res = await fetch('/api/grading/subjects/seed-defaults', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
       body: JSON.stringify({
         schoolId: effectiveSchoolId.value || undefined,
         gradeLevel: subjectFilterGrade.value || undefined

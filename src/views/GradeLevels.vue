@@ -17,6 +17,12 @@
         </div>
       </div>
       <div class="page-header-actions">
+        <router-link to="/subjects" class="btn-secondary grades-header-action" style="text-decoration: none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          Manage Subjects &amp; Curriculum &rarr;
+        </router-link>
         <button @click="addRow" type="button" class="btn-primary grades-header-action" :disabled="savingGrades">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -178,55 +184,13 @@
             </button>
           </div>
 
-          <!-- Subjects / Learning Areas for this Grade Level -->
-          <div class="grade-card-subjects">
-            <div class="subjects-header-row">
-              <label class="grade-card-label" style="margin: 0;">Subjects / Learning Areas</label>
-              <button
-                v-if="!getSubjectsForGrade(g.grade).length && g.grade"
-                type="button"
-                class="btn-xs btn-outline seed-defaults-btn"
-                @click="seedDefaultSubjects(g.grade)"
-                title="Populate standard DepEd K-12 learning areas"
-              >
-                + DepEd Defaults
-              </button>
-            </div>
-            <div class="section-tags" v-if="getSubjectsForGrade(g.grade).length">
-              <span v-for="sub in getSubjectsForGrade(g.grade)" :key="sub.id" class="section-tag subject-tag">
-                {{ sub.subject_name }}
-                <button
-                  type="button"
-                  class="section-tag-remove"
-                  @click="removeSubject(sub.id, sub.subject_name)"
-                  :aria-label="`Remove ${sub.subject_name}`"
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 6 6 18"/>
-                    <path d="m6 6 12 12"/>
-                  </svg>
-                </button>
-              </span>
-            </div>
-            <p v-else class="grade-card-hint">No subjects assigned yet. Add subjects or click "+ DepEd Defaults".</p>
-            <div class="section-input-row" style="margin-top: 8px;">
-              <input
-                v-model="g.newSubject"
-                class="section-input"
-                placeholder="e.g. Mathematics, English, Science..."
-                @keydown.enter.prevent="addSubjectForGrade(i)"
-              />
-              <button
-                type="button"
-                class="btn-sm section-add-btn"
-                @click="addSubjectForGrade(i)"
-                :disabled="!g.newSubject || !g.newSubject.trim()"
-              >
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-                Add
-              </button>
-            </div>
+          <div class="grade-card-footer-link" v-if="g.grade">
+            <router-link :to="`/subjects?gradeLevel=${encodeURIComponent(g.grade)}`" class="curriculum-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              Manage {{ g.grade }} Subjects &amp; Weights &rarr;
+            </router-link>
           </div>
         </div>
       </div>
@@ -248,8 +212,6 @@ const schools = ref([])
 const savedState = loadPageState(auth.user)
 const selectedSchoolId = ref(savedState?.school || '')
 const gradeRows = ref([])
-const subjectsList = ref([])
-const loadingSubjects = ref(false)
 const savingGrades = ref(false)
 const gradesError = ref('')
 
@@ -267,103 +229,6 @@ const totalSections = computed(() =>
   gradeRows.value.reduce((sum, g) => sum + g.sections.length, 0)
 )
 
-function getSubjectsForGrade(gradeName) {
-  const g = String(gradeName || '').trim().toLowerCase()
-  if (!g) return []
-  return subjectsList.value.filter(s => String(s.grade_level || '').trim().toLowerCase() === g)
-}
-
-async function loadSubjects() {
-  const sid = gradesSchoolId()
-  if (!sid) {
-    subjectsList.value = []
-    return
-  }
-  loadingSubjects.value = true
-  try {
-    const res = await fetch(`/api/grading/subjects?schoolId=${sid}`, {
-      headers: auth.actorHeaders()
-    })
-    const data = await res.json()
-    subjectsList.value = Array.isArray(data) ? data : []
-  } catch (e) {
-    console.error('Failed to load subjects:', e)
-    subjectsList.value = []
-  } finally {
-    loadingSubjects.value = false
-  }
-}
-
-async function addSubjectForGrade(i) {
-  const row = gradeRows.value[i]
-  if (!row || !row.grade || !row.newSubject?.trim()) return
-  const sid = gradesSchoolId()
-  if (!sid) return
-  const name = row.newSubject.trim()
-  try {
-    const res = await fetch('/api/grading/subjects', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...auth.actorHeaders()
-      },
-      body: JSON.stringify({
-        schoolId: sid,
-        gradeLevel: row.grade.trim(),
-        subjectName: name,
-        subjectCode: name.slice(0, 8).toUpperCase().replace(/\s+/g, '')
-      })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to add subject')
-    row.newSubject = ''
-    notify(`Added ${name} to ${row.grade}`, 'success')
-    await loadSubjects()
-  } catch (e) {
-    notify(e.message, 'error')
-  }
-}
-
-async function removeSubject(subId, subName) {
-  if (!confirm(`Remove subject "${subName}"?`)) return
-  try {
-    const res = await fetch(`/api/grading/subjects/${subId}`, {
-      method: 'DELETE',
-      headers: auth.actorHeaders()
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to delete subject')
-    notify(`Subject ${subName} removed`, 'success')
-    await loadSubjects()
-  } catch (e) {
-    notify(e.message, 'error')
-  }
-}
-
-async function seedDefaultSubjects(gradeName) {
-  const sid = gradesSchoolId()
-  if (!sid || !gradeName) return
-  try {
-    const res = await fetch('/api/grading/subjects/seed-defaults', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...auth.actorHeaders()
-      },
-      body: JSON.stringify({
-        schoolId: sid,
-        gradeLevel: gradeName.trim()
-      })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to seed subjects')
-    notify(`DepEd learning areas populated for ${gradeName}`, 'success')
-    await loadSubjects()
-  } catch (e) {
-    notify(e.message, 'error')
-  }
-}
-
 onMounted(async () => {
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
@@ -372,7 +237,6 @@ onMounted(async () => {
     selectedSchoolId.value = auth.schoolId || ''
   }
   await loadGrades()
-  await loadSubjects()
 })
 
 watch(selectedSchoolId, () => {
@@ -394,10 +258,8 @@ async function loadGrades() {
     gradeRows.value = (Array.isArray(data) ? data : []).map(g => ({
       grade: g.grade || '',
       sections: Array.isArray(g.sections) ? [...g.sections] : [],
-      newSection: '',
-      newSubject: ''
+      newSection: ''
     }))
-    await loadSubjects()
   } catch (e) {
     gradesError.value = e.message
   }
@@ -714,31 +576,26 @@ async function saveGrades() {
   color: var(--primary-foreground);
 }
 
-.grade-card-subjects {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+.grade-card-footer-link {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
 }
 
-.subjects-header-row {
-  display: flex;
-  justify-content: space-between;
+.curriculum-link {
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
   gap: 6px;
-}
-
-.seed-defaults-btn {
-  font-size: 0.68rem;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.subject-tag {
-  background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--primary);
-  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  text-decoration: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.curriculum-link:hover {
+  opacity: 0.85;
+  transform: translateX(2px);
 }
 
 .section-input-row {

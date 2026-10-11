@@ -312,3 +312,27 @@ test('GET /api/grading/class-record/export generates formatted DepEd CSV spreads
   assert.ok(text.includes('FEMALE LEARNERS'))
   assert.ok(text.includes('Silang, Gabriela'))
 })
+
+test('Enforces campus license status and locks class record when license is expired or suspended', async () => {
+  const licenseId = `lic-test-${suffix}`
+
+  // Insert suspended license for this school
+  await run(
+    `INSERT INTO licenses (id, school_id, license_key, plan_tier, status, billing_cycle, max_teachers, max_students, issued_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [licenseId, schoolId, `KEY-${suffix}`, 'standard', 'suspended', 'annual', 20, 500]
+  )
+
+  // Non-superadmin teacher attempts to load class record
+  const { response, body } = await request(
+    `/api/grading/class-record?schoolId=${schoolId}&gradeLevel=Grade%208&section=Sapphire&subjectId=${subjectId}&quarter=Q1&schoolYear=2026-2027`,
+    { headers: headers(teacherId, 'teacher') }
+  )
+
+  assert.equal(response.status, 402)
+  assert.equal(body.licenseLocked, true)
+  assert.match(body.error, /School workspace is locked/)
+
+  // Clean up test license
+  await run('DELETE FROM licenses WHERE id = ?', [licenseId])
+})

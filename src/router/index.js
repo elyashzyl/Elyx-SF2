@@ -86,6 +86,12 @@ const routes = [
     meta: { role: ['superadmin', 'admin'] }
   },
   {
+    path: '/subjects',
+    name: 'Subjects',
+    component: () => import('../views/Subjects.vue'),
+    meta: { role: ['superadmin', 'admin', 'teacher'] }
+  },
+  {
     path: '/quarterly',
     name: 'QuarterlySettings',
     component: () => import('../views/QuarterlySettings.vue'),

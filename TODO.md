@@ -312,7 +312,9 @@ Remaining attendance follow-ups:
     3. **DepEd Form 138 (SF9 Card)**: Official progress report card with academic ratings, 10-month attendance matrix, core values, general average, honors distinction, and `@media print` layout.
     4. **Analytics & Honors**: Campus average, passing rate, proficiency distribution bars, and honor roll candidates.
   - Registered `/grading` route in `src/router/index.js` and added "Academic Grading (SF9)" sidebar link in `src/App.vue`.
-  - Regression verified with `tests/phase9-academic-grading.test.mjs` and clean Vite build.
+  - Added dedicated Curriculum Management page `src/views/Subjects.vue` at `/subjects`, removing cluttered inline subject chips from `GradeLevels.vue` and adding direct curriculum links.
+  - Implemented school isolation and license enforcement across all subject endpoints (`GET`, `POST`, `PUT`, `DELETE`, and `seed-defaults`) via `resolveScopeSchool`.
+  - Verified with `tests/subjects-curriculum-management.test.mjs` and clean Vite build.
 
 ---
 

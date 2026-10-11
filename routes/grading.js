@@ -124,34 +124,45 @@ router.post('/subjects/seed-defaults', async (req, res) => {
     const schoolId = scope.schoolId || ''
     const gradeLevel = String(req.body?.gradeLevel || '').trim()
 
-    if (!gradeLevel) {
-      return res.status(400).json({ error: 'Grade level is required' })
+    let targetGrades = []
+    if (gradeLevel && gradeLevel.toLowerCase() !== 'all') {
+      targetGrades = [gradeLevel]
+    } else {
+      // Find all grades defined for this school
+      const glRows = await query('SELECT grade FROM grade_levels WHERE school_id = ? ORDER BY sort, grade', [schoolId])
+      targetGrades = glRows.map(r => r.grade).filter(Boolean)
+      if (!targetGrades.length) {
+        // Fallback to secondary grades if none defined yet
+        targetGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10']
+      }
     }
-
-    // Check existing subjects for this school & grade
-    const existing = await query(
-      'SELECT subject_name FROM grading_subjects WHERE school_id = ? AND grade_level = ?',
-      [schoolId, gradeLevel]
-    )
-    const existingNames = new Set(existing.map(s => s.subject_name.toLowerCase()))
 
     let inserted = 0
-    for (let i = 0; i < DEPED_STANDARD_SUBJECTS.length; i++) {
-      const def = DEPED_STANDARD_SUBJECTS[i]
-      if (existingNames.has(def.name.toLowerCase())) continue
-
-      const id = uuidv4()
-      await run(
-        `INSERT INTO grading_subjects (id, school_id, grade_level, subject_name, subject_code, weight_ww, weight_pt, weight_qa, display_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, schoolId, gradeLevel, def.name, def.code, def.ww, def.pt, def.qa, i + 1]
+    for (const gLevel of targetGrades) {
+      // Check existing subjects for this school & grade
+      const existing = await query(
+        'SELECT subject_name FROM grading_subjects WHERE school_id = ? AND grade_level = ?',
+        [schoolId, gLevel]
       )
-      inserted++
+      const existingNames = new Set(existing.map(s => s.subject_name.toLowerCase()))
+
+      for (let i = 0; i < DEPED_STANDARD_SUBJECTS.length; i++) {
+        const def = DEPED_STANDARD_SUBJECTS[i]
+        if (existingNames.has(def.name.toLowerCase())) continue
+
+        const id = uuidv4()
+        await run(
+          `INSERT INTO grading_subjects (id, school_id, grade_level, subject_name, subject_code, weight_ww, weight_pt, weight_qa, display_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, schoolId, gLevel, def.name, def.code, def.ww, def.pt, def.qa, i + 1]
+        )
+        inserted++
+      }
     }
 
-    await audit(me, 'seed_deped_subjects', { schoolId }, `Added ${inserted} DepEd standard subjects for ${gradeLevel}`)
+    await audit(me, 'seed_deped_subjects', { schoolId }, `Added ${inserted} DepEd standard subjects across ${targetGrades.join(', ')}`)
 
-    res.json({ success: true, count: inserted, message: `Added ${inserted} standard DepEd subjects` })
+    res.json({ success: true, count: inserted, createdCount: inserted, message: `Added ${inserted} standard DepEd subjects across ${targetGrades.length} grade level(s)` })
   } catch (err) {
     console.error('Error seeding DepEd subjects:', err)
     res.status(500).json({ error: 'Failed to seed standard subjects' })
@@ -172,9 +183,8 @@ router.put('/subjects/:id', async (req, res) => {
     }
 
     const current = rows[0]
-    if (me.role !== 'superadmin' && current.school_id && current.school_id !== me.school_id) {
-      return res.status(403).json({ error: 'Forbidden: outside your school' })
-    }
+    const scope = await resolveScopeSchool(req, res, current.school_id)
+    if (!scope) return
 
     const subjectName = req.body?.subjectName !== undefined ? String(req.body.subjectName).trim() : current.subject_name
     const subjectCode = req.body?.subjectCode !== undefined ? String(req.body.subjectCode).trim() : current.subject_code
@@ -239,9 +249,8 @@ router.delete('/subjects/:id', async (req, res) => {
     }
 
     const current = rows[0]
-    if (me.role !== 'superadmin' && current.school_id && current.school_id !== me.school_id) {
-      return res.status(403).json({ error: 'Forbidden: outside your school' })
-    }
+    const scope = await resolveScopeSchool(req, res, current.school_id)
+    if (!scope) return
 
     // Check for learner grades
     const gradesCountRow = (await query('SELECT COUNT(*) as count FROM learner_grades WHERE subject_id = ?', [id]))[0]
@@ -997,9 +1006,8 @@ router.get('/form138/:studentId', async (req, res) => {
     }
     const student = studentRows[0]
 
-    if (me.role !== 'superadmin' && student.school_id && student.school_id !== me.school_id) {
-      return res.status(403).json({ error: 'Forbidden: outside your school' })
-    }
+    const scope = await resolveScopeSchool(req, res, student.school_id)
+    if (!scope) return
 
     const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [student.school_id])
     const school = schoolRows[0] || {}
@@ -1220,9 +1228,8 @@ router.post('/form138/:studentId/save', async (req, res) => {
     if (!studentRows.length) return res.status(404).json({ error: 'Student not found' })
     const student = studentRows[0]
 
-    if (me.role !== 'superadmin' && student.school_id && student.school_id !== me.school_id) {
-      return res.status(403).json({ error: 'Forbidden: outside your school' })
-    }
+    const scope = await resolveScopeSchool(req, res, student.school_id)
+    if (!scope) return
 
     const schoolRows = await query('SELECT * FROM schools WHERE id = ?', [student.school_id])
     const school = schoolRows[0] || {}
