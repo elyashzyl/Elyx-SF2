@@ -432,21 +432,37 @@
                 <th v-for="(h, idx) in wwHps" :key="`ww-h-${idx}`" class="sub-col item-header-cell">
                   <div class="sub-col-title-wrap">
                     <span>WW{{ idx + 1 }}</span>
-                    <div class="item-quick-actions no-print">
-                      <button
-                        type="button"
-                        @click="quickFillPrompt('ww', idx)"
-                        class="col-quick-btn"
-                        :title="`Quick fill scores for WW${idx + 1}`"
-                      >&darr;</button>
-                      <button 
-                        v-if="wwHps.length > 1" 
-                        type="button" 
-                        @click="removeWwItemAt(idx)" 
-                        class="col-del-btn" 
-                        :title="`Remove Written Work item WW${idx + 1}`"
-                      >&times;</button>
-                    </div>
+                    <DropdownMenu align="center" min-width="200px" class="no-print">
+                      <template #trigger="{ isOpen }">
+                        <button
+                          type="button"
+                          class="col-quick-btn"
+                          :class="{ 'is-open': isOpen }"
+                          :title="`Actions for WW${idx + 1}`"
+                        >&darr;</button>
+                      </template>
+                      <template #default="{ close }">
+                        <div class="dropdown-label">Written Work {{ idx + 1 }} (HPS: {{ h }})</div>
+                        <button type="button" class="dropdown-item" @click="quickFillPrompt('ww', idx); close()">
+                          <span>Fill custom score…</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillValue('ww', idx, h); close()">
+                          <span>Fill all with HPS ({{ h }})</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillValue('ww', idx, 0); close()">
+                          <span>Clear scores (set 0)</span>
+                        </button>
+                        <div class="dropdown-separator" v-if="wwHps.length > 1"></div>
+                        <button
+                          v-if="wwHps.length > 1"
+                          type="button"
+                          class="dropdown-item dropdown-item--danger"
+                          @click="removeWwItemAt(idx); close()"
+                        >
+                          <span>Delete column WW{{ idx + 1 }}</span>
+                        </button>
+                      </template>
+                    </DropdownMenu>
                   </div>
                 </th>
                 <th class="sub-col col-sum">Total</th>
@@ -457,21 +473,37 @@
                 <th v-for="(h, idx) in ptHps" :key="`pt-h-${idx}`" class="sub-col item-header-cell">
                   <div class="sub-col-title-wrap">
                     <span>PT{{ idx + 1 }}</span>
-                    <div class="item-quick-actions no-print">
-                      <button
-                        type="button"
-                        @click="quickFillPrompt('pt', idx)"
-                        class="col-quick-btn"
-                        :title="`Quick fill scores for PT${idx + 1}`"
-                      >&darr;</button>
-                      <button 
-                        v-if="ptHps.length > 1" 
-                        type="button" 
-                        @click="removePtItemAt(idx)" 
-                        class="col-del-btn" 
-                        :title="`Remove Performance Task item PT${idx + 1}`"
-                      >&times;</button>
-                    </div>
+                    <DropdownMenu align="center" min-width="200px" class="no-print">
+                      <template #trigger="{ isOpen }">
+                        <button
+                          type="button"
+                          class="col-quick-btn"
+                          :class="{ 'is-open': isOpen }"
+                          :title="`Actions for PT${idx + 1}`"
+                        >&darr;</button>
+                      </template>
+                      <template #default="{ close }">
+                        <div class="dropdown-label">Performance Task {{ idx + 1 }} (HPS: {{ h }})</div>
+                        <button type="button" class="dropdown-item" @click="quickFillPrompt('pt', idx); close()">
+                          <span>Fill custom score…</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillValue('pt', idx, h); close()">
+                          <span>Fill all with HPS ({{ h }})</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillValue('pt', idx, 0); close()">
+                          <span>Clear scores (set 0)</span>
+                        </button>
+                        <div class="dropdown-separator" v-if="ptHps.length > 1"></div>
+                        <button
+                          v-if="ptHps.length > 1"
+                          type="button"
+                          class="dropdown-item dropdown-item--danger"
+                          @click="removePtItemAt(idx); close()"
+                        >
+                          <span>Delete column PT{{ idx + 1 }}</span>
+                        </button>
+                      </template>
+                    </DropdownMenu>
                   </div>
                 </th>
                 <th class="sub-col col-sum">Total</th>
@@ -482,21 +514,37 @@
                 <th v-for="(h, idx) in qaHps" :key="`qa-h-${idx}`" class="sub-col item-header-cell">
                   <div class="sub-col-title-wrap">
                     <span>QA{{ idx + 1 }}</span>
-                    <div class="item-quick-actions no-print">
-                      <button
-                        type="button"
-                        @click="quickFillPrompt('qa', idx)"
-                        class="col-quick-btn"
-                        :title="`Quick fill scores for QA${idx + 1}`"
-                      >&darr;</button>
-                      <button 
-                        v-if="qaHps.length > 1" 
-                        type="button" 
-                        @click="removeQaItemAt(idx)" 
-                        class="col-del-btn" 
-                        :title="`Remove Quarterly Exam item QA${idx + 1}`"
-                      >&times;</button>
-                    </div>
+                    <DropdownMenu align="center" min-width="200px" class="no-print">
+                      <template #trigger="{ isOpen }">
+                        <button
+                          type="button"
+                          class="col-quick-btn"
+                          :class="{ 'is-open': isOpen }"
+                          :title="`Actions for QA${idx + 1}`"
+                        >&darr;</button>
+                      </template>
+                      <template #default="{ close }">
+                        <div class="dropdown-label">Quarterly Exam {{ idx + 1 }} (HPS: {{ h }})</div>
+                        <button type="button" class="dropdown-item" @click="quickFillPrompt('qa', idx); close()">
+                          <span>Fill custom score…</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillValue('qa', idx, h); close()">
+                          <span>Fill all with HPS ({{ h }})</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillValue('qa', idx, 0); close()">
+                          <span>Clear scores (set 0)</span>
+                        </button>
+                        <div class="dropdown-separator" v-if="qaHps.length > 1"></div>
+                        <button
+                          v-if="qaHps.length > 1"
+                          type="button"
+                          class="dropdown-item dropdown-item--danger"
+                          @click="removeQaItemAt(idx); close()"
+                        >
+                          <span>Delete column QA{{ idx + 1 }}</span>
+                        </button>
+                      </template>
+                    </DropdownMenu>
                   </div>
                 </th>
                 <th class="sub-col col-sum">Total</th>
@@ -917,6 +965,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { useActiveSchool } from '../composables/useActiveSchool'
 import { useToast } from '../composables/useToast'
+import DropdownMenu from '../components/DropdownMenu.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -1310,6 +1359,19 @@ function quickFillPrompt(type, index) {
   isModified.value = true
   recalculateAll()
   addToast(`Filled all learners with score ${val} for ${label}`, 'success')
+}
+
+function quickFillValue(type, index, value) {
+  const maxHps = type === 'ww' ? (wwHps.value[index] || 20) : (type === 'pt' ? (ptHps.value[index] || 25) : (qaHps.value[index] || 50))
+  const safeVal = Math.max(0, Math.min(maxHps, Number(value) || 0))
+  students.value.forEach(st => {
+    if (type === 'ww') st.ww_scores[index] = safeVal
+    else if (type === 'pt') st.pt_scores[index] = safeVal
+    else if (type === 'qa') st.qa_scores[index] = safeVal
+  })
+  isModified.value = true
+  recalculateAll()
+  addToast(`Set score to ${safeVal} for all learners`, 'success')
 }
 
 // Group students by gender

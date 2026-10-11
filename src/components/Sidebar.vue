@@ -274,36 +274,62 @@
       </div>
     </nav>
 
-    <!-- Sidebar Footer / Bottom: Profile Card & Logout -->
+    <!-- Sidebar Footer / Bottom: Profile Dropdown & Logout -->
     <div class="sidebar-footer">
-      <router-link
-        to="/settings"
-        class="sidebar-profile-card"
-        :class="{ 'is-collapsed-profile': isCollapsed && !isMobile }"
-        @click="handleNavClick"
-        title="User Profile &amp; Settings"
-      >
-        <div class="sidebar-profile-avatar-wrap">
-          <div class="sidebar-profile-avatar">
-            <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Profile avatar" />
-            <span v-else>{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</span>
+      <DropdownMenu side="top" align="start" min-width="230px" style="flex: 1;">
+        <template #trigger="{ isOpen }">
+          <div
+            class="sidebar-profile-card"
+            :class="{ 'is-collapsed-profile': isCollapsed && !isMobile, 'is-active-dropdown': isOpen }"
+            title="User Profile &amp; Settings"
+          >
+            <div class="sidebar-profile-avatar-wrap">
+              <div class="sidebar-profile-avatar">
+                <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Profile avatar" />
+                <span v-else>{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</span>
+              </div>
+              <span class="sidebar-status-dot" title="Account active"></span>
+            </div>
+
+            <div class="sidebar-profile-info" v-if="!isCollapsed || isMobile">
+              <span class="sidebar-profile-name">{{ auth.user?.name || 'User' }}</span>
+              <span class="sidebar-profile-role">{{ roleLabel }}</span>
+            </div>
+
+            <span class="sidebar-settings-icon" v-if="!isCollapsed || isMobile" title="User Menu" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.4v-.2a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.4 17a1.7 1.7 0 0 0-1.56-1.03H6.6v-2.4h.24A1.7 1.7 0 0 0 8.4 12a1.7 1.7 0 0 0-.34-1.88L8 10.06l1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V7h2.4v.2a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.4 12c.2.64.8 1.03 1.46 1.03h.24v2.4h-.24c-.66 0-1.26.39-1.46 1.03Z" />
+              </svg>
+            </span>
+
+            <span class="sidebar-tooltip" v-if="isCollapsed && !isMobile">Profile &amp; Settings</span>
           </div>
-          <span class="sidebar-status-dot" title="Account active"></span>
-        </div>
+        </template>
 
-        <div class="sidebar-profile-info" v-if="!isCollapsed || isMobile">
-          <span class="sidebar-profile-name">{{ auth.user?.name || 'User' }}</span>
-          <span class="sidebar-profile-role">{{ roleLabel }} · Settings</span>
-        </div>
-
-        <span class="sidebar-settings-icon" v-if="!isCollapsed || isMobile" title="Settings" aria-hidden="true">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.4v-.2a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.4 17a1.7 1.7 0 0 0-1.56-1.03H6.6v-2.4h.24A1.7 1.7 0 0 0 8.4 12a1.7 1.7 0 0 0-.34-1.88L8 10.06l1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V7h2.4v.2a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.4 12c.2.64.8 1.03 1.46 1.03h.24v2.4h-.24c-.66 0-1.26.39-1.46 1.03Z" />
-          </svg>
-        </span>
-
-        <span class="sidebar-tooltip" v-if="isCollapsed && !isMobile">Profile &amp; Settings</span>
-      </router-link>
+        <template #default="{ close }">
+          <div class="dropdown-label">{{ auth.user?.name || 'Account' }} ({{ roleLabel }})</div>
+          <router-link to="/settings" class="dropdown-item" @click="close(); handleNavClick()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.4v-.2a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.4 17a1.7 1.7 0 0 0-1.56-1.03H6.6v-2.4h.24A1.7 1.7 0 0 0 8.4 12a1.7 1.7 0 0 0-.34-1.88L8 10.06l1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V7h2.4v.2a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.4 12c.2.64.8 1.03 1.46 1.03h.24v2.4h-.24c-.66 0-1.26.39-1.46 1.03Z" />
+            </svg>
+            <span>Settings &amp; Preferences</span>
+          </router-link>
+          <router-link to="/inquiries" class="dropdown-item" @click="close(); handleNavClick()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span>Helpdesk &amp; Inquiries</span>
+          </router-link>
+          <div class="dropdown-separator"></div>
+          <button type="button" class="dropdown-item dropdown-item--danger" @click="close(); $emit('logout')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="m16 17 5-5-5-5M21 12H9" />
+            </svg>
+            <span>Sign out</span>
+          </button>
+        </template>
+      </DropdownMenu>
 
       <button
         type="button"
@@ -327,6 +353,7 @@
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useSidebar } from '../composables/useSidebar'
+import DropdownMenu from './DropdownMenu.vue'
 
 defineEmits(['logout'])
 

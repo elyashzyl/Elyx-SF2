@@ -31,7 +31,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Date</label>
-            <input v-model="form.date" type="date" required />
+            <DatePicker v-model="form.date" required full-width />
           </div>
           <div class="form-group">
             <label>Grade</label>
@@ -396,11 +396,11 @@
         <div class="summary-filters-bar">
           <div class="filter-col">
             <label>Start Date</label>
-            <input type="date" v-model="summaryFilters.startDate" @change="loadAttendanceSummaries" />
+            <DatePicker v-model="summaryFilters.startDate" @change="loadAttendanceSummaries" full-width />
           </div>
           <div class="filter-col">
             <label>End Date</label>
-            <input type="date" v-model="summaryFilters.endDate" @change="loadAttendanceSummaries" />
+            <DatePicker v-model="summaryFilters.endDate" @change="loadAttendanceSummaries" full-width />
           </div>
           <div class="filter-col">
             <label>Gender</label>
@@ -549,7 +549,7 @@
           <div class="form-row">
             <div class="form-group">
               <label>Date</label>
-              <input v-model="editRecordForm.date" type="date" required />
+              <DatePicker v-model="editRecordForm.date" required full-width />
             </div>
             <div class="form-group">
               <label>Grade</label>
@@ -583,6 +583,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import DatePicker from '../components/DatePicker.vue'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'

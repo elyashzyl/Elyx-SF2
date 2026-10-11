@@ -68,9 +68,9 @@
         </select>
 
         <div v-if="datePreset === 'custom'" class="custom-range-inputs">
-          <input type="date" v-model="customStartDate" @change="loadStats" class="range-date-input" aria-label="Start Date" />
+          <DatePicker v-model="customStartDate" @change="loadStats" aria-label="Start Date" />
           <span class="range-sep">to</span>
-          <input type="date" v-model="customEndDate" @change="loadStats" class="range-date-input" aria-label="End Date" />
+          <DatePicker v-model="customEndDate" @change="loadStats" aria-label="End Date" />
         </div>
 
         <span v-if="activeRangeLabel" class="active-range-pill">{{ activeRangeLabel }}</span>
@@ -765,7 +765,7 @@
 
           <div class="form-group">
             <label>Expiration Date (Optional)</label>
-            <input type="date" v-model="announcementForm.expires_at" class="text-input" />
+            <DatePicker v-model="announcementForm.expires_at" full-width />
           </div>
 
           <div class="form-actions">
@@ -782,6 +782,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import DatePicker from '../components/DatePicker.vue'
 
 const route = useRoute()
 const auth = useAuthStore()

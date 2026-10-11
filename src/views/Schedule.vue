@@ -244,7 +244,7 @@
           </div>
           <div class="form-group">
             <label>Date</label>
-            <input v-model="eventForm.event_date" type="date" required />
+            <DatePicker v-model="eventForm.event_date" required full-width />
           </div>
           <div class="form-actions">
             <button type="submit" class="btn-primary" :disabled="savingEvent">{{ savingEvent ? 'Saving...' : (editingEvent ? 'Update' : 'Add') }}</button>
@@ -300,6 +300,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import DatePicker from '../components/DatePicker.vue'
 import { useNotifications } from '../composables/useNotifications'
 import { useGradeLevels } from '../composables/useGradeLevels'
 

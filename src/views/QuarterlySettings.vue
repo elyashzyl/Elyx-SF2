@@ -214,11 +214,11 @@
           <div class="date-range-grid">
             <div class="form-group">
               <label class="form-label">Start Date</label>
-              <input v-model="q.start_date" type="date" class="form-input" :disabled="!auth.isAdmin || q.is_active === 0" />
+              <DatePicker v-model="q.start_date" :disabled="!auth.isAdmin || q.is_active === 0" full-width />
             </div>
             <div class="form-group">
               <label class="form-label">End Date</label>
-              <input v-model="q.end_date" type="date" class="form-input" :disabled="!auth.isAdmin || q.is_active === 0" />
+              <DatePicker v-model="q.end_date" :disabled="!auth.isAdmin || q.is_active === 0" full-width />
             </div>
             <div class="form-group">
               <label class="form-label">Target School Days</label>
@@ -387,6 +387,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import DatePicker from '../components/DatePicker.vue'
 
 const auth = useAuthStore()
 

@@ -30,26 +30,51 @@
 
         <div class="top-nav-spacer"></div>
 
-        <!-- Superadmin Switch School on Topbar -->
-        <div v-if="auth.isSuperadmin && schoolsList.length > 0" class="top-nav-school top-nav-school-switcher">
-          <img v-if="currentTopNavSchool?.logo_url" :src="currentTopNavSchool.logo_url" alt="" class="top-nav-school-logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="top-nav-school-icon">
-            <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/>
-          </svg>
-          <div class="top-nav-school-select-wrap">
-            <span class="top-nav-school-label">Switch School</span>
-            <select
-              :value="activeSchool?.id || ''"
-              @change="handleTopNavSchoolChange"
-              class="top-nav-school-select"
-              title="Switch active campus"
-            >
-              <option value="">All Schools</option>
-              <option v-for="s in schoolsList" :key="s.id" :value="s.id">
-                {{ s.name }}{{ s.short ? ' (' + s.short + ')' : '' }}
-              </option>
-            </select>
-          </div>
+        <!-- Superadmin Switch School on Topbar with Shadcn DropdownMenu -->
+        <div v-if="auth.isSuperadmin && schoolsList.length > 0" class="top-nav-school">
+          <DropdownMenu align="end" min-width="260px">
+            <template #trigger="{ isOpen }">
+              <button type="button" class="top-nav-school-switcher-btn" :class="{ 'is-open': isOpen }">
+                <img v-if="currentTopNavSchool?.logo_url" :src="currentTopNavSchool.logo_url" alt="" class="top-nav-school-logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
+                <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="top-nav-school-icon">
+                  <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1M9 18h1M14 18h1"/>
+                </svg>
+                <span class="top-nav-school-copy">
+                  <small class="top-nav-school-sub">Switch Campus</small>
+                  <strong>{{ activeSchool ? activeSchool.name : 'All Campuses' }}</strong>
+                </span>
+                <svg class="chevron-icon" :class="{ 'rotate': isOpen }" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </template>
+            <template #default="{ close }">
+              <div class="dropdown-label">Select Active Campus</div>
+              <button
+                type="button"
+                class="dropdown-item"
+                :class="{ 'is-active': !activeSchool }"
+                @click="handleSelectSchool(''); close()"
+              >
+                <span>All Campuses (Overview)</span>
+                <span v-if="!activeSchool" style="margin-left: auto;">✓</span>
+              </button>
+              <div class="dropdown-separator"></div>
+              <button
+                v-for="s in schoolsList"
+                :key="s.id"
+                type="button"
+                class="dropdown-item"
+                :class="{ 'is-active': activeSchool?.id === s.id }"
+                @click="handleSelectSchool(s.id); close()"
+              >
+                <img v-if="s.logo_url" :src="s.logo_url" alt="" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
+                <span v-else style="width: 18px; height: 18px; border-radius: 50%; background: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800;">{{ (s.short || s.name || 'S').charAt(0) }}</span>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.name }}{{ s.short ? ' (' + s.short + ')' : '' }}</span>
+                <span v-if="activeSchool?.id === s.id" style="margin-left: auto; color: var(--primary); font-weight: bold;">✓</span>
+              </button>
+            </template>
+          </DropdownMenu>
         </div>
 
         <!-- Regular Admin / Teacher School Indicator -->
@@ -232,6 +257,7 @@ import { useActiveSchool } from './composables/useActiveSchool'
 import { savePageState } from './composables/usePageState'
 import { useSidebar } from './composables/useSidebar'
 import { restoreScrollAfterLoad } from './router'
+import DropdownMenu from './components/DropdownMenu.vue'
 import Sidebar from './components/Sidebar.vue'
 import WalkInTutorial from './components/WalkInTutorial.vue'
 import SupportChatModal from './components/SupportChatModal.vue'
@@ -258,8 +284,7 @@ async function loadSchoolsList() {
   }
 }
 
-function handleTopNavSchoolChange(e) {
-  const sid = e.target.value
+function handleSelectSchool(sid) {
   if (!sid) {
     clearActiveSchool()
     if (auth.user) savePageState(auth.user, { school: '' })
@@ -284,6 +309,10 @@ function handleTopNavSchoolChange(e) {
     loadSchool()
     window.dispatchEvent(new CustomEvent('elytrack:school-switched', { detail: { schoolId: sid } }))
   }
+}
+
+function handleTopNavSchoolChange(e) {
+  handleSelectSchool(e.target.value)
 }
 
 const currentTopNavSchool = computed(() => {
@@ -570,59 +599,49 @@ function notifIcon(type) {
   flex: 0 1 240px;
 }
 
-.top-nav-school-switcher {
-  flex: 0 1 280px;
-  display: flex;
+.top-nav-school-switcher-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
+  gap: 9px;
+  padding: 5px 12px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  transition: border-color 0.15s ease;
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  max-width: 280px;
+  text-align: left;
 }
 
-.top-nav-school-switcher:focus-within {
+.top-nav-school-switcher-btn:hover,
+.top-nav-school-switcher-btn.is-open {
   border-color: var(--primary);
+  background: var(--secondary);
 }
 
-.top-nav-school-icon {
-  color: var(--primary);
-  flex-shrink: 0;
+.top-nav-school-switcher-btn .chevron-icon.rotate {
+  transform: rotate(180deg);
 }
 
-.top-nav-school-select-wrap {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.top-nav-school-label {
+.top-nav-school-sub {
   font-size: 0.62rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted-foreground);
+  display: block;
   line-height: 1;
-  margin-bottom: 2px;
 }
 
-.top-nav-school-select {
-  background: transparent;
-  border: none;
+.top-nav-school-switcher-btn strong {
+  display: block;
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--foreground);
-  padding: 0;
-  outline: none;
-  cursor: pointer;
-  width: 100%;
-}
-
-.top-nav-school-select option {
-  background: var(--card);
-  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 170px;
 }
 
 .top-nav-school-copy strong {

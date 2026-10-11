@@ -1,28 +1,72 @@
 <template>
-  <div class="dropdown-wrapper" ref="wrapperRef">
-    <div @click="toggle" class="dropdown-trigger">
-      <slot name="trigger" />
+  <div class="shadcn-dropdown-wrapper" ref="wrapperRef">
+    <div
+      class="shadcn-dropdown-trigger"
+      @click="toggle"
+      :aria-expanded="isOpen ? 'true' : 'false'"
+      aria-haspopup="menu"
+      role="button"
+      tabindex="0"
+      @keydown.enter.prevent="toggle"
+      @keydown.space.prevent="toggle"
+    >
+      <slot name="trigger" :isOpen="isOpen" :toggle="toggle">
+        <button type="button" class="btn-secondary btn-sm default-trigger-btn">
+          <span>{{ label || 'Options' }}</span>
+          <svg class="chevron-icon" :class="{ 'is-open': isOpen }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </slot>
     </div>
-    <Transition name="dropdown">
+
+    <Transition name="shadcn-dropdown">
       <div
         v-if="isOpen"
-        class="dropdown-content"
-        :class="[`dropdown-content--${align}`, contentClass]"
-        :style="contentStyle"
+        class="shadcn-dropdown-content"
+        :class="[`align-${align}`, `side-${side}`, contentClass]"
+        :style="[
+          minWidth ? { minWidth: typeof minWidth === 'number' ? `${minWidth}px` : minWidth } : {},
+          contentStyle
+        ]"
+        role="menu"
       >
-        <slot />
+        <slot :close="close" :isOpen="isOpen" />
       </div>
     </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, provide, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
-  align: { type: String, default: 'start' },
-  contentClass: { type: String, default: '' },
-  contentStyle: { type: Object, default: () => ({}) }
+  align: {
+    type: String,
+    default: 'start',
+    validator: (v) => ['start', 'end', 'center'].includes(v)
+  },
+  side: {
+    type: String,
+    default: 'bottom',
+    validator: (v) => ['top', 'bottom'].includes(v)
+  },
+  minWidth: {
+    type: [String, Number],
+    default: '180px'
+  },
+  label: {
+    type: String,
+    default: ''
+  },
+  contentClass: {
+    type: String,
+    default: ''
+  },
+  contentStyle: {
+    type: Object,
+    default: () => ({})
+  }
 })
 
 const emit = defineEmits(['open', 'close'])
@@ -42,141 +86,196 @@ function close() {
   }
 }
 
+function open() {
+  if (!isOpen.value) {
+    isOpen.value = true
+    emit('open')
+  }
+}
+
 function handleClickOutside(e) {
   if (wrapperRef.value && !wrapperRef.value.contains(e.target)) {
     close()
   }
 }
 
-function handleEscape(e) {
-  if (e.key === 'Escape') close()
+function handleKeyDown(e) {
+  if (e.key === 'Escape' && isOpen.value) {
+    close()
+  }
 }
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside, true)
-  document.addEventListener('keydown', handleEscape)
+  document.addEventListener('keydown', handleKeyDown)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside, true)
-  document.removeEventListener('keydown', handleEscape)
+  document.removeEventListener('keydown', handleKeyDown)
 })
 
-defineExpose({ close, toggle })
+provide('dropdownMenu', {
+  isOpen,
+  toggle,
+  close,
+  open
+})
+
+defineExpose({
+  isOpen,
+  toggle,
+  close,
+  open
+})
 </script>
 
 <style scoped>
-.dropdown-wrapper {
+.shadcn-dropdown-wrapper {
   position: relative;
   display: inline-flex;
 }
 
-.dropdown-trigger {
+.shadcn-dropdown-trigger {
+  outline: none;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
 }
 
-.dropdown-content {
+.default-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chevron-icon {
+  transition: transform 0.15s ease;
+}
+.chevron-icon.is-open {
+  transform: rotate(180deg);
+}
+
+.shadcn-dropdown-content {
   position: absolute;
-  top: calc(100% + 6px);
-  z-index: 150;
-  min-width: 180px;
+  z-index: 160;
   background: var(--card);
+  color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
-  animation: dropdownIn 0.12s ease-out;
+  border-radius: var(--radius-md, 8px);
+  padding: 4px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  outline: none;
+  overflow: hidden;
 }
 
-.dropdown-content--start {
+/* Alignment */
+.align-start {
   left: 0;
 }
-
-.dropdown-content--end {
+.align-end {
   right: 0;
 }
-
-.dropdown-content--center {
+.align-center {
   left: 50%;
   transform: translateX(-50%);
 }
 
-@keyframes dropdownIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+/* Side placement */
+.side-bottom {
+  top: calc(100% + 4px);
+}
+.side-top {
+  bottom: calc(100% + 4px);
 }
 
-/* Transition classes */
-.dropdown-enter-active {
-  animation: dropdownIn 0.12s ease-out;
+/* Animations */
+.shadcn-dropdown-enter-active {
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.shadcn-dropdown-leave-active {
+  transition: opacity 0.1s ease-in, transform 0.1s ease-in;
 }
 
-.dropdown-leave-active {
-  animation: dropdownIn 0.1s ease-in reverse;
+.shadcn-dropdown-enter-from {
+  opacity: 0;
+  transform: scale(0.95) translateY(-4px);
+}
+.shadcn-dropdown-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-2px);
 }
 
-/* Dropdown item styles */
+.align-center.shadcn-dropdown-enter-from {
+  transform: translateX(-50%) scale(0.95) translateY(-4px);
+}
+.align-center.shadcn-dropdown-leave-to {
+  transform: translateX(-50%) scale(0.95) translateY(-2px);
+}
+
+/* Deep item styles inside content */
+:deep(.shadcn-dropdown-item),
 :deep(.dropdown-item) {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
+  gap: 8px;
+  border-radius: var(--radius-sm, 6px);
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--foreground);
+  user-select: none;
+  cursor: pointer;
+  outline: none;
   border: none;
   background: transparent;
-  color: var(--foreground);
-  font-size: 0.85rem;
-  font-weight: 500;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-  text-decoration: none;
+  width: 100%;
   text-align: left;
+  text-decoration: none;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-:deep(.dropdown-item:hover) {
-  background: var(--secondary);
+:deep(.shadcn-dropdown-item:hover),
+:deep(.dropdown-item:hover),
+:deep(.shadcn-dropdown-item:focus-visible),
+:deep(.dropdown-item:focus-visible) {
+  background: var(--secondary, rgba(255, 255, 255, 0.08));
   color: var(--foreground);
 }
 
-:deep(.dropdown-item--danger) {
-  color: var(--destructive);
+:deep(.shadcn-dropdown-item.is-active),
+:deep(.dropdown-item.is-active) {
+  background: var(--primary-bg, rgba(12, 83, 87, 0.12));
+  color: var(--primary);
+  font-weight: 700;
 }
 
-:deep(.dropdown-item--danger:hover) {
-  background: rgba(220, 38, 38, 0.08);
-  color: var(--destructive);
+:deep(.shadcn-dropdown-item.is-destructive),
+:deep(.dropdown-item.dropdown-item--danger) {
+  color: var(--destructive, #ef4444);
+}
+:deep(.shadcn-dropdown-item.is-destructive:hover),
+:deep(.dropdown-item.dropdown-item--danger:hover) {
+  background: var(--red-bg, rgba(239, 68, 68, 0.1));
+  color: var(--destructive, #ef4444);
 }
 
-:deep(.dropdown-item .dropdown-item-icon) {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
+:deep(.shadcn-dropdown-separator),
 :deep(.dropdown-separator) {
   height: 1px;
   background: var(--border);
-  margin: 4px 8px;
+  margin: 4px -4px;
 }
 
+:deep(.shadcn-dropdown-label),
 :deep(.dropdown-label) {
-  font-size: 0.72rem;
-  font-weight: 600;
+  padding: 6px 10px 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--muted-foreground);
-  opacity: 0.7;
-  padding: 6px 12px 4px;
+  user-select: none;
 }
 </style>

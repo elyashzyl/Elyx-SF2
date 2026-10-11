@@ -34,7 +34,7 @@
               </div>
               <div class="form-group">
                 <label>Date of Birth</label>
-                <input v-model="form.birth_date" type="date" />
+                <DatePicker v-model="form.birth_date" full-width />
               </div>
             </div>
 
@@ -168,7 +168,7 @@
           </div>
           <div class="form-group">
             <label>Effective Date</label>
-            <input v-model="enrollmentForm.effectiveOn" type="date" required />
+            <DatePicker v-model="enrollmentForm.effectiveOn" required full-width />
           </div>
           <div class="form-group">
             <label>Reason</label>
@@ -211,7 +211,7 @@
         <form @submit.prevent="saveEventEdit">
           <div class="form-group">
             <label>Effective Date <span class="required">*</span></label>
-            <input v-model="editEventForm.effectiveOn" type="date" required />
+            <DatePicker v-model="editEventForm.effectiveOn" required full-width />
           </div>
           <div class="form-row" v-if="editingEvent?.grade">
             <div class="form-group">
@@ -530,7 +530,7 @@
           <!-- Effective Date -->
           <div v-if="!['gender', 'permanent_delete'].includes(bulkActionType)" class="form-group">
             <label>Effective Date <span class="required">*</span></label>
-            <input v-model="bulkForm.effectiveOn" type="date" required />
+            <DatePicker v-model="bulkForm.effectiveOn" required full-width />
           </div>
 
           <!-- Reason / Notes Field -->
@@ -684,7 +684,7 @@
                 </div>
                 <div class="form-group">
                   <label>Follow-up Target Date</label>
-                  <input v-model="newIntervention.follow_up_date" type="date" />
+                  <DatePicker v-model="newIntervention.follow_up_date" full-width />
                 </div>
                 <div class="form-group">
                   <label>Initial Status</label>
@@ -786,7 +786,7 @@
                 </div>
                 <div class="form-group">
                   <label>Contact Date <span class="required">*</span></label>
-                  <input v-model="newContact.contact_date" type="date" required />
+                  <DatePicker v-model="newContact.contact_date" required full-width />
                 </div>
               </div>
 
@@ -1258,6 +1258,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import * as XLSX from 'xlsx'
+import DatePicker from '../components/DatePicker.vue'
 import { useAttendanceStore } from '../stores/attendance'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'

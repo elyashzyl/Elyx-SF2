@@ -189,9 +189,9 @@
 
           <!-- Custom Date Range -->
           <div v-if="comparisonPreset === 'custom'" class="filter-group-range">
-            <input type="date" v-model="startDate" @change="loadSectionComparison" class="date-input" />
+            <DatePicker v-model="startDate" @change="loadSectionComparison" />
             <span>to</span>
-            <input type="date" v-model="endDate" @change="loadSectionComparison" class="date-input" />
+            <DatePicker v-model="endDate" @change="loadSectionComparison" />
           </div>
 
           <!-- Sort Order -->
@@ -1201,6 +1201,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import DatePicker from '../components/DatePicker.vue'
 
 const router = useRouter()
 const route = useRoute()

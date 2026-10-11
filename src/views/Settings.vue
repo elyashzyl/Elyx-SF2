@@ -429,7 +429,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Attendance Lock Cutoff <span class="label-hint">Optional; records on or before this date are locked</span></label>
-                <input v-model="form.attendance_lock_cutoff" :disabled="!canEditSchool" type="date" />
+                <DatePicker v-model="form.attendance_lock_cutoff" :disabled="!canEditSchool" full-width />
               </div>
             </div>
             <div class="form-row">
@@ -963,6 +963,7 @@ import { useAuthStore } from '../stores/auth'
 import { useTheme } from '../composables/useTheme'
 import { useNotifications } from '../composables/useNotifications'
 import { useActiveSchool } from '../composables/useActiveSchool'
+import DatePicker from '../components/DatePicker.vue'
 
 const auth = useAuthStore()
 const { notify } = useNotifications()
