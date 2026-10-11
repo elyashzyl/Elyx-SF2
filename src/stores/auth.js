@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 
 const API = '/api'
 
-async function fetchJson(url, options) {
+async function fetchJson(url, options = {}) {
   let res
   try {
     res = await fetch(url, options)
@@ -19,11 +19,12 @@ async function fetchJson(url, options) {
         if (err.error) msg = err.error
       } catch {}
     }
-    if (res.status === 401 || (res.status === 403 && typeof msg === 'string' && (msg.includes('Role mismatch') || msg.includes('Not authenticated')))) {
+    if (!options?.skipAuthRedirect && (res.status === 401 || (res.status === 403 && typeof msg === 'string' && (msg.includes('Role mismatch') || msg.includes('Not authenticated'))))) {
       try {
         localStorage.removeItem('auth_user')
         localStorage.removeItem('auth_impersonator')
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
+        const publicPaths = ['/login', '/', '/subscribe', '/accept-invitation', '/forgot-password', '/reset-password', '/verify-email']
+        if (typeof window !== 'undefined' && !publicPaths.includes(window.location.pathname)) {
           window.location.href = '/login'
         }
       } catch {}
@@ -72,7 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function restoreSession() {
     try {
-      const data = await fetchJson(`${API}/auth/me`)
+      const data = await fetchJson(`${API}/auth/me`, { skipAuthRedirect: true })
       if (!data?.user) return false
       setUser(data.user)
       return true

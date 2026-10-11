@@ -57,10 +57,10 @@ if (typeof window !== 'undefined') {
 app.use(pinia)
 app.use(router)
 
-// Hydrate session in the background so initial DOM paint renders synchronously
-// from cached credentials without blank white screen pauses.
+// The server session cookie is the source of truth. Restore session before protected
+// routes are resolved to guarantee deterministic authentication and avoid blank screen hangs.
 const auth = useAuthStore()
-auth.restoreSession().catch(() => {})
+await auth.restoreSession().catch(() => {})
 
 // Await router readiness so the initial matched route component chunk is loaded,
 // preventing layout popping or empty route-view flicker.

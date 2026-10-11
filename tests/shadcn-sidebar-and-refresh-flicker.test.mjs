@@ -12,14 +12,11 @@ function read(rel) {
   return fs.readFileSync(path.join(root, rel), 'utf8')
 }
 
-test('main.js mounts without blocking on network session restore to eliminate refresh flicker', () => {
+test('main.js mounts with reliable session restoration and router readiness to eliminate refresh flicker', () => {
   const main = read('src/main.js')
 
-  // Must not block initial paint behind top-level await auth.restoreSession()
-  assert.ok(!main.includes('await auth.restoreSession()'), 'main.js must not block app.mount behind await auth.restoreSession()')
-
-  // Background non-blocking session restore
-  assert.ok(main.includes('auth.restoreSession()'), 'main.js must dispatch auth.restoreSession() in background')
+  // Must await session restoration so protected routes hydrate cleanly on refresh
+  assert.ok(main.includes('await auth.restoreSession()'), 'main.js must await auth.restoreSession() before mounting')
 
   // Router ready check ensures initial route component chunk is resolved before DOM mount
   assert.ok(main.includes('await router.isReady()'), 'main.js must await router.isReady() to prevent empty route-view flash')

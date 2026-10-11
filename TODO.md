@@ -327,7 +327,7 @@ Remaining attendance follow-ups:
 - [x] Validated frontend Vite build and Node syntax compatibility.
 - [x] **Shadcn-Vue Modern Sidebar & Zero-Flicker Page Refresh Pipeline**
   - Integrated dedicated `src/components/Sidebar.vue` following modern Shadcn-Vue rail & expandable drawer patterns (`useSidebar` composable, localStorage persistence, Ctrl/Cmd+B shortcut, tooltip rail, and mobile overlay drawer).
-  - Fixed refresh flicker and blank flashes: eliminated blocking network calls in `src/main.js` (`auth.restoreSession()` runs in the background while DOM mounts immediately using cached credentials; `await router.isReady()` prevents route chunk popping).
+  - Fixed refresh freeze and blank flashes: deterministic session restoration (`await auth.restoreSession()`) with safe skip-auth-redirect handling and `await router.isReady()`, paired with pre-render inline theme CSS variables in `index.html` preventing blank flashes during reloads.
   - Added pre-render inline CSS background variables in `index.html` preventing blank white flashes during dark theme reloads.
   - Verified with test suite `tests/shadcn-sidebar-and-refresh-flicker.test.mjs` and complete test pass.
 - [x] **Shadcn-Vue Modern Attachment Component System**
