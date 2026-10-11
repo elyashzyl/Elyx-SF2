@@ -12,7 +12,7 @@
         <p>Comprehensive inquiry lifecycle management, real-time ticket triage, and multi-campus support telemetry.</p>
       </div>
       <div class="page-header-actions">
-        <button @click="exportCsv" class="btn-secondary" :disabled="exporting">
+        <button v-if="auth.isAdmin" @click="exportCsv" class="btn-secondary" :disabled="exporting">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />

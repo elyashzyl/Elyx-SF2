@@ -34,7 +34,7 @@
           <img v-if="auth.school?.logo_url" :src="auth.school.logo_url" alt="" class="top-nav-school-logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />
           <span v-else class="top-nav-school-dot"></span>
           <span class="top-nav-school-copy">
-            <small>Active school</small>
+            <small>Active school{{ activeSchoolYear ? ` · SY ${activeSchoolYear}` : '' }}</small>
             <strong>{{ pillName }}</strong>
           </span>
         </div>
@@ -460,10 +460,13 @@ const routeTitles = {
   TeacherDashboard: 'Overview',
   AttendanceSheet: 'Daily attendance',
   MonthlyAttendance: 'Monthly SF2',
+  Reports: 'Reports & Analytics',
   Schedule: 'Schedule & Calendar',
   StudentManagement: 'Students',
   UserManagement: 'User accounts',
   GradeLevels: 'Grades & sections',
+  QuarterlySettings: 'Quarterly terms',
+  Inquiries: 'Helpdesk & Support',
   Licenses: 'License & Subscription',
   Grading: 'Academic Grading (SF9)',
   Settings: 'Settings',
@@ -475,6 +478,9 @@ const roleLabel = computed(() => ({ superadmin: 'Superadmin', admin: 'Administra
 
 const noSchoolContext = computed(() => noneSelected.value && auth.isSuperadmin)
 const ownSchool = computed(() => (auth.user?.school && auth.user.school.school_id ? auth.user.school : null) || null)
+const activeSchoolYear = computed(() => {
+  return auth.school?.school_year || ownSchool.value?.school_year || school.school_year || ''
+})
 const brandShort = computed(() => {
   if (noSchoolContext.value) return ''
   if (hasActive.value) return displayShort.value

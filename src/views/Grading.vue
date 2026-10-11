@@ -44,6 +44,7 @@
       </button>
 
       <button
+        v-if="auth.isAdmin"
         class="tab-btn"
         :class="{ active: activeTab === 'subjects' }"
         @click="activeTab = 'subjects'; loadSubjects()"
@@ -379,7 +380,7 @@
     <!-- ======================================================== -->
     <!-- TAB 2: SUBJECT & ASSESSMENT SETUP -->
     <!-- ======================================================== -->
-    <div v-if="activeTab === 'subjects'" class="tab-content">
+    <div v-if="activeTab === 'subjects' && auth.isAdmin" class="tab-content">
       <div class="card toolbar-card">
         <div class="subjects-toolbar">
           <div class="form-group" style="max-width: 260px;">
@@ -1388,7 +1389,7 @@ const currentSchool = computed(() => {
     const s = schools.value.find(x => x.id === effectiveSchoolId.value)
     if (s) return s
   }
-  return null
+  return auth.school || auth.user?.school || null
 })
 
 const activeQuarterCount = computed(() => {

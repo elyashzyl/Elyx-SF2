@@ -42,10 +42,14 @@
             <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}{{ s.school_id ? ' (' + s.school_id + ')' : '' }}</option>
           </select>
         </div>
+        <div v-if="school.school_year || school.grading_period" style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+          <span v-if="school.school_year" class="badge badge-warning">Active SY: {{ school.school_year }}</span>
+          <span v-if="school.grading_period" class="badge badge-primary">{{ school.grading_period }}</span>
+        </div>
         <div class="form-row generator-form-row">
           <div class="form-group">
             <label>Month</label>
-            <select v-model="form.month">
+            <select v-model="form.month" @change="onMonthChange">
               <option v-for="(m, i) in months" :key="i" :value="i+1">{{ m }}</option>
             </select>
           </div>
@@ -117,10 +121,17 @@
     <div v-else class="sheet-container">
       <div class="sheet-header">
         <div class="school-info">
-          <h1>{{ school.school_name }}</h1>
-          <div class="school-sub-row">
-            <span class="school-id-badge">School ID: {{ school.school_id }}</span>
-            <span v-if="school.school_address" class="school-address-badge">{{ school.school_address }}</span>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img v-if="school.logo_url" :src="school.logo_url" alt="" style="width: 48px; height: 48px; border-radius: 50%; object-fit: contain; flex-shrink: 0;" />
+            <div>
+              <h1>{{ school.school_name }}</h1>
+              <div class="school-sub-row" style="flex-wrap: wrap; gap: 6px;">
+                <span class="school-id-badge">School ID: {{ school.school_id }}</span>
+                <span v-if="school.school_year" class="badge badge-warning">SY: {{ school.school_year }}</span>
+                <span v-if="school.grading_period" class="badge badge-primary">{{ school.grading_period }}</span>
+                <span v-if="school.school_address" class="school-address-badge">{{ school.school_address }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -717,7 +728,15 @@ const { addToast } = useToast()
 const notify = (msg, type = 'info') => addToast(msg, type)
 const { grades, sectionsByGrade, loadGradeLevels } = useGradeLevels()
 const savedState = loadPageState(auth.user)
-const school = reactive({ school_name: '', school_id: '', school_address: '', school_short: '' })
+const school = reactive({
+  school_name: '',
+  school_id: '',
+  school_address: '',
+  school_short: '',
+  school_year: '',
+  grading_period: '',
+  logo_url: ''
+})
 
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -734,6 +753,21 @@ const form = reactive({
   section: savedState?.section ?? (auth.isTeacher && auth.user?.section ? auth.user.section : ''),
   includeSaturdays: false
 })
+
+function syncYearWithSchoolYear() {
+  if (school.school_year && !savedState?.year) {
+    const match = String(school.school_year).match(/^(\d{4})-(\d{4})$/)
+    if (match) {
+      const syStart = Number(match[1])
+      const syEnd = Number(match[2])
+      form.year = form.month >= 6 ? syStart : syEnd
+    }
+  }
+}
+
+function onMonthChange() {
+  syncYearWithSchoolYear()
+}
 
 function applyGradeDefaults() {
   if (!grades.value.length) { form.grade = ''; form.section = ''; return }
@@ -805,14 +839,18 @@ onMounted(async () => {
   await loadGradeLevels(effectiveSchoolId.value || undefined)
   applyGradeDefaults()
   try {
-    const data = await auth.getSchoolInfo()
+    const data = await auth.getSchoolInfo(effectiveSchoolId.value || undefined)
     if (data) Object.assign(school, data)
     else if (auth.user?.school) {
       school.school_name = auth.user.school.name || auth.user.school.school_name || ''
       school.school_id = auth.user.school.school_id || ''
       school.school_short = auth.user.school.short || auth.user.school.school_short || ''
       school.school_address = auth.user.school.address || auth.user.school.school_address || ''
+      school.school_year = auth.user.school.school_year || ''
+      school.grading_period = auth.user.school.grading_period || ''
+      school.logo_url = auth.user.school.logo_url || ''
     }
+    syncYearWithSchoolYear()
   } catch {}
   try {
     const res = await fetch('/api/export/sheets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })

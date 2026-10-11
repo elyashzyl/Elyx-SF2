@@ -23,7 +23,7 @@ const routes = [
     path: '/teacher',
     name: 'TeacherDashboard',
     component: () => import('../views/TeacherDashboard.vue'),
-    meta: { role: 'teacher' }
+    meta: { role: ['teacher', 'admin', 'superadmin'] }
   },
   {
     path: '/attendance',

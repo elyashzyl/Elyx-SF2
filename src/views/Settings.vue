@@ -984,6 +984,7 @@ async function save() {
   }
   try {
     await auth.saveSchoolInfo({ ...form }, auth.isSuperadmin ? (selectedSchoolId.value || undefined) : undefined)
+    await auth.refreshCurrentSchool()
     notify('School settings saved', 'success')
   } catch (e) {
     error.value = e.message
@@ -1092,6 +1093,7 @@ async function saveGlobalSchoolYearConfig() {
     schools.value = await auth.getSchools()
     await loadSchool()
     await loadSchoolYearConfig()
+    await auth.refreshCurrentSchool()
   } catch (err) {
     notify(err.message || 'Failed to save school year configuration', 'error')
   } finally {
@@ -1111,6 +1113,7 @@ async function syncAllSchoolsToActiveSy() {
     schools.value = await auth.getSchools()
     await loadSchool()
     await loadSchoolYearConfig()
+    await auth.refreshCurrentSchool()
   } catch (err) {
     notify(err.message || 'Failed to sync school year', 'error')
   } finally {

@@ -33,7 +33,7 @@
           </select>
         </div>
 
-        <button @click="resetToDefaults" type="button" class="btn-secondary" :disabled="saving">
+        <button v-if="auth.isAdmin" @click="resetToDefaults" type="button" class="btn-secondary" :disabled="saving">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
             <path d="M3 3v5h5"/>
@@ -41,7 +41,7 @@
           Reset to DepEd Defaults
         </button>
 
-        <button @click="saveQuarters" type="button" class="btn-primary" :disabled="saving">
+        <button v-if="auth.isAdmin" @click="saveQuarters" type="button" class="btn-primary" :disabled="saving">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
             <polyline points="17 21 17 13 7 13 7 21"/>
@@ -106,11 +106,12 @@
               type="text" 
               class="quarter-title-input" 
               placeholder="e.g. 1st Quarter"
+              :disabled="!auth.isAdmin"
               required
             />
             <small class="quarter-sy-tag">Academic Year: {{ selectedSchoolYear }}</small>
           </div>
-          <label class="toggle-active-label" title="Enable or disable this quarter">
+          <label v-if="auth.isAdmin" class="toggle-active-label" title="Enable or disable this quarter">
             <input type="checkbox" v-model="q.is_active" :true-value="1" :false-value="0" />
             <span class="active-text">{{ q.is_active ? 'Active' : 'Disabled' }}</span>
           </label>
@@ -134,6 +135,7 @@
                 type="button"
                 class="month-pill-btn"
                 :class="{ 'active': (q.months || []).includes(m.num) }"
+                :disabled="!auth.isAdmin"
                 @click="toggleMonth(q, m.num)"
               >
                 {{ m.short }}
@@ -153,15 +155,15 @@
           <div class="form-row date-range-row">
             <div class="form-group">
               <label class="form-label">Quarter Start Date</label>
-              <input v-model="q.start_date" type="date" class="form-input" />
+              <input v-model="q.start_date" type="date" class="form-input" :disabled="!auth.isAdmin" />
             </div>
             <div class="form-group">
               <label class="form-label">Quarter End Date</label>
-              <input v-model="q.end_date" type="date" class="form-input" />
+              <input v-model="q.end_date" type="date" class="form-input" :disabled="!auth.isAdmin" />
             </div>
             <div class="form-group">
               <label class="form-label">Target School Days</label>
-              <input v-model.number="q.target_days" type="number" min="1" max="100" class="form-input" />
+              <input v-model.number="q.target_days" type="number" min="1" max="100" class="form-input" :disabled="!auth.isAdmin" />
             </div>
           </div>
         </div>
@@ -178,7 +180,7 @@
           </p>
         </div>
         <div>
-          <button @click="openEventModal()" type="button" class="btn-sm btn-primary">
+          <button v-if="auth.isAdmin" @click="openEventModal()" type="button" class="btn-sm btn-primary">
             + Add Milestone Event
           </button>
         </div>
@@ -193,7 +195,7 @@
               <th>2nd Grading</th>
               <th>3rd Grading</th>
               <th>4th Grading</th>
-              <th style="text-align: right;">Actions</th>
+              <th v-if="auth.isAdmin" style="text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody v-if="events.length">
@@ -203,7 +205,7 @@
               <td>{{ ev.second_grading || '—' }}</td>
               <td>{{ ev.third_grading || '—' }}</td>
               <td>{{ ev.fourth_grading || '—' }}</td>
-              <td style="text-align: right;">
+              <td v-if="auth.isAdmin" style="text-align: right;">
                 <button @click="openEventModal(ev)" type="button" class="btn-xs btn-secondary" style="margin-right: 6px;">
                   Edit
                 </button>
@@ -412,6 +414,7 @@ async function saveQuarters() {
 
     successMsg.value = 'Quarterly terms saved successfully!'
     isCustomConfig.value = true
+    await auth.refreshCurrentSchool()
     setTimeout(() => { successMsg.value = '' }, 4000)
   } catch (err) {
     errorMsg.value = err.message || 'Failed to save quarterly terms'
@@ -723,8 +726,8 @@ onMounted(async () => {
 
 .date-range-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .helper-text {

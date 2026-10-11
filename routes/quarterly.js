@@ -182,8 +182,21 @@ router.put('/terms', async (req, res) => {
     const sid = s.schoolId || ''
 
     const requestedQuarterCount = req.body.quarter_count !== undefined ? req.body.quarter_count : req.body.quarterCount
-    if (requestedQuarterCount !== undefined && sid) {
-      await run('UPDATE schools SET quarter_count = ? WHERE id = ?', [Number(requestedQuarterCount) === 3 ? 3 : 4, sid])
+    if (sid) {
+      const sets = []
+      const params = []
+      if (requestedQuarterCount !== undefined) {
+        sets.push('quarter_count = ?')
+        params.push(Number(requestedQuarterCount) === 3 ? 3 : 4)
+      }
+      if (sy) {
+        sets.push('school_year = ?')
+        params.push(sy)
+      }
+      if (sets.length) {
+        params.push(sid)
+        await run(`UPDATE schools SET ${sets.join(', ')} WHERE id = ?`, params)
+      }
     }
 
     await withTransaction(async (conn) => {

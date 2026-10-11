@@ -179,14 +179,13 @@
           </div>
 
           <!-- Subjects / Learning Areas for this Grade Level -->
-          <div class="grade-card-subjects" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+          <div class="grade-card-subjects">
+            <div class="subjects-header-row">
               <label class="grade-card-label" style="margin: 0;">Subjects / Learning Areas</label>
               <button
                 v-if="!getSubjectsForGrade(g.grade).length && g.grade"
                 type="button"
-                class="btn-xs btn-outline"
-                style="font-size: 0.68rem; padding: 2px 8px; border-radius: 4px;"
+                class="btn-xs btn-outline seed-defaults-btn"
                 @click="seedDefaultSubjects(g.grade)"
                 title="Populate standard DepEd K-12 learning areas"
               >
@@ -194,7 +193,7 @@
               </button>
             </div>
             <div class="section-tags" v-if="getSubjectsForGrade(g.grade).length">
-              <span v-for="sub in getSubjectsForGrade(g.grade)" :key="sub.id" class="section-tag" style="background: var(--primary-bg); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 25%, transparent);">
+              <span v-for="sub in getSubjectsForGrade(g.grade)" :key="sub.id" class="section-tag subject-tag">
                 {{ sub.subject_name }}
                 <button
                   type="button"
@@ -223,10 +222,8 @@
                 @click="addSubjectForGrade(i)"
                 :disabled="!g.newSubject || !g.newSubject.trim()"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
                 Add
               </button>
             </div>
@@ -715,6 +712,33 @@ async function saveGrades() {
 .section-tag-remove:hover {
   background: var(--primary);
   color: var(--primary-foreground);
+}
+
+.grade-card-subjects {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.subjects-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.seed-defaults-btn {
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.subject-tag {
+  background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
 }
 
 .section-input-row {
