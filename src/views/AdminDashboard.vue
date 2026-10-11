@@ -1146,7 +1146,7 @@ onMounted(async () => {
   border: 1px solid var(--border);
   border-left: 4px solid var(--primary);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1404,7 +1404,7 @@ onMounted(async () => {
    ========================================================================== */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
@@ -1737,7 +1737,7 @@ onMounted(async () => {
 }
 
 .gender-stat-card {
-  padding: 16px;
+  padding: 18px 20px;
   border-radius: 10px;
   border: 1px solid var(--border);
   display: flex;
@@ -1825,7 +1825,7 @@ onMounted(async () => {
 }
 
 .grade-stat-card {
-  padding: 16px;
+  padding: 18px 20px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--card);

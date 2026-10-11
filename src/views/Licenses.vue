@@ -28,33 +28,33 @@
     </div>
 
     <!-- SUPERADMIN MONETIZATION & SUBSCRIPTION TELEMETRY -->
-    <div v-if="auth.isSuperadmin && telemetry" class="telemetry-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
-      <div class="card" style="padding: 16px;">
+    <div v-if="auth.isSuperadmin && telemetry" class="telemetry-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px;">
+      <div class="card" style="padding: 18px 20px;">
         <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Total Campuses</span>
         <div style="font-size: 1.6rem; font-weight: 700; margin-top: 4px;">{{ telemetry.summary?.total_campuses || 0 }}</div>
         <small style="color: var(--muted-foreground);">Institutional schools</small>
       </div>
-      <div class="card" style="padding: 16px;">
+      <div class="card" style="padding: 18px 20px;">
         <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Active Subscriptions</span>
         <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary); margin-top: 4px;">{{ telemetry.summary?.active_subscriptions || 0 }}</div>
         <small style="color: var(--muted-foreground);">Fully provisioned</small>
       </div>
-      <div class="card" style="padding: 16px;">
+      <div class="card" style="padding: 18px 20px;">
         <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">In Grace Period</span>
         <div style="font-size: 1.6rem; font-weight: 700; color: #d97706; margin-top: 4px;">{{ telemetry.summary?.in_grace_period || 0 }}</div>
         <small style="color: var(--muted-foreground);">Read-only grace window</small>
       </div>
-      <div class="card" style="padding: 16px;">
+      <div class="card" style="padding: 18px 20px;">
         <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Estimated MRR / ARR</span>
         <div style="font-size: 1.4rem; font-weight: 700; margin-top: 4px;">₱{{ Number(telemetry.summary?.mrr_estimate || 0).toLocaleString() }}</div>
         <small style="color: var(--muted-foreground);">ARR: ₱{{ Number(telemetry.summary?.arr_estimate || 0).toLocaleString() }}</small>
       </div>
-      <div class="card" style="padding: 16px;">
+      <div class="card" style="padding: 18px 20px;">
         <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Total Invoiced</span>
         <div style="font-size: 1.4rem; font-weight: 700; color: #10b981; margin-top: 4px;">₱{{ Number(telemetry.summary?.total_revenue || 0).toLocaleString() }}</div>
         <small style="color: var(--muted-foreground);">{{ telemetry.summary?.total_invoices || 0 }} paid invoices</small>
       </div>
-      <div class="card" style="padding: 16px;">
+      <div class="card" style="padding: 18px 20px;">
         <span style="font-size: 0.8rem; color: var(--muted-foreground); text-transform: uppercase; font-weight: 600;">Churn Rate</span>
         <div style="font-size: 1.6rem; font-weight: 700; margin-top: 4px;">{{ telemetry.summary?.churn_rate || 0 }}%</div>
         <small style="color: var(--muted-foreground);">Expired/cancelled</small>

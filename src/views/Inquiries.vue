@@ -8,8 +8,8 @@
           <span class="sep">/</span>
           <span class="current">Support &amp; Inquiries Hub</span>
         </div>
-        <h1>Helpdesk &amp; Support Inquiries</h1>
-        <p>Comprehensive inquiry lifecycle management, real-time ticket triage, and multi-campus support telemetry.</p>
+        <h1 class="page-title">Helpdesk &amp; Support Inquiries</h1>
+        <p class="page-subtitle">Centralized ticket triage, communication telemetry, and multi-campus support operations.</p>
       </div>
       <div class="page-header-actions">
         <button v-if="auth.isAdmin" @click="exportCsv" class="btn-secondary" :disabled="exporting">
@@ -18,14 +18,14 @@
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          {{ exporting ? 'Exporting…' : 'Export CSV' }}
+          <span>{{ exporting ? 'Exporting…' : 'Export CSV' }}</span>
         </button>
         <button @click="openCreateModal" class="btn-primary">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          New Inquiry
+          <span>New Inquiry</span>
         </button>
       </div>
     </div>
@@ -33,73 +33,84 @@
     <!-- KPI Metric Cards -->
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-icon kpi-icon--blue">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
+        <div class="kpi-card-header">
+          <span class="kpi-tag kpi-tag--neutral">Total Tickets</span>
+          <div class="kpi-icon-badge kpi-icon--teal">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
         </div>
-        <div class="kpi-content">
-          <span class="kpi-label">Total Inquiries</span>
-          <strong class="kpi-value">{{ stats.total }}</strong>
-          <small class="kpi-subtext">All time filed tickets</small>
+        <div class="kpi-value-row">
+          <span class="kpi-main-num">{{ stats.total }}</span>
         </div>
+        <span class="kpi-subtext">All-time filed inquiries</span>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-icon kpi-icon--amber">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
+        <div class="kpi-card-header">
+          <span class="kpi-tag kpi-tag--warning">Active Triage</span>
+          <div class="kpi-icon-badge kpi-icon--warning">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
         </div>
-        <div class="kpi-content">
-          <span class="kpi-label">Active / Open</span>
-          <strong class="kpi-value text-amber">{{ stats.open }}</strong>
-          <small class="kpi-subtext">Awaiting resolution</small>
+        <div class="kpi-value-row">
+          <span class="kpi-main-num text-warning">{{ stats.open }}</span>
         </div>
+        <span class="kpi-subtext">Awaiting staff resolution</span>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-icon kpi-icon--danger">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
+        <div class="kpi-card-header">
+          <span class="kpi-tag kpi-tag--danger">Urgent Escalation</span>
+          <div class="kpi-icon-badge kpi-icon--danger">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
         </div>
-        <div class="kpi-content">
-          <span class="kpi-label">Urgent Priority</span>
-          <strong class="kpi-value text-danger">{{ stats.urgent }}</strong>
-          <small class="kpi-subtext">Immediate action required</small>
+        <div class="kpi-value-row">
+          <span class="kpi-main-num text-danger">{{ stats.urgent }}</span>
         </div>
+        <span class="kpi-subtext">Immediate action required</span>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-icon kpi-icon--green">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+        <div class="kpi-card-header">
+          <span class="kpi-tag kpi-tag--success">Resolution Rate</span>
+          <div class="kpi-icon-badge kpi-icon--success">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
         </div>
-        <div class="kpi-content">
-          <span class="kpi-label">Resolution Rate</span>
-          <strong class="kpi-value text-green">{{ stats.resolutionRate }}%</strong>
-          <small class="kpi-subtext">{{ stats.finished }} completed</small>
+        <div class="kpi-value-row">
+          <span class="kpi-main-num text-success">{{ stats.resolutionRate }}%</span>
         </div>
+        <span class="kpi-subtext">{{ stats.finished }} completed tickets</span>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-icon kpi-icon--purple">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
+        <div class="kpi-card-header">
+          <span class="kpi-tag kpi-tag--neutral">Turnaround Time</span>
+          <div class="kpi-icon-badge kpi-icon--teal">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
         </div>
-        <div class="kpi-content">
-          <span class="kpi-label">Avg. Resolution</span>
-          <strong class="kpi-value">{{ stats.avgResolutionHours }} hrs</strong>
-          <small class="kpi-subtext">Average time to close</small>
+        <div class="kpi-value-row">
+          <span class="kpi-main-num">{{ stats.avgResolutionHours }}</span>
+          <span class="kpi-unit">hrs</span>
         </div>
+        <span class="kpi-subtext">Average time to close</span>
       </div>
     </div>
 
@@ -114,55 +125,69 @@
             v-model="filters.search"
             @input="debounceFetch"
             type="text"
-            placeholder="Search by ticket subject, user, campus, or category…"
+            placeholder="Search tickets, requesters, campus, or category…"
             class="search-input"
           />
-          <button v-if="filters.search" @click="filters.search = ''; fetchInquiries()" class="clear-search-btn">&times;</button>
+          <button v-if="filters.search" @click="filters.search = ''; fetchInquiries()" class="clear-search-btn" title="Clear search">&times;</button>
         </div>
 
         <div class="filter-controls">
-          <select v-model="filters.status" @change="fetchInquiries" class="filter-select">
-            <option value="all">All Statuses</option>
-            <option value="open">Open Only</option>
-            <option value="finished">Finished Only</option>
-          </select>
+          <div class="filter-item">
+            <select v-model="filters.status" @change="fetchInquiries" class="filter-select">
+              <option value="all">All Statuses</option>
+              <option value="open">Open Only</option>
+              <option value="finished">Finished Only</option>
+            </select>
+          </div>
 
-          <select v-model="filters.priority" @change="fetchInquiries" class="filter-select">
-            <option value="all">All Priorities</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+          <div class="filter-item">
+            <select v-model="filters.priority" @change="fetchInquiries" class="filter-select">
+              <option value="all">All Priorities</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
 
-          <select v-model="filters.category" @change="fetchInquiries" class="filter-select">
-            <option value="all">All Categories</option>
-            <option value="payment">Payment &amp; Billing</option>
-            <option value="license">License &amp; Plan</option>
-            <option value="attendance">Daily Attendance</option>
-            <option value="technical">Technical Issue</option>
-            <option value="account">Account Access</option>
-            <option value="feature_request">Feature Request</option>
-            <option value="general">General Support</option>
-          </select>
+          <div class="filter-item">
+            <select v-model="filters.category" @change="fetchInquiries" class="filter-select">
+              <option value="all">All Categories</option>
+              <option value="payment">Payment &amp; Billing</option>
+              <option value="license">License &amp; Plan</option>
+              <option value="attendance">Daily Attendance</option>
+              <option value="technical">Technical Issue</option>
+              <option value="account">Account Access</option>
+              <option value="feature_request">Feature Request</option>
+              <option value="general">General Support</option>
+            </select>
+          </div>
 
-          <select v-if="auth.isSuperadmin" v-model="filters.schoolId" @change="fetchInquiries" class="filter-select">
-            <option value="">All Campuses</option>
-            <option v-for="sch in schoolsList" :key="sch.id" :value="sch.id">
-              {{ sch.short || sch.name }}
-            </option>
-          </select>
+          <div v-if="auth.isSuperadmin" class="filter-item">
+            <select v-model="filters.schoolId" @change="fetchInquiries" class="filter-select">
+              <option value="">All Campuses</option>
+              <option v-for="sch in schoolsList" :key="sch.id" :value="sch.id">
+                {{ sch.short || sch.name }}
+              </option>
+            </select>
+          </div>
 
-          <select v-if="auth.isSuperadmin" v-model="filters.assigned_to" @change="fetchInquiries" class="filter-select">
-            <option value="all">All Assignees</option>
-            <option value="">Unassigned</option>
-            <option v-for="staff in staffMembers" :key="staff.id" :value="staff.id">
-              {{ staff.name }}
-            </option>
-          </select>
+          <div v-if="auth.isSuperadmin" class="filter-item">
+            <select v-model="filters.assigned_to" @change="fetchInquiries" class="filter-select">
+              <option value="all">All Assignees</option>
+              <option value="">Unassigned</option>
+              <option v-for="staff in staffMembers" :key="staff.id" :value="staff.id">
+                {{ staff.name }}
+              </option>
+            </select>
+          </div>
 
-          <button v-if="hasActiveFilters" @click="resetFilters" class="btn-xs btn-secondary">
-            Reset Filters
+          <button v-if="hasActiveFilters" @click="resetFilters" class="btn-xs btn-secondary reset-btn" title="Reset all filters">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            <span>Reset</span>
           </button>
         </div>
       </div>
@@ -170,14 +195,21 @@
       <!-- Bulk Actions Bar (Superadmin only) -->
       <div v-if="auth.isSuperadmin && selectedIds.length > 0" class="bulk-actions-bar">
         <div class="bulk-count">
-          <strong>{{ selectedIds.length }}</strong> inquiries selected
+          <span class="bulk-badge">{{ selectedIds.length }}</span>
+          <span>inquiries selected for bulk action</span>
         </div>
         <div class="bulk-buttons">
           <button @click="applyBulkStatus('finished')" class="btn-xs btn-primary" :disabled="bulkLoading">
-            Mark Finished
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>Mark Finished</span>
           </button>
           <button @click="applyBulkStatus('open')" class="btn-xs btn-secondary" :disabled="bulkLoading">
-            Reopen Selected
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+            </svg>
+            <span>Reopen Selected</span>
           </button>
           <button @click="selectedIds = []" class="btn-xs btn-secondary">
             Deselect All
@@ -192,22 +224,24 @@
         <table class="overview-table">
           <thead>
             <tr>
-              <th v-if="auth.isSuperadmin" style="width: 38px; text-align: center;">
+              <th v-if="auth.isSuperadmin" class="col-check">
                 <input
                   type="checkbox"
+                  class="custom-checkbox"
                   :checked="isAllSelected"
                   :indeterminate="isIndeterminate"
                   @change="toggleSelectAll"
+                  aria-label="Select all inquiries"
                 />
               </th>
-              <th style="width: 90px;">Priority</th>
-              <th style="width: 100px;">Status</th>
-              <th>Subject &amp; Requester</th>
-              <th>Category</th>
-              <th v-if="auth.isSuperadmin">Campus</th>
-              <th v-if="auth.isSuperadmin">Assigned To</th>
-              <th style="text-align: right;">Updated</th>
-              <th style="width: 140px; text-align: right;">Action</th>
+              <th class="col-priority">Priority</th>
+              <th class="col-status">Status</th>
+              <th class="col-main">Subject &amp; Requester</th>
+              <th class="col-category">Category</th>
+              <th v-if="auth.isSuperadmin" class="col-campus">Campus</th>
+              <th v-if="auth.isSuperadmin" class="col-assignee">Assigned To</th>
+              <th class="col-updated">Updated</th>
+              <th class="col-actions">Action</th>
             </tr>
           </thead>
           <tbody v-if="loading">
@@ -224,50 +258,64 @@
               :key="inq.id"
               :class="{ 'row-active': activeInquiry?.id === inq.id, 'row-unread': inq.user_notified === 0 && inq.user_id === auth.user?.id }"
             >
-              <td v-if="auth.isSuperadmin" style="text-align: center;">
+              <td v-if="auth.isSuperadmin" class="col-check">
                 <input
                   type="checkbox"
+                  class="custom-checkbox"
                   :value="inq.id"
                   v-model="selectedIds"
+                  :aria-label="`Select ticket ${inq.subject}`"
                 />
               </td>
-              <td>
+              <td class="col-priority">
                 <span class="priority-pill" :class="'priority-' + (inq.priority || 'medium')">
                   {{ (inq.priority || 'medium').toUpperCase() }}
                 </span>
               </td>
-              <td>
+              <td class="col-status">
                 <span class="status-pill" :class="inq.status === 'finished' ? 'status-pill--success' : 'status-pill--warning'">
+                  <span class="status-dot"></span>
                   {{ inq.status === 'finished' ? 'Finished' : 'Open' }}
                 </span>
               </td>
-              <td>
+              <td class="col-main">
                 <div class="ticket-subject-wrap">
-                  <strong class="ticket-subject" @click="openDrawer(inq)">{{ inq.subject }}</strong>
+                  <div class="ticket-subject" @click="openDrawer(inq)" :title="inq.subject">
+                    {{ inq.subject }}
+                  </div>
                   <div class="ticket-requester-info">
-                    <span>{{ inq.user_name }}</span>
+                    <span class="requester-name">{{ inq.user_name }}</span>
                     <span class="role-badge">{{ inq.user_role }}</span>
                     <span v-if="inq.user_email" class="email-subtext">· {{ inq.user_email }}</span>
                   </div>
                 </div>
               </td>
-              <td>
+              <td class="col-category">
                 <span class="category-badge">{{ formatCategory(inq.category) }}</span>
               </td>
-              <td v-if="auth.isSuperadmin">
+              <td v-if="auth.isSuperadmin" class="col-campus">
                 <span class="campus-tag">{{ inq.school_name || 'System General' }}</span>
               </td>
-              <td v-if="auth.isSuperadmin">
-                <span v-if="inq.assigned_to_name" class="assignee-text">{{ inq.assigned_to_name }}</span>
+              <td v-if="auth.isSuperadmin" class="col-assignee">
+                <span v-if="inq.assigned_to_name" class="assignee-text">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  {{ inq.assigned_to_name }}
+                </span>
                 <span v-else class="unassigned-text">Unassigned</span>
               </td>
-              <td style="text-align: right;">
+              <td class="col-updated">
                 <span class="time-text">{{ formatTimeAgo(inq.updated_at || inq.created_at) }}</span>
               </td>
-              <td style="text-align: right;">
+              <td class="col-actions">
                 <div class="table-actions-group">
                   <button @click="openDrawer(inq)" class="btn-xs btn-secondary" title="View thread and reply">
-                    Open Thread
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span>Thread</span>
                   </button>
                   <button
                     v-if="auth.isSuperadmin && inq.status === 'open'"
@@ -275,7 +323,10 @@
                     class="btn-xs btn-primary"
                     title="Mark finished"
                   >
-                    Resolve
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>Resolve</span>
                   </button>
                 </div>
               </td>
@@ -285,11 +336,13 @@
             <tr>
               <td :colspan="tableColspan" class="empty-cell">
                 <div class="empty-state-wrap">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  <strong>No inquiries match your criteria</strong>
-                  <p>Try clearing filters or search keywords, or submit a new ticket.</p>
+                  <div class="empty-icon-box">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <h4>No inquiries found</h4>
+                  <p>No tickets match your active filter parameters or keyword search.</p>
                   <button @click="resetFilters" class="btn-xs btn-secondary">Clear Filters</button>
                 </div>
               </td>
@@ -310,25 +363,31 @@
                 {{ (activeInquiry.priority || 'medium').toUpperCase() }}
               </span>
               <span class="status-pill" :class="activeInquiry.status === 'finished' ? 'status-pill--success' : 'status-pill--warning'">
+                <span class="status-dot"></span>
                 {{ activeInquiry.status === 'finished' ? 'Finished' : 'Open' }}
               </span>
               <span class="category-badge">{{ formatCategory(activeInquiry.category) }}</span>
             </div>
             <h2 class="drawer-title">{{ activeInquiry.subject }}</h2>
             <div class="drawer-subtitle">
-              <span>From: <strong>{{ activeInquiry.user_name }}</strong> ({{ activeInquiry.user_role }})</span>
+              <span>Submitted by <strong>{{ activeInquiry.user_name }}</strong> ({{ activeInquiry.user_role }})</span>
               <span v-if="activeInquiry.school_name"> · {{ activeInquiry.school_name }}</span>
+              <span v-if="activeInquiry.user_email"> · {{ activeInquiry.user_email }}</span>
             </div>
           </div>
-          <button @click="closeDrawer" class="drawer-close-btn" aria-label="Close panel">&times;</button>
+          <button @click="closeDrawer" class="drawer-close-btn" aria-label="Close panel" title="Close drawer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
 
         <!-- Drawer Action Bar -->
         <div class="drawer-action-bar">
           <div v-if="auth.isSuperadmin" class="drawer-controls-left">
             <div class="drawer-assign-wrap">
-              <label>Assignee:</label>
-              <select v-model="selectedAssignee" @change="assignInquiry" :disabled="assigningStaff" class="filter-select">
+              <label class="assign-label">Assignee:</label>
+              <select v-model="selectedAssignee" @change="assignInquiry" :disabled="assigningStaff" class="filter-select select-compact">
                 <option value="">Unassigned</option>
                 <option v-for="staff in staffMembers" :key="staff.id" :value="staff.id">
                   {{ staff.name }} ({{ staff.role }})
@@ -341,29 +400,47 @@
             <button
               v-if="auth.isSuperadmin || activeInquiry.user_id === auth.user?.id"
               @click="toggleStatus(activeInquiry)"
-              class="btn-sm"
+              class="btn-xs"
               :class="activeInquiry.status === 'open' ? 'btn-primary' : 'btn-secondary'"
               :disabled="statusLoading"
             >
-              {{ activeInquiry.status === 'open' ? '✓ Mark as Finished' : '↺ Reopen Ticket' }}
+              <svg v-if="activeInquiry.status === 'open'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              <span>{{ activeInquiry.status === 'open' ? 'Mark Finished' : 'Reopen Ticket' }}</span>
             </button>
-            <button @click="showHistory = !showHistory" class="btn-sm btn-secondary">
-              {{ showHistory ? 'Hide Audit Log' : 'Audit Log' }}
+            <button @click="showHistory = !showHistory" class="btn-xs btn-secondary" :class="{ 'btn-active': showHistory }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>{{ showHistory ? 'Hide Trail' : 'Audit Trail' }}</span>
             </button>
           </div>
         </div>
 
         <!-- Audit History Timeline (Collapsible) -->
         <div v-if="showHistory" class="drawer-history-block">
-          <h4 class="history-title">Status &amp; Assignment Audit Trail</h4>
-          <div v-for="h in threadHistory" :key="h.id" class="history-item">
-            <span class="history-dot"></span>
-            <div class="history-detail">
-              <strong>{{ h.changed_by_name || 'System' }}</strong>: {{ h.note }}
-              <small class="history-time">{{ formatDate(h.created_at) }}</small>
+          <div class="history-header">
+            <h4 class="history-title">Status &amp; Assignment Audit Trail</h4>
+          </div>
+          <div class="history-timeline">
+            <div v-for="h in threadHistory" :key="h.id" class="history-item">
+              <div class="history-node">
+                <span class="history-dot"></span>
+              </div>
+              <div class="history-detail">
+                <div class="history-note">
+                  <span class="history-actor">{{ h.changed_by_name || 'System' }}</span>
+                  <span class="history-text">{{ h.note }}</span>
+                </div>
+                <small class="history-time">{{ formatDate(h.created_at) }}</small>
+              </div>
             </div>
           </div>
-          <div v-if="threadHistory.length === 0" class="history-empty">No status changes recorded yet.</div>
+          <div v-if="threadHistory.length === 0" class="history-empty">No status modifications recorded yet.</div>
         </div>
 
         <!-- Messages Chat Stream -->
@@ -371,22 +448,32 @@
           <div
             v-for="msg in messages"
             :key="msg.id"
-            class="chat-bubble"
-            :class="msg.sender_role === 'superadmin' ? 'chat-bubble--admin' : 'chat-bubble--user'"
+            class="chat-bubble-container"
+            :class="msg.sender_role === 'superadmin' ? 'bubble-align-staff' : 'bubble-align-user'"
           >
-            <div class="bubble-header">
-              <span class="bubble-sender">{{ msg.sender_name }} ({{ msg.sender_role }})</span>
-              <span class="bubble-time">{{ formatDate(msg.created_at) }}</span>
-            </div>
-            <div class="bubble-body">
-              <p>{{ msg.message }}</p>
-              <div v-if="msg.attachment_url" class="attachment-preview">
-                <a :href="msg.attachment_url" target="_blank" rel="noopener noreferrer" class="attachment-link">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                  </svg>
-                  <span>{{ msg.attachment_name || 'Attached File' }}</span>
-                </a>
+            <div
+              class="chat-bubble"
+              :class="msg.sender_role === 'superadmin' ? 'chat-bubble--admin' : 'chat-bubble--user'"
+            >
+              <div class="bubble-header">
+                <span class="bubble-sender">
+                  <span class="sender-role-tag" :class="msg.sender_role === 'superadmin' ? 'tag-staff' : 'tag-user'">
+                    {{ msg.sender_role === 'superadmin' ? 'Support Staff' : 'Requester' }}
+                  </span>
+                  {{ msg.sender_name }}
+                </span>
+                <span class="bubble-time">{{ formatDate(msg.created_at) }}</span>
+              </div>
+              <div class="bubble-body">
+                <p>{{ msg.message }}</p>
+                <div v-if="msg.attachment_url" class="attachment-preview">
+                  <a :href="msg.attachment_url" target="_blank" rel="noopener noreferrer" class="attachment-link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                    </svg>
+                    <span>{{ msg.attachment_name || 'Attached File' }}</span>
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -398,7 +485,7 @@
             <textarea
               v-model="replyText"
               rows="3"
-              placeholder="Write your reply or instructions…"
+              placeholder="Write your response, resolution notes, or instructions…"
               class="composer-textarea"
               required
             ></textarea>
@@ -409,14 +496,18 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
-                  <span>{{ replyAttachment ? replyAttachment.name.slice(0, 15) + '…' : 'Attach' }}</span>
+                  <span>{{ replyAttachment ? replyAttachment.name.slice(0, 16) + '…' : 'Attach File' }}</span>
                   <input type="file" @change="onReplyFilePicked" style="display: none;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
                 </label>
-                <button v-if="replyAttachment" type="button" @click="replyAttachment = null" class="clear-att-btn">&times;</button>
+                <button v-if="replyAttachment" type="button" @click="replyAttachment = null" class="clear-att-btn" title="Remove attachment">&times;</button>
               </div>
 
-              <button type="submit" class="btn-primary" :disabled="sendingReply || !replyText.trim()">
-                {{ sendingReply ? 'Sending…' : 'Send Reply' }}
+              <button type="submit" class="btn-xs btn-primary composer-send-btn" :disabled="sendingReply || !replyText.trim()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+                <span>{{ sendingReply ? 'Sending…' : 'Send Reply' }}</span>
               </button>
             </div>
           </form>
@@ -427,8 +518,17 @@
     <!-- Create New Inquiry Modal -->
     <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
       <div class="form-card create-inquiry-modal">
-        <h3>Create Support Ticket</h3>
-        <p class="modal-subtext">Submit a support request, payment query, or report a system concern to the platform superadmin.</p>
+        <div class="modal-header-row">
+          <div>
+            <h3>Create Support Ticket</h3>
+            <p class="modal-subtext">Submit a support request, payment query, or report a system concern to the platform superadmin.</p>
+          </div>
+          <button type="button" @click="showCreateModal = false" class="modal-close-icon" aria-label="Close modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
 
         <form @submit.prevent="submitNewInquiry">
           <div class="form-group">
@@ -439,7 +539,7 @@
           <div class="form-row-2col">
             <div class="form-group">
               <label>Category</label>
-              <select v-model="newForm.category" class="filter-select">
+              <select v-model="newForm.category" class="filter-select full-width">
                 <option value="payment">Payment &amp; Billing</option>
                 <option value="license">License &amp; Plan</option>
                 <option value="attendance">Daily Attendance</option>
@@ -452,7 +552,7 @@
 
             <div class="form-group">
               <label>Priority</label>
-              <select v-model="newForm.priority" class="filter-select">
+              <select v-model="newForm.priority" class="filter-select full-width">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -473,17 +573,19 @@
 
           <div class="form-group">
             <label>File Attachment (Max 5MB)</label>
-            <input type="file" @change="onNewFilePicked" class="file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
-            <small v-if="newAttachment" style="color: var(--muted-foreground); margin-top: 4px; display: block;">
+            <div class="file-upload-wrap">
+              <input type="file" @change="onNewFilePicked" class="file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
+            </div>
+            <small v-if="newAttachment" class="attachment-info-tag">
               Selected: {{ newAttachment.name }} ({{ Math.round(newAttachment.size / 1024) }} KB)
             </small>
           </div>
 
           <div class="form-actions">
+            <button type="button" @click="showCreateModal = false" class="btn-secondary">Cancel</button>
             <button type="submit" class="btn-primary" :disabled="submittingNew">
               {{ submittingNew ? 'Submitting…' : 'Submit Inquiry' }}
             </button>
-            <button type="button" @click="showCreateModal = false" class="btn-secondary">Cancel</button>
           </div>
         </form>
       </div>
@@ -987,11 +1089,20 @@ onMounted(() => {
   gap: 20px;
 }
 
+/* Page Header */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .breadcrumb {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   color: var(--muted-foreground);
   margin-bottom: 4px;
 }
@@ -1005,100 +1116,170 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.page-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--foreground);
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.page-subtitle {
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+  margin: 4px 0 0 0;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* KPI Cards */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 16px;
 }
 
 .kpi-card {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 18px 20px;
   box-shadow: var(--shadow-sm);
+  transition: all 0.16s ease;
+  min-width: 0;
 }
 
-.kpi-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+.kpi-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.kpi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.kpi-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.kpi-tag--neutral {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.kpi-tag--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.kpi-tag--danger {
+  background: var(--red-bg);
+  color: var(--destructive);
+}
+
+.kpi-tag--success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.kpi-icon-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.kpi-icon--blue {
-  background: rgba(37, 99, 235, 0.12);
-  color: #2563eb;
+.kpi-icon--teal {
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
-.kpi-icon--amber {
-  background: rgba(217, 119, 6, 0.12);
-  color: #d97706;
+.kpi-icon--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .kpi-icon--danger {
-  background: rgba(220, 38, 38, 0.12);
-  color: #dc2626;
+  background: var(--red-bg);
+  color: var(--destructive);
 }
 
-.kpi-icon--green {
-  background: rgba(22, 163, 74, 0.12);
-  color: #16a34a;
+.kpi-icon--success {
+  background: var(--success-bg);
+  color: var(--success);
 }
 
-.kpi-icon--purple {
-  background: rgba(147, 51, 234, 0.12);
-  color: #9333ea;
-}
-
-.kpi-content {
+.kpi-value-row {
   display: flex;
-  flex-direction: column;
-  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 6px;
+  margin-bottom: 2px;
 }
 
-.kpi-label {
-  font-size: 0.78rem;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-
-.kpi-value {
-  font-size: 1.45rem;
+.kpi-main-num {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.55rem;
   font-weight: 800;
   color: var(--foreground);
-  line-height: 1.2;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.kpi-unit {
+  font-size: 0.74rem;
+  color: var(--muted-foreground);
+  font-weight: 600;
 }
 
 .kpi-subtext {
   font-size: 0.72rem;
   color: var(--muted-foreground);
+  display: block;
 }
 
-.text-amber {
-  color: #d97706 !important;
+.text-warning {
+  color: var(--warning) !important;
 }
 
 .text-danger {
-  color: #dc2626 !important;
+  color: var(--destructive) !important;
 }
 
-.text-green {
-  color: #16a34a !important;
+.text-success {
+  color: var(--success) !important;
 }
 
 /* Toolbar */
 .toolbar-card {
-  padding: 14px 18px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbar-grid {
@@ -1111,8 +1292,8 @@ onMounted(() => {
 
 .search-wrap {
   position: relative;
-  flex: 1 1 280px;
-  max-width: 440px;
+  flex: 1 1 260px;
+  max-width: 420px;
 }
 
 .search-icon {
@@ -1126,30 +1307,39 @@ onMounted(() => {
 
 .search-input {
   width: 100%;
-  padding: 8px 32px 8px 34px;
+  height: 35px;
+  padding: 0 32px 0 34px;
   background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
   color: var(--foreground);
-  transition: border-color 0.15s ease;
+  transition: all 0.14s ease;
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .clear-search-btn {
   position: absolute;
-  right: 10px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
   border: none;
   color: var(--muted-foreground);
   font-size: 1.1rem;
+  line-height: 1;
   cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.clear-search-btn:hover {
+  color: var(--foreground);
 }
 
 .filter-controls {
@@ -1159,27 +1349,77 @@ onMounted(() => {
   align-items: center;
 }
 
-.filter-select {
-  padding: 7px 11px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 0.82rem;
-  color: var(--foreground);
+.filter-item {
+  display: flex;
+  align-items: center;
 }
 
+.filter-select {
+  height: 35px;
+  padding: 0 10px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--foreground);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 35px;
+}
+
+/* Bulk Actions Bar */
 .bulk-actions-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--border);
+  padding: 10px 14px;
+  background: var(--primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-radius: var(--radius-sm);
+  animation: fadeIn 0.18s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .bulk-count {
-  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--foreground);
+}
+
+.bulk-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
 }
 
 .bulk-buttons {
@@ -1190,7 +1430,169 @@ onMounted(() => {
 /* Table styles */
 .table-card {
   padding: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.table-responsive {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.overview-table th {
+  padding: 12px 18px;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.overview-table td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--foreground);
+  transition: background 0.12s ease;
+}
+
+.overview-table tbody tr:hover {
+  background: color-mix(in srgb, var(--secondary) 50%, transparent);
+}
+
+.overview-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Column Widths & Alignments */
+.col-check {
+  width: 38px;
+  text-align: center;
+  padding-left: 14px;
+  padding-right: 6px;
+}
+
+.col-priority {
+  width: 88px;
+  white-space: nowrap;
+}
+
+.col-status {
+  width: 96px;
+  white-space: nowrap;
+}
+
+.col-category {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.col-campus {
+  width: 140px;
+  white-space: nowrap;
+}
+
+.col-assignee {
+  width: 140px;
+  white-space: nowrap;
+}
+
+.col-updated {
+  width: 96px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.col-actions {
+  width: 156px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.custom-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* Badges & Pills */
+.priority-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  border-radius: 5px;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+}
+
+.priority-urgent {
+  background: var(--red-bg);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+}
+
+.priority-high {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.priority-medium {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.priority-low {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 999px;
+  line-height: 1.3;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pill--success {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+}
+
+.status-pill--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
 }
 
 .ticket-subject-wrap {
@@ -1200,10 +1602,12 @@ onMounted(() => {
 }
 
 .ticket-subject {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
+  font-weight: 700;
   color: var(--foreground);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color 0.14s ease;
+  line-height: 1.35;
 }
 
 .ticket-subject:hover {
@@ -1214,110 +1618,73 @@ onMounted(() => {
 .ticket-requester-info {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--muted-foreground);
+}
+
+.requester-name {
+  font-weight: 600;
+  color: var(--foreground);
 }
 
 .role-badge {
   display: inline-block;
   padding: 1px 5px;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   font-weight: 700;
   border-radius: 4px;
-  background: var(--muted);
-  color: var(--foreground);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
 }
 
 .email-subtext {
-  font-size: 0.74rem;
-}
-
-.priority-pill {
-  display: inline-block;
-  padding: 3px 7px;
   font-size: 0.72rem;
-  font-weight: 800;
-  border-radius: 5px;
-  letter-spacing: 0.04em;
-}
-
-.priority-urgent {
-  background: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
-  border: 1px solid rgba(220, 38, 38, 0.3);
-}
-
-.priority-high {
-  background: rgba(234, 88, 12, 0.15);
-  color: #ea580c;
-  border: 1px solid rgba(234, 88, 12, 0.3);
-}
-
-.priority-medium {
-  background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
-}
-
-.priority-low {
-  background: var(--muted);
   color: var(--muted-foreground);
-}
-
-.status-pill {
-  display: inline-block;
-  padding: 3px 8px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  border-radius: 9999px;
-}
-
-.status-pill--success {
-  background: rgba(22, 163, 74, 0.15);
-  color: #16a34a;
-}
-
-.status-pill--warning {
-  background: rgba(217, 119, 6, 0.15);
-  color: #d97706;
 }
 
 .category-badge {
   display: inline-block;
-  padding: 2px 7px;
-  font-size: 0.74rem;
-  font-weight: 600;
-  border-radius: 5px;
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.campus-tag {
-  display: inline-block;
-  padding: 2px 7px;
+  padding: 2px 8px;
   font-size: 0.72rem;
-  font-weight: 700;
-  border-radius: 5px;
+  font-weight: 600;
+  border-radius: 6px;
   background: var(--muted);
   color: var(--foreground);
   border: 1px solid var(--border);
 }
 
+.campus-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+}
+
 .assignee-text {
-  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--foreground);
 }
 
 .unassigned-text {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--muted-foreground);
   font-style: italic;
 }
 
 .time-text {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   white-space: nowrap;
 }
@@ -1329,18 +1696,19 @@ onMounted(() => {
 }
 
 .row-active {
-  background: rgba(37, 99, 235, 0.05) !important;
+  background: color-mix(in srgb, var(--primary-bg) 60%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .row-unread {
   font-weight: 600;
-  background: rgba(217, 119, 6, 0.04);
+  background: color-mix(in srgb, var(--warning-bg) 35%, transparent);
 }
 
 .loading-cell,
 .empty-cell {
   text-align: center;
-  padding: 44px 16px;
+  padding: 48px 16px;
   color: var(--muted-foreground);
 }
 
@@ -1348,15 +1716,43 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.empty-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.empty-state-wrap h4 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.empty-state-wrap p {
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  margin: 0 0 10px 0;
 }
 
 /* Slide-Over Drawer */
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
+  background: rgba(8, 17, 18, 0.55);
+  backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
@@ -1364,17 +1760,17 @@ onMounted(() => {
 
 .drawer-panel {
   width: 100%;
-  max-width: 580px;
+  max-width: 620px;
   height: 100%;
   background: var(--card);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
-  animation: slideIn 0.2s ease-out;
+  animation: slideInDrawer 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes slideIn {
+@keyframes slideInDrawer {
   from {
     transform: translateX(100%);
   }
@@ -1389,34 +1785,57 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
+  background: var(--card);
+}
+
+.drawer-header-info {
+  min-width: 0;
+  flex: 1;
 }
 
 .drawer-badge-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .drawer-title {
+  font-family: 'Manrope', sans-serif;
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--foreground);
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .drawer-subtitle {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted-foreground);
+  line-height: 1.4;
 }
 
 .drawer-close-btn {
-  background: none;
-  border: none;
-  font-size: 1.6rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--background);
   color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  line-height: 1;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+
+.drawer-close-btn:hover {
+  border-color: var(--destructive);
+  color: var(--destructive);
+  background: var(--red-bg);
 }
 
 .drawer-action-bar {
@@ -1439,8 +1858,21 @@ onMounted(() => {
 .drawer-assign-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
+  gap: 8px;
+}
+
+.assign-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.select-compact {
+  height: 30px;
+  font-size: 0.75rem;
+  padding: 0 8px;
 }
 
 .drawer-controls-right {
@@ -1449,90 +1881,176 @@ onMounted(() => {
   gap: 8px;
 }
 
+.btn-active {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--primary-bg) !important;
+}
+
+/* History Timeline Block */
 .drawer-history-block {
-  padding: 12px 22px;
-  background: rgba(0, 0, 0, 0.02);
+  padding: 14px 22px;
+  background: var(--background);
   border-bottom: 1px solid var(--border);
-  max-height: 180px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
+.history-header {
+  margin-bottom: 8px;
+}
+
 .history-title {
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   color: var(--muted-foreground);
-  margin: 0 0 8px 0;
-  font-weight: 700;
+  margin: 0;
+}
+
+.history-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 2px solid var(--border);
+  margin-left: 6px;
+  padding-left: 14px;
 }
 
 .history-item {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 0.78rem;
-  margin-bottom: 6px;
+}
+
+.history-node {
+  position: absolute;
+  left: -19px;
+  top: 4px;
 }
 
 .history-dot {
-  width: 6px;
-  height: 6px;
+  display: block;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--primary);
-  margin-top: 5px;
+  background: var(--card);
+  border: 2px solid var(--primary);
 }
 
 .history-detail {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+
+.history-note {
+  font-size: 0.76rem;
+  color: var(--foreground);
+}
+
+.history-actor {
+  font-weight: 700;
+  margin-right: 4px;
 }
 
 .history-time {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--muted-foreground);
 }
 
+.history-empty {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* Chat Stream */
 .drawer-chat-stream {
   flex: 1;
   padding: 20px 22px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  background: var(--background);
+}
+
+.chat-bubble-container {
+  display: flex;
+  width: 100%;
+}
+
+.bubble-align-staff {
+  justify-content: flex-start;
+}
+
+.bubble-align-user {
+  justify-content: flex-end;
 }
 
 .chat-bubble {
-  max-width: 82%;
-  padding: 12px 14px;
+  max-width: 84%;
+  padding: 12px 16px;
   border-radius: 12px;
-  font-size: 0.88rem;
-  line-height: 1.45;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  box-shadow: var(--shadow-xs);
 }
 
 .chat-bubble--admin {
-  align-self: flex-start;
-  background: var(--muted);
-  color: var(--foreground);
+  background: var(--card);
   border: 1px solid var(--border);
+  color: var(--foreground);
+  border-bottom-left-radius: 4px;
 }
 
 .chat-bubble--user {
-  align-self: flex-end;
   background: var(--primary);
   color: var(--primary-foreground, #ffffff);
+  border-bottom-right-radius: 4px;
 }
 
 .bubble-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 0.72rem;
-  opacity: 0.8;
-  margin-bottom: 4px;
+  gap: 10px;
+  font-size: 0.7rem;
+  opacity: 0.85;
+  margin-bottom: 6px;
 }
 
 .bubble-sender {
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sender-role-tag {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.tag-staff {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.tag-user {
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+}
+
+.bubble-time {
+  font-size: 0.68rem;
+  white-space: nowrap;
 }
 
 .bubble-body p {
@@ -1544,7 +2062,7 @@ onMounted(() => {
 .attachment-preview {
   margin-top: 8px;
   padding-top: 6px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  border-top: 1px dashed rgba(255, 255, 255, 0.25);
 }
 
 .chat-bubble--admin .attachment-preview {
@@ -1558,31 +2076,43 @@ onMounted(() => {
   font-size: 0.78rem;
   text-decoration: underline;
   color: inherit;
+  font-weight: 600;
 }
 
+/* Reply Composer */
 .drawer-composer {
-  padding: 14px 22px;
+  padding: 16px 22px;
   border-top: 1px solid var(--border);
   background: var(--card);
 }
 
 .composer-textarea {
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 0.86rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
   resize: vertical;
+  min-height: 72px;
+  transition: all 0.14s ease;
+}
+
+.composer-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .composer-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .composer-att-wrap {
@@ -1594,7 +2124,7 @@ onMounted(() => {
 .att-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   cursor: pointer;
 }
 
@@ -1603,16 +2133,169 @@ onMounted(() => {
   border: none;
   color: var(--muted-foreground);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
-/* Create Modal */
+.clear-att-btn:hover {
+  color: var(--destructive);
+}
+
+.composer-send-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Create Inquiry Modal */
 .create-inquiry-modal {
-  max-width: 520px;
+  width: 100%;
+  max-width: 560px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 26px 28px;
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.modal-header-row h3 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.modal-subtext {
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  margin: 4px 0 0 0;
+}
+
+.modal-close-icon {
+  background: none;
+  border: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.modal-close-icon:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.form-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.file-upload-wrap {
+  padding: 8px 12px;
+  background: var(--background);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .file-input {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--foreground);
+}
+
+.attachment-info-tag {
+  display: inline-block;
+  margin-top: 5px;
+  font-size: 0.72rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 1200px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .page-header-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-wrap {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-grid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .reset-btn {
+    grid-column: span 2;
+    justify-content: center;
+  }
+
+  .form-row-2col {
+    grid-template-columns: 1fr;
+  }
+
+  .drawer-panel {
+    max-width: 100vw;
+    width: 100vw;
+  }
+
+  .drawer-header,
+  .drawer-action-bar,
+  .drawer-composer,
+  .drawer-chat-stream {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .overview-table {
+    min-width: 780px;
+  }
 }
 </style>

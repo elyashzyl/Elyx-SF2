@@ -2236,7 +2236,7 @@ function getDistPct(count) {
 }
 
 .data-table th, .data-table td {
-  padding: 10px 12px;
+  padding: 12px 16px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }

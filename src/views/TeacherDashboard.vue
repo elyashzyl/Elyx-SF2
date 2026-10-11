@@ -590,7 +590,7 @@ onMounted(async () => {
   border: 1px solid var(--border);
   border-left: 4px solid var(--primary);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -849,7 +849,7 @@ onMounted(async () => {
    ========================================================================== */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
@@ -1053,7 +1053,7 @@ onMounted(async () => {
 }
 
 .overview-table th {
-  padding: 10px 14px;
+  padding: 12px 16px;
   background: var(--muted);
   font-size: 0.65rem;
   font-weight: 800;
@@ -1065,7 +1065,7 @@ onMounted(async () => {
 }
 
 .overview-table td {
-  padding: 11px 14px;
+  padding: 13px 16px;
   border-bottom: 1px solid var(--border);
   color: var(--foreground);
 }
@@ -1127,7 +1127,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 14px;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--destructive) 25%, var(--border));
   border-radius: var(--radius-sm);
   background: var(--red-bg);

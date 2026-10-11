@@ -2379,7 +2379,7 @@ function triggerPrint() {
   gap: 14px;
 }
 .profile-card {
-  padding: 14px 16px;
+  padding: 18px 20px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--card);

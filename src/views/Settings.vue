@@ -358,7 +358,7 @@
             <div class="form-section-title" style="margin-top: 14px; margin-bottom: 8px; font-weight: 700; font-size: 0.85rem; color: var(--foreground);">
               School Seal / Official Logo
             </div>
-            <div class="logo-uploader-card" style="display: flex; gap: 16px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); margin-bottom: 16px; flex-wrap: wrap;">
+            <div class="logo-uploader-card" style="display: flex; gap: 16px; align-items: center; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); margin-bottom: 16px; flex-wrap: wrap;">
               <div class="logo-preview-box" style="width: 72px; height: 72px; border-radius: 50%; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--muted); flex-shrink: 0;">
                 <img v-if="form.logo_url" :src="form.logo_url" alt="School Logo" style="width: 100%; height: 100%; object-fit: cover;" />
                 <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color: var(--muted-foreground);">
@@ -461,7 +461,7 @@
           </div>
 
           <!-- Active System Year Banner -->
-          <div class="global-sy-summary-card" style="padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted-subtle, var(--card)); margin-bottom: 24px;">
+          <div class="global-sy-summary-card" style="padding: 20px 22px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted-subtle, var(--card)); margin-bottom: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
               <div>
                 <span class="badge badge-success" style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px; display: inline-block;">
@@ -577,32 +577,32 @@
               <table class="data-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
                   <tr style="background: var(--muted-subtle, var(--card)); border-bottom: 1px solid var(--border); text-align: left; font-size: 0.75rem; text-transform: uppercase;">
-                    <th style="padding: 10px 14px;">School Name</th>
-                    <th style="padding: 10px 14px;">School ID / Code</th>
-                    <th style="padding: 10px 14px;">Current School Year</th>
-                    <th style="padding: 10px 14px;">Quarter Calendar</th>
-                    <th style="padding: 10px 14px; text-align: right;" v-if="auth.isSuperadmin">Actions</th>
+                    <th style="padding: 12px 18px;">School Name</th>
+                    <th style="padding: 12px 18px;">School ID / Code</th>
+                    <th style="padding: 12px 18px;">Current School Year</th>
+                    <th style="padding: 12px 18px;">Quarter Calendar</th>
+                    <th style="padding: 12px 18px; text-align: right;" v-if="auth.isSuperadmin">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="s in schools.filter(s => !s.archived_at)" :key="s.id" style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
-                    <td style="padding: 12px 14px; font-weight: 600;">
+                    <td style="padding: 13px 18px; font-weight: 600;">
                       {{ s.name }}
                     </td>
-                    <td style="padding: 12px 14px; color: var(--muted-foreground);">
+                    <td style="padding: 13px 18px; color: var(--muted-foreground);">
                       {{ s.school_id || s.short || '—' }}
                     </td>
-                    <td style="padding: 12px 14px;">
+                    <td style="padding: 13px 18px;">
                       <span class="badge" :class="(s.school_year || globalSchoolYearInput) === (globalSchoolYearInput || '2026-2027') ? 'badge-success' : 'badge-warning'">
                         {{ s.school_year || globalSchoolYearInput || '2026-2027' }}
                       </span>
                     </td>
-                    <td style="padding: 12px 14px;">
+                    <td style="padding: 13px 18px;">
                       <span class="badge" :class="Number(s.quarter_count) === 3 ? 'badge-warning' : 'badge-secondary'">
                         {{ Number(s.quarter_count) === 3 ? '3 Quarters (Trimester)' : '4 Quarters (DepEd)' }}
                       </span>
                     </td>
-                    <td style="padding: 12px 14px; text-align: right;" v-if="auth.isSuperadmin">
+                    <td style="padding: 13px 18px; text-align: right;" v-if="auth.isSuperadmin">
                       <button
                         v-if="s.school_year !== globalSchoolYearInput"
                         type="button"
@@ -1207,7 +1207,7 @@ async function saveSupportEmail() {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 20px;
+  padding: 20px 22px;
   margin-bottom: 20px;
 }
 .pref-group-title {

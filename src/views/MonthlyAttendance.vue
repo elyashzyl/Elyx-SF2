@@ -2148,7 +2148,7 @@ async function updateRemarks(entry) {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 14px 16px;
+  padding: 16px 20px;
   margin: 10px 0 16px;
 }
 
