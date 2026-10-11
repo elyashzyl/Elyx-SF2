@@ -74,14 +74,22 @@ export const useAuthStore = defineStore('auth', () => {
   async function restoreSession() {
     try {
       const data = await fetchJson(`${API}/auth/me`, { skipAuthRedirect: true })
-      if (!data?.user) return false
+      if (!data?.user) {
+        user.value = null
+        impersonatedBy.value = null
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('auth_impersonator')
+        return false
+      }
       setUser(data.user)
       return true
-    } catch {
-      user.value = null
-      impersonatedBy.value = null
-      localStorage.removeItem('auth_user')
-      localStorage.removeItem('auth_impersonator')
+    } catch (err) {
+      if (err?.message?.includes('401') || err?.message?.includes('Not authenticated')) {
+        user.value = null
+        impersonatedBy.value = null
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('auth_impersonator')
+      }
       return false
     }
   }

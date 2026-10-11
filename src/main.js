@@ -57,12 +57,10 @@ if (typeof window !== 'undefined') {
 app.use(pinia)
 app.use(router)
 
-// The server session cookie is the source of truth. Restore session before protected
-// routes are resolved to guarantee deterministic authentication and avoid blank screen hangs.
-const auth = useAuthStore()
-await auth.restoreSession().catch(() => {})
-
-// Await router readiness so the initial matched route component chunk is loaded,
-// preventing layout popping or empty route-view flicker.
-await router.isReady()
+// Mount the Vue application synchronously so initial DOM paint renders immediately
+// from cached credentials and browser refresh NEVER halts on an empty white/black screen.
 app.mount('#app')
+
+// Revalidate session with backend asynchronously
+const auth = useAuthStore()
+auth.restoreSession().catch(() => {})

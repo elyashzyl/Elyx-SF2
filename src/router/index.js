@@ -126,6 +126,14 @@ const routes = [
     name: 'ClassRecord',
     component: () => import('../views/ClassRecord.vue'),
     meta: { role: ['superadmin', 'admin', 'teacher'] }
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: () => {
+      const auth = useAuthStore()
+      if (auth.user) return homeFor(auth.user.role)
+      return '/'
+    }
   }
 ]
 
@@ -240,6 +248,15 @@ router.beforeEach((to, from, next) => {
     return next(homeFor(auth.user.role))
   }
   next()
+})
+
+router.onError((error) => {
+  console.error('[Vue Router Navigation Error]:', error)
+  if (/loading chunk|fetch dynamically imported module/i.test(error?.message || '')) {
+    if (typeof window !== 'undefined') {
+      window.location.reload()
+    }
+  }
 })
 
 export default router

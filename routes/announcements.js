@@ -11,13 +11,13 @@ const VALID_PRIORITIES = ['normal', 'important', 'urgent']
 
 function notExpiredCondition(alias = 'a') {
   return DB_MODE === 'mysql'
-    ? `(${alias}.expires_at IS NULL OR ${alias}.expires_at > ?)`
+    ? `(${alias}.expires_at IS NULL OR CAST(${alias}.expires_at AS CHAR) = '' OR ${alias}.expires_at > ?)`
     : `(${alias}.expires_at IS NULL OR ${alias}.expires_at = '' OR ${alias}.expires_at > ?)`
 }
 
 function expiredCondition() {
   return DB_MODE === 'mysql'
-    ? 'expires_at IS NOT NULL AND expires_at < ?'
+    ? "expires_at IS NOT NULL AND CAST(expires_at AS CHAR) != '' AND expires_at < ?"
     : "expires_at IS NOT NULL AND expires_at != '' AND expires_at < ?"
 }
 
