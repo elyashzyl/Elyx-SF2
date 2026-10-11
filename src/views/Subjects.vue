@@ -1137,6 +1137,26 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 /* Stats Row */
+.subjects-page .stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 1024px) {
+  .subjects-page .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .subjects-page .stats-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stat-card-link {
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease;
@@ -1152,8 +1172,11 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 /* Filters & Search */
-.subjects-filter-card {
+.subjects-page .subjects-filter-card {
+  max-width: 100% !important;
+  width: 100%;
   padding: 22px 24px;
+  box-sizing: border-box;
 }
 
 .filter-row {
@@ -1213,13 +1236,16 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 /* Table Card */
-.subjects-table-card {
+.subjects-page .subjects-table-card {
+  max-width: 100% !important;
+  width: 100%;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-xs);
+  box-sizing: border-box;
 }
 
 .table-card-header {

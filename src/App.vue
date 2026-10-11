@@ -284,7 +284,7 @@ const routeTitles = {
   Licenses: 'License & Subscription',
   Grading: 'Academic Grading (SF9)',
   Subjects: 'Subjects & curriculum',
-  ErrorManagement: 'Error management',
+  ErrorManagement: 'Incident & error logs',
   Settings: 'Settings',
   Schools: 'Schools',
   ActivityLogs: 'Activity logs'
