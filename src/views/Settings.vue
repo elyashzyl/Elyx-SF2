@@ -77,6 +77,18 @@
             <span>Notifications &amp; Alerts</span>
           </button>
           <button
+            v-if="auth.isAdmin"
+            class="settings-nav-item"
+            :class="{ active: activeTab === 'system' }"
+            @click="activeTab = 'system'"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span>System Configuration</span>
+          </button>
+          <button
             v-if="auth.isSuperadmin && schools.length > 1"
             class="settings-nav-item"
             :class="{ active: activeTab === 'switchschool' }"
@@ -753,6 +765,87 @@
           </div>
         </div>
 
+        <!-- System Configuration Tab -->
+        <div v-if="activeTab === 'system' && auth.isAdmin" class="table-card">
+          <div class="settings-panel-header">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+              <div>
+                <h2>System Configuration &amp; Runtime Settings</h2>
+                <p>Configure platform runtime parameters without restarting the server. Changes take effect immediately across all active workspaces.</p>
+              </div>
+              <router-link to="/errors" class="btn-sm btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span>Error Incident Manager &rarr;</span>
+              </router-link>
+            </div>
+          </div>
+
+          <form @submit.prevent="saveSystemConfig" class="settings-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Platform Name / Application Title</label>
+                <input v-model="systemConfig.app_name" placeholder="e.g. ElyTrack" required />
+                <span class="label-hint">Live brand title used across headers, emails, and exports.</span>
+              </div>
+              <div class="form-group">
+                <label>Platform Support / Helpdesk Email</label>
+                <input v-model="systemConfig.support_email" type="email" placeholder="support@elytrack.com" required />
+                <span class="label-hint">Official recipient for helpdesk inquiries and contact queries.</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>User Session Lifetime (Minutes)</label>
+                <input v-model.number="systemConfig.session_lifetime_minutes" type="number" min="15" max="43200" step="15" required />
+                <span class="label-hint">Inactivity window before authentication tokens expire. Takes effect immediately.</span>
+              </div>
+              <div class="form-group">
+                <label>License Expiration Notice (Days)</label>
+                <input v-model.number="systemConfig.license_reminder_days" type="number" min="1" max="60" required />
+                <span class="label-hint">Lead time before campus license expiry to display renewal warnings.</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>System Announcement Banner <span class="label-hint">Optional; broadcasted to all logged-in users</span></label>
+              <input v-model="systemConfig.system_announcement" placeholder="e.g. Scheduled maintenance window on Saturday 10:00 PM PHT. Leave blank to disable." />
+            </div>
+
+            <div class="form-row" style="background: var(--secondary); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-top: 8px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label class="custom-checkbox-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                  <input type="checkbox" v-model="systemConfig.error_reporting_enabled" style="margin-top: 2px;" />
+                  <div>
+                    <strong style="color: var(--foreground); display: block; font-size: 0.88rem;">Live Error Telemetry &amp; Reporting</strong>
+                    <span style="font-size: 0.75rem; color: var(--muted-foreground); display: block;">Automatically captures unhandled server 500s and frontend exceptions into the Error Incident Manager.</span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label class="custom-checkbox-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                  <input type="checkbox" v-model="systemConfig.maintenance_mode" style="margin-top: 2px;" />
+                  <div>
+                    <strong style="color: var(--foreground); display: block; font-size: 0.88rem;">Platform Maintenance Notice</strong>
+                    <span style="font-size: 0.75rem; color: var(--muted-foreground); display: block;">Displays a maintenance notification banner across all active sessions.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 20px;">
+              <button type="submit" class="btn-primary" :disabled="savingSystemConfig">
+                {{ savingSystemConfig ? 'Saving Configuration…' : 'Save System Configuration' }}
+              </button>
+            </div>
+          </form>
+        </div>
+
       </main>
     </div>
   </div>
@@ -784,6 +877,16 @@ const globalSchoolYearInput = ref('')
 const applyingGlobalSy = ref(false)
 const savingGlobalSy = ref(false)
 const applySchoolYearToAllActive = ref(true)
+const savingSystemConfig = ref(false)
+const systemConfig = reactive({
+  app_name: 'ElyTrack',
+  support_email: 'support@elytrack.com',
+  session_lifetime_minutes: 480,
+  license_reminder_days: 7,
+  system_announcement: '',
+  error_reporting_enabled: true,
+  maintenance_mode: false
+})
 const schoolYearConfig = ref({
   school_year: '',
   active_school_year: '',
@@ -839,9 +942,11 @@ onMounted(async () => {
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
     selectedSchoolId.value = noneSelected.value ? '' : (auth.schoolId || schools.value[0]?.id || '')
-    await loadPlatformSettings()
   } else {
     selectedSchoolId.value = auth.schoolId || ''
+  }
+  if (auth.isAdmin) {
+    await loadPlatformSettings()
   }
   await loadSchool()
   await loadSchoolYearConfig()
@@ -1048,7 +1153,7 @@ async function saveNotificationPreferences() {
 }
 
 async function loadPlatformSettings() {
-  if (!auth.isSuperadmin) return
+  if (!auth.isAdmin) return
   try {
     const res = await fetch('/api/settings', {
       headers: auth.actorHeaders()
@@ -1056,11 +1161,54 @@ async function loadPlatformSettings() {
     if (res.ok) {
       const data = await res.json()
       supportEmail.value = data.support_email || ''
+      systemConfig.app_name = data.app_name || 'ElyTrack'
+      systemConfig.support_email = data.support_email || 'support@elytrack.com'
+      systemConfig.session_lifetime_minutes = Number(data.session_lifetime_minutes || 480)
+      systemConfig.license_reminder_days = Number(data.license_reminder_days || 7)
+      systemConfig.system_announcement = data.system_announcement || ''
+      systemConfig.error_reporting_enabled = data.error_reporting_enabled !== false && data.error_reporting_enabled !== '0'
+      systemConfig.maintenance_mode = data.maintenance_mode === true || data.maintenance_mode === '1'
       if (data.school_year || data.active_school_year) {
         globalSchoolYearInput.value = data.school_year || data.active_school_year || ''
       }
     }
   } catch {}
+}
+
+async function saveSystemConfig() {
+  savingSystemConfig.value = true
+  try {
+    const payload = {
+      app_name: String(systemConfig.app_name || '').trim(),
+      support_email: String(systemConfig.support_email || '').trim(),
+      session_lifetime_minutes: Number(systemConfig.session_lifetime_minutes || 480),
+      license_reminder_days: Number(systemConfig.license_reminder_days || 7),
+      system_announcement: String(systemConfig.system_announcement || '').trim(),
+      error_reporting_enabled: systemConfig.error_reporting_enabled ? '1' : '0',
+      maintenance_mode: systemConfig.maintenance_mode ? '1' : '0'
+    }
+
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.actorHeaders()
+      },
+      body: JSON.stringify({ settings: payload })
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to update system settings')
+    }
+
+    notify('System configuration saved and live in runtime without restart!', 'success')
+    await loadPlatformSettings()
+  } catch (err) {
+    notify(err.message || 'Error saving system settings', 'error')
+  } finally {
+    savingSystemConfig.value = false
+  }
 }
 
 async function loadSchoolYearConfig() {

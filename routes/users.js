@@ -92,6 +92,23 @@ async function sendVerificationEmail(userId, email, createdBy = '') {
   return issued
 }
 
+function parseSqlTimestamp(val) {
+  if (!val) return 0
+  if (val instanceof Date) return val.getTime()
+  if (typeof val === 'number') return val
+  let str = String(val).trim()
+  if (!str) return 0
+  if (!str.includes('Z') && !str.match(/[+-]\d{2}:\d{2}$/)) {
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(str)) {
+      str = str.replace(' ', 'T') + 'Z'
+    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(str)) {
+      str = str + 'Z'
+    }
+  }
+  const time = new Date(str).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
 // List users. Superadmin may filter by ?schoolId; others see own school only.
 // Teachers are never allowed to list users.
 router.get('/', async (req, res) => {
@@ -101,9 +118,47 @@ router.get('/', async (req, res) => {
     const scope = await resolveScopeSchool(req, res, req.query.schoolId)
     if (!scope) return
     const prismaUsers = await listUsersWithPrisma(scope.schoolId)
-    const users = prismaUsers ?? (scope.schoolId
+    const rawUsers = prismaUsers ?? (scope.schoolId
       ? await query('SELECT id, username, name, email, email_verified_at, avatar_url, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users WHERE school_id = ? ORDER BY name', [scope.schoolId])
       : await query('SELECT id, username, name, email, email_verified_at, avatar_url, role, grade, section, period, school_id, account_status, last_login_at, password_changed_at, locked_until FROM users ORDER BY name'))
+
+    // Query active sessions from auth_sessions to determine online presence
+    const sessionMap = new Map()
+    try {
+      const activeSessions = await query(`
+        SELECT user_id, MAX(last_seen_at) as last_seen_at
+        FROM auth_sessions
+        WHERE revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+        GROUP BY user_id
+      `)
+      const now = Date.now()
+      const ONLINE_THRESHOLD_MS = 15 * 60 * 1000 // 15 minutes inactivity threshold
+
+      for (const s of activeSessions) {
+        if (!s.user_id) continue
+        const seenTime = parseSqlTimestamp(s.last_seen_at)
+        const isRecent = seenTime > 0 && (now - seenTime) <= ONLINE_THRESHOLD_MS
+        sessionMap.set(s.user_id, {
+          is_online: isRecent,
+          last_seen_at: s.last_seen_at
+        })
+      }
+    } catch (err) {
+      console.warn('[users] Failed to query auth_sessions for presence:', err.message)
+    }
+
+    const users = rawUsers.map(u => {
+      const sess = sessionMap.get(u.id)
+      const isCurrentMe = u.id === me.id
+      const isOnline = isCurrentMe || Boolean(sess?.is_online)
+      const lastSeen = sess?.last_seen_at || u.last_login_at || null
+      return {
+        ...u,
+        is_online: isOnline,
+        last_seen_at: lastSeen
+      }
+    })
+
     res.json(users)
   } catch (err) {
     console.error('Error listing users:', err.message)

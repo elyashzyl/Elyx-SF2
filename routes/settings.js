@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, run, getSettings, getSchoolById, updateSchoolRow } from '../db.js'
 import { requireRole, resolveScopeSchool, actingUser, schoolToResponse, audit } from './_context.js'
+import { getRuntimeSetting, setMultipleRuntimeSettings, getAllRuntimeSettings, loadRuntimeSettings } from '../lib/runtimeSettings.js'
 
 const router = Router()
 
@@ -13,6 +14,15 @@ router.get('/', async (req, res) => {
     for (const row of all) {
       result[row.key] = row.value
     }
+    result.app_name = getRuntimeSetting('app_name', result.app_name || process.env.APP_NAME || 'ElyTrack')
+    result.support_email = getRuntimeSetting('support_email', result.support_email || 'support@elytrack.com')
+    result.session_lifetime_minutes = Number(getRuntimeSetting('session_lifetime_minutes', result.session_lifetime_minutes || '480'))
+    result.system_announcement = getRuntimeSetting('system_announcement', result.system_announcement || '')
+    result.maintenance_mode = String(getRuntimeSetting('maintenance_mode', result.maintenance_mode ? '1' : '0')) === '1'
+    result.error_reporting_enabled = String(getRuntimeSetting('error_reporting_enabled', result.error_reporting_enabled !== undefined ? String(result.error_reporting_enabled) : '1')) !== '0'
+    result.license_reminder_days = Number(getRuntimeSetting('license_reminder_days', result.license_reminder_days || '7'))
+    result.sardo_consecutive_absences = Number(getRuntimeSetting('sardo_consecutive_absences', result.sardo_consecutive_absences || '3'))
+    result.sardo_cumulative_absences = Number(getRuntimeSetting('sardo_cumulative_absences', result.sardo_cumulative_absences || '5'))
     if (!result.school_year) {
       const syRows = await query('SELECT school_year FROM schools WHERE school_year != "" AND archived_at IS NULL ORDER BY school_year DESC LIMIT 1')
       result.school_year = syRows[0]?.school_year || '2026-2027'
@@ -227,13 +237,11 @@ router.put('/', async (req, res) => {
           return res.status(400).json({ error: 'Invalid support email address format' })
         }
       }
-      const existing = await query('SELECT `key` FROM settings WHERE `key` = ?', [key])
-      if (existing.length > 0) {
-        await run('UPDATE settings SET `value` = ? WHERE `key` = ?', [String(value), key])
-      } else {
-        await run('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', [key, String(value)])
-      }
     }
+
+    // Persist to database and sync runtime in-memory cache instantly
+    await setMultipleRuntimeSettings(settings)
+
     if ((req.body?.apply_to_all_schools || req.body?.applyToAllSchools) && settings.school_year && me.role === 'superadmin') {
       const sy = String(settings.school_year).trim()
       if (sy) {
@@ -241,7 +249,10 @@ router.put('/', async (req, res) => {
         await audit(me, 'settings.school_year_all', { school_year: sy }, `Applied school year "${sy}" to all active schools via settings`)
       }
     }
-    res.json({ success: true })
+
+    await audit(me, 'settings.update', { updated_keys: Object.keys(settings) }, `Updated system runtime settings without restart`)
+
+    res.json({ success: true, settings })
   } catch (err) {
     console.error('Error updating settings:', err.message)
     res.status(500).json({ error: 'Failed to update settings' })

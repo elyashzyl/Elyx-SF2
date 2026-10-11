@@ -23,14 +23,23 @@ import reportRoutes from './routes/reports.js'
 import announcementRoutes from './routes/announcements.js'
 import quarterlyRoutes from './routes/quarterly.js'
 import gradingRoutes from './routes/grading.js'
+import errorRoutes from './routes/errors.js'
 import { validateRequestInput } from './lib/validation.js'
 import { startExpirationReminderScheduler } from './lib/expirationReminders.js'
+import { loadRuntimeSettings } from './lib/runtimeSettings.js'
+import { logSystemError } from './lib/errorLogger.js'
 
 process.on('uncaughtException', (err) => {
   console.error('[fatal] uncaughtException:', err);
+  logSystemError({ error: err, type: 'uncaught_exception', severity: 'critical' }).catch(() => {});
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[fatal] unhandledRejection:', reason);
+  logSystemError({
+    error: reason instanceof Error ? reason : new Error(String(reason)),
+    type: 'unhandled_rejection',
+    severity: 'critical'
+  }).catch(() => {});
 });
 
 const app = express()
@@ -301,6 +310,7 @@ app.use('/api/reports', reportRoutes)
 app.use('/api/announcements', announcementRoutes)
 app.use('/api/quarterly', quarterlyRoutes)
 app.use('/api/grading', gradingRoutes)
+app.use('/api/errors', errorRoutes)
 
 app.get(['/api/health', '/health'], async (req, res) => {
   if (!dbReady) {
@@ -340,12 +350,14 @@ app.get('*', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.message)
+  logSystemError({ req, error: err, statusCode: res.statusCode || 500 }).catch(() => {})
   res.status(500).json({ error: 'Internal server error' })
 })
 
 export async function initializeServerDatabase() {
   await initDatabase()
   dbReady = true
+  await loadRuntimeSettings()
   return app
 }
 

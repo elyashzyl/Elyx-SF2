@@ -74,6 +74,12 @@ const routes = [
     meta: { role: 'superadmin' }
   },
   {
+    path: '/errors',
+    name: 'ErrorManagement',
+    component: () => import('../views/ErrorManagement.vue'),
+    meta: { role: ['superadmin', 'admin'] }
+  },
+  {
     path: '/schools',
     name: 'Schools',
     component: () => import('../views/Schools.vue'),

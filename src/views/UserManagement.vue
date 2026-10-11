@@ -7,6 +7,82 @@
       </div>
     </div>
 
+    <!-- User Presence KPI Summary Row -->
+    <div class="user-kpi-grid">
+      <div 
+        class="user-kpi-card" 
+        :class="{ 'user-kpi-card--active': filterPresence === '' && !filterStatus }" 
+        @click="filterPresence = ''; filterStatus = ''"
+        role="button"
+        tabindex="0"
+      >
+        <div class="user-kpi-icon icon--total">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+        <div class="user-kpi-info">
+          <span class="user-kpi-val">{{ users.length }}</span>
+          <span class="user-kpi-lbl">Total Accounts</span>
+        </div>
+      </div>
+
+      <div 
+        class="user-kpi-card user-kpi-card--clickable" 
+        :class="{ 'user-kpi-card--active': filterPresence === 'online' }" 
+        @click="filterPresence = filterPresence === 'online' ? '' : 'online'"
+        role="button"
+        tabindex="0"
+        title="Filter by online users"
+      >
+        <div class="user-kpi-icon icon--online">
+          <span class="pulse-green-dot"></span>
+        </div>
+        <div class="user-kpi-info">
+          <span class="user-kpi-val text-online">{{ onlineCount }}</span>
+          <span class="user-kpi-lbl">Online Now</span>
+        </div>
+      </div>
+
+      <div 
+        class="user-kpi-card user-kpi-card--clickable" 
+        :class="{ 'user-kpi-card--active': filterPresence === 'offline' }" 
+        @click="filterPresence = filterPresence === 'offline' ? '' : 'offline'"
+        role="button"
+        tabindex="0"
+        title="Filter by offline users"
+      >
+        <div class="user-kpi-icon icon--offline">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+          </svg>
+        </div>
+        <div class="user-kpi-info">
+          <span class="user-kpi-val text-muted">{{ offlineCount }}</span>
+          <span class="user-kpi-lbl">Offline</span>
+        </div>
+      </div>
+
+      <div 
+        class="user-kpi-card user-kpi-card--clickable" 
+        :class="{ 'user-kpi-card--active': filterStatus === 'locked' }" 
+        @click="filterStatus = filterStatus === 'locked' ? '' : 'locked'"
+        role="button"
+        tabindex="0"
+        title="Filter by locked accounts"
+      >
+        <div class="user-kpi-icon icon--locked">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <div class="user-kpi-info">
+          <span class="user-kpi-val text-locked">{{ lockedCount }}</span>
+          <span class="user-kpi-lbl">Locked / Inactive</span>
+        </div>
+      </div>
+    </div>
+
     <div v-if="showForm" class="modal-overlay user-modal-overlay" @click.self="cancelForm">
       <div class="form-card user-form-card">
         <h3>{{ editingUser ? 'Edit User Account' : 'Add New User Account' }}</h3>
@@ -129,6 +205,11 @@
             <option value="">All Schools</option>
             <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
+          <select v-model="filterPresence" @change="currentPage = 1" class="tbl-filter" title="Filter by online/offline presence">
+            <option value="">All Presence</option>
+            <option value="online">Online only</option>
+            <option value="offline">Offline only</option>
+          </select>
           <select v-model="filterStatus" @change="currentPage = 1" class="tbl-filter" title="Filter by account status">
             <option value="">All Statuses</option>
             <option value="active">Active</option>
@@ -156,10 +237,27 @@
             <td class="cell-id">#{{ (currentPage - 1) * pageSize + i + 1 }}</td>
             <td>
               <div class="cell-person">
-                <span class="cell-avatar">{{ (u.name || '?').charAt(0).toUpperCase() }}</span>
+                <div class="avatar-wrap">
+                  <span class="cell-avatar">{{ (u.name || '?').charAt(0).toUpperCase() }}</span>
+                  <span 
+                    class="avatar-presence-indicator" 
+                    :class="u.is_online ? 'is-online' : 'is-offline'" 
+                    :title="u.is_online ? 'User is online now' : (u.last_seen_at ? 'Offline. Last active ' + formatTimeAgo(u.last_seen_at) : 'Offline')"
+                  ></span>
+                </div>
                 <div class="cell-person-copy">
-                  <div class="cell-main">{{ u.name }}</div>
-                  <div class="cell-sub">@{{ u.username }}<span v-if="u.email"> · {{ u.email }}</span></div>
+                  <div class="cell-main-row">
+                    <span class="cell-main">{{ u.name }}</span>
+                    <span class="presence-badge" :class="u.is_online ? 'presence-badge--online' : 'presence-badge--offline'">
+                      <span class="presence-dot"></span>
+                      {{ u.is_online ? 'Online' : 'Offline' }}
+                    </span>
+                  </div>
+                  <div class="cell-sub">
+                    @{{ u.username }}<span v-if="u.email"> · {{ u.email }}</span>
+                    <span v-if="u.is_online" class="online-active-hint"> · Active now</span>
+                    <span v-else-if="u.last_seen_at" class="last-seen-hint"> · Active {{ formatTimeAgo(u.last_seen_at) }}</span>
+                  </div>
                 </div>
               </div>
             </td>
@@ -239,7 +337,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { useGradeLevels } from '../composables/useGradeLevels'
@@ -257,14 +355,22 @@ const users = ref([])
 const schools = ref([])
 const filterSchoolId = ref('')
 const filterStatus = ref('')
+const filterPresence = ref('')
 const impersonatingId = ref(null)
 const userSearch = ref('')
 const pageSize = ref(10)
 const currentPage = ref(1)
+
+const onlineCount = computed(() => users.value.filter(u => u.is_online).length)
+const offlineCount = computed(() => users.value.filter(u => !u.is_online).length)
+const lockedCount = computed(() => users.value.filter(u => u.account_status === 'locked' || u.locked_until).length)
+
 const filteredUsers = computed(() => {
   const q = userSearch.value.trim().toLowerCase()
   return users.value.filter(u => {
     if (filterStatus.value && (u.account_status || 'active') !== filterStatus.value) return false
+    if (filterPresence.value === 'online' && !u.is_online) return false
+    if (filterPresence.value === 'offline' && u.is_online) return false
     if (!q) return true
     return (u.name || '').toLowerCase().includes(q) ||
       (u.username || '').toLowerCase().includes(q) ||
@@ -307,6 +413,8 @@ watch(targetSchoolId, async (sid) => {
   }
 })
 
+let pollTimer = null
+
 onMounted(async () => {
   if (auth.isSuperadmin) {
     schools.value = await auth.getSchools()
@@ -314,6 +422,12 @@ onMounted(async () => {
   }
   await loadGradeLevels(targetSchoolId.value || undefined)
   await loadUsers()
+  // Poll active presence every 25 seconds
+  pollTimer = setInterval(loadUsers, 25000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
 })
 
 async function loadUsers() {
@@ -339,6 +453,20 @@ function formatDate(value) {
   if (!value) return ''
   const date = new Date(String(value).replace(' ', 'T') + (String(value).includes('Z') ? '' : 'Z'))
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString()
+}
+
+function formatTimeAgo(value) {
+  if (!value) return ''
+  const date = new Date(String(value).replace(' ', 'T') + (String(value).includes('Z') ? '' : 'Z'))
+  if (Number.isNaN(date.getTime())) return ''
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (diffSec < 60) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
 }
 
 function canManageStatus(u) {
@@ -568,6 +696,202 @@ async function impersonateUser(u) {
 .user-table-card .pager {
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* User KPI Presence Cards */
+.user-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.user-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.user-kpi-card--clickable {
+  cursor: pointer;
+}
+
+.user-kpi-card--clickable:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+}
+
+.user-kpi-card--active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.user-kpi-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon--total {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.icon--online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.icon--offline {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.icon--locked {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--destructive);
+}
+
+.user-kpi-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-kpi-val {
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--foreground);
+}
+
+.user-kpi-lbl {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+}
+
+.text-online {
+  color: #10b981 !important;
+}
+
+.text-locked {
+  color: var(--destructive) !important;
+}
+
+.pulse-green-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulseGreen 2s infinite;
+}
+
+@keyframes pulseGreen {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Avatar Presence Indicator */
+.avatar-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.avatar-presence-indicator {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--card);
+}
+
+.avatar-presence-indicator.is-online {
+  background: #10b981;
+}
+
+.avatar-presence-indicator.is-offline {
+  background: var(--muted-foreground);
+  opacity: 0.6;
+}
+
+/* Presence Badges */
+.cell-main-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.presence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.presence-badge--online {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.presence-badge--offline {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+
+.presence-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.presence-badge--online .presence-dot {
+  background: #10b981;
+}
+
+.presence-badge--offline .presence-dot {
+  background: var(--muted-foreground);
+  opacity: 0.5;
+}
+
+.online-active-hint {
+  color: #059669;
+  font-weight: 600;
+}
+
+.last-seen-hint {
+  color: var(--muted-foreground);
 }
 
 @media (max-width: 820px) {
