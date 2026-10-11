@@ -57,8 +57,12 @@ if (typeof window !== 'undefined') {
 app.use(pinia)
 app.use(router)
 
-// The local user cache is only a render hint. The server-side session is the
-// source of truth and is restored before protected routes are mounted.
+// Hydrate session in the background so initial DOM paint renders synchronously
+// from cached credentials without blank white screen pauses.
 const auth = useAuthStore()
-await auth.restoreSession()
+auth.restoreSession().catch(() => {})
+
+// Await router readiness so the initial matched route component chunk is loaded,
+// preventing layout popping or empty route-view flicker.
+await router.isReady()
 app.mount('#app')

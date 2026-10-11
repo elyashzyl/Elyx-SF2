@@ -5,10 +5,10 @@
         <button
           class="mobile-menu-btn"
           type="button"
-          :aria-label="sidebarOpen ? 'Close navigation' : 'Open navigation'"
-          :aria-expanded="sidebarOpen"
+          :aria-label="openMobile ? 'Close navigation' : 'Open navigation'"
+          :aria-expanded="openMobile"
           aria-controls="app-sidebar"
-          @click="sidebarOpen = !sidebarOpen"
+          @click="toggleSidebar"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
@@ -134,242 +134,10 @@
     </div>
 
     <div v-if="auth.user" class="app-body">
-      <aside id="app-sidebar" class="sidebar" :class="{ 'is-open': sidebarOpen }">
-        <div class="sidebar-scroll">
-          <div class="sidebar-section-title">Workspace</div>
-          <div class="sidebar-links">
-            <router-link v-if="auth.isAdmin" to="/admin" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              </span>
-              <span>Overview</span>
-            </router-link>
-            <router-link v-if="auth.isTeacher" to="/teacher" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              </span>
-              <span>Overview</span>
-            </router-link>
-            <router-link to="/attendance" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 15h3M8 18h6" />
-                </svg>
-              </span>
-              <span>Daily attendance</span>
-            </router-link>
-            <router-link to="/monthly" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /><path d="M8 7h8M8 11h8" />
-                </svg>
-              </span>
-              <span>Monthly SF2</span>
-            </router-link>
-            <router-link v-if="auth.isAdmin" to="/reports" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-                </svg>
-              </span>
-              <span>Reports & Analytics</span>
-            </router-link>
-            <router-link to="/schedule" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-              </span>
-              <span>Schedule & Calendar</span>
-            </router-link>
-            <router-link to="/grading" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-              </span>
-              <span>Academic Grading (SF9)</span>
-            </router-link>
-            <router-link to="/class-record" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>
-                  <line x1="9" y1="7" x2="15" y2="7"/>
-                  <line x1="9" y1="11" x2="15" y2="11"/>
-                  <line x1="9" y1="15" x2="13" y2="15"/>
-                </svg>
-              </span>
-              <span>E-Class Record (Raw Scores)</span>
-            </router-link>
-          </div>
+      <!-- Shadcn-Vue Realtime Navigation Sidebar -->
+      <Sidebar @logout="handleLogout" />
 
-          <div v-if="auth.isAdmin" class="sidebar-section-title">People</div>
-          <div v-if="auth.isAdmin" class="sidebar-links">
-            <router-link to="/students" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </span>
-              <span>Students</span>
-            </router-link>
-            <router-link to="/users" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </span>
-              <span>User accounts</span>
-            </router-link>
-          </div>
-
-          <template v-if="auth.isAdmin">
-            <div class="sidebar-section-title">Configuration</div>
-            <div class="sidebar-links">
-              <router-link to="/grade-levels" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5Z" /><path d="M8 7h8M8 11h8M8 15h5" />
-                  </svg>
-                </span>
-                <span>Grades & sections</span>
-              </router-link>
-              <router-link to="/subjects" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </span>
-                <span>Subjects & curriculum</span>
-              </router-link>
-              <router-link to="/quarterly" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="16" y1="2" x2="16" y2="6"/>
-                    <line x1="8" y1="2" x2="8" y2="6"/>
-                    <line x1="3" y1="10" x2="21" y2="10"/>
-                  </svg>
-                </span>
-                <span>Quarterly terms</span>
-              </router-link>
-              <router-link to="/licenses" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </span>
-                <span>License & Plans</span>
-              </router-link>
-              <router-link to="/errors" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                </span>
-                <span>Incident &amp; error logs</span>
-              </router-link>
-            </div>
-          </template>
-
-          <div class="sidebar-section-title">Support</div>
-          <div class="sidebar-links">
-            <router-link to="/inquiries" @click="closeSidebar">
-              <span class="nav-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  <path d="M8 9h8M8 13h5" />
-                </svg>
-              </span>
-              <span>Helpdesk &amp; Inquiries</span>
-            </router-link>
-          </div>
-
-          <template v-if="auth.isSuperadmin">
-            <div class="sidebar-section-title">Platform</div>
-            <div class="sidebar-links">
-              <router-link to="/schools" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m2 7 10-5 10 5-10 5L2 7Z" /><path d="m2 12 10 5 10-5M2 17l10 5 10-5" />
-                  </svg>
-                </span>
-                <span>Schools</span>
-              </router-link>
-              <router-link to="/logs" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M8 13h8M8 17h5" />
-                  </svg>
-                </span>
-                <span>Activity logs</span>
-              </router-link>
-              <router-link to="/errors" @click="closeSidebar">
-                <span class="nav-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                </span>
-                <span>Error management</span>
-              </router-link>
-            </div>
-          </template>
-        </div>
-
-        <div class="sidebar-bottom">
-          <router-link
-            to="/settings"
-            class="sidebar-profile-btn"
-            @click="closeSidebar"
-            title="User Profile & Settings"
-          >
-            <div class="sidebar-profile-avatar-wrap">
-              <div class="sidebar-profile-avatar">
-                <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="Profile avatar" />
-                <span v-else>{{ (auth.user?.name || 'U').charAt(0).toUpperCase() }}</span>
-              </div>
-              <span class="sidebar-status-dot" title="Account active"></span>
-            </div>
-            <div class="sidebar-profile-info">
-              <span class="sidebar-profile-name">{{ auth.user?.name || 'User' }}</span>
-              <span class="sidebar-profile-role">{{ roleLabel }} · Settings</span>
-            </div>
-            <span class="sidebar-settings-icon" title="Settings" aria-hidden="true">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.4v-.2a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.4 17a1.7 1.7 0 0 0-1.56-1.03H6.6v-2.4h.24A1.7 1.7 0 0 0 8.4 12a1.7 1.7 0 0 0-.34-1.88L8 10.06l1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V7h2.4v.2a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.4 12c.2.64.8 1.03 1.46 1.03h.24v2.4h-.24c-.66 0-1.26.39-1.46 1.03Z" />
-              </svg>
-            </span>
-          </router-link>
-
-          <button
-            type="button"
-            @click="handleLogout"
-            class="sidebar-logout-btn"
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <path d="m16 17 5-5-5-5M21 12H9" />
-            </svg>
-          </button>
-        </div>
-      </aside>
-
-      <button v-if="sidebarOpen" class="sidebar-scrim" type="button" aria-label="Close navigation" @click="closeSidebar"></button>
+      <button v-if="openMobile && isMobile" class="sidebar-scrim" type="button" aria-label="Close navigation" @click="closeSidebar"></button>
       <main class="main-with-sidebar">
         <router-view />
       </main>
@@ -438,18 +206,21 @@ import { useToast } from './composables/useToast'
 import { useNotifications } from './composables/useNotifications'
 import { useTheme } from './composables/useTheme'
 import { useActiveSchool } from './composables/useActiveSchool'
+import { useSidebar } from './composables/useSidebar'
 import { restoreScrollAfterLoad } from './router'
+import Sidebar from './components/Sidebar.vue'
 import WalkInTutorial from './components/WalkInTutorial.vue'
 import SupportChatModal from './components/SupportChatModal.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
+const userAvatar = computed(() => auth.user?.avatar_url || '')
 const { toasts, removeToast } = useToast()
 const { notifications, unreadCount, syncAnnouncements, markRead, markAllRead, dismiss, clearAll, formatTimeAgo } = useNotifications()
 const { theme, toggleTheme } = useTheme()
 const { hasActive, displayName, displayShort, displayAvatar, noneSelected } = useActiveSchool()
+const { isCollapsed, isMobile, openMobile, toggleSidebar, closeSidebar } = useSidebar()
 
-const sidebarOpen = ref(false)
 const showNotifications = ref(false)
 const notifPanelRef = ref(null)
 const notifBellRef = ref(null)
@@ -461,7 +232,10 @@ function updateHeaderHeight() {
   if (headerRef.value) {
     const rect = headerRef.value.getBoundingClientRect()
     if (rect.height > 0) {
-      headerHeight.value = Math.round(rect.height)
+      const nextH = Math.round(rect.height)
+      if (Math.abs(headerHeight.value - nextH) >= 1) {
+        headerHeight.value = nextH
+      }
     }
   }
 }
@@ -606,12 +380,12 @@ watch(() => auth.user?.school_id, () => {
 })
 
 watch(() => auth.user, (newUser) => {
-  if (newUser) maybeShowTutorial()
+  if (newUser) {
+    maybeShowTutorial()
+  } else if (router.currentRoute.value?.meta?.role) {
+    router.push('/login')
+  }
 })
-
-function closeSidebar() {
-  sidebarOpen.value = false
-}
 
 async function handleLogout() {
   await auth.logout()

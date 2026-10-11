@@ -766,9 +766,9 @@
         </div>
 
         <!-- System Configuration Tab -->
-        <div v-if="activeTab === 'system' && auth.isAdmin" class="table-card">
+        <div v-if="activeTab === 'system' && auth.isAdmin" class="table-card system-config-panel">
           <div class="settings-panel-header">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; width: 100%;">
               <div>
                 <h2>System Configuration &amp; Runtime Settings</h2>
                 <p>Configure platform runtime parameters without restarting the server. Changes take effect immediately across all active workspaces.</p>
@@ -784,62 +784,197 @@
             </div>
           </div>
 
+          <!-- Live Runtime Health & Engine Status Bar -->
+          <div class="runtime-status-bar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 24px; padding: 14px 18px; background: var(--secondary); border: 1px solid var(--border); border-radius: var(--radius-md);">
+            <div class="runtime-status-item" style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              </div>
+              <div>
+                <span style="font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: var(--muted-foreground); display: block;">Database Engine</span>
+                <strong style="font-size: 0.84rem; color: var(--foreground);">{{ runtimeInfo.db_connection || 'Active' }} (Connected)</strong>
+              </div>
+            </div>
+
+            <div class="runtime-status-item" style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              </div>
+              <div>
+                <span style="font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: var(--muted-foreground); display: block;">Settings Sync</span>
+                <strong style="font-size: 0.84rem; color: var(--success); display: inline-flex; align-items: center; gap: 5px;">
+                  <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block;"></span>
+                  Live &amp; Non-Restartable
+                </strong>
+              </div>
+            </div>
+
+            <div class="runtime-status-item" style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div>
+                <span style="font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: var(--muted-foreground); display: block;">Session Expiry</span>
+                <strong style="font-size: 0.84rem; color: var(--foreground);">{{ systemConfig.session_lifetime_minutes }} mins ({{ (systemConfig.session_lifetime_minutes / 60).toFixed(1) }}h)</strong>
+              </div>
+            </div>
+
+            <div class="runtime-status-item" style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;" :style="{ color: systemConfig.error_reporting_enabled ? 'var(--primary)' : 'var(--muted-foreground)' }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div>
+                <span style="font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: var(--muted-foreground); display: block;">Error Telemetry</span>
+                <strong style="font-size: 0.84rem;" :style="{ color: systemConfig.error_reporting_enabled ? 'var(--success)' : 'var(--muted-foreground)' }">
+                  {{ systemConfig.error_reporting_enabled ? 'Logging Active' : 'Suspended' }}
+                </strong>
+              </div>
+            </div>
+          </div>
+
           <form @submit.prevent="saveSystemConfig" class="settings-form">
-            <div class="form-row">
-              <div class="form-group">
-                <label>Platform Name / Application Title</label>
-                <input v-model="systemConfig.app_name" placeholder="e.g. ElyTrack" required />
-                <span class="label-hint">Live brand title used across headers, emails, and exports.</span>
+            <!-- Group 1: Identity & Support Routing -->
+            <div class="pref-group-card">
+              <h3 class="pref-group-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span>Platform Identity &amp; Support Channels</span>
+              </h3>
+              <p class="pref-group-sub">Application title and official support communications routed across all campus workspaces.</p>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Application Title / Brand Name <span class="required">*</span></label>
+                  <input v-model="systemConfig.app_name" placeholder="e.g. ElyTrack" required class="form-input" />
+                  <span class="label-hint">Live system name used on headers, email templates, and generated reports.</span>
+                </div>
+                <div class="form-group">
+                  <label>Official Support &amp; Helpdesk Email <span class="required">*</span></label>
+                  <input v-model="systemConfig.support_email" type="email" placeholder="support@elytrack.com" required class="form-input" />
+                  <span class="label-hint">Destination mailbox for support inquiries, license requests, and urgent tickets.</span>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Platform Support / Helpdesk Email</label>
-                <input v-model="systemConfig.support_email" type="email" placeholder="support@elytrack.com" required />
-                <span class="label-hint">Official recipient for helpdesk inquiries and contact queries.</span>
+
+              <div class="form-group" style="margin-top: 8px;">
+                <label>System-Wide Announcement Banner <span class="label-hint">Optional; appears across all logged-in user screens</span></label>
+                <div style="position: relative;">
+                  <input v-model="systemConfig.system_announcement" placeholder="e.g. Scheduled maintenance window on Saturday 10:00 PM PHT. Leave empty to dismiss." class="form-input" />
+                  <button v-if="systemConfig.system_announcement" type="button" @click="systemConfig.system_announcement = ''" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--muted-foreground); cursor: pointer;">&times;</button>
+                </div>
+                <div v-if="systemConfig.system_announcement" style="margin-top: 8px; padding: 10px 14px; background: color-mix(in srgb, var(--primary) 10%, var(--card)); border: 1px solid var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--foreground);">
+                  <span class="badge badge-primary" style="font-size: 0.68rem; padding: 2px 6px;">Preview</span>
+                  <span>{{ systemConfig.system_announcement }}</span>
+                </div>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label>User Session Lifetime (Minutes)</label>
-                <input v-model.number="systemConfig.session_lifetime_minutes" type="number" min="15" max="43200" step="15" required />
-                <span class="label-hint">Inactivity window before authentication tokens expire. Takes effect immediately.</span>
-              </div>
-              <div class="form-group">
-                <label>License Expiration Notice (Days)</label>
-                <input v-model.number="systemConfig.license_reminder_days" type="number" min="1" max="60" required />
-                <span class="label-hint">Lead time before campus license expiry to display renewal warnings.</span>
-              </div>
-            </div>
+            <!-- Group 2: Session Security & License Policies -->
+            <div class="pref-group-card">
+              <h3 class="pref-group-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Session Policy &amp; License Notifications</span>
+              </h3>
+              <p class="pref-group-sub">Manage user authentication token lifetimes and campus license expiration notice lead time.</p>
 
-            <div class="form-group">
-              <label>System Announcement Banner <span class="label-hint">Optional; broadcasted to all logged-in users</span></label>
-              <input v-model="systemConfig.system_announcement" placeholder="e.g. Scheduled maintenance window on Saturday 10:00 PM PHT. Leave blank to disable." />
-            </div>
-
-            <div class="form-row" style="background: var(--secondary); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-top: 8px;">
-              <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                <label class="custom-checkbox-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-                  <input type="checkbox" v-model="systemConfig.error_reporting_enabled" style="margin-top: 2px;" />
-                  <div>
-                    <strong style="color: var(--foreground); display: block; font-size: 0.88rem;">Live Error Telemetry &amp; Reporting</strong>
-                    <span style="font-size: 0.75rem; color: var(--muted-foreground); display: block;">Automatically captures unhandled server 500s and frontend exceptions into the Error Incident Manager.</span>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>User Inactivity Session Lifetime (Minutes) <span class="required">*</span></label>
+                  <input v-model.number="systemConfig.session_lifetime_minutes" type="number" min="15" max="43200" step="15" required class="form-input" />
+                  <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 0.72rem; color: var(--muted-foreground);">Quick Select:</span>
+                    <button v-for="mins in [120, 240, 480, 1440]" :key="mins" type="button" class="btn-xs btn-outline" @click="systemConfig.session_lifetime_minutes = mins">
+                      {{ mins / 60 }} hrs
+                    </button>
                   </div>
+                  <span class="label-hint">Inactivity window before authentication cookies expire. Applies to active sessions immediately.</span>
+                </div>
+
+                <div class="form-group">
+                  <label>License Expiration Warning Notice (Days) <span class="required">*</span></label>
+                  <input v-model.number="systemConfig.license_reminder_days" type="number" min="1" max="60" required class="form-input" />
+                  <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 0.72rem; color: var(--muted-foreground);">Presets:</span>
+                    <button v-for="d in [3, 7, 14, 30]" :key="d" type="button" class="btn-xs btn-outline" @click="systemConfig.license_reminder_days = d">
+                      {{ d }} days
+                    </button>
+                  </div>
+                  <span class="label-hint">Lead time before campus license expiration to display renewal alerts in the workspace.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Group 3: SARDO Baseline Thresholds -->
+            <div class="pref-group-card">
+              <h3 class="pref-group-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <span>SARDO (Students at Risk of Dropping Out) Default Safeguards</span>
+              </h3>
+              <p class="pref-group-sub">Configure system-wide default thresholds for consecutive and cumulative unexcused absences.</p>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Consecutive Absences Alert Threshold <span class="required">*</span></label>
+                  <input v-model.number="systemConfig.sardo_consecutive_absences" type="number" min="1" max="30" required class="form-input" />
+                  <span class="label-hint">Number of consecutive unexcused absent days triggering an immediate SARDO alert tag on student records.</span>
+                </div>
+
+                <div class="form-group">
+                  <label>Cumulative Monthly Absences Threshold <span class="required">*</span></label>
+                  <input v-model.number="systemConfig.sardo_cumulative_absences" type="number" min="1" max="100" required class="form-input" />
+                  <span class="label-hint">Total accumulated absences within a month that trigger parent outreach and counselor review.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Group 4: Operational Switches & Telemetry -->
+            <div class="pref-group-card">
+              <h3 class="pref-group-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                <span>Operational Switches &amp; Live Telemetry</span>
+              </h3>
+              <p class="pref-group-sub">Control live telemetry logging and emergency maintenance notices without service restarts.</p>
+
+              <div class="pref-toggle-row">
+                <div class="pref-toggle-info">
+                  <strong>Live Error Telemetry &amp; Exception Pipeline</strong>
+                  <span>Automatically captures unhandled backend 500s and frontend runtime exceptions into the Error Incident Manager</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="systemConfig.error_reporting_enabled" />
+                  <span class="toggle-slider"></span>
                 </label>
               </div>
 
-              <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                <label class="custom-checkbox-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-                  <input type="checkbox" v-model="systemConfig.maintenance_mode" style="margin-top: 2px;" />
-                  <div>
-                    <strong style="color: var(--foreground); display: block; font-size: 0.88rem;">Platform Maintenance Notice</strong>
-                    <span style="font-size: 0.75rem; color: var(--muted-foreground); display: block;">Displays a maintenance notification banner across all active sessions.</span>
-                  </div>
+              <div class="pref-toggle-row">
+                <div class="pref-toggle-info">
+                  <strong>Platform Maintenance Advisory</strong>
+                  <span>Displays a high-visibility maintenance warning across all active sessions without blocking superadmin access</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="systemConfig.maintenance_mode" />
+                  <span class="toggle-slider"></span>
                 </label>
               </div>
             </div>
 
-            <div class="form-actions" style="margin-top: 20px;">
+            <div class="form-actions" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <button type="button" class="btn-secondary" @click="resetSystemConfigDefaults" :disabled="savingSystemConfig">
+                Reset to Recommended Defaults
+              </button>
               <button type="submit" class="btn-primary" :disabled="savingSystemConfig">
+                <span v-if="savingSystemConfig" class="spinner" style="margin-right: 6px;"></span>
                 {{ savingSystemConfig ? 'Saving Configuration…' : 'Save System Configuration' }}
               </button>
             </div>
@@ -885,7 +1020,14 @@ const systemConfig = reactive({
   license_reminder_days: 7,
   system_announcement: '',
   error_reporting_enabled: true,
-  maintenance_mode: false
+  maintenance_mode: false,
+  sardo_consecutive_absences: 3,
+  sardo_cumulative_absences: 5
+})
+const runtimeInfo = ref({
+  db_connection: 'SQLite',
+  node_env: 'development',
+  server_time: ''
 })
 const schoolYearConfig = ref({
   school_year: '',
@@ -1168,6 +1310,11 @@ async function loadPlatformSettings() {
       systemConfig.system_announcement = data.system_announcement || ''
       systemConfig.error_reporting_enabled = data.error_reporting_enabled !== false && data.error_reporting_enabled !== '0'
       systemConfig.maintenance_mode = data.maintenance_mode === true || data.maintenance_mode === '1'
+      systemConfig.sardo_consecutive_absences = Number(data.sardo_consecutive_absences || 3)
+      systemConfig.sardo_cumulative_absences = Number(data.sardo_cumulative_absences || 5)
+      if (data.runtime_info) {
+        runtimeInfo.value = data.runtime_info
+      }
       if (data.school_year || data.active_school_year) {
         globalSchoolYearInput.value = data.school_year || data.active_school_year || ''
       }
@@ -1185,7 +1332,9 @@ async function saveSystemConfig() {
       license_reminder_days: Number(systemConfig.license_reminder_days || 7),
       system_announcement: String(systemConfig.system_announcement || '').trim(),
       error_reporting_enabled: systemConfig.error_reporting_enabled ? '1' : '0',
-      maintenance_mode: systemConfig.maintenance_mode ? '1' : '0'
+      maintenance_mode: systemConfig.maintenance_mode ? '1' : '0',
+      sardo_consecutive_absences: Number(systemConfig.sardo_consecutive_absences || 3),
+      sardo_cumulative_absences: Number(systemConfig.sardo_cumulative_absences || 5)
     }
 
     const res = await fetch('/api/settings', {
@@ -1209,6 +1358,19 @@ async function saveSystemConfig() {
   } finally {
     savingSystemConfig.value = false
   }
+}
+
+function resetSystemConfigDefaults() {
+  systemConfig.app_name = 'ElyTrack'
+  systemConfig.support_email = 'support@elytrack.com'
+  systemConfig.session_lifetime_minutes = 480
+  systemConfig.license_reminder_days = 7
+  systemConfig.system_announcement = ''
+  systemConfig.error_reporting_enabled = true
+  systemConfig.maintenance_mode = false
+  systemConfig.sardo_consecutive_absences = 3
+  systemConfig.sardo_cumulative_absences = 5
+  notify('Restored recommended defaults. Click "Save System Configuration" to apply.', 'info')
 }
 
 async function loadSchoolYearConfig() {

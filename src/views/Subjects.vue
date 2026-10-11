@@ -206,6 +206,16 @@
 
     <!-- Subjects Data Table Card -->
     <div class="form-card subjects-table-card">
+      <div class="table-card-header">
+        <div class="table-card-header-title">
+          <h3>Curriculum Learning Areas</h3>
+          <span class="subject-counter-chip">{{ filteredSubjects.length }} {{ filteredSubjects.length === 1 ? 'subject' : 'subjects' }}</span>
+        </div>
+        <div class="table-card-header-hint" v-if="filterGradeLevel">
+          Filtered by {{ filterGradeLevel }}
+        </div>
+      </div>
+
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <p>Loading subjects and curriculum...</p>
@@ -1053,12 +1063,12 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .badge-trial {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--warning, #d97706);
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .badge-locked {
-  background: rgba(239, 68, 68, 0.15);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 
@@ -1099,10 +1109,10 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 .license-locked-card {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 16px 20px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  gap: 16px;
+  padding: 18px 24px;
+  background: var(--red-bg);
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
   border-radius: var(--radius-lg);
   color: var(--foreground);
 }
@@ -1143,7 +1153,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 
 /* Filters & Search */
 .subjects-filter-card {
-  padding: 16px 20px;
+  padding: 22px 24px;
 }
 
 .filter-row {
@@ -1206,6 +1216,49 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 .subjects-table-card {
   padding: 0;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-xs);
+}
+
+.table-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.table-card-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-card-header-title h3 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.subject-counter-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+.table-card-header-hint {
+  font-size: 0.74rem;
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .table-container {
@@ -1219,9 +1272,9 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 
 .subjects-table th {
   background: var(--muted);
-  padding: 12px 16px;
-  font-size: 0.74rem;
-  font-weight: 700;
+  padding: 13px 20px;
+  font-size: 0.72rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted-foreground);
@@ -1230,14 +1283,14 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .subjects-table td {
-  padding: 14px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   color: var(--foreground);
 }
 
 .subject-row:hover {
-  background: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 50%, var(--card));
 }
 
 .subject-name-cell {
@@ -1294,7 +1347,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .badge-danger {
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 
@@ -1307,18 +1360,21 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .chip-ww {
-  background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
 }
 
 .chip-pt {
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 20%, transparent);
 }
 
 .chip-qa {
-  background: rgba(168, 85, 247, 0.12);
-  color: #7c3aed;
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
 }
 
 .table-action-group {
@@ -1354,8 +1410,8 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .action-btn--record:hover {
-  border-color: #2563eb;
-  color: #2563eb;
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .action-btn--danger {
@@ -1363,7 +1419,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .action-btn--danger:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--red-bg);
   border-color: var(--destructive);
   color: var(--destructive);
 }
@@ -1372,13 +1428,13 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(6, 11, 12, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 16px;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(6px);
 }
 
 .subject-modal-card {
@@ -1387,7 +1443,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .seed-modal-card {
-  max-width: 520px;
+  max-width: 540px;
   width: 100%;
 }
 
@@ -1395,7 +1451,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 22px 26px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1439,7 +1495,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .modal-body {
-  padding: 22px 24px;
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1461,7 +1517,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
   background: var(--secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 16px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1494,7 +1550,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .pill-invalid {
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 
@@ -1580,10 +1636,10 @@ watch(() => route.query.gradeLevel, (newGrade) => {
 }
 
 .modal-error-banner {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: var(--red-bg);
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
   color: var(--destructive);
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 600;
@@ -1601,7 +1657,7 @@ watch(() => route.query.gradeLevel, (newGrade) => {
   background: var(--secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 16px 20px;
 }
 
 .preview-title {

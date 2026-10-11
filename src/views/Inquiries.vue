@@ -467,12 +467,7 @@
               <div class="bubble-body">
                 <p>{{ msg.message }}</p>
                 <div v-if="msg.attachment_url" class="attachment-preview">
-                  <a :href="msg.attachment_url" target="_blank" rel="noopener noreferrer" class="attachment-link">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                    <span>{{ msg.attachment_name || 'Attached File' }}</span>
-                  </a>
+                  <Attachment variant="preview" :attachment="msg" />
                 </div>
               </div>
             </div>
@@ -492,17 +487,15 @@
 
             <div class="composer-footer">
               <div class="composer-att-wrap">
-                <label class="btn-xs btn-secondary att-btn">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                  </svg>
-                  <span>{{ replyAttachment ? replyAttachment.name.slice(0, 16) + '…' : 'Attach File' }}</span>
-                  <input type="file" @change="onReplyFilePicked" style="display: none;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
-                </label>
-                <button v-if="replyAttachment" type="button" @click="replyAttachment = null" class="clear-att-btn" title="Remove attachment">&times;</button>
+                <Attachment
+                  variant="inline"
+                  v-model="replyAttachment"
+                  button-label="Attach File"
+                  @error="onAttachmentError"
+                />
               </div>
 
-              <button type="submit" class="btn-xs btn-primary composer-send-btn" :disabled="sendingReply || !replyText.trim()">
+              <button type="submit" class="btn-xs btn-primary composer-send-btn" :disabled="sendingReply || (!replyText.trim() && !replyAttachment)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" />
                   <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -572,13 +565,12 @@
           </div>
 
           <div class="form-group">
-            <label>File Attachment (Max 5MB)</label>
-            <div class="file-upload-wrap">
-              <input type="file" @change="onNewFilePicked" class="file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
-            </div>
-            <small v-if="newAttachment" class="attachment-info-tag">
-              Selected: {{ newAttachment.name }} ({{ Math.round(newAttachment.size / 1024) }} KB)
-            </small>
+            <label>Attachment (Optional: Screenshot, receipt, or file, max 5MB)</label>
+            <Attachment
+              variant="dropzone"
+              v-model="newAttachment"
+              @error="onAttachmentError"
+            />
           </div>
 
           <div class="form-actions">
@@ -596,6 +588,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import Attachment from '../components/Attachment.vue'
 
 const auth = useAuthStore()
 
@@ -930,6 +923,10 @@ async function submitReply() {
   } finally {
     sendingReply.value = false
   }
+}
+
+function onAttachmentError(err) {
+  alert(err || 'Failed to attach file')
 }
 
 function onReplyFilePicked(e) {

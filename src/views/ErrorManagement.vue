@@ -4,12 +4,12 @@
     <div class="page-header">
       <div class="page-header-text">
         <div class="breadcrumb">
-          <span>System Health &amp; Telemetry</span>
+          <router-link to="/settings" class="breadcrumb-link">System Settings</router-link>
           <span class="sep">/</span>
-          <span class="current">Error Management</span>
+          <span class="current">Error Incident Manager</span>
         </div>
-        <div class="header-title-wrap">
-          <div class="header-icon-box">
+        <div class="dashboard-header-title-row">
+          <div class="dashboard-header-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
               <line x1="12" y1="9" x2="12" y2="13"/>
@@ -19,38 +19,46 @@
           <div>
             <h1 class="page-title">System Errors &amp; Incident Management</h1>
             <p class="page-subtitle">
-              Monitor, inspect, and manage runtime errors, client-side exceptions, and API failures across your school workspaces.
+              Monitor, triage, and resolve runtime exceptions and API failures in real time across your school workspaces.
             </p>
           </div>
         </div>
       </div>
 
       <div class="page-header-actions">
+        <!-- Live Telemetry Status Pill -->
+        <div class="live-telemetry-badge" title="Live telemetry is actively monitoring server and browser exceptions">
+          <span class="pulse-dot"></span>
+          <span>Live Telemetry</span>
+        </div>
+
         <!-- Superadmin Multi-School Switcher -->
         <div v-if="auth.isSuperadmin && schoolsList.length > 1" class="school-picker-wrap">
           <svg class="school-picker-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/>
           </svg>
           <select v-model="selectedSchoolId" @change="onSchoolChange" class="school-picker-select">
-            <option value="">All Schools</option>
+            <option value="">All Campuses</option>
             <option v-for="s in schoolsList" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
         </div>
 
-        <button @click="loadErrors" type="button" class="btn-secondary" :disabled="loading">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- Refresh Button -->
+        <button @click="loadErrors" type="button" class="btn-secondary header-action-btn" :disabled="loading">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'spin-icon': loading }">
             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
           </svg>
-          <span>Refresh</span>
+          <span>{{ loading ? 'Syncing...' : 'Refresh' }}</span>
         </button>
 
+        <!-- Clear Resolved Button -->
         <button 
           v-if="auth.isAdmin" 
           @click="clearResolvedErrors" 
           type="button" 
-          class="btn-secondary" 
+          class="btn-secondary header-action-btn" 
           :disabled="clearing || !stats.total_errors"
-          title="Delete all resolved and ignored errors"
+          title="Delete all resolved and ignored incident logs"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
@@ -108,7 +116,7 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-value" style="color: #f59e0b;">{{ stats.critical_count }}</span>
+          <span class="stat-value text-warning">{{ stats.critical_count }}</span>
           <span class="stat-label">Critical Severity</span>
         </div>
       </div>
@@ -123,7 +131,7 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-value">{{ stats.today_count }}</span>
+          <span class="stat-value text-primary">{{ stats.today_count }}</span>
           <span class="stat-label">Occurred Today</span>
         </div>
       </div>
@@ -134,7 +142,7 @@
       <div class="filter-controls-row">
         <!-- Search -->
         <div class="form-group search-group">
-          <label>Search Error Logs</label>
+          <label class="filter-label">Search Error Logs</label>
           <div class="search-wrap">
             <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -143,7 +151,7 @@
               v-model="searchQuery" 
               @input="onSearchInput" 
               class="form-input search-input" 
-              placeholder="Search message, URL path, user name..." 
+              placeholder="Search message, URL path, user name, status code..." 
             />
             <button v-if="searchQuery" type="button" class="clear-btn" @click="searchQuery = ''; onSearchInput()">&times;</button>
           </div>
@@ -151,7 +159,7 @@
 
         <!-- Status Filter -->
         <div class="form-group select-group">
-          <label>Status</label>
+          <label class="filter-label">Status</label>
           <select v-model="filterStatus" @change="currentPage = 1; loadErrors()" class="form-select">
             <option value="">All Statuses</option>
             <option value="unresolved">Unresolved</option>
@@ -163,7 +171,7 @@
 
         <!-- Severity Filter -->
         <div class="form-group select-group">
-          <label>Severity</label>
+          <label class="filter-label">Severity</label>
           <select v-model="filterSeverity" @change="currentPage = 1; loadErrors()" class="form-select">
             <option value="">All Severities</option>
             <option value="critical">Critical</option>
@@ -174,7 +182,7 @@
 
         <!-- Type Filter -->
         <div class="form-group select-group">
-          <label>Origin</label>
+          <label class="filter-label">Origin</label>
           <select v-model="filterType" @change="currentPage = 1; loadErrors()" class="form-select">
             <option value="">All Origins</option>
             <option value="client">Client (Browser)</option>
@@ -182,30 +190,49 @@
           </select>
         </div>
 
+        <!-- Reset Button -->
         <div class="filter-reset-group" v-if="searchQuery || filterStatus || filterSeverity || filterType">
-          <button @click="resetFilters" type="button" class="btn-sm btn-secondary">
-            Reset Filters
+          <button @click="resetFilters" type="button" class="btn-sm btn-secondary reset-filter-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+            <span>Reset Filters</span>
           </button>
         </div>
       </div>
     </div>
 
     <!-- Error Table Card -->
-    <div class="form-card table-card-wrap">
+    <div class="table-card-wrap">
+      <!-- Card Toolbar -->
+      <div class="table-card-header">
+        <div class="table-card-header-title">
+          <h3>Incident Telemetry Stream</h3>
+          <span class="incident-counter-chip">{{ totalErrors }} recorded {{ totalErrors === 1 ? 'incident' : 'incidents' }}</span>
+        </div>
+        <div class="table-card-header-hint" v-if="filterStatus || filterSeverity || filterType || searchQuery">
+          Filtered view active
+        </div>
+      </div>
+
       <div v-if="loading" class="empty-state-box">
         <div class="spinner"></div>
-        <p>Loading system error telemetry...</p>
+        <p>Streaming system error telemetry...</p>
       </div>
 
       <div v-else-if="!errorsList.length" class="empty-state-box">
         <div class="empty-icon-shield">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
             <polyline points="9 12 11 14 15 10"/>
           </svg>
         </div>
-        <h3>No system errors recorded</h3>
-        <p>Your application is healthy with zero unhandled incidents matching the selected criteria.</p>
+        <h3>No System Errors Recorded</h3>
+        <p>All platform systems and client sessions are operating smoothly with zero matching exceptions.</p>
+        <button v-if="searchQuery || filterStatus || filterSeverity || filterType" @click="resetFilters" type="button" class="btn-sm btn-secondary" style="margin-top: 10px;">
+          Clear Active Filters
+        </button>
       </div>
 
       <div v-else class="table-container">
@@ -213,38 +240,39 @@
           <thead>
             <tr>
               <th style="width: 110px;">Severity</th>
-              <th style="width: 90px;">Origin</th>
-              <th>Error Details &amp; Request Path</th>
-              <th style="width: 150px;">Actor / User</th>
+              <th style="width: 95px;">Origin</th>
+              <th>Incident Details &amp; Path</th>
+              <th style="width: 160px;">Actor / User</th>
               <th style="width: 130px;">Status</th>
-              <th style="width: 150px;">Occurred</th>
-              <th class="text-right" style="width: 140px;">Actions</th>
+              <th style="width: 140px;">Occurred</th>
+              <th class="text-right" style="width: 160px;">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="e in errorsList" :key="e.id" class="error-row">
               <td>
                 <span class="badge" :class="severityBadgeClass(e.severity)">
+                  <span class="severity-dot"></span>
                   {{ e.severity }}
                 </span>
               </td>
               <td>
                 <span class="type-pill" :class="e.error_type === 'client' ? 'type-client' : 'type-server'">
-                  {{ e.error_type === 'client' ? 'Client' : 'Server' }}
+                  {{ e.error_type === 'client' ? 'Browser' : 'Server' }}
                 </span>
               </td>
               <td class="error-message-cell">
                 <div class="error-message-text" :title="e.message">{{ e.message }}</div>
                 <div class="error-path-sub" v-if="e.path">
-                  <span class="method-tag" v-if="e.method">{{ e.method }}</span>
+                  <span class="method-tag" :class="'method-' + (e.method || 'get').toLowerCase()" v-if="e.method">{{ e.method }}</span>
                   <span class="path-text">{{ e.path }}</span>
-                  <span class="status-code-tag" v-if="e.status_code">({{ e.status_code }})</span>
+                  <span class="status-code-tag" v-if="e.status_code">[{{ e.status_code }}]</span>
                 </div>
               </td>
               <td>
                 <div class="actor-info" v-if="e.user_name || e.user_id">
                   <div class="actor-name">{{ e.user_name || 'User ' + e.user_id.slice(0, 6) }}</div>
-                  <div class="actor-role">{{ e.user_role || 'user' }}</div>
+                  <div class="actor-role">{{ e.user_role || 'User' }}</div>
                 </div>
                 <span v-else class="text-muted">—</span>
               </td>
@@ -260,19 +288,25 @@
               </td>
               <td class="text-right">
                 <div class="action-btn-row">
-                  <button @click="openInspectModal(e)" type="button" class="btn-xs btn-outline" title="Inspect stack trace and metadata">
-                    Inspect
+                  <button @click="openInspectModal(e)" type="button" class="btn-xs btn-outline action-btn" title="Inspect stack trace and context">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <span>Inspect</span>
                   </button>
                   <button 
                     v-if="e.status === 'unresolved'" 
                     @click="updateErrorStatus(e.id, 'resolved')" 
                     type="button" 
-                    class="btn-xs btn-success"
+                    class="btn-xs btn-success action-btn"
                     title="Mark resolved"
                   >
-                    Resolve
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Resolve</span>
                   </button>
-                  <button @click="deleteError(e.id)" type="button" class="btn-xs btn-danger-icon" title="Delete log">
+                  <button @click="deleteError(e.id)" type="button" class="btn-xs btn-danger-icon" title="Delete record">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
                     </svg>
@@ -287,7 +321,7 @@
       <!-- Pagination -->
       <div v-if="totalPages > 1" class="pagination-footer">
         <span class="page-count-text">
-          Showing {{ (currentPage - 1) * pageSize + 1 }} to {{ Math.min(totalErrors, currentPage * pageSize) }} of {{ totalErrors }} incidents
+          Showing <strong>{{ (currentPage - 1) * pageSize + 1 }}</strong> to <strong>{{ Math.min(totalErrors, currentPage * pageSize) }}</strong> of <strong>{{ totalErrors }}</strong> incidents
         </span>
         <div class="pager">
           <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="pager-btn">Previous</button>
@@ -317,18 +351,18 @@
 
         <div class="modal-body">
           <div class="modal-field-box">
-            <label>Error Message</label>
+            <label class="modal-section-label">Exception Message</label>
             <div class="error-msg-banner">{{ selectedError.message }}</div>
           </div>
 
           <div class="context-grid">
             <div class="context-item">
               <label>Origin</label>
-              <span>{{ selectedError.error_type }}</span>
+              <span>{{ selectedError.error_type === 'client' ? 'Client (Browser)' : 'Server (API)' }}</span>
             </div>
             <div class="context-item">
               <label>Severity</label>
-              <span>{{ selectedError.severity }}</span>
+              <span style="text-transform: capitalize;">{{ selectedError.severity }}</span>
             </div>
             <div class="context-item">
               <label>Endpoint / Route</label>
@@ -351,9 +385,13 @@
           <!-- Stack Trace -->
           <div class="stack-trace-section" v-if="selectedError.stack">
             <div class="stack-header">
-              <label>Stack Trace</label>
+              <label class="modal-section-label">Stack Trace</label>
               <button @click="copyStackTrace" type="button" class="btn-xs btn-outline">
-                {{ copied ? 'Copied!' : 'Copy Stack' }}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>{{ copied ? 'Copied!' : 'Copy Stack Trace' }}</span>
               </button>
             </div>
             <pre class="stack-pre"><code>{{ selectedError.stack }}</code></pre>
@@ -361,15 +399,15 @@
 
           <!-- Metadata -->
           <div class="metadata-section" v-if="selectedError.metadata">
-            <label>Metadata / Context</label>
+            <label class="modal-section-label">Context Metadata</label>
             <pre class="metadata-pre"><code>{{ JSON.stringify(selectedError.metadata, null, 2) }}</code></pre>
           </div>
 
           <!-- Status & Resolution Editor -->
           <div class="resolution-editor-box">
-            <label class="res-title">Incident Status &amp; Resolution</label>
+            <label class="res-title">Incident Triage &amp; Resolution</label>
             <div class="form-row">
-              <div class="form-group" style="flex: 1;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
                 <label>Status</label>
                 <select v-model="editStatus" class="form-select">
                   <option value="unresolved">Unresolved</option>
@@ -378,9 +416,9 @@
                   <option value="ignored">Ignored</option>
                 </select>
               </div>
-              <div class="form-group" style="flex: 2;">
+              <div class="form-group" style="flex: 2; margin-bottom: 0;">
                 <label>Resolution Notes</label>
-                <input v-model="editNotes" class="form-input" placeholder="Explain fix or resolution details..." />
+                <input v-model="editNotes" class="form-input" placeholder="Explain the root cause or resolution..." />
               </div>
             </div>
             <div v-if="selectedError.resolved_by" class="resolved-by-notice">
@@ -391,7 +429,7 @@
           <div class="modal-footer">
             <button @click="selectedError = null" type="button" class="btn-secondary">Close</button>
             <button @click="saveErrorStatus" type="button" class="btn-primary" :disabled="savingStatus">
-              {{ savingStatus ? 'Saving…' : 'Save Resolution Status' }}
+              {{ savingStatus ? 'Saving…' : 'Save Resolution' }}
             </button>
           </div>
         </div>
@@ -401,7 +439,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'
 
@@ -642,7 +680,7 @@ function statusBadgeClass(st) {
 function formatShortDate(val) {
   if (!val) return '—'
   const d = new Date(String(val).replace(' ', 'T') + (String(val).includes('Z') ? '' : 'Z'))
-  return Number.isNaN(d.getTime()) ? String(val) : d.toLocaleString()
+  return Number.isNaN(d.getTime()) ? String(val) : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function formatTimeAgo(val) {
@@ -664,7 +702,6 @@ onMounted(async () => {
     schoolsList.value = await auth.getSchools()
   }
   await loadErrors()
-  // Periodic poll every 30s
   autoRefreshTimer = setInterval(loadErrors, 30000)
 })
 
@@ -678,72 +715,134 @@ onUnmounted(() => {
 .error-management-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 22px;
 }
 
-.header-title-wrap {
+.breadcrumb-link {
+  color: var(--muted-foreground);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.breadcrumb-link:hover {
+  color: var(--primary);
+}
+
+.dashboard-header-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.header-icon-box {
-  width: 42px;
-  height: 42px;
+.dashboard-header-icon {
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-md);
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--red-bg);
   color: var(--destructive);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--destructive) 20%, transparent);
+}
+
+.live-telemetry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 0.74rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--success) 24%, transparent);
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .stat-card-filter {
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .stat-card-filter:hover {
   transform: translateY(-2px);
   border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-card--active {
   border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
   box-shadow: 0 0 0 1px var(--primary);
 }
 
 .stat-icon--danger {
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 
 .text-destructive {
   color: var(--destructive);
 }
+.text-warning {
+  color: var(--warning);
+}
+.text-primary {
+  color: var(--primary);
+}
 
 .filter-toolbar-card {
-  padding: 16px 20px;
+  padding: 22px 24px;
 }
 
 .filter-controls-row {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  margin-bottom: 6px;
+  display: block;
 }
 
 .search-group {
   flex: 2;
-  min-width: 240px;
+  min-width: 250px;
   margin-bottom: 0;
 }
 
 .select-group {
   flex: 1;
-  min-width: 140px;
+  min-width: 145px;
   margin-bottom: 0;
 }
 
@@ -755,33 +854,83 @@ onUnmounted(() => {
 
 .search-icon {
   position: absolute;
-  left: 10px;
+  left: 11px;
   color: var(--muted-foreground);
   pointer-events: none;
 }
 
 .search-input {
-  padding-left: 32px;
-  padding-right: 28px;
+  padding-left: 34px;
+  padding-right: 30px;
 }
 
 .clear-btn {
   position: absolute;
-  right: 8px;
+  right: 10px;
   background: transparent;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: var(--muted-foreground);
   cursor: pointer;
+  line-height: 1;
 }
 
 .filter-reset-group {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.reset-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
 }
 
 .table-card-wrap {
-  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
   overflow: hidden;
+  box-shadow: var(--shadow-xs);
+}
+
+.table-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.table-card-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-card-header-title h3 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.incident-counter-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+.table-card-header-hint {
+  font-size: 0.74rem;
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .table-container {
@@ -795,51 +944,64 @@ onUnmounted(() => {
 
 .error-table th {
   background: var(--muted);
-  padding: 12px 16px;
-  font-size: 0.74rem;
-  font-weight: 700;
+  padding: 13px 20px;
+  font-size: 0.72rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted-foreground);
   border-bottom: 1px solid var(--border);
+  text-align: left;
 }
 
 .error-table td {
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
+  font-size: 0.84rem;
+  vertical-align: middle;
 }
 
 .error-row:hover {
-  background: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 50%, var(--card));
 }
 
 .badge-critical {
-  background: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
+  background: var(--red-bg);
+  color: var(--destructive);
   font-weight: 800;
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.severity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .type-pill {
   font-size: 0.7rem;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
 }
 
 .type-client {
-  background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
 }
 
 .type-server {
-  background: rgba(168, 85, 247, 0.12);
-  color: #7c3aed;
+  background: var(--primary-bg);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .error-message-cell {
-  max-width: 380px;
+  max-width: 420px;
 }
 
 .error-message-text {
@@ -849,10 +1011,11 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 4px;
+  line-height: 1.35;
 }
 
 .error-path-sub {
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   display: flex;
   align-items: center;
@@ -863,30 +1026,45 @@ onUnmounted(() => {
 }
 
 .method-tag {
-  font-weight: 700;
-  font-size: 0.68rem;
-  padding: 1px 4px;
+  font-weight: 800;
+  font-size: 0.65rem;
+  padding: 1px 5px;
   border-radius: 3px;
   background: var(--muted);
   color: var(--foreground);
 }
 
+.method-get { color: var(--info); }
+.method-post { color: var(--success); }
+.method-put { color: var(--warning); }
+.method-delete { color: var(--destructive); }
+
 .path-text {
   font-family: monospace;
+  font-size: 0.76rem;
+}
+
+.status-code-tag {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
 }
 
 .actor-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .actor-name {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--foreground);
+  font-size: 0.82rem;
 }
 
 .actor-role {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  text-transform: capitalize;
   color: var(--muted-foreground);
 }
 
@@ -896,8 +1074,8 @@ onUnmounted(() => {
   gap: 6px;
   font-size: 0.72rem;
   font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 9999px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
   text-transform: capitalize;
 }
 
@@ -908,22 +1086,22 @@ onUnmounted(() => {
 }
 
 .status--unresolved {
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 .status--unresolved .status-dot { background: var(--destructive); }
 
 .status--investigating {
-  background: rgba(245, 158, 11, 0.15);
-  color: #d97706;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
-.status--investigating .status-dot { background: #d97706; }
+.status--investigating .status-dot { background: var(--warning); }
 
 .status--resolved {
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
+  background: var(--success-bg);
+  color: var(--success);
 }
-.status--resolved .status-dot { background: #10b981; }
+.status--resolved .status-dot { background: var(--success); }
 
 .status--ignored {
   background: var(--muted);
@@ -936,13 +1114,14 @@ onUnmounted(() => {
 }
 
 .time-main {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--foreground);
 }
 
 .time-sub {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--muted-foreground);
+  margin-top: 2px;
 }
 
 .action-btn-row {
@@ -951,43 +1130,66 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .btn-xs {
   font-size: 0.72rem;
-  padding: 3px 7px;
-  border-radius: 4px;
-  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .btn-success {
   background: var(--success);
-  color: var(--success-foreground, #fff);
+  color: #ffffff;
   border: none;
+}
+.btn-success:hover {
+  filter: brightness(0.92);
 }
 
 .btn-danger-icon {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted-foreground);
-  padding: 3px 5px;
+  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-danger-icon:hover {
   color: var(--destructive);
   border-color: var(--destructive);
+  background: var(--red-bg);
 }
 
 .pagination-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 16px 22px;
   border-top: 1px solid var(--border);
   font-size: 0.82rem;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-count-text {
+  color: var(--muted-foreground);
+}
+.page-count-text strong {
+  color: var(--foreground);
 }
 
 .empty-state-box {
-  padding: 50px 20px;
+  padding: 60px 24px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -996,40 +1198,69 @@ onUnmounted(() => {
 }
 
 .empty-icon-shield {
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
+  background: var(--success-bg);
+  color: var(--success);
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.empty-state-box h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.empty-state-box p {
+  color: var(--muted-foreground);
+  font-size: 0.84rem;
+  max-width: 440px;
+  margin: 0;
 }
 
 /* Modal */
 .inspect-modal-card {
-  max-width: 720px;
+  max-width: 760px;
   width: 100%;
 }
 
+.modal-section-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  margin-bottom: 6px;
+  display: block;
+}
+
 .modal-header-icon.icon--danger {
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--red-bg);
   color: var(--destructive);
 }
 .modal-header-icon.icon--critical {
-  background: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
+  background: var(--red-bg);
+  color: var(--destructive);
+}
+.modal-header-icon.icon--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .error-msg-banner {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
+  background: var(--red-bg);
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
   font-weight: 700;
   color: var(--destructive);
   font-size: 0.9rem;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .context-grid {
@@ -1038,8 +1269,8 @@ onUnmounted(() => {
   gap: 12px;
   background: var(--secondary);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
 }
 
 .context-item label {
@@ -1047,13 +1278,19 @@ onUnmounted(() => {
   text-transform: uppercase;
   color: var(--muted-foreground);
   font-weight: 700;
+  letter-spacing: 0.04em;
   display: block;
+  margin-bottom: 3px;
 }
 
 .context-item span, .context-item code {
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--foreground);
+}
+
+.context-item code {
+  font-family: monospace;
 }
 
 .stack-trace-section {
@@ -1069,46 +1306,72 @@ onUnmounted(() => {
 }
 
 .stack-pre {
-  background: #111827;
-  color: #f3f4f6;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.74rem;
   max-height: 220px;
   overflow: auto;
-  line-height: 1.45;
+  line-height: 1.5;
   font-family: monospace;
+  border: 1px solid var(--sidebar-border);
 }
 
 .metadata-pre {
   background: var(--secondary);
   border: 1px solid var(--border);
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
   font-size: 0.74rem;
-  max-height: 140px;
+  max-height: 150px;
   overflow: auto;
+  font-family: monospace;
 }
 
 .resolution-editor-box {
-  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .res-title {
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.84rem;
+  font-weight: 800;
   color: var(--foreground);
 }
 
 .resolved-by-notice {
   font-size: 0.76rem;
   color: var(--muted-foreground);
-  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .context-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .search-group,
+  .select-group {
+    width: 100%;
+    min-width: 0;
+  }
+  .context-grid {
+    grid-template-columns: 1fr;
+  }
+  .error-table th,
+  .error-table td {
+    padding: 12px 14px;
+  }
 }
 </style>

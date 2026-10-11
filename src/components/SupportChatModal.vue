@@ -147,26 +147,7 @@
                   <div class="bubble-content">
                     <div>{{ msg.message }}</div>
                     <div v-if="msg.attachment_url" class="msg-attachment-wrap">
-                      <img
-                        v-if="msg.attachment_type && msg.attachment_type.startsWith('image/')"
-                        :src="msg.attachment_url"
-                        alt="Attachment preview"
-                        class="attachment-thumbnail"
-                      />
-                      <a
-                        v-else
-                        :href="msg.attachment_url"
-                        :download="msg.attachment_name || 'attachment'"
-                        class="attachment-file-chip"
-                        target="_blank"
-                        rel="noopener"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                        </svg>
-                        <span>{{ msg.attachment_name || 'Download file' }}</span>
-                        <small v-if="msg.attachment_size">({{ formatFileSize(msg.attachment_size) }})</small>
-                      </a>
+                      <Attachment variant="preview" :attachment="msg" />
                     </div>
                   </div>
                 </div>
@@ -175,15 +156,12 @@
 
               <!-- Reply Input -->
               <div class="reply-input-bar">
-                <div v-if="replyAttachment" class="reply-attachment-chip">
-                  <span class="inline-icon-content">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                    </svg>
-                    <span>{{ replyAttachment.name }} ({{ formatFileSize(replyAttachment.size) }})</span>
-                  </span>
-                  <button type="button" @click="replyAttachment = null" class="remove-att-btn">&times;</button>
-                </div>
+                <Attachment
+                  v-if="replyAttachment"
+                  variant="inline"
+                  v-model="replyAttachment"
+                  style="margin-bottom: 8px;"
+                />
                 <textarea
                   v-model="replyText"
                   placeholder="Type a response to this user or school..."
@@ -192,24 +170,13 @@
                 ></textarea>
                 <div class="reply-bar-bottom">
                   <div class="reply-actions-left">
-                    <input
-                      type="file"
-                      ref="replyFileInput"
-                      class="hidden-file-input"
-                      @change="handleReplyFile"
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    <Attachment
+                      v-if="!replyAttachment"
+                      variant="inline"
+                      v-model="replyAttachment"
+                      button-label="Attach"
+                      @error="(err) => addToast(err, 'error')"
                     />
-                    <button
-                      type="button"
-                      class="btn-attach"
-                      @click="$refs.replyFileInput.click()"
-                      title="Attach screenshot or document (max 5MB)"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                      </svg>
-                      <span>Attach</span>
-                    </button>
                     <small>Ctrl+Enter to send</small>
                   </div>
                   <button class="btn-send" @click="sendReply" :disabled="(!replyText.trim() && !replyAttachment) || sendingReply" type="button">
@@ -386,34 +353,11 @@
 
                 <div class="form-group">
                   <label>Attachment (Optional: Screenshot, receipt, or file, max 5MB)</label>
-                  <div v-if="newAttachment" class="reply-attachment-chip">
-                    <span class="inline-icon-content">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                      </svg>
-                      <span>{{ newAttachment.name }} ({{ formatFileSize(newAttachment.size) }})</span>
-                    </span>
-                    <button type="button" @click="newAttachment = null" class="remove-att-btn">&times;</button>
-                  </div>
-                  <div v-else>
-                    <input
-                      type="file"
-                      ref="newFileInput"
-                      class="hidden-file-input"
-                      @change="handleNewFile"
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-                    />
-                    <button
-                      type="button"
-                      class="btn-attach-full"
-                      @click="$refs.newFileInput.click()"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                      </svg>
-                      <span>Choose File or Screenshot</span>
-                    </button>
-                  </div>
+                  <Attachment
+                    variant="dropzone"
+                    v-model="newAttachment"
+                    @error="(err) => addToast(err, 'error')"
+                  />
                 </div>
 
                 <div class="form-actions">
@@ -491,26 +435,7 @@
                   <div class="bubble-content">
                     <div>{{ msg.message }}</div>
                     <div v-if="msg.attachment_url" class="msg-attachment-wrap">
-                      <img
-                        v-if="msg.attachment_type && msg.attachment_type.startsWith('image/')"
-                        :src="msg.attachment_url"
-                        alt="Attachment preview"
-                        class="attachment-thumbnail"
-                      />
-                      <a
-                        v-else
-                        :href="msg.attachment_url"
-                        :download="msg.attachment_name || 'attachment'"
-                        class="attachment-file-chip"
-                        target="_blank"
-                        rel="noopener"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                        </svg>
-                        <span>{{ msg.attachment_name || 'Download file' }}</span>
-                        <small v-if="msg.attachment_size">({{ formatFileSize(msg.attachment_size) }})</small>
-                      </a>
+                      <Attachment variant="preview" :attachment="msg" />
                     </div>
                   </div>
                 </div>
@@ -518,15 +443,12 @@
 
               <!-- Reply Input Bar -->
               <div class="reply-input-bar">
-                <div v-if="replyAttachment" class="reply-attachment-chip">
-                  <span class="inline-icon-content">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                    </svg>
-                    <span>{{ replyAttachment.name }} ({{ formatFileSize(replyAttachment.size) }})</span>
-                  </span>
-                  <button type="button" @click="replyAttachment = null" class="remove-att-btn">&times;</button>
-                </div>
+                <Attachment
+                  v-if="replyAttachment"
+                  variant="inline"
+                  v-model="replyAttachment"
+                  style="margin-bottom: 8px;"
+                />
                 <textarea
                   v-model="replyText"
                   placeholder="Type a follow-up message..."
@@ -535,24 +457,13 @@
                 ></textarea>
                 <div class="reply-bar-bottom">
                   <div class="reply-actions-left">
-                    <input
-                      type="file"
-                      ref="userReplyFileInput"
-                      class="hidden-file-input"
-                      @change="handleReplyFile"
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    <Attachment
+                      v-if="!replyAttachment"
+                      variant="inline"
+                      v-model="replyAttachment"
+                      button-label="Attach"
+                      @error="(err) => addToast(err, 'error')"
                     />
-                    <button
-                      type="button"
-                      class="btn-attach"
-                      @click="$refs.userReplyFileInput.click()"
-                      title="Attach screenshot or file (max 5MB)"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                      </svg>
-                      <span>Attach</span>
-                    </button>
                     <small>Ctrl+Enter to send</small>
                   </div>
                   <button class="btn-send" @click="sendReply" :disabled="(!replyText.trim() && !replyAttachment) || sendingReply" type="button">
@@ -765,6 +676,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'
 import { useToast } from '../composables/useToast'
+import Attachment from './Attachment.vue'
 
 const auth = useAuthStore()
 const { notify } = useNotifications()

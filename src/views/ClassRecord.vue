@@ -258,11 +258,17 @@
           <div class="items-group-ctrl">
             <span class="ctrl-title">Written Works:</span>
             <span class="ctrl-count">{{ wwHps.length }} item(s)</span>
-            <button type="button" @click="addWwItem" :disabled="wwHps.length >= 10" class="btn-xs btn-outline">
+            <button type="button" @click="addWwItem(20)" class="btn-xs btn-outline" title="Add 1 Written Work item">
               + Add Item
             </button>
-            <button type="button" @click="removeWwItem" :disabled="wwHps.length <= 1" class="btn-xs btn-outline text-danger">
-              &minus; Remove
+            <button type="button" @click="addMultipleWwItems(5, 20)" class="btn-xs btn-outline" title="Add 5 Written Work items at once">
+              + 5 Items
+            </button>
+            <button type="button" @click="promptSetAllHps('ww')" class="btn-xs btn-outline" title="Set highest possible score for all Written Works">
+              Set All HPS
+            </button>
+            <button type="button" @click="removeWwItem" :disabled="wwHps.length <= 1" class="btn-xs btn-outline text-danger" title="Remove last Written Work item">
+              &minus; Remove Last
             </button>
           </div>
 
@@ -271,11 +277,17 @@
           <div class="items-group-ctrl">
             <span class="ctrl-title">Performance Tasks:</span>
             <span class="ctrl-count">{{ ptHps.length }} item(s)</span>
-            <button type="button" @click="addPtItem" :disabled="ptHps.length >= 10" class="btn-xs btn-outline">
+            <button type="button" @click="addPtItem(25)" class="btn-xs btn-outline" title="Add 1 Performance Task item">
               + Add Item
             </button>
-            <button type="button" @click="removePtItem" :disabled="ptHps.length <= 1" class="btn-xs btn-outline text-danger">
-              &minus; Remove
+            <button type="button" @click="addMultiplePtItems(5, 25)" class="btn-xs btn-outline" title="Add 5 Performance Task items at once">
+              + 5 Items
+            </button>
+            <button type="button" @click="promptSetAllHps('pt')" class="btn-xs btn-outline" title="Set highest possible score for all Performance Tasks">
+              Set All HPS
+            </button>
+            <button type="button" @click="removePtItem" :disabled="ptHps.length <= 1" class="btn-xs btn-outline text-danger" title="Remove last Performance Task item">
+              &minus; Remove Last
             </button>
           </div>
 
@@ -284,11 +296,11 @@
           <div class="items-group-ctrl">
             <span class="ctrl-title">Quarterly Assessment:</span>
             <span class="ctrl-count">{{ qaHps.length }} item(s)</span>
-            <button type="button" @click="addQaItem" :disabled="qaHps.length >= 3" class="btn-xs btn-outline">
+            <button type="button" @click="addQaItem(50)" class="btn-xs btn-outline" title="Add 1 Exam item">
               + Add Item
             </button>
-            <button type="button" @click="removeQaItem" :disabled="qaHps.length <= 1" class="btn-xs btn-outline text-danger">
-              &minus; Remove
+            <button type="button" @click="removeQaItem" :disabled="qaHps.length <= 1" class="btn-xs btn-outline text-danger" title="Remove last Exam item">
+              &minus; Remove Last
             </button>
           </div>
 
@@ -325,17 +337,26 @@
 
                 <!-- Written Work Group -->
                 <th :colspan="wwHps.length + 3" class="group-header group-ww">
-                  Written Works ({{ weights.ww }}%)
+                  <div class="group-header-inner">
+                    <span>Written Works ({{ weights.ww }}%) &bull; {{ wwHps.length }} Items</span>
+                    <button type="button" @click="addWwItem(20)" class="btn-group-add" title="Add another Written Work item">+ Add WW</button>
+                  </div>
                 </th>
 
                 <!-- Performance Tasks Group -->
                 <th :colspan="ptHps.length + 3" class="group-header group-pt">
-                  Performance Tasks ({{ weights.pt }}%)
+                  <div class="group-header-inner">
+                    <span>Performance Tasks ({{ weights.pt }}%) &bull; {{ ptHps.length }} Items</span>
+                    <button type="button" @click="addPtItem(25)" class="btn-group-add" title="Add another Performance Task item">+ Add PT</button>
+                  </div>
                 </th>
 
                 <!-- Quarterly Assessment Group -->
                 <th :colspan="qaHps.length + 3" class="group-header group-qa">
-                  Quarterly Exam ({{ weights.qa }}%)
+                  <div class="group-header-inner">
+                    <span>Quarterly Exam ({{ weights.qa }}%) &bull; {{ qaHps.length }} Item</span>
+                    <button type="button" @click="addQaItem(50)" class="btn-group-add" title="Add another Exam item">+ Add QA</button>
+                  </div>
                 </th>
 
                 <th rowspan="2" class="col-init">Initial Grade</th>
@@ -347,19 +368,52 @@
               <!-- Header Row 2: Sub-columns -->
               <tr class="header-sub-row">
                 <!-- WW Items -->
-                <th v-for="(h, idx) in wwHps" :key="`ww-h-${idx}`" class="sub-col">WW{{ idx + 1 }}</th>
+                <th v-for="(h, idx) in wwHps" :key="`ww-h-${idx}`" class="sub-col item-header-cell">
+                  <div class="sub-col-title-wrap">
+                    <span>WW{{ idx + 1 }}</span>
+                    <button 
+                      v-if="wwHps.length > 1" 
+                      type="button" 
+                      @click="removeWwItemAt(idx)" 
+                      class="col-del-btn" 
+                      :title="`Remove Written Work item WW${idx + 1}`"
+                    >&times;</button>
+                  </div>
+                </th>
                 <th class="sub-col col-sum">Total</th>
                 <th class="sub-col col-ps">PS (%)</th>
                 <th class="sub-col col-ws">WS ({{ weights.ww }}%)</th>
 
                 <!-- PT Items -->
-                <th v-for="(h, idx) in ptHps" :key="`pt-h-${idx}`" class="sub-col">PT{{ idx + 1 }}</th>
+                <th v-for="(h, idx) in ptHps" :key="`pt-h-${idx}`" class="sub-col item-header-cell">
+                  <div class="sub-col-title-wrap">
+                    <span>PT{{ idx + 1 }}</span>
+                    <button 
+                      v-if="ptHps.length > 1" 
+                      type="button" 
+                      @click="removePtItemAt(idx)" 
+                      class="col-del-btn" 
+                      :title="`Remove Performance Task item PT${idx + 1}`"
+                    >&times;</button>
+                  </div>
+                </th>
                 <th class="sub-col col-sum">Total</th>
                 <th class="sub-col col-ps">PS (%)</th>
                 <th class="sub-col col-ws">WS ({{ weights.pt }}%)</th>
 
                 <!-- QA Items -->
-                <th v-for="(h, idx) in qaHps" :key="`qa-h-${idx}`" class="sub-col">QA{{ idx + 1 }}</th>
+                <th v-for="(h, idx) in qaHps" :key="`qa-h-${idx}`" class="sub-col item-header-cell">
+                  <div class="sub-col-title-wrap">
+                    <span>QA{{ idx + 1 }}</span>
+                    <button 
+                      v-if="qaHps.length > 1" 
+                      type="button" 
+                      @click="removeQaItemAt(idx)" 
+                      class="col-del-btn" 
+                      :title="`Remove Quarterly Exam item QA${idx + 1}`"
+                    >&times;</button>
+                  </div>
+                </th>
                 <th class="sub-col col-sum">Total</th>
                 <th class="sub-col col-ps">PS (%)</th>
                 <th class="sub-col col-ws">WS ({{ weights.qa }}%)</th>
@@ -895,53 +949,134 @@ function applyPreset(ww, pt, qa) {
   recalculateAll()
 }
 
-// Add/Remove item columns
-function addWwItem() {
-  if (wwHps.value.length < 10) {
-    wwHps.value.push(20)
-    students.value.forEach(s => s.ww_scores.push(0))
-    recalculateAll()
+// Add/Remove item columns (no artificial limits - teachers can add as many as needed)
+function addWwItem(defaultHps = 20) {
+  wwHps.value.push(Number(defaultHps) || 20)
+  students.value.forEach(s => {
+    if (!Array.isArray(s.ww_scores)) s.ww_scores = []
+    s.ww_scores.push(0)
+  })
+  recalculateAll()
+}
+
+function addMultipleWwItems(count = 5, defaultHps = 20) {
+  for (let i = 0; i < count; i++) {
+    wwHps.value.push(Number(defaultHps) || 20)
+    students.value.forEach(s => {
+      if (!Array.isArray(s.ww_scores)) s.ww_scores = []
+      s.ww_scores.push(0)
+    })
   }
+  recalculateAll()
+  addToast(`Added ${count} Written Work items (total: ${wwHps.value.length})`, 'info')
 }
 
 function removeWwItem() {
   if (wwHps.value.length > 1) {
     wwHps.value.pop()
-    students.value.forEach(s => s.ww_scores.pop())
+    students.value.forEach(s => {
+      if (Array.isArray(s.ww_scores)) s.ww_scores.pop()
+    })
     recalculateAll()
   }
 }
 
-function addPtItem() {
-  if (ptHps.value.length < 10) {
-    ptHps.value.push(25)
-    students.value.forEach(s => s.pt_scores.push(0))
-    recalculateAll()
+function removeWwItemAt(index) {
+  if (wwHps.value.length <= 1) return
+  wwHps.value.splice(index, 1)
+  students.value.forEach(s => {
+    if (Array.isArray(s.ww_scores) && s.ww_scores.length > index) {
+      s.ww_scores.splice(index, 1)
+    }
+  })
+  recalculateAll()
+}
+
+function addPtItem(defaultHps = 25) {
+  ptHps.value.push(Number(defaultHps) || 25)
+  students.value.forEach(s => {
+    if (!Array.isArray(s.pt_scores)) s.pt_scores = []
+    s.pt_scores.push(0)
+  })
+  recalculateAll()
+}
+
+function addMultiplePtItems(count = 5, defaultHps = 25) {
+  for (let i = 0; i < count; i++) {
+    ptHps.value.push(Number(defaultHps) || 25)
+    students.value.forEach(s => {
+      if (!Array.isArray(s.pt_scores)) s.pt_scores = []
+      s.pt_scores.push(0)
+    })
   }
+  recalculateAll()
+  addToast(`Added ${count} Performance Task items (total: ${ptHps.value.length})`, 'info')
 }
 
 function removePtItem() {
   if (ptHps.value.length > 1) {
     ptHps.value.pop()
-    students.value.forEach(s => s.pt_scores.pop())
+    students.value.forEach(s => {
+      if (Array.isArray(s.pt_scores)) s.pt_scores.pop()
+    })
     recalculateAll()
   }
 }
 
-function addQaItem() {
-  if (qaHps.value.length < 3) {
-    qaHps.value.push(50)
-    students.value.forEach(s => s.qa_scores.push(0))
-    recalculateAll()
-  }
+function removePtItemAt(index) {
+  if (ptHps.value.length <= 1) return
+  ptHps.value.splice(index, 1)
+  students.value.forEach(s => {
+    if (Array.isArray(s.pt_scores) && s.pt_scores.length > index) {
+      s.pt_scores.splice(index, 1)
+    }
+  })
+  recalculateAll()
+}
+
+function addQaItem(defaultHps = 50) {
+  qaHps.value.push(Number(defaultHps) || 50)
+  students.value.forEach(s => {
+    if (!Array.isArray(s.qa_scores)) s.qa_scores = []
+    s.qa_scores.push(0)
+  })
+  recalculateAll()
 }
 
 function removeQaItem() {
   if (qaHps.value.length > 1) {
     qaHps.value.pop()
-    students.value.forEach(s => s.qa_scores.pop())
+    students.value.forEach(s => {
+      if (Array.isArray(s.qa_scores)) s.qa_scores.pop()
+    })
     recalculateAll()
   }
+}
+
+function removeQaItemAt(index) {
+  if (qaHps.value.length <= 1) return
+  qaHps.value.splice(index, 1)
+  students.value.forEach(s => {
+    if (Array.isArray(s.qa_scores) && s.qa_scores.length > index) {
+      s.qa_scores.splice(index, 1)
+    }
+  })
+  recalculateAll()
+}
+
+function promptSetAllHps(type) {
+  const label = type === 'ww' ? 'Written Works' : 'Performance Tasks'
+  const currentDefault = type === 'ww' ? (wwHps.value[0] || 20) : (ptHps.value[0] || 25)
+  const input = prompt(`Enter highest possible score (HPS) for all ${label} items:`, String(currentDefault))
+  if (input === null) return
+  const val = Math.max(1, parseInt(input, 10) || currentDefault)
+  if (type === 'ww') {
+    wwHps.value = wwHps.value.map(() => val)
+  } else {
+    ptHps.value = ptHps.value.map(() => val)
+  }
+  recalculateAll()
+  addToast(`Updated all ${label} items to HPS = ${val}`, 'success')
 }
 
 // Group students by gender
@@ -1078,11 +1213,17 @@ async function loadClassRecord() {
     }
 
     students.value = (data.students || []).map(st => {
+      const ww = Array.isArray(st.ww_scores) ? [...st.ww_scores] : []
+      while (ww.length < wwHps.value.length) ww.push(0)
+      const pt = Array.isArray(st.pt_scores) ? [...st.pt_scores] : []
+      while (pt.length < ptHps.value.length) pt.push(0)
+      const qa = Array.isArray(st.qa_scores) ? [...st.qa_scores] : []
+      while (qa.length < qaHps.value.length) qa.push(0)
       return {
         ...st,
-        ww_scores: Array.isArray(st.ww_scores) ? [...st.ww_scores] : wwHps.value.map(() => 0),
-        pt_scores: Array.isArray(st.pt_scores) ? [...st.pt_scores] : ptHps.value.map(() => 0),
-        qa_scores: Array.isArray(st.qa_scores) ? [...st.qa_scores] : qaHps.value.map(() => 0),
+        ww_scores: ww,
+        pt_scores: pt,
+        qa_scores: qa,
         initial_grade: Number(st.initial_grade) || 0,
         transmuted_grade: Number(st.transmuted_grade) || 0,
         remarks: st.remarks || ''
@@ -1584,6 +1725,60 @@ onMounted(async () => {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--foreground);
+}
+
+.group-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 3px 6px;
+}
+
+.btn-group-add {
+  background: var(--card);
+  border: 1px solid currentColor;
+  color: inherit;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn-group-add:hover {
+  background: currentColor;
+  color: var(--card);
+}
+
+.item-header-cell {
+  position: relative;
+  padding: 4px 3px !important;
+  text-align: center;
+}
+
+.sub-col-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.col-del-btn {
+  background: none;
+  border: none;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  line-height: 1;
+  padding: 1px 3px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+.col-del-btn:hover {
+  color: var(--destructive);
+  background: var(--red-bg);
 }
 
 .group-ww {

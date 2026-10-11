@@ -313,6 +313,71 @@ test('GET /api/grading/class-record/export generates formatted DepEd CSV spreads
   assert.ok(text.includes('Silang, Gabriela'))
 })
 
+test('Supports arbitrary number of Written Works and Performance Tasks items', async () => {
+  // 12 Written Works items with varying HPS
+  const manyWwHps = [15, 15, 20, 20, 25, 25, 10, 10, 20, 20, 10, 10] // 12 items, sum = 200
+  // 8 Performance Tasks items
+  const manyPtHps = [25, 25, 25, 25, 20, 20, 30, 30] // 8 items, sum = 200
+  const qaHps = [50]
+
+  const wwScoresM = [15, 14, 19, 18, 24, 23, 10, 9, 19, 18, 10, 9] // sum = 188 / 200 = 94.00%
+  const ptScoresM = [24, 25, 24, 24, 19, 19, 29, 28] // sum = 192 / 200 = 96.00%
+  const qaScoresM = [45] // sum = 45 / 50 = 90.00%
+
+  const savePayload = {
+    schoolId,
+    gradeLevel: 'Grade 8',
+    section: 'Sapphire',
+    subjectId,
+    quarter: 'Q2',
+    schoolYear: '2026-2027',
+    weightWw: 30,
+    weightPt: 50,
+    weightQa: 20,
+    wwHps: manyWwHps,
+    ptHps: manyPtHps,
+    qaHps: qaHps,
+    learners: [
+      {
+        studentId: studentMId,
+        wwScores: wwScoresM,
+        ptScores: ptScoresM,
+        qaScores: qaScoresM
+      }
+    ]
+  }
+
+  const { response, body } = await request('/api/grading/class-record/save', {
+    method: 'POST',
+    headers: headers(teacherId, 'teacher'),
+    body: JSON.stringify(savePayload)
+  })
+
+  assert.equal(response.status, 200)
+  assert.equal(body.success, true)
+
+  // Verify retrieval reflects all 12 WW and 8 PT items
+  const getRes = await request(
+    `/api/grading/class-record?schoolId=${schoolId}&gradeLevel=Grade%208&section=Sapphire&subjectId=${subjectId}&quarter=Q2&schoolYear=2026-2027`,
+    { headers: headers(teacherId, 'teacher') }
+  )
+
+  assert.equal(getRes.response.status, 200)
+  assert.equal(getRes.body.config.ww_hps.length, 12)
+  assert.equal(getRes.body.config.pt_hps.length, 8)
+
+  const studentM = getRes.body.students.find(s => s.id === studentMId)
+  assert.ok(studentM)
+  assert.equal(studentM.ww_scores.length, 12)
+  assert.equal(studentM.pt_scores.length, 8)
+  assert.equal(studentM.ww_total, 188)
+  assert.equal(studentM.ww_hps_total, 200)
+  assert.equal(studentM.ww_ps, 94.00)
+  assert.equal(studentM.pt_total, 192)
+  assert.equal(studentM.pt_hps_total, 200)
+  assert.equal(studentM.pt_ps, 96.00)
+})
+
 test('Enforces campus license status and locks class record when license is expired or suspended', async () => {
   const licenseId = `lic-test-${suffix}`
 

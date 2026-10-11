@@ -325,3 +325,15 @@ Remaining attendance follow-ups:
 - [x] Synchronized `process.env.DATABASE_URL` for Prisma when using individual `DB_*` variables in `db.js` and `prisma/client.js`.
 - [x] Updated `Dockerfile` Stage 1 (`prisma generate`) and Stage 3 (`COPY prisma`, `scripts`, `migrations`, `@prisma/client`, `.prisma`).
 - [x] Validated frontend Vite build and Node syntax compatibility.
+- [x] **Shadcn-Vue Modern Sidebar & Zero-Flicker Page Refresh Pipeline**
+  - Integrated dedicated `src/components/Sidebar.vue` following modern Shadcn-Vue rail & expandable drawer patterns (`useSidebar` composable, localStorage persistence, Ctrl/Cmd+B shortcut, tooltip rail, and mobile overlay drawer).
+  - Fixed refresh flicker and blank flashes: eliminated blocking network calls in `src/main.js` (`auth.restoreSession()` runs in the background while DOM mounts immediately using cached credentials; `await router.isReady()` prevents route chunk popping).
+  - Added pre-render inline CSS background variables in `index.html` preventing blank white flashes during dark theme reloads.
+  - Verified with test suite `tests/shadcn-sidebar-and-refresh-flicker.test.mjs` and complete test pass.
+- [x] **Shadcn-Vue Modern Attachment Component System**
+  - Added reusable `src/components/Attachment.vue` supporting:
+    1. `variant="dropzone"`: Drag-and-drop file upload area with live dragover state, file format guide, file category badges, and selected item card with removal trigger.
+    2. `variant="inline"`: Compact paperclip attachment button with active file chip for chat and reply composers.
+    3. `variant="preview"`: Thread attachment bubble with thumbnail zoom lightbox for images and styled document cards for PDFs, spreadsheets, and files.
+  - Integrated into `src/views/Inquiries.vue` and `src/components/SupportChatModal.vue`.
+  - Added automated test suite `tests/shadcn-attachment-component.test.mjs`.

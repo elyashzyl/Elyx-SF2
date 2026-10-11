@@ -5,6 +5,26 @@
     <link rel="icon" type="image/png" href="/elytrack-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ElyTrack — School Attendance & Operations</title>
+    <style>
+      :root {
+        --bg-preload: #f8faf9;
+        --fg-preload: #091214;
+      }
+      [data-theme="dark"] {
+        --bg-preload: #090e0f;
+        --fg-preload: #edf5f5;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        background-color: var(--bg-preload);
+        color: var(--fg-preload);
+      }
+      #app {
+        min-height: 100vh;
+      }
+    </style>
     <script>
       try {
         var t = localStorage.getItem('theme') || 'light';

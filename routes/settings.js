@@ -30,6 +30,11 @@ router.get('/', async (req, res) => {
     if (!result.active_school_year) {
       result.active_school_year = result.school_year
     }
+    result.runtime_info = {
+      db_connection: process.env.DB_CONNECTION === 'mysql' ? 'MySQL' : 'SQLite',
+      node_env: process.env.NODE_ENV || 'development',
+      server_time: new Date().toISOString()
+    }
     res.json(result)
   } catch (err) {
     console.error('Error listing settings:', err.message)
