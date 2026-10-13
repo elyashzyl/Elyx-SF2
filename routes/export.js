@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
-import { getSettings } from '../db.js'
+import { getSettings, query } from '../db.js'
 import { requireRole, resolveScopeSchool } from './_context.js'
 
 const router = express.Router()
@@ -399,27 +399,76 @@ router.post('/sf2', async (req, res) => {
     const MAX_DATE_COLS = 25
     const DAY_ABBR = { 0: 'Sun', 1: 'M', 2: 'T', 3: 'W', 4: 'TH', 5: 'F', 6: 'Sat' }
 
-    function computeSchoolDays(mon, yr, excl, includeSat = false) {
+    // Resolve excluded dates and holiday/suspension labels
+    const holidayLabels = { ...(summary_data?.holiday_labels || {}) }
+    const rawExcluded = Array.isArray(excluded_dates)
+      ? excluded_dates
+      : (typeof excluded_dates === 'string' ? JSON.parse(excluded_dates || '[]') : [])
+    const excludedSet = new Set(rawExcluded.map(Number).filter(Number.isInteger))
+
+    // Pull calendar_events from DB for holidays/suspensions in this month/year as fallback
+    try {
+      const monthStr = String(month).padStart(2, '0')
+      const prefix = `${year}-${monthStr}-`
+      const calEvents = await query(
+        `SELECT title, type, event_date FROM calendar_events 
+         WHERE (school_id = ? OR school_id = '' OR school_id IS NULL) 
+           AND event_date LIKE ? 
+         ORDER BY event_date`,
+        [scope.schoolId || '', prefix + '%']
+      )
+      for (const ev of calEvents) {
+        if (/holiday|suspension|special_non_working|special-non-working|no_classes/i.test(ev.type || '')) {
+          const d = parseInt(String(ev.event_date).split('-')[2], 10)
+          if (d && !isNaN(d)) {
+            excludedSet.add(d)
+            if (!holidayLabels[d] && !holidayLabels[String(d)] && ev.title) {
+              holidayLabels[d] = ev.title
+            }
+          }
+        }
+      }
+    } catch {}
+
+    function computeMonthColumns(mon, yr, exclSet, holLabels, includeSat = false) {
       const days = []
       const dim = new Date(yr, mon, 0).getDate()
-      const excluded = excl || []
       for (let d = 1; d <= dim; d++) {
         const dow = new Date(yr, mon - 1, d).getDay()
-        if (dow === 0 || (dow === 6 && !includeSat)) continue
-        if (excluded.includes(d)) continue
-        days.push({ day: d, weekday: dow })
+        if (dow === 0) continue // Sunday is never in SF2 grid
+        if (dow === 6 && !includeSat) continue // Saturday only if enabled
+        const isHoliday = exclSet.has(d) || Boolean(holLabels[d]) || Boolean(holLabels[String(d)])
+        let label = ''
+        if (isHoliday) {
+          const raw = holLabels[d] || holLabels[String(d)] || 'NO CLASSES'
+          label = String(raw).trim().toUpperCase()
+        }
+        days.push({ day: d, weekday: dow, isHoliday, holidayLabel: label })
       }
       return days
     }
 
-    const schoolDays = computeSchoolDays(month, year, excluded_dates, includeSaturdays === true || includeSaturdays === 1)
+    const schoolDays = computeMonthColumns(month, year, excludedSet, holidayLabels, includeSaturdays === true || includeSaturdays === 1)
     if (schoolDays.length > MAX_DATE_COLS) {
-      return res.status(400).json({ error: 'This SF2 worksheet supports up to 25 school-day columns. Exclude non-instructional dates or use the report without Saturdays for this month.' })
+      if (includeSaturdays === true || includeSaturdays === 1) {
+        // Exclude non-instructional Saturdays first to fit 25 cols
+        const filtered = schoolDays.filter(sd => !(sd.weekday === 6 && sd.isHoliday))
+        if (filtered.length <= MAX_DATE_COLS) {
+          schoolDays.length = 0
+          schoolDays.push(...filtered)
+        } else {
+          return res.status(400).json({ error: 'This SF2 worksheet supports up to 25 school-day columns. Exclude non-instructional dates or use the report without Saturdays for this month.' })
+        }
+      } else {
+        return res.status(400).json({ error: 'This SF2 worksheet supports up to 25 school-day columns. Exclude non-instructional dates or use the report without Saturdays for this month.' })
+      }
     }
+
     const dateColMap = {}
     const numDateCols = Math.min(schoolDays.length, MAX_DATE_COLS)
+    const instructionalDays = schoolDays.filter(sd => !sd.isHoliday).length
     const customDays = Number(summary_data?.schoolDays || summary_data?.school_days)
-    const effectiveDays = (customDays > 0) ? customDays : numDateCols
+    const effectiveDays = (customDays > 0) ? customDays : instructionalDays
     setVal(newWs, COL_HEADER_ROW, 32, 'n', effectiveDays)
 
     // Build dateColMap first (used everywhere)
@@ -534,6 +583,7 @@ router.post('/sf2', async (req, res) => {
       const enrollDay = getEnrollDay(entry)
       let absent = 0
       for (const sd of schoolDays) {
+        if (sd.isHoliday) continue
         const d = sd.day
         if (enrollDay !== null && d < enrollDay) { absent++; continue }
         const s = entry.days ? entry.days[String(d)] : null
@@ -548,12 +598,14 @@ router.post('/sf2', async (req, res) => {
     function sumAbsent(el) { return el.reduce((s, e) => s + calcEntryAbsent(e), 0) }
     function sumPresent(el) { return el.reduce((s, e) => s + calcEntryPresent(e), 0) }
     function daySum(el, dn) {
+      const sd = schoolDays.find(d => d.day === dn)
+      if (sd && sd.isHoliday) return ''
       let count = 0
       for (const e of el) {
         const enrollDay = getEnrollDay(e)
         if (enrollDay !== null && dn < enrollDay) continue
         const s = e.days ? e.days[String(dn)] : null
-        if (!s || s === '◤' || s === 'T' || s === 'E') count++
+        if (!s || s === '◤' || s === 'T' || s === 'E' || s === '1' || s === 'P') count++
         else if (s === '◢' || s === 'H') count += 0.5
       }
       return count
@@ -563,8 +615,15 @@ router.post('/sf2', async (req, res) => {
       addMerge(newWs, r, 2, r, 3)
       setVal(newWs, r, NAME_COL, 's', `<=== ${label} TOTAL Per Day ===>`)
       setVal(newWs, r, NUM_COL, 'n', count)
-      for (const [dayNum, col] of Object.entries(dateColMap))
-        setVal(newWs, r, col, 'n', daySum(entriesList, parseInt(dayNum)))
+      for (const [dayNum, col] of Object.entries(dateColMap)) {
+        const dn = parseInt(dayNum, 10)
+        const sd = schoolDays.find(d => d.day === dn)
+        if (sd && sd.isHoliday) {
+          delCell(newWs, r, col)
+        } else {
+          setVal(newWs, r, col, 'n', daySum(entriesList, dn))
+        }
+      }
       setVal(newWs, r, ABSENT_COL, 'n', sumAbsent(entriesList))
       addMerge(newWs, r, 30, r, 32)
       setVal(newWs, r, 30, 'n', sumPresent(entriesList))
@@ -583,10 +642,13 @@ router.post('/sf2', async (req, res) => {
       for (const [dayStr, status] of Object.entries(days)) {
         const dayNum = parseInt(dayStr, 10)
         const col = dateColMap[dayNum]
-        if (col === undefined || !status) continue
-        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? 'E' : status
-        setVal(newWs, row, col, 's', sym)
-        applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        const sd = schoolDays.find(d => d.day === dayNum)
+        if (col === undefined || !status || (sd && sd.isHoliday)) continue
+        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : (status === 'A' || status === 'x' || status === 'X') ? 'x' : status === 'E' ? 'E' : (status === '1' || status === 'P') ? '' : status
+        if (sym) {
+          setVal(newWs, row, col, 's', sym)
+          applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        }
       }
       setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
       addMerge(newWs, row, 30, row, 32)
@@ -612,10 +674,13 @@ router.post('/sf2', async (req, res) => {
         for (const [dayStr, status] of Object.entries(days)) {
           const dayNum = parseInt(dayStr, 10)
           const col = dateColMap[dayNum]
-          if (col === undefined || !status) continue
-          const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : status === 'A' ? 'x' : status === 'E' ? 'E' : status
-          setVal(newWs, row, col, 's', sym)
-          applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+          const sd = schoolDays.find(d => d.day === dayNum)
+          if (col === undefined || !status || (sd && sd.isHoliday)) continue
+          const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : (status === 'A' || status === 'x' || status === 'X') ? 'x' : status === 'E' ? 'E' : (status === '1' || status === 'P') ? '' : status
+          if (sym) {
+            setVal(newWs, row, col, 's', sym)
+            applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+          }
         }
         setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
         addMerge(newWs, row, 30, row, 32)
@@ -633,8 +698,15 @@ router.post('/sf2', async (req, res) => {
     addMerge(newWs, combinedTotalRow, 2, combinedTotalRow, 3)
     setVal(newWs, combinedTotalRow, NAME_COL, 's', `<=== COMBINED | ${effectiveDays} TOTAL Per Day ===>`)
     setVal(newWs, combinedTotalRow, NUM_COL, 'n', effectiveDays)
-    for (const [dayNum, col] of Object.entries(dateColMap))
-      setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, parseInt(dayNum)))
+    for (const [dayNum, col] of Object.entries(dateColMap)) {
+      const dn = parseInt(dayNum, 10)
+      const sd = schoolDays.find(d => d.day === dn)
+      if (sd && sd.isHoliday) {
+        delCell(newWs, combinedTotalRow, col)
+      } else {
+        setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, dn))
+      }
+    }
     setVal(newWs, combinedTotalRow, ABSENT_COL, 'n', sumAbsent(entries))
     addMerge(newWs, combinedTotalRow, 30, combinedTotalRow, 32)
     setVal(newWs, combinedTotalRow, 30, 'n', sumPresent(entries))
@@ -682,6 +754,61 @@ router.post('/sf2', async (req, res) => {
         const addr = XLSX.utils.encode_cell({ r, c })
         if (newWs[addr] && (newWs[addr].v === '◤' || newWs[addr].v === '◢')) applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci) })
         else if (newWs[addr] && (newWs[addr].v === 'x' || newWs[addr].v === 'E')) applyStyle(newWs, r, c, { font: { name: 'Trebuchet MS', sz: 26 }, alignment: { horizontal: 'center', vertical: 'center' }, border: dateBorder(ci) })
+      }
+    }
+
+    // ── Apply Holiday & Suspension columns with vertical labels across student rows ──
+    for (let ci = 0; ci < numDateCols; ci++) {
+      const sd = schoolDays[ci]
+      if (!sd.isHoliday) continue
+      const col = dateColMap[sd.day]
+      const label = sd.holidayLabel || 'NO CLASSES'
+      const b = dateBorder(ci)
+
+      // 1. Male Learners Section
+      if (maleCount > 0) {
+        if (maleCount > 1) {
+          addMerge(newWs, maleSectionStart, col, maleSectionEnd, col)
+        }
+        setVal(newWs, maleSectionStart, col, 's', label)
+        for (let r = maleSectionStart; r <= maleSectionEnd; r++) {
+          applyStyle(newWs, r, col, {
+            font: { name: 'Trebuchet MS', sz: 10, bold: true },
+            alignment: { textRotation: 90, horizontal: 'center', vertical: 'center', wrapText: true },
+            border: b,
+            fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+          })
+        }
+      }
+
+      // 2. Female Learners Section
+      if (femaleCount > 0) {
+        if (femaleCount > 1) {
+          addMerge(newWs, femaleSectionStart, col, femaleSectionEnd, col)
+        }
+        setVal(newWs, femaleSectionStart, col, 's', label)
+        for (let r = femaleSectionStart; r <= femaleSectionEnd; r++) {
+          applyStyle(newWs, r, col, {
+            font: { name: 'Trebuchet MS', sz: 10, bold: true },
+            alignment: { textRotation: 90, horizontal: 'center', vertical: 'center', wrapText: true },
+            border: b,
+            fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+          })
+        }
+      }
+
+      // 3. Totals rows: clear numbers and keep clean borders with white background
+      const totalRows = [maleTotalRow]
+      if (femaleCount > 0) totalRows.push(femaleTotalRow)
+      totalRows.push(combinedTotalRow)
+      for (const r of totalRows) {
+        delCell(newWs, r, col)
+        applyStyle(newWs, r, col, {
+          font: { name: 'Trebuchet MS', sz: 9 },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: b,
+          fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+        })
       }
     }
 
