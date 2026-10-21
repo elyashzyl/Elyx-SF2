@@ -13,3 +13,4 @@ attendance.db.backup-*
 exports/
 *.xlsx
 !templates/*.xlsx
+!test_final2.xlsx

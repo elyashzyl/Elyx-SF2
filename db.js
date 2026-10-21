@@ -51,7 +51,28 @@ export function resolveDatabaseUrl() {
   )?.trim()
 
   if (explicitUrl) {
-    return explicitUrl
+    try {
+      const u = new URL(explicitUrl)
+      if (process.env.DB_PASSWORD && decodeURIComponent(u.password) !== process.env.DB_PASSWORD) {
+        console.warn('[db] Synchronizing DATABASE_URL password with DB_PASSWORD environment variable.')
+        u.password = process.env.DB_PASSWORD
+      }
+      if (process.env.DB_USERNAME && decodeURIComponent(u.username) !== process.env.DB_USERNAME) {
+        u.username = process.env.DB_USERNAME
+      }
+      if (process.env.DB_HOST && u.hostname !== process.env.DB_HOST) {
+        u.hostname = process.env.DB_HOST
+      }
+      if (process.env.DB_PORT && u.port !== process.env.DB_PORT) {
+        u.port = process.env.DB_PORT
+      }
+      if (process.env.DB_DATABASE && u.pathname.replace(/^\//, '') !== process.env.DB_DATABASE) {
+        u.pathname = '/' + process.env.DB_DATABASE
+      }
+      return u.toString()
+    } catch {
+      return explicitUrl
+    }
   }
 
   const host = (
@@ -914,6 +935,11 @@ async function initMysql() {
       }
 
       // 3. Transient connection failures while MySQL boots
+      if (code === 'ER_ACCESS_DENIED_ERROR' || /Access denied for user/i.test(msg)) {
+        console.error(`[db] MySQL authentication failed for user '${poolCfg.user}'. Verify that DB_PASSWORD and DB_USERNAME match your MySQL credentials, and that user '${poolCfg.user}'@'%' has permissions to database '${poolCfg.database}'.`)
+        throw err
+      }
+
       if (attempts < maxAttempts && /ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENOTFOUND|connect/i.test(msg)) {
         console.log(`[db] Waiting for MySQL server to become available (attempt ${attempts}/${maxAttempts}: ${msg}). Retrying in 2s...`)
         await new Promise(r => setTimeout(r, 2000))
