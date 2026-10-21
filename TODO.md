@@ -336,4 +336,24 @@ Remaining attendance follow-ups:
     2. `variant="inline"`: Compact paperclip attachment button with active file chip for chat and reply composers.
     3. `variant="preview"`: Thread attachment bubble with thumbnail zoom lightbox for images and styled document cards for PDFs, spreadsheets, and files.
   - Integrated into `src/views/Inquiries.vue` and `src/components/SupportChatModal.vue`.
-  - Added automated test suite `tests/shadcn-attachment-component.test.mjs`.
+- [x] **Shadcn-Vue Dropdown Menu & Topbar Campus Switcher**
+  - Created `src/components/ui/dropdown-menu/` suite (`DropdownMenu.vue`, `DropdownMenuTrigger.vue`, `DropdownMenuContent.vue`, `DropdownMenuItem.vue`, `DropdownMenuLabel.vue`, `DropdownMenuSeparator.vue`, and `index.js`).
+  - Relocated superadmin campus switcher from Settings to the top navigation bar (`src/App.vue`) with active campus indicator and quick switching.
+  - Integrated DropdownMenu into `Sidebar.vue` (footer account/settings menu) and `ClassRecord.vue` (header bulk fills).
+  - Verified with `tests/shadcn-dropdown-menu-component.test.mjs`.
+- [x] **Shadcn-Vue Date Picker Component Suite**
+  - Created `src/components/ui/popover/` (`Popover.vue`, `PopoverTrigger.vue`, `PopoverContent.vue`, `index.js`).
+  - Created `src/components/ui/calendar/` (`Calendar.vue`, `index.js`) supporting month/year jump navigation (up to 80-year learner DOB jumper), day grid with outside/today/selected state indicators, and quick Today & Clear actions.
+  - Created composite `src/components/ui/date-picker/DatePicker.vue` and `src/components/DatePicker.vue` emitting standard ISO strings (`YYYY-MM-DD`).
+  - Replaced all 15 native `<input type="date">` inputs across 7 views (`AttendanceSheet.vue`, `AdminDashboard.vue`, `StudentManagement.vue`, `QuarterlySettings.vue`, `Reports.vue`, `Schedule.vue`, `Settings.vue`).
+  - Verified with `tests/shadcn-date-picker-component.test.mjs`.
+- [x] **DepEd SF2 Vertical Merged Holiday & Suspension Columns**
+  - Updated `routes/export.js` so dates designated as holidays or suspensions preserve their chronological column position in the calendar grid.
+  - Merged holiday column cells vertically across learner rows in Male and Female sections with vertical orientation (`textRotation: 90`), bold font, and centered alignment displaying the official holiday title (e.g. `BAGUIO DAY`, `SIPAT DAY`).
+  - Daily totals rows remain blank for holiday columns with clean borders.
+  - Verified with `tests/sf2-holiday-vertical-columns.test.mjs`.
+- [x] **Container & Deployment Pipeline Resilience**
+  - Added Node 22 buildpack configuration via `nixpacks.toml`, `.nvmrc`, `.node-version`, and `package.json` `"engines": { "node": ">=22.12.0" }`, fixing Vite 7 `crypto.hash is not a function` in Nixpacks/PaaS environments.
+  - Fixed `COPY lib ./lib` in `Dockerfile` to guarantee runtime availability of all utility modules.
+  - Synchronized `DB_PASSWORD` and `DB_USERNAME` into `DATABASE_URL` in `db.js`.
+  - Cleaned untracked test spreadsheet references from `Dockerfile` to avoid checksum cache-key build failures.
