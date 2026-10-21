@@ -45,7 +45,7 @@ COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 
 # Backend source + template + built frontend + prisma + migrations + scripts + entrypoint
-COPY server.js db.js docker-entrypoint.sh test_final2.xlsx ./
+COPY server.js db.js docker-entrypoint.sh ./
 COPY lib ./lib
 COPY routes ./routes
 COPY templates ./templates
