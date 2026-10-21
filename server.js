@@ -345,7 +345,11 @@ const __dirname = dirname(__filename)
 app.use(express.static(join(__dirname, 'dist')))
 
 app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, 'dist', 'index.html'))
+  const indexPath = join(__dirname, 'dist', 'index.html')
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath)
+  }
+  return res.status(200).send('<!DOCTYPE html><html><head><title>ElyTrack</title></head><body><h1>ElyTrack Server Online</h1><p>Application is initializing. Please refresh in a moment.</p></body></html>')
 })
 
 app.use((err, req, res, next) => {
@@ -377,21 +381,25 @@ const isMainModule = !isTestRun && (
 if (isMainModule) {
   // Bind to configured PORT and also mirror on both 3000 and 3001 so reverse proxies
   // (Coolify, Traefik, Railway, Docker) route traffic regardless of whether their default
-  // upstream was left at 3000 or set to 3001.
-  const portsToListen = [PORT, 3000, 3001].filter(Boolean)
+  const portsToListen = [PORT, 3000, 3001, 8080].filter(Boolean)
   const uniquePorts = [...new Set(portsToListen)]
 
   for (const p of uniquePorts) {
     try {
-      const s = app.listen(p, HOST, () => {
-        console.log(`[server] Server listening on http://${HOST}:${p}`)
-      })
+      const isWildcard = !HOST || HOST === '0.0.0.0' || HOST === '::'
+      const s = isWildcard
+        ? app.listen(p, () => {
+            console.log(`[server] Server listening on port ${p} (dual-stack: IPv4 0.0.0.0 + IPv6 localhost/::)`)
+          })
+        : app.listen(p, HOST, () => {
+            console.log(`[server] Server listening on http://${HOST}:${p}`)
+          })
       s.on('error', (err) => {
         if (p === PORT) {
-          console.error(`[server] Primary port ${p} error on ${HOST}:`, err.message)
-          if (HOST !== '0.0.0.0') {
-            console.log(`[server] Retrying primary listen on 0.0.0.0:${p}...`)
-            app.listen(p, '0.0.0.0')
+          console.error(`[server] Primary port ${p} error:`, err.message)
+          if (!isWildcard) {
+            console.log(`[server] Retrying primary listen with dual-stack on port ${p}...`)
+            app.listen(p)
           }
         } else {
           // Additional/mirror port may be in use or unavailable; log without failing

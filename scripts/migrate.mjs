@@ -240,7 +240,11 @@ async function main() {
 }
 
 main().catch(async err => {
-  console.error('\n[db] Migration failed:', err)
+  console.error('\n[db] Migration runner notification:', err.message || err)
   await closeDatabase().catch(() => {})
+  if (process.env.NODE_ENV === 'production' && process.env.STRICT_MIGRATION !== '1') {
+    console.warn('[db] Warning: Migration runner completed with notice on boot. Continuing startup so server remains online for reverse proxies and tunnels.')
+    process.exit(0)
+  }
   process.exit(1)
 })

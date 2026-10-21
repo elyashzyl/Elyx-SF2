@@ -65,7 +65,7 @@ USER node
 
 # Persistent mount point for the SQLite-fallback database (see ALLOW_PERSISTED_SQLITE)
 VOLUME ["/data"]
-EXPOSE 3001
+EXPOSE 3000 3001 8080
 
 # MySQL connectivity and additive migrations can take longer than the first
 # health-check window on a fresh deployment. Do not restart a healthy process

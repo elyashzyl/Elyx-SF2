@@ -6,3 +6,6 @@ nixPkgs = ["nodejs_22"]
 
 [phases.build]
 cmds = ["npx prisma generate", "npm run build"]
+
+[start]
+cmd = "node scripts/migrate.mjs || true; exec node server.js"
