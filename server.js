@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import { initDatabase, query, DB_MODE } from './db.js'
 import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
