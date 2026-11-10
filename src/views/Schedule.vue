@@ -246,6 +246,10 @@
             <label>Date</label>
             <DatePicker v-model="eventForm.event_date" required full-width />
           </div>
+          <label v-if="eventForm.type === 'holiday'" class="checkbox-label event-counted-option">
+            <input type="checkbox" v-model="eventForm.is_counted" />
+            Count this holiday as a school day
+          </label>
           <div class="form-actions">
             <button type="submit" class="btn-primary" :disabled="savingEvent">{{ savingEvent ? 'Saving...' : (editingEvent ? 'Update' : 'Add') }}</button>
             <button type="button" @click="closeEventForm" class="btn-secondary">Cancel</button>
@@ -488,15 +492,15 @@ const quarterlyEvents = ref([])
 const showEventForm = ref(false)
 const editingEvent = ref(null)
 const savingEvent = ref(false)
-const eventForm = ref({ title: '', type: 'holiday', event_date: '' })
+const eventForm = ref({ title: '', type: 'holiday', event_date: '', is_counted: false })
 
 function openEventForm(ev) {
   if (ev) {
     editingEvent.value = ev
-    eventForm.value = { title: ev.title, type: ev.type, event_date: ev.event_date }
+    eventForm.value = { title: ev.title, type: ev.type, event_date: ev.event_date, is_counted: Number(ev.is_counted) === 1 }
   } else {
     editingEvent.value = null
-    eventForm.value = { title: '', type: 'holiday', event_date: '' }
+    eventForm.value = { title: '', type: 'holiday', event_date: '', is_counted: false }
   }
   showEventForm.value = true
 }
@@ -509,7 +513,7 @@ function closeEventForm() {
 async function handleSaveEvent() {
   savingEvent.value = true
   try {
-    const payload = { title: eventForm.value.title, type: eventForm.value.type, event_date: eventForm.value.event_date }
+    const payload = { title: eventForm.value.title, type: eventForm.value.type, event_date: eventForm.value.event_date, is_counted: eventForm.value.type === 'holiday' && Boolean(eventForm.value.is_counted) }
     if (editingEvent.value) {
       await fetch('/api/events/calendar/' + editingEvent.value.id, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)

@@ -385,6 +385,7 @@ router.get('/', async (req, res) => {
     }
     record.summary_data = curSummary
     record.holiday_labels = curSummary.holiday_labels || {}
+    record.holiday_counted = curSummary.holiday_counted || {}
     record.excluded_dates = JSON.parse(record.excluded_dates || '[]')
     record.include_saturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     record.schoolHead = record.school_head || ''
@@ -492,12 +493,12 @@ router.post('/', async (req, res) => {
       const monthStr = String(month).padStart(2, '0')
       const prefix = `${year}-${monthStr}-`
       const eventHolidays = await query(
-        `SELECT event_date FROM calendar_events WHERE school_id = ? AND event_date LIKE ? AND LOWER(type) IN ('holiday', 'suspension', 'special_non_working', 'special-non-working', 'no_classes')`,
+        `SELECT event_date, is_counted FROM calendar_events WHERE school_id = ? AND event_date LIKE ? AND LOWER(type) IN ('holiday', 'suspension', 'special_non_working', 'special-non-working', 'no_classes')`,
         [scope.schoolId, prefix + '%']
       )
       const autoExcludedDays = Array.isArray(req.body.excluded_dates)
         ? req.body.excluded_dates
-        : eventHolidays.map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
+        : eventHolidays.filter(h => !Number(h.is_counted)).map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
 
       recordId = uuidv4()
       await run('INSERT INTO monthly_records (id, month, year, grade, section, adviser, school_head, created_by, created_by_name, school_id, include_saturdays, excluded_dates) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -733,12 +734,18 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
     const excludedDates = Array.isArray(req.body.excluded_dates) ? req.body.excluded_dates : []
     const record = g.record
     const curSummary = JSON.parse(record.summary_data || '{}')
+    if (req.body.holiday_counted && typeof req.body.holiday_counted === 'object') {
+      curSummary.holiday_counted = Object.fromEntries(
+        Object.entries(req.body.holiday_counted).filter(([, counted]) => Boolean(counted))
+      )
+    }
     if (req.body.holiday_labels && typeof req.body.holiday_labels === 'object') {
       curSummary.holiday_labels = { ...(curSummary.holiday_labels || {}), ...req.body.holiday_labels }
-      // Remove keys for dates that are no longer excluded
+      // Remove keys for dates that are neither excluded nor explicitly counted.
       const exclSet = new Set(excludedDates.map(Number))
+      const countedSet = new Set(Object.keys(curSummary.holiday_counted || {}).map(Number))
       for (const k of Object.keys(curSummary.holiday_labels)) {
-        if (!exclSet.has(Number(k))) delete curSummary.holiday_labels[k]
+        if (!exclSet.has(Number(k)) && !countedSet.has(Number(k))) delete curSummary.holiday_labels[k]
       }
     }
     await run('UPDATE monthly_records SET excluded_dates=?, summary_data=? WHERE id=?',
@@ -760,7 +767,7 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
     }
-    res.json({ success: true, excluded_dates: excludedDates, holiday_labels: curSummary.holiday_labels || {} })
+    res.json({ success: true, excluded_dates: excludedDates, holiday_labels: curSummary.holiday_labels || {}, holiday_counted: curSummary.holiday_counted || {} })
   } catch (err) {
     console.error('Failed to update excluded dates:', err.message)
     res.status(500).json({ error: 'Failed to update excluded dates' })
@@ -776,22 +783,26 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
     const monthStr = String(record.month).padStart(2, '0')
     const prefix = `${record.year}-${monthStr}-`
     const events = await query(
-      `SELECT id, title, type, event_date FROM calendar_events WHERE school_id = ? AND event_date LIKE ? ORDER BY event_date`,
+      `SELECT id, title, type, event_date, is_counted FROM calendar_events WHERE school_id = ? AND event_date LIKE ? ORDER BY event_date`,
       [record.school_id, prefix + '%']
     )
     const holidays = events.filter(e => /holiday|suspension|special_non_working|special-non-working|no_classes/i.test(e.type || ''))
-    const holidayDays = holidays.map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
+    const holidayDays = holidays.filter(h => !Number(h.is_counted)).map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
+    const countedDays = holidays.filter(h => Number(h.is_counted)).map(h => parseInt(h.event_date.split('-')[2], 10)).filter(Number.isInteger)
 
     const existingExcluded = Array.isArray(record.excluded_dates)
       ? record.excluded_dates
       : JSON.parse(record.excluded_dates || '[]')
-    const merged = Array.from(new Set([...existingExcluded, ...holidayDays])).sort((a, b) => a - b)
+    const merged = Array.from(new Set([...existingExcluded.filter(d => !countedDays.includes(Number(d))), ...holidayDays])).sort((a, b) => a - b)
     const curSummary = JSON.parse(record.summary_data || '{}')
     if (!curSummary.holiday_labels) curSummary.holiday_labels = {}
+    if (!curSummary.holiday_counted) curSummary.holiday_counted = {}
     for (const h of holidays) {
       const day = parseInt(h.event_date.split('-')[2], 10)
       if (day && h.title) {
         curSummary.holiday_labels[day] = h.title
+        if (Number(h.is_counted)) curSummary.holiday_counted[day] = true
+        else delete curSummary.holiday_counted[day]
       }
     }
 
@@ -817,7 +828,7 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
       { type: 'monthly', id: recordId, name: `${record.grade} - ${record.section}`, schoolId: record.school_id },
       `Synced ${holidays.length} calendar events into excluded days for ${record.grade} - ${record.section} (${record.month}/${record.year})`
     )
-    res.json({ success: true, excluded_dates: merged, synced_events: holidays, all_month_events: events })
+    res.json({ success: true, excluded_dates: merged, synced_events: holidays, all_month_events: events, holiday_counted: curSummary.holiday_counted || {} })
   } catch (err) {
     console.error('Failed to sync calendar events:', err.message)
     res.status(500).json({ error: 'Failed to sync calendar events' })

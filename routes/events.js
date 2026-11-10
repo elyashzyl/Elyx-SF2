@@ -46,12 +46,12 @@ router.post('/calendar', async (req, res) => {
   const s = await writable(req, res)
   if (!s) return
   try {
-    const { title, type, event_date, color } = req.body
+    const { title, type, event_date, color, is_counted } = req.body
     if (!title || !type || !event_date) {
       return res.status(400).json({ error: 'title, type, and event_date are required' })
     }
-    await run('INSERT INTO calendar_events (title, type, event_date, color, created_by, school_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, type, event_date, color || '', s.me.id, s.schoolId])
+    await run('INSERT INTO calendar_events (title, type, event_date, color, is_counted, created_by, school_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, type, event_date, color || '', is_counted ? 1 : 0, s.me.id, s.schoolId])
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: 'Failed to create event' })
@@ -65,9 +65,9 @@ router.put('/calendar/:id', async (req, res) => {
     const chk = await ownRow('calendar_events', req.params.id, s.schoolId, s.me)
     if (!chk.row) return res.status(404).json({ error: 'Event not found' })
     if (chk.denied) return res.status(403).json({ error: 'Forbidden: outside your school' })
-    const { title, type, event_date, color } = req.body
-    await run('UPDATE calendar_events SET title=?, type=?, event_date=?, color=? WHERE id=?',
-      [title, type, event_date, color || '', req.params.id])
+    const { title, type, event_date, color, is_counted } = req.body
+    await run('UPDATE calendar_events SET title=?, type=?, event_date=?, color=?, is_counted=? WHERE id=?',
+      [title, type, event_date, color || '', is_counted ? 1 : 0, req.params.id])
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: 'Failed to update event' })

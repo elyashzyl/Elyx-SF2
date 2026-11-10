@@ -477,8 +477,9 @@ const MYSQL_DDL = [
     title TEXT NOT NULL DEFAULT (''),
     type TEXT NOT NULL DEFAULT (''),
     event_date TEXT NOT NULL DEFAULT (''),
-    color TEXT NOT NULL DEFAULT (''),
-    created_by TEXT NOT NULL DEFAULT (''),
+    color TEXT NOT NULL DEFAULT ('') ,
+    is_counted INT NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL DEFAULT ('') ,
     school_id TEXT NOT NULL DEFAULT ('')
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS quarterly_events (
@@ -1287,6 +1288,7 @@ async function initSqlite() {
       type TEXT DEFAULT '',
       event_date TEXT DEFAULT '',
       color TEXT DEFAULT '',
+      is_counted INTEGER DEFAULT 0,
       created_by TEXT DEFAULT '',
       school_id TEXT DEFAULT ''
     )`,

@@ -401,6 +401,7 @@ router.post('/sf2', async (req, res) => {
 
     // Resolve excluded dates and holiday/suspension labels
     const holidayLabels = { ...(summary_data?.holiday_labels || {}) }
+    const holidayCounted = { ...(summary_data?.holiday_counted || {}) }
     const rawExcluded = Array.isArray(excluded_dates)
       ? excluded_dates
       : (typeof excluded_dates === 'string' ? JSON.parse(excluded_dates || '[]') : [])
@@ -411,8 +412,8 @@ router.post('/sf2', async (req, res) => {
       const monthStr = String(month).padStart(2, '0')
       const prefix = `${year}-${monthStr}-`
       const calEvents = await query(
-        `SELECT title, type, event_date FROM calendar_events 
-         WHERE (school_id = ? OR school_id = '' OR school_id IS NULL) 
+        `SELECT title, type, event_date, is_counted FROM calendar_events
+         WHERE (school_id = ? OR school_id = '' OR school_id IS NULL)
            AND event_date LIKE ? 
          ORDER BY event_date`,
         [scope.schoolId || '', prefix + '%']
@@ -421,7 +422,8 @@ router.post('/sf2', async (req, res) => {
         if (/holiday|suspension|special_non_working|special-non-working|no_classes/i.test(ev.type || '')) {
           const d = parseInt(String(ev.event_date).split('-')[2], 10)
           if (d && !isNaN(d)) {
-            excludedSet.add(d)
+            if (Number(ev.is_counted)) holidayCounted[d] = true
+            else excludedSet.add(d)
             if (!holidayLabels[d] && !holidayLabels[String(d)] && ev.title) {
               holidayLabels[d] = ev.title
             }
@@ -437,13 +439,14 @@ router.post('/sf2', async (req, res) => {
         const dow = new Date(yr, mon - 1, d).getDay()
         if (dow === 0) continue // Sunday is never in SF2 grid
         if (dow === 6 && !includeSat) continue // Saturday only if enabled
-        const isHoliday = exclSet.has(d) || Boolean(holLabels[d]) || Boolean(holLabels[String(d)])
+        const isHoliday = exclSet.has(d) || (Boolean(holLabels[d]) || Boolean(holLabels[String(d)])) && !Boolean(holidayCounted[d] || holidayCounted[String(d)])
+        const isCountedHoliday = Boolean(holidayCounted[d] || holidayCounted[String(d)])
         let label = ''
-        if (isHoliday) {
+        if (isHoliday || isCountedHoliday) {
           const raw = holLabels[d] || holLabels[String(d)] || 'NO CLASSES'
           label = String(raw).trim().toUpperCase()
         }
-        days.push({ day: d, weekday: dow, isHoliday, holidayLabel: label })
+        days.push({ day: d, weekday: dow, isHoliday, isCountedHoliday, holidayLabel: label })
       }
       return days
     }
@@ -492,7 +495,7 @@ router.post('/sf2', async (req, res) => {
     for (let ci = 0; ci < numDateCols; ci++) {
       const sd = schoolDays[ci]
       setVal(newWs, DATE_NUM_ROW, DATE_COL_START + ci, 'n', sd.day)
-      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
+      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', sd.holidayLabel || DAY_ABBR[sd.weekday])
     }
 
     // ── Apply medium borders to table header cells ──
