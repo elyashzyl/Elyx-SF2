@@ -6,7 +6,7 @@ import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { getSettings, query } from '../db.js'
 import { requireRole, resolveScopeSchool } from './_context.js'
-import { hasConsecutiveAbsences } from '../lib/monthly-calendar.js'
+import { hasConsecutiveAbsences, isStudentCountedOnDate } from '../lib/monthly-calendar.js'
 
 const router = express.Router()
 
@@ -613,6 +613,7 @@ router.post('/sf2', async (req, res) => {
       for (const e of el) {
         const enrollDay = getEnrollDay(e)
         if (enrollDay !== null && dn < enrollDay) continue
+        if (!isStudentCountedOnDate({ year, month, day: dn, transferOutDate: e.transferOutDate })) continue
         const s = e.days ? e.days[String(dn)] : null
         if (!s || s === '◤' || s === 'T' || s === 'E' || s === '1' || s === 'P') count++
         else if (s === '◢' || s === 'H') count += 0.5

@@ -766,7 +766,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { useToast } from '../composables/useToast'
 import { loadPageState } from '../composables/usePageState'
-import { hasMonthlyConsecutiveAbsences } from '../../lib/monthly-calendar.js'
+import { hasMonthlyConsecutiveAbsences, isStudentCountedOnDate } from '../../lib/monthly-calendar.js'
 
 const route = useRoute()
 const store = useAttendanceStore()
@@ -1079,6 +1079,7 @@ function dayTotal(entries, day, gender) {
   for (const e of filtered) {
     const enrollDay = enrollmentDay(e)
     if (enrollDay !== null && day < enrollDay) continue
+    if (!isStudentCountedOnDate({ year: form.year, month: form.month, day, transferOutDate: e.transferOutDate })) continue
     const s = e.days ? e.days[String(day)] : null
     if (!s || s === '◤' || s === 'T' || s === 'E') count++
     else if (s === '◢' || s === 'H') count += 0.5
@@ -2002,6 +2003,7 @@ async function updateRemarks(entry) {
       refreshSummaryFromLive(true)
     }
     if (res?.withdrawn) {
+      entry.transferOutDate = res.transferOutDate || entry.transferOutDate || `${form.year}-${String(form.month).padStart(2, '0')}-${String(new Date(form.year, form.month, 0).getDate()).padStart(2, '0')}`
       notify(`Learner "${entry.name}" marked TRANSFERRED OUT: status updated to Withdrawn and registered learners updated.`, 'success')
     }
   } catch (err) {

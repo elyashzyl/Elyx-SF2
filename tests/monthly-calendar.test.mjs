@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateMonthlyEntryTotals, hasMonthlyConsecutiveAbsences, listMonthlySchoolDays } from '../lib/monthly-calendar.js'
+import { calculateMonthlyEntryTotals, hasMonthlyConsecutiveAbsences, isStudentCountedOnDate, listMonthlySchoolDays } from '../lib/monthly-calendar.js'
 
 test('monthly school days exclude Saturdays by default but include them when enabled', () => {
   const weekdaysOnly = listMonthlySchoolDays(8, 2026)
@@ -32,6 +32,13 @@ test('excluded Saturdays remain disabled even when Saturdays are enabled', () =>
 
   assert.equal(totals.absent, 1)
   assert.equal(totals.total, 25)
+})
+
+test('transferred-out learners count before but not on or after their transfer date', () => {
+  assert.equal(isStudentCountedOnDate({ year: 2026, month: 8, day: 14, transferOutDate: '2026-08-15' }), true)
+  assert.equal(isStudentCountedOnDate({ year: 2026, month: 8, day: 15, transferOutDate: '2026-08-15' }), false)
+  assert.equal(isStudentCountedOnDate({ year: 2026, month: 8, day: 16, transferOutDate: '2026-08-15' }), false)
+  assert.equal(isStudentCountedOnDate({ year: 2026, month: 8, day: 15 }), true)
 })
 
 test('five-day absence metric requires five consecutive school dates', () => {

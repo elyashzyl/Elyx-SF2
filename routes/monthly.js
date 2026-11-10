@@ -346,6 +346,30 @@ router.get('/', async (req, res) => {
     const otherList = rawEntries.filter(e => !['male', 'female'].includes((e.student_gender || '').toLowerCase())).sort(sortAlpha)
     const entries = [...boysList, ...girlsList, ...otherList]
 
+    const transferOutDates = new Map()
+    try {
+      const studentIds = entries.map(e => e.student_id).filter(Boolean)
+      if (studentIds.length) {
+        const placeholders = studentIds.map(() => '?').join(',')
+        const monthEnd = `${record.year}-${String(record.month).padStart(2, '0')}-${String(new Date(Number(record.year), Number(record.month), 0).getDate()).padStart(2, '0')}`
+        const events = await query(`
+          SELECT student_id, effective_on
+          FROM student_enrollment_events
+          WHERE (school_id = ? OR school_id = '' OR school_id IS NULL)
+            AND event_type = 'transfer_out'
+            AND status = 'withdrawn'
+            AND effective_on <= ?
+            AND student_id IN (${placeholders})
+          ORDER BY effective_on DESC
+        `, [schoolId, monthEnd, ...studentIds])
+        for (const event of events) {
+          if (!transferOutDates.has(String(event.student_id))) {
+            transferOutDates.set(String(event.student_id), String(event.effective_on || '').slice(0, 10))
+          }
+        }
+      }
+    } catch {}
+
     record.entries = entries.map(e => ({
       id: e.id,
       studentId: e.student_id,
@@ -355,6 +379,7 @@ router.get('/', async (req, res) => {
       present: e.present,
       absent: e.absent,
       remarks: e.remarks || '',
+      transferOutDate: transferOutDates.get(String(e.student_id)) || '',
       late_enrollee: e.late_enrollee === 1 || e.late_enrollee === true || e.late_enrollee === '1'
     }))
 
@@ -701,8 +726,20 @@ router.put('/:recordId/remarks', async (req, res) => {
     }
 
     const updatedSummary = await recalculateRecordSummary(recordId)
+    let transferOutDate = ''
+    try {
+      const transferEvents = await query(`
+        SELECT effective_on
+        FROM student_enrollment_events
+        WHERE student_id = ? AND (school_id = ? OR school_id = '' OR school_id IS NULL)
+          AND event_type = 'transfer_out' AND status = 'withdrawn'
+        ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
+        LIMIT 1
+      `, [studentId, g.record.school_id])
+      transferOutDate = String(transferEvents[0]?.effective_on || '').slice(0, 10)
+    } catch {}
 
-    res.json({ success: true, withdrawn, student, summary_data: updatedSummary })
+    res.json({ success: true, withdrawn, student, transferOutDate, summary_data: updatedSummary })
   } catch (err) {
     console.error('Failed to update remarks:', err.message)
     res.status(500).json({ error: 'Failed to update remarks' })
