@@ -332,7 +332,6 @@
               <th rowspan="2" class="name-col">NAME (Last Name, First Name, Middle Name)</th>
               <th v-for="d in daysInMonth" :key="d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d), 'holiday-column': holidayLabels[d] || isHolidayCounted(d) }">
                 <div class="date-cell-head">
-                  <span v-if="holidayLabels[d]" class="holiday-column-label">{{ holidayLabels[d] }}</span>
                   <span class="date-num">{{ d }}</span>
                   <button
                     v-if="!isWeekend(d)"
@@ -372,6 +371,13 @@
             <template v-for="(group, gi) in genderGroups" :key="gi">
               <tr class="gender-sep-row">
                 <td :colspan="totalCols">{{ group.label }}</td>
+              </tr>
+              <tr v-if="gi === firstPopulatedGroupIndex" class="holiday-label-row">
+                <td colspan="2"></td>
+                <td v-for="d in daysInMonth" :key="'holiday-label-'+d" class="holiday-label-cell" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
+                  <span v-if="holidayLabels[d]" class="holiday-body-label">{{ holidayLabels[d] }}</span>
+                </td>
+                <td colspan="3"></td>
               </tr>
               <tr v-for="(entry, idx) in group.entries" :key="entry.studentId" :class="{ 'is-transferred-out': isTransferredOutRemark(entry.remarks) }">
                 <td class="no-col">{{ startNum(gi) + idx }}</td>
@@ -1049,6 +1055,7 @@ const hasCustomHolidays = computed(() => Object.keys(holidayLabels.value || {}).
 const customHolidayList = computed(() => holidayLabels.value || {})
 
 const totalCols = computed(() => daysInMonth.value + 5)
+const firstPopulatedGroupIndex = computed(() => genderGroups.value.findIndex(group => group.entries.length > 0))
 
 function normalizeGender(g) {
   if (!g) return ''
@@ -2569,16 +2576,31 @@ async function updateRemarks(entry) {
   color: var(--primary, #0c5357);
 }
 
-.holiday-column-label {
-  display: block;
-  max-width: 54px;
+.holiday-label-row td {
+  height: 76px;
+  padding: 4px 2px;
+  background: var(--muted);
+}
+
+.holiday-label-cell {
+  min-width: 32px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.holiday-body-label {
+  display: inline-block;
+  max-height: 68px;
   overflow: hidden;
   color: var(--warning, #b45309);
-  font-size: 0.58rem;
-  font-weight: 700;
-  line-height: 1.1;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.05;
   text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
 .holiday-counted-option {
