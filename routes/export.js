@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { getSettings, query } from '../db.js'
 import { requireRole, resolveScopeSchool } from './_context.js'
+import { hasConsecutiveAbsences } from '../lib/monthly-calendar.js'
 
 const router = express.Router()
 
@@ -495,7 +496,9 @@ router.post('/sf2', async (req, res) => {
     for (let ci = 0; ci < numDateCols; ci++) {
       const sd = schoolDays[ci]
       setVal(newWs, DATE_NUM_ROW, DATE_COL_START + ci, 'n', sd.day)
-      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
+      const weekdayLabel = DAY_ABBR[sd.weekday]
+      const holidayHeader = sd.holidayLabel ? `${weekdayLabel}\n${sd.holidayLabel}` : weekdayLabel
+      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', holidayHeader)
     }
 
     // ── Apply medium borders to table header cells ──
@@ -1099,8 +1102,9 @@ router.post('/sf2', async (req, res) => {
     valCols(newWs, S + 15, S + 15, pctAttM2, pctAttF2, pctAttT2)
     for (const c of [34, 35, 36, 37]) applyStyle(newWs, S + 15, c, { ...S9_VALUE_CENTER, numFmt: '0.00' })
     // Number of students absent for 5 consecutive days (rows 60-61)
-    const abs5M = maleEntriesAll.filter(e => calcEntryAbsent(e) >= 5).length
-    const abs5F = femaleEntriesAll.filter(e => calcEntryAbsent(e) >= 5).length
+    const absenceSchoolDays = schoolDays.filter(sd => !sd.isHoliday)
+    const abs5M = maleEntriesAll.filter(e => hasConsecutiveAbsences({ days: e.days || {}, schoolDays: absenceSchoolDays })).length
+    const abs5F = femaleEntriesAll.filter(e => hasConsecutiveAbsences({ days: e.days || {}, schoolDays: absenceSchoolDays })).length
     descRow(newWs, S + 16, S + 17, 'Number of students absent for 5 consecutive days', { font: { name: 'Arial', sz: 8, italic: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: THIN_BORDER })
     valCols(newWs, S + 16, S + 17, abs5M, abs5F, abs5M + abs5F)
     // NLS (row 62)

@@ -358,7 +358,8 @@
             </tr>
             <tr>
               <th v-for="d in daysInMonth" :key="'d'+d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d), 'holiday-column': holidayLabels[d] || isHolidayCounted(d) }" :title="holidayLabels[d] || (isExcluded(d) ? 'No classes' : '')">
-                {{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}
+                <span class="weekday-abbr">{{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}</span>
+                <span v-if="holidayLabels[d]" class="holiday-header-label">{{ holidayLabels[d] }}</span>
               </th>
               <th>Present</th>
               <th>Absent</th>
@@ -740,6 +741,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGradeLevels } from '../composables/useGradeLevels'
 import { useToast } from '../composables/useToast'
 import { loadPageState } from '../composables/usePageState'
+import { hasMonthlyConsecutiveAbsences } from '../../lib/monthly-calendar.js'
 
 const route = useRoute()
 const store = useAttendanceStore()
@@ -1186,9 +1188,9 @@ const summaryData = computed(() => {
       total: tReg ? Math.floor(((mPresent + fPresent) / sd / tReg) * 100 * 100) / 100 : 0
     },
     absent5: {
-      m: boys ? boys.entries.filter(e => entryAbsent(e) >= 5).length : 0,
-      f: girls ? girls.entries.filter(e => entryAbsent(e) >= 5).length : 0,
-      total: record.value.entries.filter(e => entryAbsent(e) >= 5).length
+      m: boys ? boys.entries.filter(e => hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays) })).length : 0,
+      f: girls ? girls.entries.filter(e => hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays) })).length : 0,
+      total: record.value.entries.filter(e => hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays) })).length
     }
   }
 })
@@ -1584,6 +1586,10 @@ function initSummaryEdits() {
     ? sd.holiday_labels
     : ((record.value.holiday_labels && typeof record.value.holiday_labels === 'object') ? record.value.holiday_labels : {})
   holidayLabels.value = { ...hl }
+  const hc = (sd.holiday_counted && typeof sd.holiday_counted === 'object')
+    ? sd.holiday_counted
+    : ((record.value.holiday_counted && typeof record.value.holiday_counted === 'object') ? record.value.holiday_counted : {})
+  holidayCounted.value = { ...hc }
 
   const entries = record.value.entries || []
   const mCount = entries.filter(e => normalizeGender(e.gender) === 'male').length
@@ -2531,6 +2537,23 @@ async function updateRemarks(entry) {
 
 .holiday-counted-title {
   color: var(--primary, #0c5357);
+}
+
+.weekday-abbr,
+.holiday-header-label {
+  display: block;
+}
+
+.holiday-header-label {
+  max-width: 54px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--warning, #b45309);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .holiday-counted-option {

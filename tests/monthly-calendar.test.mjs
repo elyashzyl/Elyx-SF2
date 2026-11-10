@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateMonthlyEntryTotals, listMonthlySchoolDays } from '../lib/monthly-calendar.js'
+import { calculateMonthlyEntryTotals, hasMonthlyConsecutiveAbsences, listMonthlySchoolDays } from '../lib/monthly-calendar.js'
 
 test('monthly school days exclude Saturdays by default but include them when enabled', () => {
   const weekdaysOnly = listMonthlySchoolDays(8, 2026)
@@ -32,4 +32,25 @@ test('excluded Saturdays remain disabled even when Saturdays are enabled', () =>
 
   assert.equal(totals.absent, 1)
   assert.equal(totals.total, 25)
+})
+
+test('five-day absence metric requires five consecutive school dates', () => {
+  assert.equal(hasMonthlyConsecutiveAbsences({
+    year: 2026,
+    month: 8,
+    days: { 3: 'A', 4: 'A', 5: 'A', 6: 'A', 7: 'A' }
+  }), true)
+
+  assert.equal(hasMonthlyConsecutiveAbsences({
+    year: 2026,
+    month: 8,
+    days: { 3: 'A', 4: 'A', 6: 'A', 7: 'A', 10: 'A' }
+  }), false)
+
+  assert.equal(hasMonthlyConsecutiveAbsences({
+    year: 2026,
+    month: 8,
+    days: { 3: 'A', 4: 'A', 5: 'A', 6: 'A', 7: 'A' },
+    excludedDates: [5]
+  }), false)
 })
