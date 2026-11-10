@@ -611,7 +611,7 @@ router.post('/sf2', async (req, res) => {
       for (const e of el) {
         const enrollDay = getEnrollDay(e)
         if (enrollDay !== null && dn < enrollDay) continue
-        if (!isStudentCountedOnDate({ year, month, day: dn, transferOutDate: e.transferOutDate })) continue
+        if (!isStudentCountedOnDate({ year, month, day: dn, transferOutDate: e.transferOutDate, remarks: e.remarks })) continue
         const s = e.days ? e.days[String(dn)] : null
         if (!s || s === '◤' || s === 'T' || s === 'E' || s === '1' || s === 'P') count++
         else if (s === '◢' || s === 'H') count += 0.5
@@ -805,17 +805,34 @@ router.post('/sf2', async (req, res) => {
         }
       }
 
-      // 3. Totals rows: clear numbers and keep clean borders with white background
-      const totalRows = [maleTotalRow]
-      if (femaleCount > 0) totalRows.push(femaleTotalRow)
-      totalRows.push(combinedTotalRow)
-      for (const r of totalRows) {
-        delCell(newWs, r, col)
-        applyStyle(newWs, r, col, {
-          font: { name: 'Trebuchet MS', sz: 9 },
+      // 3. Totals rows: clear numbers for uncounted holidays only
+      if (!sd.isCountedHoliday) {
+        const totalRows = [maleTotalRow]
+        if (femaleCount > 0) totalRows.push(femaleTotalRow)
+        totalRows.push(combinedTotalRow)
+        for (const r of totalRows) {
+          delCell(newWs, r, col)
+          applyStyle(newWs, r, col, {
+            font: { name: 'Trebuchet MS', sz: 9 },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: b,
+            fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+          })
+        }
+      } else {
+        const totalRows = [maleTotalRow]
+        if (femaleCount > 0) totalRows.push(femaleTotalRow)
+        for (const r of totalRows) {
+          applyStyle(newWs, r, col, {
+            font: { name: 'Trebuchet MS', sz: 9, bold: true },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: b
+          })
+        }
+        applyStyle(newWs, combinedTotalRow, col, {
+          font: { name: 'Trebuchet MS', sz: 9, bold: true },
           alignment: { horizontal: 'center', vertical: 'center' },
-          border: b,
-          fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
+          border: b
         })
       }
     }

@@ -372,29 +372,36 @@
               <tr class="gender-sep-row">
                 <td :colspan="totalCols">{{ group.label }}</td>
               </tr>
-              <tr v-if="gi === firstPopulatedGroupIndex" class="holiday-label-row">
-                <td colspan="2"></td>
-                <td v-for="d in daysInMonth" :key="'holiday-label-'+d" class="holiday-label-cell" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
-                  <span v-if="holidayLabels[d]" class="holiday-body-label">{{ holidayLabels[d] }}</span>
-                </td>
-                <td colspan="3"></td>
-              </tr>
               <tr v-for="(entry, idx) in group.entries" :key="entry.studentId" :class="{ 'is-transferred-out': isTransferredOutRemark(entry.remarks) }">
                 <td class="no-col">{{ startNum(gi) + idx }}</td>
                 <td class="name-col">{{ entry.name }}</td>
-                <td v-for="d in daysInMonth" :key="d"
-                    :class="['day-cell', { weekend: isWeekend(d), excluded: isExcluded(d) }]">
-                  <select v-if="!isDisabled(d)"
-                          :value="dayDisplay(entry, d)"
-                          @change="updateDay(entry, d, $event.target.value)"
-                          class="day-select">
-                    <option value=""></option>
-                    <option value="A">x</option>
-                    <option value="◤">◤</option>
-                    <option value="◢">◢</option>
-                    <option value="E">E</option>
-                  </select>
-                </td>
+                <template v-for="d in daysInMonth" :key="d">
+                  <td
+                    v-if="isHolidayColumn(d) && idx === 0"
+                    :rowspan="group.entries.length"
+                    class="day-cell holiday-column holiday-vertical-cell"
+                    :class="{ weekend: isWeekend(d), excluded: isExcluded(d), 'is-counted-holiday': isHolidayCounted(d) }"
+                    :title="`${getHolidayLabel(d)} (click to edit)`"
+                    @click="openEditHolidayModal(d)"
+                  >
+                    <span class="holiday-body-label">{{ getHolidayLabel(d) }}</span>
+                  </td>
+                  <td
+                    v-else-if="!isHolidayColumn(d)"
+                    :class="['day-cell', { weekend: isWeekend(d), excluded: isExcluded(d) }]"
+                  >
+                    <select v-if="!isDisabled(d)"
+                            :value="dayDisplay(entry, d)"
+                            @change="updateDay(entry, d, $event.target.value)"
+                            class="day-select">
+                      <option value=""></option>
+                      <option value="A">x</option>
+                      <option value="◤">◤</option>
+                      <option value="◢">◢</option>
+                      <option value="E">E</option>
+                    </select>
+                  </td>
+                </template>
                 <td class="total-cell present">{{ isTransferredOutRemark(entry.remarks) ? '' : Math.round(entryPresent(entry) * 10) / 10 }}</td>
                 <td class="total-cell absent">{{ isTransferredOutRemark(entry.remarks) ? '' : entryAbsent(entry) }}</td>
                 <td class="remarks-col">
@@ -1028,6 +1035,19 @@ function isHolidayCounted(d) {
   return Boolean(holidayCounted.value?.[d] || holidayCounted.value?.[String(d)])
 }
 
+function isHolidayColumn(d) {
+  if (isWeekend(d)) return false
+  return Boolean(isHolidayCounted(d) || isExcluded(d) || holidayLabels.value?.[d] || holidayLabels.value?.[String(d)])
+}
+
+function getHolidayLabel(d) {
+  if (isWeekend(d)) return ''
+  const lbl = holidayLabels.value?.[d] || holidayLabels.value?.[String(d)]
+  if (lbl) return String(lbl).trim().toUpperCase()
+  if (isExcluded(d)) return 'NO CLASSES'
+  return ''
+}
+
 function isTransferredOutRemark(remarks) {
   return /transferred\s*out/i.test(String(remarks || ''))
 }
@@ -1055,7 +1075,6 @@ const hasCustomHolidays = computed(() => Object.keys(holidayLabels.value || {}).
 const customHolidayList = computed(() => holidayLabels.value || {})
 
 const totalCols = computed(() => daysInMonth.value + 5)
-const firstPopulatedGroupIndex = computed(() => genderGroups.value.findIndex(group => group.entries.length > 0))
 
 function normalizeGender(g) {
   if (!g) return ''
@@ -2578,31 +2597,42 @@ async function updateRemarks(entry) {
   color: var(--primary, #0c5357);
 }
 
-.holiday-label-row td {
-  height: 76px;
-  padding: 4px 2px;
+.holiday-vertical-cell {
+  min-width: 32px;
+  padding: 8px 2px;
+  text-align: center;
+  vertical-align: middle;
   background: var(--muted);
+  cursor: pointer;
+  user-select: none;
 }
 
-.holiday-label-cell {
-  min-width: 32px;
-  vertical-align: middle;
-  text-align: center;
+.holiday-vertical-cell.is-counted-holiday {
+  background: rgba(12, 83, 87, 0.08);
+}
+
+.holiday-vertical-cell:hover {
+  filter: brightness(0.96);
 }
 
 .holiday-body-label {
   display: inline-block;
-  max-height: 68px;
+  max-height: 100%;
   overflow: hidden;
   color: var(--warning, #b45309);
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
+}
+
+.holiday-vertical-cell.is-counted-holiday .holiday-body-label {
+  color: var(--primary, #0c5357);
 }
 
 .holiday-counted-option {

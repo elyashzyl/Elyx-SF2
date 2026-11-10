@@ -166,6 +166,92 @@ test('SF2 export generates vertical holiday labels and preserves column continui
   assert.equal(cellMaleTotalDay2?.v, 2, 'Male Total for Day 2 must have learner count (2)')
 })
 
+test('SF2 export handles counted holiday (TEACHER\'S DAY) with vertical labels and preserves summary totals', async () => {
+  const localTemplate = path.join(projectRoot, 'templates', 'SF2.xlsx')
+  const defaultTemplate = path.join(projectRoot, 'test_final2.xlsx')
+  const tp = fs.existsSync(localTemplate) ? localTemplate : defaultTemplate
+  const wbRaw = XLSX.readFile(tp)
+  const sheetName = wbRaw.SheetNames[0]
+
+  // October 2026: Day 5 (Monday) = TEACHER'S DAY (counted as school day)
+  const payload = {
+    schoolId: testSchoolId,
+    sheetName,
+    month: 10,
+    year: 2026,
+    grade: 'Grade 7',
+    section: 'Pine',
+    adviser: 'Adviser Baguio',
+    schoolHead: 'Principal Baguio',
+    excluded_dates: [],
+    includeSaturdays: false,
+    summary_data: {
+      holiday_labels: {
+        '5': "TEACHER'S DAY"
+      },
+      holiday_counted: {
+        '5': true
+      }
+    },
+    entries: [
+      {
+        name: 'Abad, Juan',
+        gender: 'Male',
+        lrn: '123456789001',
+        days: { '1': '1', '2': '1', '6': '1', '7': '1' }
+      },
+      {
+        name: 'Cortez, Pedro',
+        gender: 'Male',
+        lrn: '123456789002',
+        days: { '1': '1', '2': '1', '6': '1', '7': '1' }
+      },
+      {
+        name: 'Del Rosario, Maria',
+        gender: 'Female',
+        lrn: '123456789003',
+        days: { '1': '1', '2': '1', '6': '1', '7': '1' }
+      }
+    ]
+  }
+
+  const response = await fetch(`${baseUrl}/api/export/sf2`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-user-id': testAdminId,
+      'x-user-role': 'admin'
+    },
+    body: JSON.stringify(payload)
+  })
+
+  assert.equal(response.status, 200)
+  const arrayBuffer = await response.arrayBuffer()
+  const exportedWb = XLSX.read(Buffer.from(arrayBuffer), { type: 'buffer', cellStyles: true })
+  const ws = exportedWb.Sheets[sheetName]
+  assert.ok(ws, 'Exported sheet must exist')
+
+  const colDay5 = dateColForDay(ws, 5)
+  assert.ok(colDay5 !== null, 'Day 5 (Teacher\'s Day) column must be present in header')
+
+  // Weekday for Oct 5, 2026 is Monday ('M')
+  const addrDay5Abbr = XLSX.utils.encode_cell({ r: 7, c: colDay5 })
+  assert.equal(ws[addrDay5Abbr]?.v, 'M', 'Day 5 must have standard weekday abbreviation M')
+
+  // Student rows must be merged with vertical text
+  const merges = ws['!merges'] || []
+  const hasMaleTeachersDayMerge = merges.some(m => m.s.c === colDay5 && m.s.r === 8 && m.e.r === 9)
+  assert.ok(hasMaleTeachersDayMerge, 'Must vertically merge Male rows for Teacher\'s Day')
+
+  const cellMaleTeachersDay = ws[XLSX.utils.encode_cell({ r: 8, c: colDay5 })]
+  assert.equal(cellMaleTeachersDay?.v, "TEACHER'S DAY")
+
+  // For counted holiday, totals row must NOT be deleted/blank (2 male learners present)
+  // Male Total Row is r:10
+  const cellMaleTotalDay5 = ws[XLSX.utils.encode_cell({ r: 10, c: colDay5 })]
+  assert.equal(cellMaleTotalDay5?.v, 2, 'Male Total for counted holiday Day 5 must preserve attendance count (2)')
+})
+
 function dateColForDay(ws, dayNum) {
   for (let c = 4; c <= 28; c++) {
     const addr = XLSX.utils.encode_cell({ r: 6, c })
