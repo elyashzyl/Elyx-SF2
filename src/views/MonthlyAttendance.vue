@@ -198,7 +198,7 @@
             type="button"
             class="sf2-btn sf2-btn--secondary add-holiday-btn"
             @click="openAddHolidayModal()"
-            title="Exclude a date as a holiday or class suspension"
+            title="Add one or more dates as a holiday or class suspension"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -659,18 +659,37 @@
     <div v-if="showHolidayModal" class="modal-overlay" @click.self="showHolidayModal = false">
       <div class="form-card modal-card" style="max-width: 480px;">
         <div class="modal-header-compact">
-          <h3>{{ holidayForm.isEditing ? 'Edit Holiday / Suspension' : 'Exclude Holiday or Class Suspension' }}</h3>
-          <p class="modal-subtext">Choose whether this holiday is excluded from school-day and attendance totals.</p>
+          <h3>{{ holidayForm.isEditing ? 'Edit Holiday / Suspension' : 'Add Holiday / Class Suspension' }}</h3>
+          <p class="modal-subtext">Choose one or more dates, then decide whether they are excluded from school-day and attendance totals.</p>
         </div>
 
         <form @submit.prevent="submitHolidayModal" style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
           <div class="form-group">
-            <label>Day of Month (1 - {{ daysInMonth }})</label>
-            <select v-model.number="holidayForm.day" required :disabled="holidayForm.isEditing">
-              <option v-for="d in daysInMonth" :key="d" :value="d">
-                Day {{ d }} ({{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}){{ isWeekend(d) ? ' - Weekend' : '' }}{{ isExcluded(d) ? ' (Currently Excluded)' : '' }}
+            <label>{{ holidayForm.isEditing ? 'Day of Month' : 'Days of Month (select one or more)' }}</label>
+            <select
+              v-if="holidayForm.isEditing"
+              v-model.number="holidayForm.day"
+              required
+              disabled
+            >
+              <option :value="holidayForm.day">
+                Day {{ holidayForm.day }} ({{ dayLabels[(new Date(form.year, form.month - 1, holidayForm.day)).getDay()] }})
               </option>
             </select>
+            <select
+              v-else
+              v-model="holidayForm.days"
+              required
+              multiple
+              size="6"
+              class="holiday-days-select"
+              aria-describedby="holiday-days-help"
+            >
+              <option v-for="d in daysInMonth" :key="d" :value="d">
+                Day {{ d }} ({{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}){{ isWeekend(d) ? ' - Weekend' : '' }}{{ isExcluded(d) || isHolidayCounted(d) ? ' (Already marked)' : '' }}
+              </option>
+            </select>
+            <small v-if="!holidayForm.isEditing" id="holiday-days-help" class="form-help">Hold Ctrl (Windows) or Command (Mac) to select multiple dates.</small>
           </div>
 
           <div class="form-group">
@@ -710,7 +729,7 @@
           <div class="form-actions" style="margin-top: 10px; display: flex; justify-content: space-between; gap: 8px;">
             <div style="display: flex; gap: 8px;">
               <button type="submit" class="sf2-btn sf2-btn--primary" :disabled="savingHoliday">
-                <span>{{ savingHoliday ? 'Saving…' : (holidayForm.isEditing ? 'Update Holiday' : 'Exclude Date') }}</span>
+                <span>{{ savingHoliday ? 'Saving…' : (holidayForm.isEditing ? 'Update Holiday' : 'Add Holiday') }}</span>
               </button>
               <button
                 v-if="holidayForm.isEditing"
@@ -814,7 +833,7 @@ const holidayLabels = ref({})
 const holidayCounted = ref({})
 const showHolidayModal = ref(false)
 const savingHoliday = ref(false)
-const holidayForm = reactive({ day: 1, label: '', isCounted: false, isEditing: false })
+const holidayForm = reactive({ day: 1, days: [], label: '', isCounted: false, isEditing: false })
 const summaryEdits = reactive({ enr_m: 0, enr_f: 0, enr_t: 0, late_m: 0, late_f: 0, late_t: 0, reg_m: 0, reg_f: 0, reg_t: 0, pct_enr_m: 0, pct_enr_f: 0, pct_enr_t: 0, ada_m: 0, ada_f: 0, ada_t: 0, pct_m: 0, pct_f: 0, pct_t: 0, abs5_m: 0, abs5_f: 0, abs5_t: 0, nls_m: 0, nls_f: 0, nls_t: 0, transfer_out_m: 0, transfer_out_f: 0, transfer_out_t: 0, transfer_in_m: 0, transfer_in_f: 0, transfer_in_t: 0 })
 
 async function onSchoolChange() {
@@ -1420,6 +1439,7 @@ function resetSchoolDays() {
 function openAddHolidayModal(preferredDay) {
   holidayForm.isEditing = false
   holidayForm.day = preferredDay || 1
+  holidayForm.days = preferredDay ? [Number(preferredDay)] : []
   holidayForm.label = ''
   holidayForm.isCounted = false
   showHolidayModal.value = true
@@ -1445,22 +1465,31 @@ async function submitHolidayModal() {
   if (!record.value) return
   savingHoliday.value = true
   try {
-    const day = Number(holidayForm.day)
+    const selectedDays = holidayForm.isEditing ? [Number(holidayForm.day)] : (holidayForm.days || []).map(Number).filter(Number.isInteger)
+    const days = Array.from(new Set(selectedDays)).sort((a, b) => a - b)
+    if (!days.length) {
+      throw new Error('Select at least one date for the holiday')
+    }
     const label = (holidayForm.label || '').trim() || 'Holiday'
     const counted = Boolean(holidayForm.isCounted)
+    const selectedSet = new Set(days)
     const excluded = counted
-      ? (record.value.excluded_dates || []).filter(x => Number(x) !== day)
-      : Array.from(new Set([...(record.value.excluded_dates || []), day])).sort((a, b) => a - b)
+      ? (record.value.excluded_dates || []).filter(x => !selectedSet.has(Number(x)))
+      : Array.from(new Set([...(record.value.excluded_dates || []), ...days])).sort((a, b) => a - b)
 
-    holidayLabels.value[day] = label
-    if (counted) holidayCounted.value[day] = true
-    else delete holidayCounted.value[day]
+    for (const day of days) {
+      holidayLabels.value[day] = label
+      if (counted) holidayCounted.value[day] = true
+      else delete holidayCounted.value[day]
+    }
 
     if (!counted && record.value.entries) {
       for (const entry of record.value.entries) {
-        if (entry.days && entry.days[day]) {
-          delete entry.days[day]
-          await store.updateMonthlyEntry(record.value.id, entry.studentId, day, '', auth.user?.id, auth.user?.role)
+        for (const day of days) {
+          if (entry.days && entry.days[day]) {
+            delete entry.days[day]
+            await store.updateMonthlyEntry(record.value.id, entry.studentId, day, '', auth.user?.id, auth.user?.role)
+          }
         }
       }
     }
@@ -1505,7 +1534,8 @@ async function submitHolidayModal() {
 
     showHolidayModal.value = false
     refreshSummaryFromLive(true)
-    notify(counted ? `Day ${day} (${label}) will be counted as a school day.` : `Day ${day} (${label}) excluded from school days.`, 'success')
+    const daySummary = days.length === 1 ? `Day ${days[0]}` : `Days ${days.join(', ')}`
+    notify(counted ? `${daySummary} (${label}) will be counted as school days.` : `${daySummary} (${label}) excluded from school days.`, 'success')
   } catch (err) {
     notify(err.message || 'Failed to update holiday', 'error')
   } finally {
@@ -2593,6 +2623,23 @@ async function updateRemarks(entry) {
 .holiday-counted-option input,
 .event-counted-option input {
   accent-color: var(--primary);
+}
+
+.holiday-days-select {
+  width: 100%;
+  min-height: 132px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.82rem;
+}
+
+.holiday-days-select:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--primary-bg);
+  outline: none;
 }
 
 .holiday-label-input {
