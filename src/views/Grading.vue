@@ -122,7 +122,18 @@
           </div>
 
           <div class="form-group">
-            <label>Subject</label>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label>Subject</label>
+              <button
+                v-if="auth.isAdmin"
+                type="button"
+                class="btn-text-sm"
+                @click="openAddSubjectModal"
+                title="Add a new subject"
+              >
+                + Add Subject
+              </button>
+            </div>
             <select v-model="filter.subjectId" class="form-select">
               <option value="">Select Subject</option>
               <option v-for="sub in subjectList" :key="sub.id" :value="sub.id">
@@ -1352,28 +1363,64 @@
     <!-- ======================================================== -->
     <!-- ADD / EDIT SUBJECT MODAL -->
     <!-- ======================================================== -->
-    <div v-if="showSubjectModal" class="modal-overlay" @click.self="showSubjectModal = false">
-      <div class="form-card modal-card">
-        <h3>{{ subjectForm.id ? 'Edit Subject' : 'Add New Subject' }}</h3>
-        <p class="sub-text">Assessment weights must sum up exactly to 100%.</p>
+    <div v-if="showSubjectModal" class="modal-overlay" @click.self="closeSubjectModal" @keydown.esc="closeSubjectModal" tabindex="-1">
+      <div class="form-card modal-card" role="dialog" aria-modal="true" aria-labelledby="grading-subject-modal-title">
+        <div class="modal-header-row">
+          <div>
+            <h3 id="grading-subject-modal-title">{{ subjectForm.id ? 'Edit Subject' : 'Add New Subject' }}</h3>
+            <p class="sub-text">Assessment weights must sum up exactly to 100%.</p>
+          </div>
+          <button type="button" class="modal-close-btn" @click="closeSubjectModal" aria-label="Close modal">&times;</button>
+        </div>
 
         <form @submit.prevent="submitSubjectForm" class="modal-form">
           <div class="form-group">
-            <label>Subject Name</label>
+            <label>Subject Name <span class="required">*</span></label>
             <input v-model="subjectForm.name" required class="form-input" placeholder="e.g. Mathematics" />
           </div>
 
-          <div class="form-group">
-            <label>Subject Code</label>
-            <input v-model="subjectForm.code" class="form-input" placeholder="e.g. MATH" />
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Subject Code</label>
+              <input 
+                v-model="subjectForm.code" 
+                class="form-input" 
+                placeholder="e.g. MATH" 
+                @input="subjectForm.code = (subjectForm.code || '').toUpperCase()"
+              />
+            </div>
+            <div class="form-group">
+              <label>Display Order</label>
+              <input 
+                type="number"
+                min="0"
+                v-model.number="subjectForm.displayOrder" 
+                class="form-input" 
+                placeholder="0"
+              />
+            </div>
           </div>
 
           <div class="form-group">
-            <label>Grade Level</label>
-            <select v-model="subjectForm.gradeLevel" required class="form-select">
-              <option value="">Select Grade Level</option>
-              <option v-for="g in grades" :key="g" :value="g">{{ g }}</option>
+            <label>Grade Level <span class="required">*</span></label>
+            <select v-if="allGradeOptions.length && !isGradingCustomGrade" v-model="subjectForm.gradeLevel" required class="form-select">
+              <option value="" disabled>Select Grade Level</option>
+              <option v-for="g in allGradeOptions" :key="g" :value="g">{{ g }}</option>
             </select>
+            <input v-else v-model="subjectForm.gradeLevel" required class="form-input" placeholder="e.g. Grade 7" />
+            <div v-if="allGradeOptions.length" class="custom-grade-toggle">
+              <button type="button" class="btn-text-sm" @click="toggleGradingCustomGrade">
+                {{ isGradingCustomGrade ? '← Pick from existing grade levels' : '+ Enter new / custom grade level' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Presets -->
+          <div class="preset-buttons-row">
+            <span class="preset-label">Presets:</span>
+            <button type="button" class="preset-btn" @click="applyGradingPreset(30, 50, 20)">Languages/AP (30-50-20)</button>
+            <button type="button" class="preset-btn" @click="applyGradingPreset(40, 40, 20)">Math/Sci (40-40-20)</button>
+            <button type="button" class="preset-btn" @click="applyGradingPreset(20, 60, 20)">MAPEH/TLE (20-60-20)</button>
           </div>
 
           <div class="form-row weights-row">
@@ -1407,11 +1454,12 @@
             <button
               type="submit"
               class="btn-primary"
-              :disabled="savingSubject || subjectFormTotalWeight !== 100"
+              :disabled="savingSubject || subjectFormTotalWeight !== 100 || !String(subjectForm.name || '').trim() || !String(subjectForm.gradeLevel || '').trim()"
             >
+              <span v-if="savingSubject" class="spinner-sm" style="margin-right: 6px;"></span>
               {{ savingSubject ? 'Saving…' : (subjectForm.id ? 'Save Changes' : 'Create Subject') }}
             </button>
-            <button type="button" class="btn-secondary" @click="showSubjectModal = false">
+            <button type="button" class="btn-secondary" @click="closeSubjectModal" :disabled="savingSubject">
               Cancel
             </button>
           </div>
@@ -1516,11 +1564,13 @@ const subjectFilterGrade = ref('')
 const seedingDefaults = ref(false)
 const showSubjectModal = ref(false)
 const savingSubject = ref(false)
+const isGradingCustomGrade = ref(false)
 const subjectForm = reactive({
   id: '',
   name: '',
   code: '',
   gradeLevel: '',
+  displayOrder: 0,
   weightWw: 30,
   weightPt: 50,
   weightQa: 20
@@ -1528,6 +1578,17 @@ const subjectForm = reactive({
 
 const subjectFormTotalWeight = computed(() => {
   return (Number(subjectForm.weightWw) || 0) + (Number(subjectForm.weightPt) || 0) + (Number(subjectForm.weightQa) || 0)
+})
+
+const allGradeOptions = computed(() => {
+  const set = new Set(grades.value || [])
+  for (const s of subjectList.value) {
+    if (s.grade_level) set.add(s.grade_level)
+  }
+  if (subjectForm.gradeLevel && !isGradingCustomGrade.value) {
+    set.add(subjectForm.gradeLevel)
+  }
+  return Array.from(set).filter(Boolean)
 })
 
 // Form 138 State
@@ -1896,11 +1957,34 @@ async function saveGradeSheet() {
 // -------------------------------------------------------------------
 // TAB 2: SUBJECT SETUP HANDLERS
 // -------------------------------------------------------------------
+function toggleGradingCustomGrade() {
+  isGradingCustomGrade.value = !isGradingCustomGrade.value
+  if (!isGradingCustomGrade.value && allGradeOptions.value.length) {
+    if (!allGradeOptions.value.includes(subjectForm.gradeLevel)) {
+      subjectForm.gradeLevel = allGradeOptions.value[0] || ''
+    }
+  }
+}
+
+function applyGradingPreset(ww, pt, qa) {
+  subjectForm.weightWw = ww
+  subjectForm.weightPt = pt
+  subjectForm.weightQa = qa
+}
+
+function closeSubjectModal() {
+  showSubjectModal.value = false
+  isGradingCustomGrade.value = false
+}
+
 function openAddSubjectModal() {
   subjectForm.id = ''
   subjectForm.name = ''
   subjectForm.code = ''
-  subjectForm.gradeLevel = subjectFilterGrade.value || (grades.value[0] || '')
+  isGradingCustomGrade.value = false
+  const defaultGrade = (activeTab.value === 'encoding' ? filter.grade : subjectFilterGrade.value) || (allGradeOptions.value && allGradeOptions.value[0]) || ''
+  subjectForm.gradeLevel = defaultGrade
+  subjectForm.displayOrder = subjectList.value.length ? (subjectList.value.length + 1) * 10 : 0
   subjectForm.weightWw = 30
   subjectForm.weightPt = 50
   subjectForm.weightQa = 20
@@ -1909,20 +1993,40 @@ function openAddSubjectModal() {
 
 function openEditSubjectModal(sub) {
   subjectForm.id = sub.id
-  subjectForm.name = sub.subject_name
+  subjectForm.name = sub.subject_name || ''
   subjectForm.code = sub.subject_code || ''
-  subjectForm.gradeLevel = sub.grade_level
-  subjectForm.weightWw = sub.weight_ww
-  subjectForm.weightPt = sub.weight_pt
-  subjectForm.weightQa = sub.weight_qa
+  subjectForm.gradeLevel = sub.grade_level || ''
+  isGradingCustomGrade.value = Boolean(
+    allGradeOptions.value.length && sub.grade_level && !allGradeOptions.value.includes(sub.grade_level)
+  )
+  subjectForm.displayOrder = Number(sub.display_order) || 0
+  subjectForm.weightWw = Number(sub.weight_ww) ?? 30
+  subjectForm.weightPt = Number(sub.weight_pt) ?? 50
+  subjectForm.weightQa = Number(sub.weight_qa) ?? 20
   showSubjectModal.value = true
 }
 
 async function submitSubjectForm() {
-  if (subjectFormTotalWeight.value !== 100) {
-    notify('Weights must sum up to exactly 100%', 'error')
+  const name = String(subjectForm.name || '').trim()
+  const grade = String(subjectForm.gradeLevel || '').trim()
+
+  if (!name) {
+    notify('Subject name is required', 'error')
     return
   }
+  if (!grade) {
+    notify('Grade level is required', 'error')
+    return
+  }
+  if (subjectFormTotalWeight.value !== 100) {
+    notify('Assessment weights must sum up to exactly 100%', 'error')
+    return
+  }
+  if (auth.isSuperadmin && !effectiveSchoolId.value) {
+    notify('Please select a school first', 'error')
+    return
+  }
+
   savingSubject.value = true
   try {
     const isEdit = Boolean(subjectForm.id)
@@ -1931,12 +2035,13 @@ async function submitSubjectForm() {
 
     const body = {
       schoolId: effectiveSchoolId.value || undefined,
-      subjectName: subjectForm.name,
-      subjectCode: subjectForm.code,
-      gradeLevel: subjectForm.gradeLevel,
-      weightWw: subjectForm.weightWw,
-      weightPt: subjectForm.weightPt,
-      weightQa: subjectForm.weightQa
+      subjectName: name,
+      subjectCode: (subjectForm.code || name.slice(0, 6)).toUpperCase().trim(),
+      gradeLevel: grade,
+      displayOrder: Number(subjectForm.displayOrder) || 0,
+      weightWw: Number(subjectForm.weightWw) || 0,
+      weightPt: Number(subjectForm.weightPt) || 0,
+      weightQa: Number(subjectForm.weightQa) || 0
     }
 
     const res = await fetch(url, {
@@ -1952,6 +2057,14 @@ async function submitSubjectForm() {
 
     notify(isEdit ? 'Subject updated' : 'Subject created', 'success')
     showSubjectModal.value = false
+    isGradingCustomGrade.value = false
+
+    if (activeTab.value === 'encoding' && filter.grade === grade && data.subject?.id) {
+      filter.subjectId = data.subject.id
+    }
+    if (activeTab.value === 'subjects' && subjectFilterGrade.value && subjectFilterGrade.value !== grade) {
+      subjectFilterGrade.value = grade
+    }
     await loadSubjects()
   } catch (err) {
     notify(err.message || 'Error saving subject', 'error')
@@ -2492,10 +2605,49 @@ function getDistPct(count) {
   justify-content: center;
   z-index: 1000;
   padding: 16px;
+  backdrop-filter: blur(6px);
+  animation: fade-in 0.16s ease;
 }
 .modal-card {
-  max-width: 500px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  max-width: 520px;
   width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  animation: modal-up 0.18s ease;
+}
+.modal-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-header-row h3 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.modal-close-btn:hover {
+  color: var(--foreground);
+  background: var(--secondary);
 }
 .modal-form {
   display: flex;
@@ -2507,6 +2659,58 @@ function getDistPct(count) {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+}
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+.required {
+  color: var(--destructive);
+}
+.custom-grade-toggle {
+  margin-top: 4px;
+}
+.btn-text-sm {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.btn-text-sm:hover {
+  opacity: 0.8;
+}
+.preset-buttons-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.preset-label {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+.preset-btn {
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.preset-btn:hover {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 .weight-total-indicator {
   display: flex;
@@ -2522,6 +2726,18 @@ function getDistPct(count) {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.spinner-sm {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
 }
 
 /* ======================================================== */

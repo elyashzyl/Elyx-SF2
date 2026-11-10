@@ -67,10 +67,10 @@ router.post('/subjects', async (req, res) => {
     const gradeLevel = String(req.body?.gradeLevel || '').trim()
     const subjectName = String(req.body?.subjectName || '').trim()
     const subjectCode = String(req.body?.subjectCode || '').trim()
-    const weightWw = parseInt(req.body?.weightWw ?? 30, 10)
-    const weightPt = parseInt(req.body?.weightPt ?? 50, 10)
-    const weightQa = parseInt(req.body?.weightQa ?? 20, 10)
-    const displayOrder = parseInt(req.body?.displayOrder ?? 0, 10)
+    const weightWw = Number.isFinite(Number(req.body?.weightWw)) ? Math.round(Number(req.body.weightWw)) : 30
+    const weightPt = Number.isFinite(Number(req.body?.weightPt)) ? Math.round(Number(req.body.weightPt)) : 50
+    const weightQa = Number.isFinite(Number(req.body?.weightQa)) ? Math.round(Number(req.body.weightQa)) : 20
+    const displayOrder = Number.isFinite(Number(req.body?.displayOrder)) ? Math.round(Number(req.body.displayOrder)) : 0
 
     if (!subjectName) {
       return res.status(400).json({ error: 'Subject name is required' })
@@ -189,10 +189,10 @@ router.put('/subjects/:id', async (req, res) => {
     const subjectName = req.body?.subjectName !== undefined ? String(req.body.subjectName).trim() : current.subject_name
     const subjectCode = req.body?.subjectCode !== undefined ? String(req.body.subjectCode).trim() : current.subject_code
     const gradeLevel = req.body?.gradeLevel !== undefined ? String(req.body.gradeLevel).trim() : current.grade_level
-    const weightWw = req.body?.weightWw !== undefined ? parseInt(req.body.weightWw, 10) : current.weight_ww
-    const weightPt = req.body?.weightPt !== undefined ? parseInt(req.body.weightPt, 10) : current.weight_pt
-    const weightQa = req.body?.weightQa !== undefined ? parseInt(req.body.weightQa, 10) : current.weight_qa
-    const displayOrder = req.body?.displayOrder !== undefined ? parseInt(req.body.displayOrder, 10) : current.display_order
+    const weightWw = req.body?.weightWw !== undefined && Number.isFinite(Number(req.body.weightWw)) ? Math.round(Number(req.body.weightWw)) : current.weight_ww
+    const weightPt = req.body?.weightPt !== undefined && Number.isFinite(Number(req.body.weightPt)) ? Math.round(Number(req.body.weightPt)) : current.weight_pt
+    const weightQa = req.body?.weightQa !== undefined && Number.isFinite(Number(req.body.weightQa)) ? Math.round(Number(req.body.weightQa)) : current.weight_qa
+    const displayOrder = req.body?.displayOrder !== undefined && Number.isFinite(Number(req.body.displayOrder)) ? Math.round(Number(req.body.displayOrder)) : current.display_order
 
     if (!subjectName) {
       return res.status(400).json({ error: 'Subject name cannot be empty' })

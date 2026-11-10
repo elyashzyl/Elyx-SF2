@@ -366,8 +366,8 @@
     </div>
 
     <!-- Modal: Add / Edit Subject -->
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-card subject-modal-card">
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal" @keydown.esc="closeModal" tabindex="-1">
+      <div class="modal-card subject-modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-subject-title">
         <div class="modal-header">
           <div class="modal-header-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -375,7 +375,7 @@
             </svg>
           </div>
           <div>
-            <h3>{{ editingSubjectId ? 'Edit Curriculum Subject' : 'Add Curriculum Subject' }}</h3>
+            <h3 id="modal-subject-title">{{ editingSubjectId ? 'Edit Curriculum Subject' : 'Add Curriculum Subject' }}</h3>
             <p>{{ editingSubjectId ? 'Update learning area details and assessment weights.' : 'Create a new subject and configure DepEd assessment weights.' }}</p>
           </div>
           <button @click="closeModal" type="button" class="modal-close-btn" aria-label="Close modal">&times;</button>
@@ -400,7 +400,7 @@
                 type="text" 
                 class="form-input" 
                 placeholder="e.g. MATH, ENG"
-                @input="form.subjectCode = form.subjectCode.toUpperCase()"
+                @input="form.subjectCode = (form.subjectCode || '').toUpperCase()"
               />
             </div>
           </div>
@@ -408,9 +408,9 @@
           <div class="form-row">
             <div class="form-group flex-2">
               <label>Grade Level <span class="required">*</span></label>
-              <select v-if="schoolGradeOptions.length" v-model="form.gradeLevel" class="form-select" required>
+              <select v-if="allGradeOptions.length && !isCustomGrade" v-model="form.gradeLevel" class="form-select" required>
                 <option value="" disabled>Select grade level</option>
-                <option v-for="g in schoolGradeOptions" :key="g" :value="g">{{ g }}</option>
+                <option v-for="g in allGradeOptions" :key="g" :value="g">{{ g }}</option>
               </select>
               <input 
                 v-else 
@@ -420,6 +420,11 @@
                 placeholder="e.g. Grade 7" 
                 required
               />
+              <div v-if="allGradeOptions.length" class="custom-grade-toggle">
+                <button type="button" class="btn-text-sm" @click="toggleCustomGrade">
+                  {{ isCustomGrade ? '← Pick from existing grade levels' : '+ Enter new / custom grade level' }}
+                </button>
+              </div>
             </div>
             <div class="form-group flex-1">
               <label>Display Order</label>
@@ -480,7 +485,7 @@
               <div class="weight-input-box">
                 <div class="weight-box-header">
                   <span class="weight-box-title">Written Works (WW)</span>
-                  <span class="weight-box-val">{{ form.weightWw }}%</span>
+                  <span class="weight-box-val">{{ form.weightWw ?? 0 }}%</span>
                 </div>
                 <input 
                   type="range" 
@@ -502,7 +507,7 @@
               <div class="weight-input-box">
                 <div class="weight-box-header">
                   <span class="weight-box-title">Performance Tasks (PT)</span>
-                  <span class="weight-box-val">{{ form.weightPt }}%</span>
+                  <span class="weight-box-val">{{ form.weightPt ?? 0 }}%</span>
                 </div>
                 <input 
                   type="range" 
@@ -524,7 +529,7 @@
               <div class="weight-input-box">
                 <div class="weight-box-header">
                   <span class="weight-box-title">Quarterly Assessment (QA)</span>
-                  <span class="weight-box-val">{{ form.weightQa }}%</span>
+                  <span class="weight-box-val">{{ form.weightQa ?? 0 }}%</span>
                 </div>
                 <input 
                   type="range" 
@@ -556,8 +561,9 @@
             <button 
               type="submit" 
               class="btn-primary" 
-              :disabled="savingSubject || weightSum !== 100 || !form.subjectName.trim()"
+              :disabled="savingSubject || weightSum !== 100 || !String(form.subjectName || '').trim() || !String(form.gradeLevel || '').trim()"
             >
+              <span v-if="savingSubject" class="spinner-sm" style="margin-right: 6px;"></span>
               {{ savingSubject ? 'Saving…' : (editingSubjectId ? 'Update Subject' : 'Create Subject') }}
             </button>
           </div>
@@ -654,6 +660,7 @@ const showModal = ref(false)
 const editingSubjectId = ref(null)
 const savingSubject = ref(false)
 const modalError = ref('')
+const isCustomGrade = ref(false)
 
 const showSeedModal = ref(false)
 const seedTargetGrade = ref('all')
@@ -700,6 +707,17 @@ const coveredGradesCount = computed(() => {
   return set.size
 })
 
+const allGradeOptions = computed(() => {
+  const set = new Set(schoolGradeOptions.value)
+  for (const s of subjects.value) {
+    if (s.grade_level) set.add(s.grade_level)
+  }
+  if (form.value.gradeLevel && !isCustomGrade.value) {
+    set.add(form.value.gradeLevel)
+  }
+  return Array.from(set).filter(Boolean)
+})
+
 const compliantWeightsCount = computed(() => {
   return subjects.value.filter(s => (s.weight_ww + s.weight_pt + s.weight_qa) === 100).length
 })
@@ -736,6 +754,15 @@ function applyPreset(ww, pt, qa) {
   form.value.weightQa = qa
 }
 
+function toggleCustomGrade() {
+  isCustomGrade.value = !isCustomGrade.value
+  if (!isCustomGrade.value && allGradeOptions.value.length) {
+    if (!allGradeOptions.value.includes(form.value.gradeLevel)) {
+      form.value.gradeLevel = allGradeOptions.value[0] || ''
+    }
+  }
+}
+
 async function loadSchoolGrades() {
   const sid = effectiveSchoolId()
   if (!sid) {
@@ -747,9 +774,12 @@ async function loadSchoolGrades() {
       userId: auth.user?.id || '',
       userRole: auth.user?.role || ''
     })
-    const res = await fetch(`/api/schools/${sid}/grades?${params}`)
+    const res = await fetch(`/api/schools/${sid}/grades?${params}`, {
+      headers: auth.actorHeaders()
+    })
+    if (!res.ok) throw new Error('Failed to load grades')
     const data = await res.json()
-    const grades = Array.isArray(data) ? data.map(g => g.grade).filter(Boolean) : []
+    const grades = Array.isArray(data) ? data.map(g => (typeof g === 'string' ? g : g.grade)).filter(Boolean) : []
     schoolGradeOptions.value = grades
   } catch (err) {
     console.error('Failed to load school grade levels:', err)
@@ -819,10 +849,12 @@ async function onSchoolChange() {
 function openAddModal() {
   editingSubjectId.value = null
   modalError.value = ''
+  isCustomGrade.value = false
+  const defaultGrade = filterGradeLevel.value || allGradeOptions.value[0] || schoolGradeOptions.value[0] || ''
   form.value = {
     subjectName: '',
     subjectCode: '',
-    gradeLevel: filterGradeLevel.value || schoolGradeOptions.value[0] || '',
+    gradeLevel: defaultGrade,
     weightWw: 30,
     weightPt: 50,
     weightQa: 20,
@@ -834,6 +866,7 @@ function openAddModal() {
 function openEditModal(sub) {
   editingSubjectId.value = sub.id
   modalError.value = ''
+  isCustomGrade.value = false
   form.value = {
     subjectName: sub.subject_name || '',
     subjectCode: sub.subject_code || '',
@@ -850,12 +883,20 @@ function closeModal() {
   showModal.value = false
   editingSubjectId.value = null
   modalError.value = ''
+  isCustomGrade.value = false
 }
 
 async function saveSubject() {
   modalError.value = ''
-  if (!form.value.subjectName.trim()) {
+  const name = String(form.value.subjectName || '').trim()
+  const grade = String(form.value.gradeLevel || '').trim()
+
+  if (!name) {
     modalError.value = 'Subject name is required.'
+    return
+  }
+  if (!grade) {
+    modalError.value = 'Grade level is required.'
     return
   }
   if (weightSum.value !== 100) {
@@ -864,6 +905,11 @@ async function saveSubject() {
   }
 
   const sid = effectiveSchoolId()
+  if (!sid && auth.isSuperadmin) {
+    modalError.value = 'Please select a school first.'
+    return
+  }
+
   savingSubject.value = true
   try {
     const isEdit = Boolean(editingSubjectId.value)
@@ -871,14 +917,14 @@ async function saveSubject() {
     const method = isEdit ? 'PUT' : 'POST'
 
     const payload = {
-      schoolId: sid,
-      gradeLevel: form.value.gradeLevel.trim(),
-      subjectName: form.value.subjectName.trim(),
-      subjectCode: (form.value.subjectCode || form.value.subjectName.slice(0, 6)).toUpperCase().trim(),
-      weightWw: form.value.weightWw,
-      weightPt: form.value.weightPt,
-      weightQa: form.value.weightQa,
-      displayOrder: form.value.displayOrder
+      schoolId: sid || undefined,
+      gradeLevel: grade,
+      subjectName: name,
+      subjectCode: (form.value.subjectCode || name.slice(0, 6)).toUpperCase().trim(),
+      weightWw: Number(form.value.weightWw) || 0,
+      weightPt: Number(form.value.weightPt) || 0,
+      weightQa: Number(form.value.weightQa) || 0,
+      displayOrder: Number(form.value.displayOrder) || 0
     }
 
     const res = await fetch(url, {
@@ -955,7 +1001,7 @@ async function runSeedDefaults() {
 onMounted(async () => {
   if (auth.isSuperadmin) {
     schoolsList.value = await auth.getSchools()
-    selectedSchoolId.value = auth.schoolId || schoolsList.value[0]?.id || ''
+    selectedSchoolId.value = selectedSchoolId.value || auth.schoolId || schoolsList.value[0]?.id || ''
   } else {
     selectedSchoolId.value = auth.schoolId || ''
     schoolsList.value = auth.school ? [auth.school] : []
@@ -1461,6 +1507,30 @@ watch(() => route.query.gradeLevel, (newGrade) => {
   z-index: 1000;
   padding: 16px;
   backdrop-filter: blur(6px);
+  animation: fade-in 0.16s ease;
+}
+
+.modal-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: modal-up 0.18s ease;
+}
+
+@keyframes modal-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .subject-modal-card {
@@ -1675,7 +1745,40 @@ watch(() => route.query.gradeLevel, (newGrade) => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 6px;
+  margin-top: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.custom-grade-toggle {
+  margin-top: 4px;
+}
+
+.btn-text-sm {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-text-sm:hover {
+  opacity: 0.8;
+}
+
+.spinner-sm {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
 }
 
 /* Seed Preview Box */
