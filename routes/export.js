@@ -558,11 +558,9 @@ router.post('/sf2', async (req, res) => {
     }
 
     // Compute row positions:
-    //   optional holiday labels → male students → BOYS TOTAL → female students → GIRLS TOTAL → COMBINED TOTAL
-    // Student data starts at row 8 (Excel Row 9), or row 9 when counted
-    // holidays need a dedicated label row so attendance cells remain intact.
-    const countedHolidayLabelRow = schoolDays.some(sd => sd.isCountedHoliday) ? 8 : -1
-    let nextRow = countedHolidayLabelRow >= 0 ? countedHolidayLabelRow + 1 : 8
+    //   male students → BOYS TOTAL → female students → GIRLS TOTAL → COMBINED TOTAL
+    // Student data starts at row 8 (Excel Row 9).
+    let nextRow = 8
     const maleSectionStart = nextRow
     nextRow += maleCount
     const maleSectionEnd = nextRow - 1
@@ -767,28 +765,10 @@ router.post('/sf2', async (req, res) => {
       }
     }
 
-    // ── Add counted holiday labels without overwriting attendance cells ──
-    if (countedHolidayLabelRow >= 0) {
-      for (let c = 0; c <= 37; c++) applyStyle(newWs, countedHolidayLabelRow, c, DATA_STYLE)
-      for (let ci = 0; ci < numDateCols; ci++) {
-        const sd = schoolDays[ci]
-        if (!sd.isCountedHoliday) continue
-        const col = dateColMap[sd.day]
-        const label = sd.holidayLabel || 'NO CLASSES'
-        setVal(newWs, countedHolidayLabelRow, col, 's', label)
-        applyStyle(newWs, countedHolidayLabelRow, col, {
-          font: { name: 'Trebuchet MS', sz: 10, bold: true },
-          alignment: { textRotation: 90, horizontal: 'center', vertical: 'center', wrapText: true },
-          border: dateBorder(ci),
-          fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' }
-        })
-      }
-    }
-
     // ── Apply Holiday & Suspension columns with vertical labels across student rows ──
     for (let ci = 0; ci < numDateCols; ci++) {
       const sd = schoolDays[ci]
-      if (!sd.isHoliday) continue
+      if (!sd.isHoliday && !sd.isCountedHoliday) continue
       const col = dateColMap[sd.day]
       const label = sd.holidayLabel || 'NO CLASSES'
       const b = dateBorder(ci)
@@ -903,7 +883,6 @@ router.post('/sf2', async (req, res) => {
 
     // Set row heights for all data rows (30px to match column width for square cells)
     const rows = []
-    if (countedHolidayLabelRow >= 0) rows[countedHolidayLabelRow] = { hpt: 76 }
     for (let r = maleSectionStart; r <= combinedTotalRow; r++) rows[r] = { hpt: 26.25 }
     newWs['!rows'] = rows
 
