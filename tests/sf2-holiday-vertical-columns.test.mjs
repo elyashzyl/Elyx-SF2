@@ -183,7 +183,8 @@ test('SF2 export handles counted holiday (TEACHER\'S DAY) with vertical labels a
     section: 'Pine',
     adviser: 'Adviser Baguio',
     schoolHead: 'Principal Baguio',
-    excluded_dates: [],
+    // Even if day 5 was in excluded_dates, holiday_counted overrides it to count as a school day
+    excluded_dates: [5],
     includeSaturdays: false,
     summary_data: {
       holiday_labels: {
@@ -246,10 +247,17 @@ test('SF2 export handles counted holiday (TEACHER\'S DAY) with vertical labels a
   const cellMaleTeachersDay = ws[XLSX.utils.encode_cell({ r: 8, c: colDay5 })]
   assert.equal(cellMaleTeachersDay?.v, "TEACHER'S DAY")
 
-  // For counted holiday, totals row must NOT be deleted/blank (2 male learners present)
-  // Male Total Row is r:10
+  // For counted holiday, totals row must display totals for boys, girls, and combined (just like in the website)
+  // Male Total Row is r:10 (2 male learners present)
+  // Female Total Row is r:12 (1 female learner present)
+  // Combined Total Row is r:13 (3 total learners present)
   const cellMaleTotalDay5 = ws[XLSX.utils.encode_cell({ r: 10, c: colDay5 })]
-  assert.equal(cellMaleTotalDay5?.v, 2, 'Male Total for counted holiday Day 5 must preserve attendance count (2)')
+  const cellFemaleTotalDay5 = ws[XLSX.utils.encode_cell({ r: 12, c: colDay5 })]
+  const cellCombinedTotalDay5 = ws[XLSX.utils.encode_cell({ r: 13, c: colDay5 })]
+
+  assert.equal(cellMaleTotalDay5?.v, 2, 'Male Total for counted holiday Day 5 must display attendance count (2)')
+  assert.equal(cellFemaleTotalDay5?.v, 1, 'Female Total for counted holiday Day 5 must display attendance count (1)')
+  assert.equal(cellCombinedTotalDay5?.v, 3, 'Combined Total for counted holiday Day 5 must display attendance count (3)')
 })
 
 function dateColForDay(ws, dayNum) {

@@ -433,6 +433,10 @@ router.post('/sf2', async (req, res) => {
       }
     } catch {}
 
+    for (const d of Object.keys(holidayCounted)) {
+      if (holidayCounted[d]) excludedSet.delete(Number(d))
+    }
+
     function computeMonthColumns(mon, yr, exclSet, holLabels, includeSat = false) {
       const days = []
       const dim = new Date(yr, mon, 0).getDate()
@@ -440,8 +444,8 @@ router.post('/sf2', async (req, res) => {
         const dow = new Date(yr, mon - 1, d).getDay()
         if (dow === 0) continue // Sunday is never in SF2 grid
         if (dow === 6 && !includeSat) continue // Saturday only if enabled
-        const isHoliday = exclSet.has(d) || (Boolean(holLabels[d]) || Boolean(holLabels[String(d)])) && !Boolean(holidayCounted[d] || holidayCounted[String(d)])
         const isCountedHoliday = Boolean(holidayCounted[d] || holidayCounted[String(d)])
+        const isHoliday = !isCountedHoliday && (exclSet.has(d) || Boolean(holLabels[d]) || Boolean(holLabels[String(d)]))
         let label = ''
         if (isHoliday || isCountedHoliday) {
           const raw = holLabels[d] || holLabels[String(d)] || 'NO CLASSES'
@@ -606,7 +610,7 @@ router.post('/sf2', async (req, res) => {
     function sumPresent(el) { return el.reduce((s, e) => s + calcEntryPresent(e), 0) }
     function daySum(el, dn) {
       const sd = schoolDays.find(d => d.day === dn)
-      if (sd && sd.isHoliday) return ''
+      if (sd && sd.isHoliday && !sd.isCountedHoliday) return ''
       let count = 0
       for (const e of el) {
         const enrollDay = getEnrollDay(e)
@@ -626,7 +630,7 @@ router.post('/sf2', async (req, res) => {
       for (const [dayNum, col] of Object.entries(dateColMap)) {
         const dn = parseInt(dayNum, 10)
         const sd = schoolDays.find(d => d.day === dn)
-        if (sd && sd.isHoliday) {
+        if (sd && sd.isHoliday && !sd.isCountedHoliday) {
           delCell(newWs, r, col)
         } else {
           setVal(newWs, r, col, 'n', daySum(entriesList, dn))
@@ -709,7 +713,7 @@ router.post('/sf2', async (req, res) => {
     for (const [dayNum, col] of Object.entries(dateColMap)) {
       const dn = parseInt(dayNum, 10)
       const sd = schoolDays.find(d => d.day === dn)
-      if (sd && sd.isHoliday) {
+      if (sd && sd.isHoliday && !sd.isCountedHoliday) {
         delCell(newWs, combinedTotalRow, col)
       } else {
         setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, dn))
@@ -820,15 +824,22 @@ router.post('/sf2', async (req, res) => {
           })
         }
       } else {
-        const totalRows = [maleTotalRow]
-        if (femaleCount > 0) totalRows.push(femaleTotalRow)
-        for (const r of totalRows) {
-          applyStyle(newWs, r, col, {
+        // Counted holiday: explicitly ensure daily totals for BOYS, GIRLS, and COMBINED are displayed
+        setVal(newWs, maleTotalRow, col, 'n', daySum(maleEntriesAll, sd.day))
+        applyStyle(newWs, maleTotalRow, col, {
+          font: { name: 'Trebuchet MS', sz: 9, bold: true },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: b
+        })
+        if (femaleCount > 0) {
+          setVal(newWs, femaleTotalRow, col, 'n', daySum(femaleEntriesAll, sd.day))
+          applyStyle(newWs, femaleTotalRow, col, {
             font: { name: 'Trebuchet MS', sz: 9, bold: true },
             alignment: { horizontal: 'center', vertical: 'center' },
             border: b
           })
         }
+        setVal(newWs, combinedTotalRow, col, 'n', daySum(entries, sd.day))
         applyStyle(newWs, combinedTotalRow, col, {
           font: { name: 'Trebuchet MS', sz: 9, bold: true },
           alignment: { horizontal: 'center', vertical: 'center' },
