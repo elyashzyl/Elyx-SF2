@@ -496,9 +496,7 @@ router.post('/sf2', async (req, res) => {
     for (let ci = 0; ci < numDateCols; ci++) {
       const sd = schoolDays[ci]
       setVal(newWs, DATE_NUM_ROW, DATE_COL_START + ci, 'n', sd.day)
-      const weekdayLabel = DAY_ABBR[sd.weekday]
-      const holidayHeader = sd.holidayLabel ? `${weekdayLabel}\n${sd.holidayLabel}` : weekdayLabel
-      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', holidayHeader)
+      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
     }
 
     // ── Apply medium borders to table header cells ──

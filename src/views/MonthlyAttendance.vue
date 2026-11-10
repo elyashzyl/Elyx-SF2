@@ -330,8 +330,9 @@
             <tr>
               <th rowspan="2" class="no-col">No.</th>
               <th rowspan="2" class="name-col">NAME (Last Name, First Name, Middle Name)</th>
-              <th v-for="d in daysInMonth" :key="d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
+              <th v-for="d in daysInMonth" :key="d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d), 'holiday-column': holidayLabels[d] || isHolidayCounted(d) }">
                 <div class="date-cell-head">
+                  <span v-if="holidayLabels[d]" class="holiday-column-label">{{ holidayLabels[d] }}</span>
                   <span class="date-num">{{ d }}</span>
                   <button
                     v-if="!isWeekend(d)"
@@ -358,8 +359,7 @@
             </tr>
             <tr>
               <th v-for="d in daysInMonth" :key="'d'+d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d), 'holiday-column': holidayLabels[d] || isHolidayCounted(d) }" :title="holidayLabels[d] || (isExcluded(d) ? 'No classes' : '')">
-                <span class="weekday-abbr">{{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}</span>
-                <span v-if="holidayLabels[d]" class="holiday-header-label">{{ holidayLabels[d] }}</span>
+                <span>{{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}</span>
               </th>
               <th>Present</th>
               <th>Absent</th>
@@ -2569,14 +2569,9 @@ async function updateRemarks(entry) {
   color: var(--primary, #0c5357);
 }
 
-.weekday-abbr,
-.holiday-header-label {
+.holiday-column-label {
   display: block;
-}
-
-.holiday-header-label {
   max-width: 54px;
-  margin-top: 2px;
   overflow: hidden;
   color: var(--warning, #b45309);
   font-size: 0.58rem;
