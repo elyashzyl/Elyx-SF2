@@ -357,11 +357,8 @@
               <th rowspan="2">Remarks</th>
             </tr>
             <tr>
-              <th v-for="d in daysInMonth" :key="'d'+d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d) }">
-                <template v-if="isExcluded(d) || holidayLabels[d]">
-                  <span class="holiday-col-title" :class="{ 'holiday-counted-title': isHolidayCounted(d) }" :title="holidayLabels[d] || 'No classes'">{{ holidayLabels[d] || 'No classes' }}</span>
-                </template>
-                <template v-else>{{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}</template>
+              <th v-for="d in daysInMonth" :key="'d'+d" :class="{ weekend: isWeekend(d), excluded: isExcluded(d), 'holiday-column': holidayLabels[d] || isHolidayCounted(d) }" :title="holidayLabels[d] || (isExcluded(d) ? 'No classes' : '')">
+                {{ dayLabels[(new Date(form.year, form.month - 1, d)).getDay()] }}
               </th>
               <th>Present</th>
               <th>Absent</th>
@@ -391,8 +388,8 @@
                     <option value="E">E</option>
                   </select>
                 </td>
-                <td class="total-cell present">{{ Math.round(entryPresent(entry) * 10) / 10 }}</td>
-                <td class="total-cell absent">{{ entryAbsent(entry) }}</td>
+                <td class="total-cell present">{{ isTransferredOutRemark(entry.remarks) ? '' : Math.round(entryPresent(entry) * 10) / 10 }}</td>
+                <td class="total-cell absent">{{ isTransferredOutRemark(entry.remarks) ? '' : entryAbsent(entry) }}</td>
                 <td class="remarks-col">
                   <input v-model="entry.remarks" @change="updateRemarks(entry)" class="remarks-input" />
                 </td>

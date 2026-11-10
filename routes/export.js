@@ -495,7 +495,7 @@ router.post('/sf2', async (req, res) => {
     for (let ci = 0; ci < numDateCols; ci++) {
       const sd = schoolDays[ci]
       setVal(newWs, DATE_NUM_ROW, DATE_COL_START + ci, 'n', sd.day)
-      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', sd.holidayLabel || DAY_ABBR[sd.weekday])
+      setVal(newWs, DATE_ABBR_ROW, DATE_COL_START + ci, 's', DAY_ABBR[sd.weekday])
     }
 
     // ── Apply medium borders to table header cells ──
@@ -582,6 +582,9 @@ router.post('/sf2', async (req, res) => {
       const eDates = Object.keys(entry.days || {}).filter(d => entry.days[d] === 'E')
       return eDates.length ? Math.min(...eDates.map(Number)) : null
     }
+    function isTransferredOut(entry) {
+      return /transferred\s*out/i.test(String(entry?.remarks || ''))
+    }
     function calcEntryAbsent(entry) {
       const enrollDay = getEnrollDay(entry)
       let absent = 0
@@ -653,9 +656,9 @@ router.post('/sf2', async (req, res) => {
           applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
         }
       }
-      setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
+      if (!isTransferredOut(entry)) setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
       addMerge(newWs, row, 30, row, 32)
-      setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
+      if (!isTransferredOut(entry)) setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
       addMerge(newWs, row, 33, row, 37)
       if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
       row++
@@ -685,9 +688,9 @@ router.post('/sf2', async (req, res) => {
             applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
           }
         }
-        setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
+        if (!isTransferredOut(entry)) setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
         addMerge(newWs, row, 30, row, 32)
-        setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
+        if (!isTransferredOut(entry)) setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
         addMerge(newWs, row, 33, row, 37)
         if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
         row++
@@ -821,9 +824,8 @@ router.post('/sf2', async (req, res) => {
     const mTotalPresent = sumPresent(maleEntriesAll)
     const fTotalPresent = sumPresent(femaleEntriesAll)
     // ── Transferred out and registered learners ──
-    const isTransferredOut = (r) => /transferred\s*out/i.test(String(r || ''))
-    const mTransferredEntries = maleEntriesAll.filter(e => isTransferredOut(e.remarks)).length
-    const fTransferredEntries = femaleEntriesAll.filter(e => isTransferredOut(e.remarks)).length
+    const mTransferredEntries = maleEntriesAll.filter(e => isTransferredOut(e)).length
+    const fTransferredEntries = femaleEntriesAll.filter(e => isTransferredOut(e)).length
     const toM2 = sd.transfer_out_m != null ? Number(sd.transfer_out_m) : mTransferredEntries
     const toF2 = sd.transfer_out_f != null ? Number(sd.transfer_out_f) : fTransferredEntries
     const toT2 = sd.transfer_out_t != null ? Number(sd.transfer_out_t) : (toM2 + toF2)
