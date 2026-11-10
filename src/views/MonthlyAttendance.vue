@@ -673,11 +673,26 @@
           </div>
 
           <div class="form-group">
-            <label class="checkbox-label holiday-counted-option">
-              <input type="checkbox" v-model="holidayForm.isCounted" />
-              Count this holiday as a school day
-            </label>
-            <small class="form-help">When enabled, learners can still be marked for attendance on this date.</small>
+            <div class="holiday-counted-option">
+              <div class="holiday-counted-info">
+                <strong>School day counting</strong>
+                <span>Keep the holiday or wellness break visible while deciding how it affects totals.</span>
+              </div>
+              <button
+                type="button"
+                class="sf2-btn sf2-btn--toggle holiday-counted-toggle"
+                :class="{ 'is-active': holidayForm.isCounted }"
+                :aria-pressed="holidayForm.isCounted"
+                :disabled="savingHoliday"
+                @click="holidayForm.isCounted = !holidayForm.isCounted"
+              >
+                <span>Count as school day</span>
+                <span class="toggle-status-badge" :class="{ 'is-on': holidayForm.isCounted }">
+                  {{ holidayForm.isCounted ? 'ON' : 'OFF' }}
+                </span>
+              </button>
+            </div>
+            <small class="form-help">{{ holidayForm.isCounted ? 'ON: learners can be marked for attendance and this date is included in school-day totals.' : 'OFF: this date remains a holiday and is excluded from school-day and attendance totals.' }}</small>
           </div>
 
           <div class="form-group">
@@ -2521,8 +2536,35 @@ async function updateRemarks(entry) {
 .holiday-counted-option {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 700;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 4px);
+  background: var(--muted);
+}
+
+.holiday-counted-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.holiday-counted-info strong {
+  font-size: 0.82rem;
+}
+
+.holiday-counted-info span {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.holiday-counted-toggle {
+  flex: 0 0 auto;
+  min-height: 32px;
+  white-space: nowrap;
 }
 
 .holiday-counted-option input,
