@@ -76,7 +76,14 @@ test('SF2 export endpoint generates compliant workbook with correct glyphs and r
         name: 'Abalos, Juan',
         gender: 'Male',
         lrn: '123456789001',
-        days: { '1': 'T', '2': 'H', '5': 'A', '6': 'E' } // T -> ◤, H -> ◢, A -> x, E -> E
+        days: { '1': 'P', '2': 'P', '5': 'P' }
+      },
+      {
+        name: 'Santos, Pedro',
+        gender: 'Male',
+        lrn: '123456789003',
+        remarks: 'TRANSFERRED OUT - Moved to Manila',
+        days: {}
       },
       {
         name: 'Cruz, Maria',
@@ -135,4 +142,19 @@ test('SF2 export endpoint generates compliant workbook with correct glyphs and r
   assert.ok(foundTardyGlyph, 'Tardy glyph ◤ must be rendered')
   assert.ok(foundCuttingClassesGlyph, 'Half-day glyph ◢ must be rendered')
   assert.ok(foundAbsentGlyph, 'Absent glyph x must be rendered')
+
+  // Verify that transferred out student Pedro Santos has empty number cell
+  let pedroRow = null
+  for (const [cellKey, cellVal] of Object.entries(ws)) {
+    if (cellKey.startsWith('!')) continue
+    if (String(cellVal.v || '').includes('Santos, Pedro')) {
+      const decoded = XLSX.utils.decode_cell(cellKey)
+      pedroRow = decoded.r
+      break
+    }
+  }
+  assert.ok(pedroRow !== null, 'Transferred out learner must be on the sheet')
+  const numCell = ws[XLSX.utils.encode_cell({ r: pedroRow, c: 0 })]
+  const numVal = numCell ? numCell.v : ''
+  assert.equal(numVal === '' || numVal === null || numVal === undefined, true, `Transferred out learner number must be blank, got: ${numVal}`)
 })

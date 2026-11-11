@@ -401,3 +401,65 @@ test('Enforces campus license status and locks class record when license is expi
   // Clean up test license
   await run('DELETE FROM licenses WHERE id = ?', [licenseId])
 })
+
+test('POST /api/grading/class-record/save allows class payload with hundreds of raw score fields', async () => {
+  // Create 25 additional student records in this section
+  const extraStudentIds = []
+  for (let i = 0; i < 25; i++) {
+    const sId = `bulk-stu-${i}-${suffix}`
+    extraStudentIds.push(sId)
+    await run(
+      'INSERT INTO students (id, name, grade, section, gender, school_id, lrn, enrollment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [sId, `Student Cohort ${i}`, 'Grade 8', 'Sapphire', i % 2 === 0 ? 'Male' : 'Female', schoolId, `123456789${String(i).padStart(3, '0')}`, 'active']
+    )
+  }
+
+  try {
+    // 25 students, each with 5 WW, 4 PT, 1 QA, 4 rec, 4 sw = ~18 fields per learner = >450 total fields
+    const learners = extraStudentIds.map((sId, idx) => ({
+      studentId: sId,
+      wwScores: [15, 18, 20, 19, 14],
+      ptScores: [22, 24, 21, 25],
+      qaScores: [42],
+      recScores: [9, 8, 10, 9],
+      swScores: [20, 22, 23, 21],
+      isLocked: 0
+    }))
+
+    const savePayload = {
+      schoolId,
+      gradeLevel: 'Grade 8',
+      section: 'Sapphire',
+      subjectId,
+      quarter: 'Q3',
+      schoolYear: '2026-2027',
+      weightWw: 30,
+      weightPt: 50,
+      weightQa: 20,
+      splitPt: true,
+      weightRec: 20,
+      weightSw: 30,
+      wwHps: [20, 20, 20, 20, 15],
+      ptHps: [25, 25, 25, 25],
+      qaHps: [50],
+      recHps: [10, 10, 10, 10],
+      swHps: [25, 25, 25, 25],
+      learners
+    }
+
+    const { response, body } = await request('/api/grading/class-record/save', {
+      method: 'POST',
+      headers: headers(teacherId, 'teacher'),
+      body: JSON.stringify(savePayload)
+    })
+
+    assert.equal(response.status, 200, `Expected 200 but got ${response.status}: ${JSON.stringify(body)}`)
+    assert.equal(body.success, true)
+    assert.equal(body.count, 25)
+  } finally {
+    for (const sId of extraStudentIds) {
+      await run('DELETE FROM learner_grades WHERE student_id = ?', [sId])
+      await run('DELETE FROM students WHERE id = ?', [sId])
+    }
+  }
+})

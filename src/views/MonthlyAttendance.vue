@@ -373,7 +373,7 @@
                 <td :colspan="totalCols">{{ group.label }}</td>
               </tr>
               <tr v-for="(entry, idx) in group.entries" :key="entry.studentId" :class="{ 'is-transferred-out': isTransferredOutRemark(entry.remarks) }">
-                <td class="no-col">{{ startNum(gi) + idx }}</td>
+                <td class="no-col">{{ isTransferredOutRemark(entry.remarks) ? '' : (startNum(gi) + idx) }}</td>
                 <td class="name-col">{{ entry.name }}</td>
                 <template v-for="d in daysInMonth" :key="d">
                   <td

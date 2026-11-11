@@ -650,7 +650,11 @@ router.post('/sf2', async (req, res) => {
     for (let i = 0; i < maleCount; i++) {
       const entry = maleEntriesAll[i]
       addMerge(newWs, row, 0, row, 1)
-      setVal(newWs, row, NUM_COL, 'n', i + 1)
+      if (isTransferredOut(entry)) {
+        delCell(newWs, row, NUM_COL)
+      } else {
+        setVal(newWs, row, NUM_COL, 'n', i + 1)
+      }
       addMerge(newWs, row, 2, row, 3)
       setVal(newWs, row, NAME_COL, 's', entry.name)
       if (!isTransferredOut(entry)) {
@@ -670,6 +674,7 @@ router.post('/sf2', async (req, res) => {
         addMerge(newWs, row, 30, row, 32)
         setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
       } else {
+        delCell(newWs, row, NUM_COL)
         for (const col of Object.values(dateColMap)) {
           delCell(newWs, row, col)
         }
@@ -691,7 +696,11 @@ router.post('/sf2', async (req, res) => {
       for (let i = 0; i < femaleCount; i++) {
         const entry = femaleEntriesAll[i]
         addMerge(newWs, row, 0, row, 1)
-        setVal(newWs, row, NUM_COL, 'n', i + 1)
+        if (isTransferredOut(entry)) {
+          delCell(newWs, row, NUM_COL)
+        } else {
+          setVal(newWs, row, NUM_COL, 'n', i + 1)
+        }
         addMerge(newWs, row, 2, row, 3)
         setVal(newWs, row, NAME_COL, 's', entry.name)
         if (!isTransferredOut(entry)) {
@@ -711,6 +720,7 @@ router.post('/sf2', async (req, res) => {
           addMerge(newWs, row, 30, row, 32)
           setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
         } else {
+          delCell(newWs, row, NUM_COL)
           for (const col of Object.values(dateColMap)) {
             delCell(newWs, row, col)
           }
