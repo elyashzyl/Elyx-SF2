@@ -812,6 +812,29 @@ const MYSQL_DDL = [
     INDEX idx_learner_grades_lookup (school_id, student_id, school_year, quarter),
     INDEX idx_learner_grades_subject (subject_id, school_year, quarter)
   ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS class_record_configs (
+    id VARCHAR(96) PRIMARY KEY,
+    school_id VARCHAR(96) NOT NULL DEFAULT (''),
+    grade_level VARCHAR(64) NOT NULL DEFAULT (''),
+    section VARCHAR(64) NOT NULL DEFAULT (''),
+    subject_id VARCHAR(96) NOT NULL,
+    school_year VARCHAR(32) NOT NULL DEFAULT (''),
+    quarter VARCHAR(8) NOT NULL DEFAULT 'Q1',
+    weight_ww INT NOT NULL DEFAULT 30,
+    weight_pt INT NOT NULL DEFAULT 50,
+    weight_qa INT NOT NULL DEFAULT 20,
+    ww_hps TEXT NOT NULL,
+    pt_hps TEXT NOT NULL,
+    qa_hps TEXT NOT NULL,
+    split_pt TINYINT(1) NOT NULL DEFAULT 0,
+    weight_rec INT NOT NULL DEFAULT 20,
+    weight_sw INT NOT NULL DEFAULT 30,
+    rec_hps TEXT NULL,
+    sw_hps TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_class_rec_cfg (school_id, grade_level, section, subject_id, school_year, quarter)
+  ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS system_error_logs (
     id VARCHAR(96) PRIMARY KEY,
     school_id VARCHAR(96) NOT NULL DEFAULT (''),
@@ -1011,7 +1034,13 @@ async function ensureMysqlColumns() {
     ["inquiry_messages", "attachment_url", "LONGTEXT NULL"],
     ["inquiry_messages", "attachment_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
     ["inquiry_messages", "attachment_type", "VARCHAR(64) NOT NULL DEFAULT ''"],
-    ["inquiry_messages", "attachment_size", "INT NOT NULL DEFAULT 0"]
+    ["inquiry_messages", "attachment_size", "INT NOT NULL DEFAULT 0"],
+    ["learner_grades", "raw_scores", "LONGTEXT NULL"],
+    ["class_record_configs", "split_pt", "TINYINT(1) NOT NULL DEFAULT 0"],
+    ["class_record_configs", "weight_rec", "INT NOT NULL DEFAULT 20"],
+    ["class_record_configs", "weight_sw", "INT NOT NULL DEFAULT 30"],
+    ["class_record_configs", "rec_hps", "TEXT NULL"],
+    ["class_record_configs", "sw_hps", "TEXT NULL"]
   ]
 
   for (const [tbl, col, def] of alters) {
@@ -1612,6 +1641,28 @@ async function initSqlite() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
+    `CREATE TABLE IF NOT EXISTS class_record_configs (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL DEFAULT '',
+      grade_level TEXT NOT NULL DEFAULT '',
+      section TEXT NOT NULL DEFAULT '',
+      subject_id TEXT NOT NULL,
+      school_year TEXT NOT NULL DEFAULT '',
+      quarter TEXT NOT NULL DEFAULT 'Q1',
+      weight_ww INTEGER NOT NULL DEFAULT 30,
+      weight_pt INTEGER NOT NULL DEFAULT 50,
+      weight_qa INTEGER NOT NULL DEFAULT 20,
+      ww_hps TEXT NOT NULL DEFAULT '[]',
+      pt_hps TEXT NOT NULL DEFAULT '[]',
+      qa_hps TEXT NOT NULL DEFAULT '[]',
+      split_pt INTEGER NOT NULL DEFAULT 0,
+      weight_rec INTEGER NOT NULL DEFAULT 20,
+      weight_sw INTEGER NOT NULL DEFAULT 30,
+      rec_hps TEXT NOT NULL DEFAULT '[]',
+      sw_hps TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
     `CREATE TABLE IF NOT EXISTS system_error_logs (
       id TEXT PRIMARY KEY,
       school_id TEXT NOT NULL DEFAULT '',
@@ -1644,6 +1695,12 @@ async function initSqlite() {
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_school ON subscription_invoices (school_id, created_at)') } catch {}
   try { sqlite.run("ALTER TABLE schools ADD COLUMN logo_url TEXT DEFAULT ''") } catch {}
   try { sqlite.run("ALTER TABLE schools ADD COLUMN quarter_count INTEGER NOT NULL DEFAULT 4") } catch {}
+  try { sqlite.run("ALTER TABLE learner_grades ADD COLUMN raw_scores TEXT DEFAULT NULL") } catch {}
+  try { sqlite.run("ALTER TABLE class_record_configs ADD COLUMN split_pt INTEGER NOT NULL DEFAULT 0") } catch {}
+  try { sqlite.run("ALTER TABLE class_record_configs ADD COLUMN weight_rec INTEGER NOT NULL DEFAULT 20") } catch {}
+  try { sqlite.run("ALTER TABLE class_record_configs ADD COLUMN weight_sw INTEGER NOT NULL DEFAULT 30") } catch {}
+  try { sqlite.run("ALTER TABLE class_record_configs ADD COLUMN rec_hps TEXT NOT NULL DEFAULT '[]'") } catch {}
+  try { sqlite.run("ALTER TABLE class_record_configs ADD COLUMN sw_hps TEXT NOT NULL DEFAULT '[]'") } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_invoices_request ON subscription_invoices (request_id)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_quarterly_school_sy ON quarterly_terms (school_id, school_year, quarter_number)') } catch {}
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_grading_subjects_school_grade ON grading_subjects (school_id, grade_level)') } catch {}

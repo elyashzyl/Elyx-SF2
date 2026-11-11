@@ -143,7 +143,7 @@
           <div><strong>Grade &amp; Section:</strong> {{ filter.grade }} - {{ filter.section }}</div>
           <div><strong>Subject / Learning Area:</strong> {{ activeSubject?.subject_name }} ({{ activeSubject?.subject_code || 'SUB' }})</div>
           <div><strong>Quarter:</strong> {{ filter.quarter }}</div>
-          <div><strong>Weights:</strong> WW: {{ weights.ww }}% | PT: {{ weights.pt }}% | QA: {{ weights.qa }}%</div>
+          <div><strong>Weights:</strong> WW: {{ weights.ww }}% | PT: {{ weights.pt }}%<span v-if="splitPt"> (REC: {{ weights.ptRecitation }}%, SW: {{ weights.ptSeatwork }}%)</span> | QA: {{ weights.qa }}%</div>
         </div>
       </div>
 
@@ -161,9 +161,10 @@
           </div>
 
           <div class="weights-header-right">
-            <div class="weights-total-badge" :class="totalWeight === 100 ? 'total-valid' : 'total-invalid'">
-              <span v-if="totalWeight === 100">Total: 100% ✓ Valid Weight</span>
-              <span v-else>Total: {{ totalWeight }}% ⚠ Must equal 100%</span>
+            <div class="weights-total-badge" :class="totalWeight === 100 && isPtSplitValid ? 'total-valid' : 'total-invalid'">
+              <span v-if="totalWeight === 100 && isPtSplitValid">Total: 100% ✓ Valid Weight</span>
+              <span v-else-if="totalWeight !== 100">Total: {{ totalWeight }}% ⚠ Must equal 100%</span>
+              <span v-else>PT Split: {{ ptSubweightTotal }}% ⚠ Must equal {{ weights.pt }}%</span>
             </div>
 
             <div v-if="isModified" class="unsaved-badge" title="You have unsaved changes in raw scores or weights">
@@ -265,6 +266,57 @@
             </button>
           </div>
         </div>
+
+        <!-- PT Subdivision Toggle & Sub-weights -->
+        <div class="split-pt-toggle-row">
+          <label class="toggle-control-label">
+            <input type="checkbox" v-model="splitPt" @change="onSplitPtToggle" class="toggle-checkbox" />
+            <span class="toggle-text">Sub-divide Performance Tasks (PT) into <strong>Recitation</strong> &amp; <strong>Seatwork / Performance Task</strong></span>
+          </label>
+        </div>
+
+        <div class="subweights-row" v-if="splitPt">
+          <div class="weight-subfield">
+            <label>
+              <span class="dot dot-rec"></span>
+              Recitation Weight:
+            </label>
+            <div class="weight-input-wrap">
+              <input
+                type="number"
+                min="0"
+                :max="weights.pt"
+                v-model.number="weights.ptRecitation"
+                @input="onWeightInput"
+                class="weight-input sub-input"
+              />
+              <span class="unit">%</span>
+            </div>
+          </div>
+
+          <div class="weight-subfield">
+            <label>
+              <span class="dot dot-sw"></span>
+              Seatwork / PT Weight:
+            </label>
+            <div class="weight-input-wrap">
+              <input
+                type="number"
+                min="0"
+                :max="weights.pt"
+                v-model.number="weights.ptSeatwork"
+                @input="onWeightInput"
+                class="weight-input sub-input"
+              />
+              <span class="unit">%</span>
+            </div>
+          </div>
+
+          <div class="pt-split-validation-badge" :class="isPtSplitValid ? 'valid' : 'invalid'">
+            <span v-if="isPtSplitValid">✓ Recitation ({{ weights.ptRecitation }}%) + Seatwork ({{ weights.ptSeatwork }}%) = {{ weights.pt }}% (Matches PT)</span>
+            <span v-else>⚠ Recitation ({{ weights.ptRecitation }}%) + Seatwork ({{ weights.ptSeatwork }}%) = {{ ptSubweightTotal }}% (Must equal PT: {{ weights.pt }}%)</span>
+          </div>
+        </div>
       </div>
 
       <!-- DepEd Formula Reference Guide Card -->
@@ -296,6 +348,14 @@
             <code>Initial Grade = WS(WW) + WS(PT) + WS(QA)</code>
             <p>Transmuted via official DepEd Order No. 8 Transmutation Table (60&ndash;100; passing grade is &ge; 75). Synchronizes with SF9.</p>
           </div>
+          <div class="formula-box">
+            <strong class="formula-box-title">4. Special Marks &amp; Score Validation</strong>
+            <p>
+              <strong>AE (Absent Excused):</strong> Learner is excused and exempt; item HPS is excluded from the denominator.
+              <strong>AU (Absent Unexcused):</strong> Unexcused absence; learner receives 0 and HPS is counted in the denominator.
+              Scores are strictly validated so input scores never exceed HPS.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -321,7 +381,8 @@
 
           <div class="items-divider"></div>
 
-          <div class="items-group-ctrl">
+          <!-- Unified PT controls when split is OFF -->
+          <div v-if="!splitPt" class="items-group-ctrl">
             <span class="ctrl-title">Performance Tasks:</span>
             <span class="ctrl-count">{{ ptHps.length }} item(s)</span>
             <button type="button" @click="addPtItem(25)" class="btn-xs btn-outline" title="Add 1 Performance Task item">
@@ -337,6 +398,45 @@
               &minus; Remove Last
             </button>
           </div>
+
+          <!-- Split PT controls: Recitation and Seatwork / PT -->
+          <template v-else>
+            <div class="items-group-ctrl">
+              <span class="ctrl-title">Recitation:</span>
+              <span class="ctrl-count">{{ recHps.length }} item(s)</span>
+              <button type="button" @click="addRecItem(10)" class="btn-xs btn-outline" title="Add 1 Recitation item">
+                + Add REC
+              </button>
+              <button type="button" @click="addMultipleRecItems(5, 10)" class="btn-xs btn-outline" title="Add 5 Recitation items at once">
+                + 5 Items
+              </button>
+              <button type="button" @click="promptSetAllHps('rec')" class="btn-xs btn-outline" title="Set highest possible score for all Recitation items">
+                Set All HPS
+              </button>
+              <button type="button" @click="removeRecItem" :disabled="recHps.length <= 1" class="btn-xs btn-outline text-danger" title="Remove last Recitation item">
+                &minus; Remove Last
+              </button>
+            </div>
+
+            <div class="items-divider"></div>
+
+            <div class="items-group-ctrl">
+              <span class="ctrl-title">Seatwork / PT:</span>
+              <span class="ctrl-count">{{ swHps.length }} item(s)</span>
+              <button type="button" @click="addSwItem(25)" class="btn-xs btn-outline" title="Add 1 Seatwork item">
+                + Add SW
+              </button>
+              <button type="button" @click="addMultipleSwItems(5, 25)" class="btn-xs btn-outline" title="Add 5 Seatwork items at once">
+                + 5 Items
+              </button>
+              <button type="button" @click="promptSetAllHps('sw')" class="btn-xs btn-outline" title="Set highest possible score for all Seatwork items">
+                Set All HPS
+              </button>
+              <button type="button" @click="removeSwItem" :disabled="swHps.length <= 1" class="btn-xs btn-outline text-danger" title="Remove last Seatwork item">
+                &minus; Remove Last
+              </button>
+            </div>
+          </template>
 
           <div class="items-divider"></div>
 
@@ -370,8 +470,8 @@
               type="button"
               class="btn-primary btn-sm"
               @click="saveClassRecord"
-              :disabled="savingRecord || totalWeight !== 100 || isLicenseLocked"
-              :title="isLicenseLocked ? 'Workspace is locked' : (totalWeight !== 100 ? 'Weights must equal 100%' : 'Save and synchronize grades with Form 138')"
+              :disabled="savingRecord || totalWeight !== 100 || (splitPt && !isPtSplitValid) || isLicenseLocked"
+              :title="isLicenseLocked ? 'Workspace is locked' : (totalWeight !== 100 ? 'Weights must equal 100%' : (splitPt && !isPtSplitValid ? 'PT sub-weights must equal total PT weight' : 'Save and synchronize grades with Form 138'))"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -404,13 +504,29 @@
                   </div>
                 </th>
 
-                <!-- Performance Tasks Group -->
-                <th :colspan="ptHps.length + 3" class="group-header group-pt">
+                <!-- Performance Tasks Group (Unified when split is OFF) -->
+                <th v-if="!splitPt" :colspan="ptHps.length + 3" class="group-header group-pt">
                   <div class="group-header-inner">
                     <span>Performance Tasks ({{ weights.pt }}%) &bull; {{ ptHps.length }} Items</span>
                     <button type="button" @click="addPtItem(25)" class="btn-group-add no-print" title="Add another Performance Task item">+ Add PT</button>
                   </div>
                 </th>
+
+                <!-- Performance Tasks Split: Recitation and Seatwork / PT -->
+                <template v-else>
+                  <th :colspan="recHps.length + 3" class="group-header group-rec">
+                    <div class="group-header-inner">
+                      <span>Recitation ({{ weights.ptRecitation }}%) &bull; {{ recHps.length }} Items</span>
+                      <button type="button" @click="addRecItem(10)" class="btn-group-add no-print" title="Add another Recitation item">+ Add REC</button>
+                    </div>
+                  </th>
+                  <th :colspan="swHps.length + 3" class="group-header group-sw">
+                    <div class="group-header-inner">
+                      <span>Seatwork / PT ({{ weights.ptSeatwork }}%) &bull; {{ swHps.length }} Items</span>
+                      <button type="button" @click="addSwItem(25)" class="btn-group-add no-print" title="Add another Seatwork item">+ Add SW</button>
+                    </div>
+                  </th>
+                </template>
 
                 <!-- Quarterly Assessment Group -->
                 <th :colspan="qaHps.length + 3" class="group-header group-qa">
@@ -449,6 +565,12 @@
                         <button type="button" class="dropdown-item" @click="quickFillValue('ww', idx, h); close()">
                           <span>Fill all with HPS ({{ h }})</span>
                         </button>
+                        <button type="button" class="dropdown-item" @click="quickFillSpecial('ww', idx, 'AE'); close()">
+                          <span>Mark all Absent Excused (AE)</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillSpecial('ww', idx, 'AU'); close()">
+                          <span>Mark all Absent Unexcused (AU)</span>
+                        </button>
                         <button type="button" class="dropdown-item" @click="quickFillValue('ww', idx, 0); close()">
                           <span>Clear scores (set 0)</span>
                         </button>
@@ -469,46 +591,151 @@
                 <th class="sub-col col-ps">PS (%)</th>
                 <th class="sub-col col-ws">WS ({{ weights.ww }}%)</th>
 
-                <!-- PT Items -->
-                <th v-for="(h, idx) in ptHps" :key="`pt-h-${idx}`" class="sub-col item-header-cell">
-                  <div class="sub-col-title-wrap">
-                    <span>PT{{ idx + 1 }}</span>
-                    <DropdownMenu align="center" min-width="200px" class="no-print">
-                      <template #trigger="{ isOpen }">
-                        <button
-                          type="button"
-                          class="col-quick-btn"
-                          :class="{ 'is-open': isOpen }"
-                          :title="`Actions for PT${idx + 1}`"
-                        >&darr;</button>
-                      </template>
-                      <template #default="{ close }">
-                        <div class="dropdown-label">Performance Task {{ idx + 1 }} (HPS: {{ h }})</div>
-                        <button type="button" class="dropdown-item" @click="quickFillPrompt('pt', idx); close()">
-                          <span>Fill custom score…</span>
-                        </button>
-                        <button type="button" class="dropdown-item" @click="quickFillValue('pt', idx, h); close()">
-                          <span>Fill all with HPS ({{ h }})</span>
-                        </button>
-                        <button type="button" class="dropdown-item" @click="quickFillValue('pt', idx, 0); close()">
-                          <span>Clear scores (set 0)</span>
-                        </button>
-                        <div class="dropdown-separator" v-if="ptHps.length > 1"></div>
-                        <button
-                          v-if="ptHps.length > 1"
-                          type="button"
-                          class="dropdown-item dropdown-item--danger"
-                          @click="removePtItemAt(idx); close()"
-                        >
-                          <span>Delete column PT{{ idx + 1 }}</span>
-                        </button>
-                      </template>
-                    </DropdownMenu>
-                  </div>
-                </th>
-                <th class="sub-col col-sum">Total</th>
-                <th class="sub-col col-ps">PS (%)</th>
-                <th class="sub-col col-ws">WS ({{ weights.pt }}%)</th>
+                <!-- Unified PT Items when split is OFF -->
+                <template v-if="!splitPt">
+                  <th v-for="(h, idx) in ptHps" :key="`pt-h-${idx}`" class="sub-col item-header-cell">
+                    <div class="sub-col-title-wrap">
+                      <span>PT{{ idx + 1 }}</span>
+                      <DropdownMenu align="center" min-width="200px" class="no-print">
+                        <template #trigger="{ isOpen }">
+                          <button
+                            type="button"
+                            class="col-quick-btn"
+                            :class="{ 'is-open': isOpen }"
+                            :title="`Actions for PT${idx + 1}`"
+                          >&darr;</button>
+                        </template>
+                        <template #default="{ close }">
+                          <div class="dropdown-label">Performance Task {{ idx + 1 }} (HPS: {{ h }})</div>
+                          <button type="button" class="dropdown-item" @click="quickFillPrompt('pt', idx); close()">
+                            <span>Fill custom score…</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillValue('pt', idx, h); close()">
+                            <span>Fill all with HPS ({{ h }})</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillSpecial('pt', idx, 'AE'); close()">
+                            <span>Mark all Absent Excused (AE)</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillSpecial('pt', idx, 'AU'); close()">
+                            <span>Mark all Absent Unexcused (AU)</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillValue('pt', idx, 0); close()">
+                            <span>Clear scores (set 0)</span>
+                          </button>
+                          <div class="dropdown-separator" v-if="ptHps.length > 1"></div>
+                          <button
+                            v-if="ptHps.length > 1"
+                            type="button"
+                            class="dropdown-item dropdown-item--danger"
+                            @click="removePtItemAt(idx); close()"
+                          >
+                            <span>Delete column PT{{ idx + 1 }}</span>
+                          </button>
+                        </template>
+                      </DropdownMenu>
+                    </div>
+                  </th>
+                  <th class="sub-col col-sum">Total</th>
+                  <th class="sub-col col-ps">PS (%)</th>
+                  <th class="sub-col col-ws">WS ({{ weights.pt }}%)</th>
+                </template>
+
+                <!-- Split PT Items: Recitation & Seatwork / PT -->
+                <template v-else>
+                  <!-- Recitation Items -->
+                  <th v-for="(h, idx) in recHps" :key="`rec-h-${idx}`" class="sub-col item-header-cell">
+                    <div class="sub-col-title-wrap">
+                      <span>REC{{ idx + 1 }}</span>
+                      <DropdownMenu align="center" min-width="200px" class="no-print">
+                        <template #trigger="{ isOpen }">
+                          <button
+                            type="button"
+                            class="col-quick-btn"
+                            :class="{ 'is-open': isOpen }"
+                            :title="`Actions for REC${idx + 1}`"
+                          >&darr;</button>
+                        </template>
+                        <template #default="{ close }">
+                          <div class="dropdown-label">Recitation {{ idx + 1 }} (HPS: {{ h }})</div>
+                          <button type="button" class="dropdown-item" @click="quickFillPrompt('rec', idx); close()">
+                            <span>Fill custom score…</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillValue('rec', idx, h); close()">
+                            <span>Fill all with HPS ({{ h }})</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillSpecial('rec', idx, 'AE'); close()">
+                            <span>Mark all Absent Excused (AE)</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillSpecial('rec', idx, 'AU'); close()">
+                            <span>Mark all Absent Unexcused (AU)</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillValue('rec', idx, 0); close()">
+                            <span>Clear scores (set 0)</span>
+                          </button>
+                          <div class="dropdown-separator" v-if="recHps.length > 1"></div>
+                          <button
+                            v-if="recHps.length > 1"
+                            type="button"
+                            class="dropdown-item dropdown-item--danger"
+                            @click="removeRecItemAt(idx); close()"
+                          >
+                            <span>Delete column REC{{ idx + 1 }}</span>
+                          </button>
+                        </template>
+                      </DropdownMenu>
+                    </div>
+                  </th>
+                  <th class="sub-col col-sum">Total</th>
+                  <th class="sub-col col-ps">PS (%)</th>
+                  <th class="sub-col col-ws text-cyan">WS ({{ weights.ptRecitation }}%)</th>
+
+                  <!-- Seatwork / PT Items -->
+                  <th v-for="(h, idx) in swHps" :key="`sw-h-${idx}`" class="sub-col item-header-cell">
+                    <div class="sub-col-title-wrap">
+                      <span>SW{{ idx + 1 }}</span>
+                      <DropdownMenu align="center" min-width="200px" class="no-print">
+                        <template #trigger="{ isOpen }">
+                          <button
+                            type="button"
+                            class="col-quick-btn"
+                            :class="{ 'is-open': isOpen }"
+                            :title="`Actions for SW${idx + 1}`"
+                          >&darr;</button>
+                        </template>
+                        <template #default="{ close }">
+                          <div class="dropdown-label">Seatwork / PT {{ idx + 1 }} (HPS: {{ h }})</div>
+                          <button type="button" class="dropdown-item" @click="quickFillPrompt('sw', idx); close()">
+                            <span>Fill custom score…</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillValue('sw', idx, h); close()">
+                            <span>Fill all with HPS ({{ h }})</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillSpecial('sw', idx, 'AE'); close()">
+                            <span>Mark all Absent Excused (AE)</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillSpecial('sw', idx, 'AU'); close()">
+                            <span>Mark all Absent Unexcused (AU)</span>
+                          </button>
+                          <button type="button" class="dropdown-item" @click="quickFillValue('sw', idx, 0); close()">
+                            <span>Clear scores (set 0)</span>
+                          </button>
+                          <div class="dropdown-separator" v-if="swHps.length > 1"></div>
+                          <button
+                            v-if="swHps.length > 1"
+                            type="button"
+                            class="dropdown-item dropdown-item--danger"
+                            @click="removeSwItemAt(idx); close()"
+                          >
+                            <span>Delete column SW{{ idx + 1 }}</span>
+                          </button>
+                        </template>
+                      </DropdownMenu>
+                    </div>
+                  </th>
+                  <th class="sub-col col-sum">Total</th>
+                  <th class="sub-col col-ps">PS (%)</th>
+                  <th class="sub-col col-ws text-amber">WS ({{ weights.ptSeatwork }}%)</th>
+                </template>
 
                 <!-- QA Items -->
                 <th v-for="(h, idx) in qaHps" :key="`qa-h-${idx}`" class="sub-col item-header-cell">
@@ -530,6 +757,12 @@
                         </button>
                         <button type="button" class="dropdown-item" @click="quickFillValue('qa', idx, h); close()">
                           <span>Fill all with HPS ({{ h }})</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillSpecial('qa', idx, 'AE'); close()">
+                          <span>Mark all Absent Excused (AE)</span>
+                        </button>
+                        <button type="button" class="dropdown-item" @click="quickFillSpecial('qa', idx, 'AU'); close()">
+                          <span>Mark all Absent Unexcused (AU)</span>
                         </button>
                         <button type="button" class="dropdown-item" @click="quickFillValue('qa', idx, 0); close()">
                           <span>Clear scores (set 0)</span>
@@ -572,20 +805,55 @@
                 <td class="hps-stat">100.00%</td>
                 <td class="hps-stat font-bold text-teal">{{ Number(weights.ww).toFixed(2) }}</td>
 
-                <!-- PT HPS Inputs -->
-                <td v-for="(h, idx) in ptHps" :key="`pt-hps-${idx}`" class="hps-cell">
-                  <input
-                    type="number"
-                    min="1"
-                    v-model.number="ptHps[idx]"
-                    @input="onHpsChange"
-                    class="hps-input"
-                    title="Edit HPS for this Performance Task item"
-                  />
-                </td>
-                <td class="hps-stat font-bold">{{ ptHpsTotal }}</td>
-                <td class="hps-stat">100.00%</td>
-                <td class="hps-stat font-bold text-amber">{{ Number(weights.pt).toFixed(2) }}</td>
+                <!-- PT HPS Inputs (Unified when split is OFF) -->
+                <template v-if="!splitPt">
+                  <td v-for="(h, idx) in ptHps" :key="`pt-hps-${idx}`" class="hps-cell">
+                    <input
+                      type="number"
+                      min="1"
+                      v-model.number="ptHps[idx]"
+                      @input="onHpsChange"
+                      class="hps-input"
+                      title="Edit HPS for this Performance Task item"
+                    />
+                  </td>
+                  <td class="hps-stat font-bold">{{ ptHpsTotal }}</td>
+                  <td class="hps-stat">100.00%</td>
+                  <td class="hps-stat font-bold text-amber">{{ Number(weights.pt).toFixed(2) }}</td>
+                </template>
+
+                <!-- PT HPS Inputs (Split: Recitation & Seatwork) -->
+                <template v-else>
+                  <!-- Recitation HPS -->
+                  <td v-for="(h, idx) in recHps" :key="`rec-hps-${idx}`" class="hps-cell">
+                    <input
+                      type="number"
+                      min="1"
+                      v-model.number="recHps[idx]"
+                      @input="onHpsChange"
+                      class="hps-input"
+                      title="Edit HPS for this Recitation item"
+                    />
+                  </td>
+                  <td class="hps-stat font-bold">{{ recHpsTotal }}</td>
+                  <td class="hps-stat">100.00%</td>
+                  <td class="hps-stat font-bold text-cyan">{{ Number(weights.ptRecitation).toFixed(2) }}</td>
+
+                  <!-- Seatwork HPS -->
+                  <td v-for="(h, idx) in swHps" :key="`sw-hps-${idx}`" class="hps-cell">
+                    <input
+                      type="number"
+                      min="1"
+                      v-model.number="swHps[idx]"
+                      @input="onHpsChange"
+                      class="hps-input"
+                      title="Edit HPS for this Seatwork item"
+                    />
+                  </td>
+                  <td class="hps-stat font-bold">{{ swHpsTotal }}</td>
+                  <td class="hps-stat">100.00%</td>
+                  <td class="hps-stat font-bold text-amber">{{ Number(weights.ptSeatwork).toFixed(2) }}</td>
+                </template>
 
                 <!-- QA HPS Inputs -->
                 <td v-for="(h, idx) in qaHps" :key="`qa-hps-${idx}`" class="hps-cell">
@@ -635,51 +903,87 @@
                 <!-- WW Raw Scores -->
                 <td v-for="(h, itemIdx) in wwHps" :key="`m-ww-${itemIdx}`">
                   <input
-                    type="number"
-                    min="0"
-                    :max="h"
-                    step="any"
-                    v-model.number="st.ww_scores[itemIdx]"
-                    @input="onScoreInput(st)"
+                    type="text"
+                    maxlength="6"
+                    v-model="st.ww_scores[itemIdx]"
+                    @input="handleScoreInput(st, 'ww', itemIdx)"
+                    @blur="normalizeScoreCell(st, 'ww', itemIdx)"
                     class="score-input"
-                    :class="{ 'input-exceeded': Number(st.ww_scores[itemIdx]) > h }"
-                    :title="`Score: ${st.ww_scores[itemIdx] || 0} / ${h}`"
+                    :class="getScoreInputClass(st.ww_scores[itemIdx], h)"
+                    :title="getScoreTooltip(st.ww_scores[itemIdx], h)"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.ww_total }}</td>
                 <td class="stat-cell">{{ st.ww_ps.toFixed(2) }}%</td>
                 <td class="stat-cell font-bold text-teal">{{ st.ww_ws.toFixed(2) }}</td>
 
-                <!-- PT Raw Scores -->
-                <td v-for="(h, itemIdx) in ptHps" :key="`m-pt-${itemIdx}`">
-                  <input
-                    type="number"
-                    min="0"
-                    :max="h"
-                    step="any"
-                    v-model.number="st.pt_scores[itemIdx]"
-                    @input="onScoreInput(st)"
-                    class="score-input"
-                    :class="{ 'input-exceeded': Number(st.pt_scores[itemIdx]) > h }"
-                    :title="`Score: ${st.pt_scores[itemIdx] || 0} / ${h}`"
-                  />
-                </td>
-                <td class="stat-cell font-bold">{{ st.pt_total }}</td>
-                <td class="stat-cell">{{ st.pt_ps.toFixed(2) }}%</td>
-                <td class="stat-cell font-bold text-amber">{{ st.pt_ws.toFixed(2) }}</td>
+                <!-- Unified PT Raw Scores when split is OFF -->
+                <template v-if="!splitPt">
+                  <td v-for="(h, itemIdx) in ptHps" :key="`m-pt-${itemIdx}`">
+                    <input
+                      type="text"
+                      maxlength="6"
+                      v-model="st.pt_scores[itemIdx]"
+                      @input="handleScoreInput(st, 'pt', itemIdx)"
+                      @blur="normalizeScoreCell(st, 'pt', itemIdx)"
+                      class="score-input"
+                      :class="getScoreInputClass(st.pt_scores[itemIdx], h)"
+                      :title="getScoreTooltip(st.pt_scores[itemIdx], h)"
+                    />
+                  </td>
+                  <td class="stat-cell font-bold">{{ st.pt_total }}</td>
+                  <td class="stat-cell">{{ st.pt_ps.toFixed(2) }}%</td>
+                  <td class="stat-cell font-bold text-amber">{{ st.pt_ws.toFixed(2) }}</td>
+                </template>
+
+                <!-- Split PT Raw Scores: Recitation & Seatwork / PT -->
+                <template v-else>
+                  <!-- Recitation Raw Scores -->
+                  <td v-for="(h, itemIdx) in recHps" :key="`m-rec-${itemIdx}`">
+                    <input
+                      type="text"
+                      maxlength="6"
+                      v-model="st.rec_scores[itemIdx]"
+                      @input="handleScoreInput(st, 'rec', itemIdx)"
+                      @blur="normalizeScoreCell(st, 'rec', itemIdx)"
+                      class="score-input"
+                      :class="getScoreInputClass(st.rec_scores[itemIdx], h)"
+                      :title="getScoreTooltip(st.rec_scores[itemIdx], h)"
+                    />
+                  </td>
+                  <td class="stat-cell font-bold">{{ st.rec_total ?? 0 }}</td>
+                  <td class="stat-cell">{{ (st.rec_ps || 0).toFixed(2) }}%</td>
+                  <td class="stat-cell font-bold text-cyan">{{ (st.rec_ws || 0).toFixed(2) }}</td>
+
+                  <!-- Seatwork / PT Raw Scores -->
+                  <td v-for="(h, itemIdx) in swHps" :key="`m-sw-${itemIdx}`">
+                    <input
+                      type="text"
+                      maxlength="6"
+                      v-model="st.sw_scores[itemIdx]"
+                      @input="handleScoreInput(st, 'sw', itemIdx)"
+                      @blur="normalizeScoreCell(st, 'sw', itemIdx)"
+                      class="score-input"
+                      :class="getScoreInputClass(st.sw_scores[itemIdx], h)"
+                      :title="getScoreTooltip(st.sw_scores[itemIdx], h)"
+                    />
+                  </td>
+                  <td class="stat-cell font-bold">{{ st.sw_total ?? 0 }}</td>
+                  <td class="stat-cell">{{ (st.sw_ps || 0).toFixed(2) }}%</td>
+                  <td class="stat-cell font-bold text-amber">{{ (st.sw_ws || 0).toFixed(2) }}</td>
+                </template>
 
                 <!-- QA Raw Scores -->
                 <td v-for="(h, itemIdx) in qaHps" :key="`m-qa-${itemIdx}`">
                   <input
-                    type="number"
-                    min="0"
-                    :max="h"
-                    step="any"
-                    v-model.number="st.qa_scores[itemIdx]"
-                    @input="onScoreInput(st)"
+                    type="text"
+                    maxlength="6"
+                    v-model="st.qa_scores[itemIdx]"
+                    @input="handleScoreInput(st, 'qa', itemIdx)"
+                    @blur="normalizeScoreCell(st, 'qa', itemIdx)"
                     class="score-input"
-                    :class="{ 'input-exceeded': Number(st.qa_scores[itemIdx]) > h }"
-                    :title="`Score: ${st.qa_scores[itemIdx] || 0} / ${h}`"
+                    :class="getScoreInputClass(st.qa_scores[itemIdx], h)"
+                    :title="getScoreTooltip(st.qa_scores[itemIdx], h)"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.qa_total }}</td>
@@ -722,7 +1026,7 @@
                 <td colspan="4" class="sticky-col subtotal-label-cell">
                   <strong>MALE SUB-AVERAGE</strong>
                 </td>
-                <td :colspan="wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3" class="subtotal-dash-cell">
+                <td :colspan="wwHps.length + 3 + (splitPt ? recHps.length + 3 + swHps.length + 3 : ptHps.length + 3) + qaHps.length + 3" class="subtotal-dash-cell">
                   <span>{{ maleStudents.length }} Learners</span>
                 </td>
                 <td class="stat-cell font-bold">{{ maleInitialAverage }}</td>
@@ -761,51 +1065,87 @@
                 <!-- WW Raw Scores -->
                 <td v-for="(h, itemIdx) in wwHps" :key="`f-ww-${itemIdx}`">
                   <input
-                    type="number"
-                    min="0"
-                    :max="h"
-                    step="any"
-                    v-model.number="st.ww_scores[itemIdx]"
-                    @input="onScoreInput(st)"
+                    type="text"
+                    maxlength="6"
+                    v-model="st.ww_scores[itemIdx]"
+                    @input="handleScoreInput(st, 'ww', itemIdx)"
+                    @blur="normalizeScoreCell(st, 'ww', itemIdx)"
                     class="score-input"
-                    :class="{ 'input-exceeded': Number(st.ww_scores[itemIdx]) > h }"
-                    :title="`Score: ${st.ww_scores[itemIdx] || 0} / ${h}`"
+                    :class="getScoreInputClass(st.ww_scores[itemIdx], h)"
+                    :title="getScoreTooltip(st.ww_scores[itemIdx], h)"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.ww_total }}</td>
                 <td class="stat-cell">{{ st.ww_ps.toFixed(2) }}%</td>
                 <td class="stat-cell font-bold text-teal">{{ st.ww_ws.toFixed(2) }}</td>
 
-                <!-- PT Raw Scores -->
-                <td v-for="(h, itemIdx) in ptHps" :key="`f-pt-${itemIdx}`">
-                  <input
-                    type="number"
-                    min="0"
-                    :max="h"
-                    step="any"
-                    v-model.number="st.pt_scores[itemIdx]"
-                    @input="onScoreInput(st)"
-                    class="score-input"
-                    :class="{ 'input-exceeded': Number(st.pt_scores[itemIdx]) > h }"
-                    :title="`Score: ${st.pt_scores[itemIdx] || 0} / ${h}`"
-                  />
-                </td>
-                <td class="stat-cell font-bold">{{ st.pt_total }}</td>
-                <td class="stat-cell">{{ st.pt_ps.toFixed(2) }}%</td>
-                <td class="stat-cell font-bold text-amber">{{ st.pt_ws.toFixed(2) }}</td>
+                <!-- Unified PT Raw Scores when split is OFF -->
+                <template v-if="!splitPt">
+                  <td v-for="(h, itemIdx) in ptHps" :key="`f-pt-${itemIdx}`">
+                    <input
+                      type="text"
+                      maxlength="6"
+                      v-model="st.pt_scores[itemIdx]"
+                      @input="handleScoreInput(st, 'pt', itemIdx)"
+                      @blur="normalizeScoreCell(st, 'pt', itemIdx)"
+                      class="score-input"
+                      :class="getScoreInputClass(st.pt_scores[itemIdx], h)"
+                      :title="getScoreTooltip(st.pt_scores[itemIdx], h)"
+                    />
+                  </td>
+                  <td class="stat-cell font-bold">{{ st.pt_total }}</td>
+                  <td class="stat-cell">{{ st.pt_ps.toFixed(2) }}%</td>
+                  <td class="stat-cell font-bold text-amber">{{ st.pt_ws.toFixed(2) }}</td>
+                </template>
+
+                <!-- Split PT Raw Scores: Recitation & Seatwork / PT -->
+                <template v-else>
+                  <!-- Recitation Raw Scores -->
+                  <td v-for="(h, itemIdx) in recHps" :key="`f-rec-${itemIdx}`">
+                    <input
+                      type="text"
+                      maxlength="6"
+                      v-model="st.rec_scores[itemIdx]"
+                      @input="handleScoreInput(st, 'rec', itemIdx)"
+                      @blur="normalizeScoreCell(st, 'rec', itemIdx)"
+                      class="score-input"
+                      :class="getScoreInputClass(st.rec_scores[itemIdx], h)"
+                      :title="getScoreTooltip(st.rec_scores[itemIdx], h)"
+                    />
+                  </td>
+                  <td class="stat-cell font-bold">{{ st.rec_total ?? 0 }}</td>
+                  <td class="stat-cell">{{ (st.rec_ps || 0).toFixed(2) }}%</td>
+                  <td class="stat-cell font-bold text-cyan">{{ (st.rec_ws || 0).toFixed(2) }}</td>
+
+                  <!-- Seatwork / PT Raw Scores -->
+                  <td v-for="(h, itemIdx) in swHps" :key="`f-sw-${itemIdx}`">
+                    <input
+                      type="text"
+                      maxlength="6"
+                      v-model="st.sw_scores[itemIdx]"
+                      @input="handleScoreInput(st, 'sw', itemIdx)"
+                      @blur="normalizeScoreCell(st, 'sw', itemIdx)"
+                      class="score-input"
+                      :class="getScoreInputClass(st.sw_scores[itemIdx], h)"
+                      :title="getScoreTooltip(st.sw_scores[itemIdx], h)"
+                    />
+                  </td>
+                  <td class="stat-cell font-bold">{{ st.sw_total ?? 0 }}</td>
+                  <td class="stat-cell">{{ (st.sw_ps || 0).toFixed(2) }}%</td>
+                  <td class="stat-cell font-bold text-amber">{{ (st.sw_ws || 0).toFixed(2) }}</td>
+                </template>
 
                 <!-- QA Raw Scores -->
                 <td v-for="(h, itemIdx) in qaHps" :key="`f-qa-${itemIdx}`">
                   <input
-                    type="number"
-                    min="0"
-                    :max="h"
-                    step="any"
-                    v-model.number="st.qa_scores[itemIdx]"
-                    @input="onScoreInput(st)"
+                    type="text"
+                    maxlength="6"
+                    v-model="st.qa_scores[itemIdx]"
+                    @input="handleScoreInput(st, 'qa', itemIdx)"
+                    @blur="normalizeScoreCell(st, 'qa', itemIdx)"
                     class="score-input"
-                    :class="{ 'input-exceeded': Number(st.qa_scores[itemIdx]) > h }"
-                    :title="`Score: ${st.qa_scores[itemIdx] || 0} / ${h}`"
+                    :class="getScoreInputClass(st.qa_scores[itemIdx], h)"
+                    :title="getScoreTooltip(st.qa_scores[itemIdx], h)"
                   />
                 </td>
                 <td class="stat-cell font-bold">{{ st.qa_total }}</td>
@@ -848,7 +1188,7 @@
                 <td colspan="4" class="sticky-col subtotal-label-cell">
                   <strong>FEMALE SUB-AVERAGE</strong>
                 </td>
-                <td :colspan="wwHps.length + 3 + ptHps.length + 3 + qaHps.length + 3" class="subtotal-dash-cell">
+                <td :colspan="wwHps.length + 3 + (splitPt ? recHps.length + 3 + swHps.length + 3 : ptHps.length + 3) + qaHps.length + 3" class="subtotal-dash-cell">
                   <span>{{ femaleStudents.length }} Learners</span>
                 </td>
                 <td class="stat-cell font-bold">{{ femaleInitialAverage }}</td>
@@ -914,8 +1254,8 @@
             type="button"
             class="btn-primary"
             @click="saveClassRecord"
-            :disabled="savingRecord || totalWeight !== 100 || isLicenseLocked"
-            :title="isLicenseLocked ? 'Workspace is locked' : (totalWeight !== 100 ? 'Weights must equal 100%' : 'Save and synchronize grades with Form 138')"
+            :disabled="savingRecord || totalWeight !== 100 || (splitPt && !isPtSplitValid) || isLicenseLocked"
+            :title="isLicenseLocked ? 'Workspace is locked' : (totalWeight !== 100 ? 'Weights must equal 100%' : (splitPt && !isPtSplitValid ? 'PT sub-weights must equal total PT weight' : 'Save and synchronize grades with Form 138'))"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -1051,26 +1391,45 @@ const savingRecord = ref(false)
 const exportingCsv = ref(false)
 
 // Component weights (Teacher editable)
+const splitPt = ref(false)
 const weights = reactive({
   ww: 30,
   pt: 50,
-  qa: 20
+  qa: 20,
+  ptRecitation: 20,
+  ptSeatwork: 30
 })
 
 const totalWeight = computed(() => {
   return (Number(weights.ww) || 0) + (Number(weights.pt) || 0) + (Number(weights.qa) || 0)
 })
 
+const ptSubweightTotal = computed(() => {
+  return (Number(weights.ptRecitation) || 0) + (Number(weights.ptSeatwork) || 0)
+})
+
+const isPtSplitValid = computed(() => {
+  if (!splitPt.value) return true
+  return ptSubweightTotal.value === Number(weights.pt)
+})
+
 // HPS arrays
 const wwHps = ref([20, 20, 25, 20, 15])
 const ptHps = ref([25, 25, 25, 25])
+const recHps = ref([10, 10, 10, 10])
+const swHps = ref([25, 25, 25, 25])
 const qaHps = ref([50])
 
 const wwHpsTotal = computed(() => wwHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
 const ptHpsTotal = computed(() => ptHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
+const recHpsTotal = computed(() => recHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
+const swHpsTotal = computed(() => swHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
 const qaHpsTotal = computed(() => qaHps.value.reduce((a, b) => a + (Math.max(1, Number(b)) || 1), 0))
 
 const totalTableCols = computed(() => {
+  if (splitPt.value) {
+    return 4 + wwHps.value.length + 3 + recHps.value.length + 3 + swHps.value.length + 3 + qaHps.value.length + 3 + 4
+  }
   return 4 + wwHps.value.length + 3 + ptHps.value.length + 3 + qaHps.value.length + 3 + 4
 })
 
@@ -1120,53 +1479,98 @@ function transmuteGrade(initial) {
   return 60
 }
 
+function calculateComponentClient(scores = [], hpsList = [], weight = 30) {
+  let totalRaw = 0
+  let effectiveHps = 0
+  let aeCount = 0
+  const len = hpsList.length
+
+  for (let i = 0; i < len; i++) {
+    const max = Math.max(0, Number(hpsList[i]) || 0)
+    const val = scores[i]
+    const sStr = typeof val === 'string' ? val.trim().toUpperCase() : ''
+
+    if (sStr === 'AE') {
+      aeCount++
+    } else if (sStr === 'AU') {
+      effectiveHps += max
+    } else {
+      const num = (val === '' || val === null || val === undefined || isNaN(Number(val))) ? 0 : Number(val)
+      const clamped = Math.max(0, Math.min(max, num))
+      totalRaw += clamped
+      effectiveHps += max
+    }
+  }
+
+  let ps = 0
+  if (effectiveHps > 0) {
+    ps = (totalRaw / effectiveHps) * 100
+  } else if (len > 0 && aeCount === len) {
+    ps = 100
+  }
+
+  const ws = (ps * (Number(weight) || 0)) / 100
+  return {
+    totalRaw: Math.round(totalRaw * 100) / 100,
+    totalHps: Math.round(effectiveHps * 100) / 100,
+    ps: Math.round(ps * 100) / 100,
+    ws: Math.round(ws * 100) / 100
+  }
+}
+
 function recalculateStudent(st) {
-  // Ensure array lengths
+  if (!Array.isArray(st.ww_scores)) st.ww_scores = []
+  if (!Array.isArray(st.qa_scores)) st.qa_scores = []
+  if (!Array.isArray(st.pt_scores)) st.pt_scores = []
+  if (!Array.isArray(st.rec_scores)) st.rec_scores = []
+  if (!Array.isArray(st.sw_scores)) st.sw_scores = []
+
   while (st.ww_scores.length < wwHps.value.length) st.ww_scores.push(0)
-  while (st.pt_scores.length < ptHps.value.length) st.pt_scores.push(0)
   while (st.qa_scores.length < qaHps.value.length) st.qa_scores.push(0)
 
-  // Written Works
-  let wwSum = 0
-  st.ww_scores.forEach((s, idx) => {
-    const max = wwHps.value[idx] || 1
-    const num = (s === '' || s === null || isNaN(s)) ? 0 : Number(s)
-    const clamped = Math.max(0, Math.min(max, num))
-    wwSum += clamped
-  })
-  st.ww_total = Math.round(wwSum * 100) / 100
-  const wwHpsTot = wwHpsTotal.value || 1
-  st.ww_ps = Math.round((st.ww_total / wwHpsTot) * 10000) / 100
-  st.ww_ws = Math.round((st.ww_ps * (Number(weights.ww) || 0) / 100) * 100) / 100
+  if (splitPt.value) {
+    while (st.rec_scores.length < recHps.value.length) st.rec_scores.push(0)
+    while (st.sw_scores.length < swHps.value.length) st.sw_scores.push(0)
+  } else {
+    while (st.pt_scores.length < ptHps.value.length) st.pt_scores.push(0)
+  }
 
-  // Performance Tasks
-  let ptSum = 0
-  st.pt_scores.forEach((s, idx) => {
-    const max = ptHps.value[idx] || 1
-    const num = (s === '' || s === null || isNaN(s)) ? 0 : Number(s)
-    const clamped = Math.max(0, Math.min(max, num))
-    ptSum += clamped
-  })
-  st.pt_total = Math.round(ptSum * 100) / 100
-  const ptHpsTot = ptHpsTotal.value || 1
-  st.pt_ps = Math.round((st.pt_total / ptHpsTot) * 10000) / 100
-  st.pt_ws = Math.round((st.pt_ps * (Number(weights.pt) || 0) / 100) * 100) / 100
+  const ww = calculateComponentClient(st.ww_scores, wwHps.value, weights.ww)
+  st.ww_total = ww.totalRaw
+  st.ww_ps = ww.ps
+  st.ww_ws = ww.ws
 
-  // Quarterly Assessment
-  let qaSum = 0
-  st.qa_scores.forEach((s, idx) => {
-    const max = qaHps.value[idx] || 1
-    const num = (s === '' || s === null || isNaN(s)) ? 0 : Number(s)
-    const clamped = Math.max(0, Math.min(max, num))
-    qaSum += clamped
-  })
-  st.qa_total = Math.round(qaSum * 100) / 100
-  const qaHpsTot = qaHpsTotal.value || 1
-  st.qa_ps = Math.round((st.qa_total / qaHpsTot) * 10000) / 100
-  st.qa_ws = Math.round((st.qa_ps * (Number(weights.qa) || 0) / 100) * 100) / 100
+  const qa = calculateComponentClient(st.qa_scores, qaHps.value, weights.qa)
+  st.qa_total = qa.totalRaw
+  st.qa_ps = qa.ps
+  st.qa_ws = qa.ws
 
-  // Initial and Transmuted Grade
-  st.initial_grade = Math.round((st.ww_ws + st.pt_ws + st.qa_ws) * 100) / 100
+  let ptWs = 0
+  if (splitPt.value) {
+    const rec = calculateComponentClient(st.rec_scores, recHps.value, weights.ptRecitation)
+    st.rec_total = rec.totalRaw
+    st.rec_ps = rec.ps
+    st.rec_ws = rec.ws
+
+    const sw = calculateComponentClient(st.sw_scores, swHps.value, weights.ptSeatwork)
+    st.sw_total = sw.totalRaw
+    st.sw_ps = sw.ps
+    st.sw_ws = sw.ws
+
+    ptWs = Math.round((rec.ws + sw.ws) * 100) / 100
+    st.pt_total = Math.round((rec.totalRaw + sw.totalRaw) * 100) / 100
+    const ptTotalHps = rec.totalHps + sw.totalHps
+    st.pt_ps = ptTotalHps > 0 ? Math.round((st.pt_total / ptTotalHps) * 10000) / 100 : 0
+    st.pt_ws = ptWs
+  } else {
+    const pt = calculateComponentClient(st.pt_scores, ptHps.value, weights.pt)
+    st.pt_total = pt.totalRaw
+    st.pt_ps = pt.ps
+    st.pt_ws = pt.ws
+    ptWs = pt.ws
+  }
+
+  st.initial_grade = Math.round((st.ww_ws + ptWs + st.qa_ws) * 100) / 100
   st.transmuted_grade = transmuteGrade(st.initial_grade)
   st.remarks = st.transmuted_grade >= 75 ? 'Passed' : 'Failed'
 }
@@ -1175,9 +1579,109 @@ function recalculateAll() {
   students.value.forEach(recalculateStudent)
 }
 
-function onScoreInput(st) {
+function handleScoreInput(st, component, itemIdx) {
   isModified.value = true
+  const list = component === 'ww' ? st.ww_scores
+    : component === 'pt' ? st.pt_scores
+    : component === 'rec' ? st.rec_scores
+    : component === 'sw' ? st.sw_scores
+    : st.qa_scores
+
+  const hpsList = component === 'ww' ? wwHps.value
+    : component === 'pt' ? ptHps.value
+    : component === 'rec' ? recHps.value
+    : component === 'sw' ? swHps.value
+    : qaHps.value
+
+  const maxHps = hpsList[itemIdx] || 1
+  let val = list[itemIdx]
+
+  if (typeof val === 'string') {
+    const trimmed = val.trim().toUpperCase()
+    if (trimmed === 'AE') {
+      list[itemIdx] = 'AE'
+      recalculateStudent(st)
+      return
+    }
+    if (trimmed === 'AU') {
+      list[itemIdx] = 'AU'
+      recalculateStudent(st)
+      return
+    }
+  }
+
+  if (val === '' || val === null || val === undefined) {
+    recalculateStudent(st)
+    return
+  }
+
+  const num = Number(val)
+  if (!isNaN(num)) {
+    if (num > maxHps) {
+      list[itemIdx] = maxHps
+    } else if (num < 0) {
+      list[itemIdx] = 0
+    }
+  }
+
   recalculateStudent(st)
+}
+
+function normalizeScoreCell(st, component, itemIdx) {
+  const list = component === 'ww' ? st.ww_scores
+    : component === 'pt' ? st.pt_scores
+    : component === 'rec' ? st.rec_scores
+    : component === 'sw' ? st.sw_scores
+    : st.qa_scores
+
+  const hpsList = component === 'ww' ? wwHps.value
+    : component === 'pt' ? ptHps.value
+    : component === 'rec' ? recHps.value
+    : component === 'sw' ? swHps.value
+    : qaHps.value
+
+  const maxHps = hpsList[itemIdx] || 1
+  let val = list[itemIdx]
+
+  if (val === 'AE' || val === 'AU') return
+  if (val === '' || val === null || val === undefined) {
+    list[itemIdx] = 0
+    recalculateStudent(st)
+    return
+  }
+
+  const num = Number(val)
+  if (isNaN(num)) {
+    list[itemIdx] = 0
+  } else {
+    list[itemIdx] = Math.max(0, Math.min(maxHps, num))
+  }
+  recalculateStudent(st)
+}
+
+function getScoreInputClass(val, maxHps) {
+  if (val === 'AE' || val === 'ae') return 'input-mark-ae'
+  if (val === 'AU' || val === 'au') return 'input-mark-au'
+  const num = Number(val)
+  if (!isNaN(num) && num > maxHps) return 'input-exceeded'
+  return ''
+}
+
+function getScoreTooltip(val, maxHps) {
+  if (val === 'AE' || val === 'ae') return 'Absent Excused (AE) - Exempt from item (excluded from denominator)'
+  if (val === 'AU' || val === 'au') return 'Absent Unexcused (AU) - 0 score (counted in denominator)'
+  return `Score: ${val !== undefined && val !== null ? val : 0} / ${maxHps}`
+}
+
+function onSplitPtToggle() {
+  if (splitPt.value) {
+    if (ptSubweightTotal.value !== Number(weights.pt)) {
+      weights.ptRecitation = Math.round(Number(weights.pt) * 0.4)
+      weights.ptSeatwork = Number(weights.pt) - weights.ptRecitation
+    }
+  }
+  isModified.value = true
+  recalculateAll()
 }
 
 function onWeightInput() {
@@ -1194,6 +1698,10 @@ function applyPreset(ww, pt, qa) {
   weights.ww = ww
   weights.pt = pt
   weights.qa = qa
+  if (splitPt.value) {
+    weights.ptRecitation = Math.round(pt * 0.4)
+    weights.ptSeatwork = pt - weights.ptRecitation
+  }
   isModified.value = true
   recalculateAll()
 }
@@ -1328,45 +1836,198 @@ function removeQaItemAt(index) {
 }
 
 function promptSetAllHps(type) {
-  const label = type === 'ww' ? 'Written Works' : 'Performance Tasks'
-  const currentDefault = type === 'ww' ? (wwHps.value[0] || 20) : (ptHps.value[0] || 25)
+  const label = type === 'ww' ? 'Written Works'
+    : type === 'pt' ? 'Performance Tasks'
+    : type === 'rec' ? 'Recitation'
+    : 'Seatwork / PT'
+
+  const currentDefault = type === 'ww' ? (wwHps.value[0] || 20)
+    : type === 'pt' ? (ptHps.value[0] || 25)
+    : type === 'rec' ? (recHps.value[0] || 10)
+    : (swHps.value[0] || 25)
+
   const input = prompt(`Enter highest possible score (HPS) for all ${label} items:`, String(currentDefault))
   if (input === null) return
   const val = Math.max(1, parseInt(input, 10) || currentDefault)
   if (type === 'ww') {
     wwHps.value = wwHps.value.map(() => val)
-  } else {
+  } else if (type === 'pt') {
     ptHps.value = ptHps.value.map(() => val)
+  } else if (type === 'rec') {
+    recHps.value = recHps.value.map(() => val)
+  } else if (type === 'sw') {
+    swHps.value = swHps.value.map(() => val)
   }
   isModified.value = true
   recalculateAll()
   addToast(`Updated all ${label} items to HPS = ${val}`, 'success')
 }
 
+// Recitation item management
+function addRecItem(defaultHps = 10) {
+  recHps.value.push(Number(defaultHps) || 10)
+  students.value.forEach(s => {
+    if (!Array.isArray(s.rec_scores)) s.rec_scores = []
+    s.rec_scores.push(0)
+  })
+  isModified.value = true
+  recalculateAll()
+}
+
+function addMultipleRecItems(count = 5, defaultHps = 10) {
+  for (let i = 0; i < count; i++) {
+    recHps.value.push(Number(defaultHps) || 10)
+    students.value.forEach(s => {
+      if (!Array.isArray(s.rec_scores)) s.rec_scores = []
+      s.rec_scores.push(0)
+    })
+  }
+  isModified.value = true
+  recalculateAll()
+  addToast(`Added ${count} Recitation items (total: ${recHps.value.length})`, 'info')
+}
+
+function removeRecItem() {
+  if (recHps.value.length > 1) {
+    recHps.value.pop()
+    students.value.forEach(s => {
+      if (Array.isArray(s.rec_scores)) s.rec_scores.pop()
+    })
+    isModified.value = true
+    recalculateAll()
+  }
+}
+
+function removeRecItemAt(index) {
+  if (recHps.value.length <= 1) return
+  if (!confirm(`Remove Recitation item REC${index + 1}? Recorded scores for this column will be discarded.`)) return
+  recHps.value.splice(index, 1)
+  students.value.forEach(s => {
+    if (Array.isArray(s.rec_scores) && s.rec_scores.length > index) {
+      s.rec_scores.splice(index, 1)
+    }
+  })
+  isModified.value = true
+  recalculateAll()
+}
+
+// Seatwork / PT item management
+function addSwItem(defaultHps = 25) {
+  swHps.value.push(Number(defaultHps) || 25)
+  students.value.forEach(s => {
+    if (!Array.isArray(s.sw_scores)) s.sw_scores = []
+    s.sw_scores.push(0)
+  })
+  isModified.value = true
+  recalculateAll()
+}
+
+function addMultipleSwItems(count = 5, defaultHps = 25) {
+  for (let i = 0; i < count; i++) {
+    swHps.value.push(Number(defaultHps) || 25)
+    students.value.forEach(s => {
+      if (!Array.isArray(s.sw_scores)) s.sw_scores = []
+      s.sw_scores.push(0)
+    })
+  }
+  isModified.value = true
+  recalculateAll()
+  addToast(`Added ${count} Seatwork items (total: ${swHps.value.length})`, 'info')
+}
+
+function removeSwItem() {
+  if (swHps.value.length > 1) {
+    swHps.value.pop()
+    students.value.forEach(s => {
+      if (Array.isArray(s.sw_scores)) s.sw_scores.pop()
+    })
+    isModified.value = true
+    recalculateAll()
+  }
+}
+
+function removeSwItemAt(index) {
+  if (swHps.value.length <= 1) return
+  if (!confirm(`Remove Seatwork item SW${index + 1}? Recorded scores for this column will be discarded.`)) return
+  swHps.value.splice(index, 1)
+  students.value.forEach(s => {
+    if (Array.isArray(s.sw_scores) && s.sw_scores.length > index) {
+      s.sw_scores.splice(index, 1)
+    }
+  })
+  isModified.value = true
+  recalculateAll()
+}
+
+// Special attendance mark (AE / AU) quick-fill
+function quickFillSpecial(type, index, mark) {
+  const label = type === 'ww' ? `WW${index + 1}`
+    : type === 'pt' ? `PT${index + 1}`
+    : type === 'rec' ? `REC${index + 1}`
+    : type === 'sw' ? `SW${index + 1}`
+    : `QA${index + 1}`
+
+  students.value.forEach(st => {
+    if (type === 'ww') st.ww_scores[index] = mark
+    else if (type === 'pt') st.pt_scores[index] = mark
+    else if (type === 'rec') st.rec_scores[index] = mark
+    else if (type === 'sw') st.sw_scores[index] = mark
+    else if (type === 'qa') st.qa_scores[index] = mark
+  })
+  isModified.value = true
+  recalculateAll()
+  addToast(`Marked all learners as ${mark} for ${label}`, 'info')
+}
+
 // Quick fill helper for an entire column
 function quickFillPrompt(type, index) {
-  const label = type === 'ww' ? `WW${index + 1}` : (type === 'pt' ? `PT${index + 1}` : `QA${index + 1}`)
-  const maxHps = type === 'ww' ? (wwHps.value[index] || 20) : (type === 'pt' ? (ptHps.value[index] || 25) : (qaHps.value[index] || 50))
-  const input = prompt(`Quick fill all students for ${label} (Max: ${maxHps}):\nEnter score (or click Cancel):`, String(maxHps))
+  const label = type === 'ww' ? `WW${index + 1}`
+    : type === 'pt' ? `PT${index + 1}`
+    : type === 'rec' ? `REC${index + 1}`
+    : type === 'sw' ? `SW${index + 1}`
+    : `QA${index + 1}`
+
+  const maxHps = type === 'ww' ? (wwHps.value[index] || 20)
+    : type === 'pt' ? (ptHps.value[index] || 25)
+    : type === 'rec' ? (recHps.value[index] || 10)
+    : type === 'sw' ? (swHps.value[index] || 25)
+    : (qaHps.value[index] || 50)
+
+  const input = prompt(`Quick fill all students for ${label} (Max: ${maxHps}):\nEnter score (or AE / AU):`, String(maxHps))
   if (input === null) return
-  const val = Math.max(0, Math.min(maxHps, Number(input) || 0))
+  const trimmed = input.trim().toUpperCase()
+  let val
+  if (trimmed === 'AE' || trimmed === 'AU') {
+    val = trimmed
+  } else {
+    val = Math.max(0, Math.min(maxHps, Number(input) || 0))
+  }
 
   students.value.forEach(st => {
     if (type === 'ww') st.ww_scores[index] = val
     else if (type === 'pt') st.pt_scores[index] = val
+    else if (type === 'rec') st.rec_scores[index] = val
+    else if (type === 'sw') st.sw_scores[index] = val
     else if (type === 'qa') st.qa_scores[index] = val
   })
   isModified.value = true
   recalculateAll()
-  addToast(`Filled all learners with score ${val} for ${label}`, 'success')
+  addToast(`Filled all learners with ${val} for ${label}`, 'success')
 }
 
 function quickFillValue(type, index, value) {
-  const maxHps = type === 'ww' ? (wwHps.value[index] || 20) : (type === 'pt' ? (ptHps.value[index] || 25) : (qaHps.value[index] || 50))
+  const maxHps = type === 'ww' ? (wwHps.value[index] || 20)
+    : type === 'pt' ? (ptHps.value[index] || 25)
+    : type === 'rec' ? (recHps.value[index] || 10)
+    : type === 'sw' ? (swHps.value[index] || 25)
+    : (qaHps.value[index] || 50)
+
   const safeVal = Math.max(0, Math.min(maxHps, Number(value) || 0))
   students.value.forEach(st => {
     if (type === 'ww') st.ww_scores[index] = safeVal
     else if (type === 'pt') st.pt_scores[index] = safeVal
+    else if (type === 'rec') st.rec_scores[index] = safeVal
+    else if (type === 'sw') st.sw_scores[index] = safeVal
     else if (type === 'qa') st.qa_scores[index] = safeVal
   })
   isModified.value = true
@@ -1664,9 +2325,19 @@ async function loadClassRecord() {
       weights.ww = Number(data.config.weight_ww) || 30
       weights.pt = Number(data.config.weight_pt) || 50
       weights.qa = Number(data.config.weight_qa) || 20
+      splitPt.value = Boolean(data.config.split_pt)
+      weights.ptRecitation = data.config.weight_rec !== undefined && data.config.weight_rec !== null
+        ? Number(data.config.weight_rec)
+        : Math.round(weights.pt * 0.4)
+      weights.ptSeatwork = data.config.weight_sw !== undefined && data.config.weight_sw !== null
+        ? Number(data.config.weight_sw)
+        : (weights.pt - weights.ptRecitation)
+
       if (Array.isArray(data.config.ww_hps) && data.config.ww_hps.length) wwHps.value = [...data.config.ww_hps]
       if (Array.isArray(data.config.pt_hps) && data.config.pt_hps.length) ptHps.value = [...data.config.pt_hps]
       if (Array.isArray(data.config.qa_hps) && data.config.qa_hps.length) qaHps.value = [...data.config.qa_hps]
+      if (Array.isArray(data.config.rec_hps) && data.config.rec_hps.length) recHps.value = [...data.config.rec_hps]
+      if (Array.isArray(data.config.sw_hps) && data.config.sw_hps.length) swHps.value = [...data.config.sw_hps]
     }
 
     students.value = (data.students || []).map(st => {
@@ -1676,11 +2347,18 @@ async function loadClassRecord() {
       while (pt.length < ptHps.value.length) pt.push(0)
       const qa = Array.isArray(st.qa_scores) ? [...st.qa_scores] : []
       while (qa.length < qaHps.value.length) qa.push(0)
+      const rec = Array.isArray(st.rec_scores) ? [...st.rec_scores] : []
+      while (rec.length < recHps.value.length) rec.push(0)
+      const sw = Array.isArray(st.sw_scores) ? [...st.sw_scores] : []
+      while (sw.length < swHps.value.length) sw.push(0)
+
       return {
         ...st,
         ww_scores: ww,
         pt_scores: pt,
         qa_scores: qa,
+        rec_scores: rec,
+        sw_scores: sw,
         initial_grade: Number(st.initial_grade) || 0,
         transmuted_grade: Number(st.transmuted_grade) || 0,
         remarks: st.remarks || ''
@@ -1709,6 +2387,11 @@ async function saveClassRecord() {
     return
   }
 
+  if (splitPt.value && !isPtSplitValid.value) {
+    addToast(`Recitation (${weights.ptRecitation}%) and Seatwork (${weights.ptSeatwork}%) must equal PT weight (${weights.pt}%)`, 'warning')
+    return
+  }
+
   savingRecord.value = true
   try {
     const payload = {
@@ -1721,14 +2404,21 @@ async function saveClassRecord() {
       weightWw: weights.ww,
       weightPt: weights.pt,
       weightQa: weights.qa,
+      splitPt: splitPt.value,
+      weightRec: weights.ptRecitation,
+      weightSw: weights.ptSeatwork,
       wwHps: wwHps.value,
       ptHps: ptHps.value,
       qaHps: qaHps.value,
+      recHps: recHps.value,
+      swHps: swHps.value,
       learners: students.value.map(st => ({
         studentId: st.id,
-        wwScores: st.ww_scores.map((s, idx) => Math.min(wwHps.value[idx] || 0, Math.max(0, Number(s) || 0))),
-        ptScores: st.pt_scores.map((s, idx) => Math.min(ptHps.value[idx] || 0, Math.max(0, Number(s) || 0))),
-        qaScores: st.qa_scores.map((s, idx) => Math.min(qaHps.value[idx] || 0, Math.max(0, Number(s) || 0))),
+        wwScores: st.ww_scores,
+        ptScores: st.pt_scores,
+        qaScores: st.qa_scores,
+        recScores: st.rec_scores,
+        swScores: st.sw_scores,
         isLocked: st.is_locked
       }))
     }
@@ -2200,6 +2890,80 @@ onUnmounted(() => {
 .dot-ww { background: var(--info, #0284c7); }
 .dot-pt { background: var(--warning, #f59e0b); }
 .dot-qa { background: var(--success, #10b981); }
+.dot-rec { background: #0d9488; }
+.dot-sw { background: var(--warning, #d97706); }
+
+.split-pt-toggle-row {
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.toggle-control-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.toggle-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.subweights-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--muted);
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.weight-subfield {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weight-subfield label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.sub-input {
+  width: 52px;
+}
+
+.pt-split-validation-badge {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.pt-split-validation-badge.valid {
+  background: var(--success-bg, rgba(16, 185, 129, 0.15));
+  color: var(--success, #10b981);
+}
+
+.pt-split-validation-badge.invalid {
+  background: var(--red-bg, rgba(239, 68, 68, 0.15));
+  color: var(--destructive, #ef4444);
+}
 
 .presets-group {
   display: flex;
@@ -2565,6 +3329,20 @@ onUnmounted(() => {
   color: var(--warning, #d97706) !important;
 }
 
+.group-rec {
+  background: rgba(13, 148, 136, 0.08) !important;
+  color: #0d9488 !important;
+}
+
+.group-sw {
+  background: rgba(245, 158, 11, 0.08) !important;
+  color: var(--warning, #d97706) !important;
+}
+
+.text-cyan {
+  color: #0d9488 !important;
+}
+
 .group-qa {
   background: rgba(16, 185, 129, 0.08) !important;
   color: var(--success, #10b981) !important;
@@ -2658,6 +3436,20 @@ onUnmounted(() => {
 .score-input:focus {
   border-color: var(--primary);
   outline: none;
+}
+
+.input-mark-ae {
+  background: rgba(13, 148, 136, 0.15) !important;
+  color: #0f766e !important;
+  font-weight: 800 !important;
+  border-color: #0d9488 !important;
+}
+
+.input-mark-au {
+  background: rgba(225, 29, 72, 0.12) !important;
+  color: #be123c !important;
+  font-weight: 800 !important;
+  border-color: #e11d48 !important;
 }
 
 .input-exceeded {

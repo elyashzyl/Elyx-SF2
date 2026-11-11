@@ -6,6 +6,16 @@ import { calculateInitialGrade, transmuteGrade, determineHonors, getProficiencyL
 
 const router = Router()
 
+function sanitizeScore(val, maxHps) {
+  if (val === undefined || val === null || val === '') return 0
+  const sStr = String(val).trim().toUpperCase()
+  if (sStr === 'AE') return 'AE'
+  if (sStr === 'AU') return 'AU'
+  const num = Number(val)
+  if (isNaN(num)) return 0
+  return Math.min(maxHps, Math.max(0, num))
+}
+
 // Standard DepEd K-12 learning areas with DepEd Order No. 8, s. 2015 assessment weights
 const DEPED_STANDARD_SUBJECTS = [
   { name: 'Filipino', code: 'FIL', ww: 30, pt: 50, qa: 20 },
@@ -424,9 +434,14 @@ router.get('/class-record', async (req, res) => {
     let weightWw = subject.weight_ww !== undefined ? Number(subject.weight_ww) : 30
     let weightPt = subject.weight_pt !== undefined ? Number(subject.weight_pt) : 50
     let weightQa = subject.weight_qa !== undefined ? Number(subject.weight_qa) : 20
+    let splitPt = false
+    let weightRec = 20
+    let weightSw = 30
     let wwHps = [20, 20, 25, 20, 15] // default 5 items, sum = 100
     let ptHps = [25, 25, 25, 25]     // default 4 items, sum = 100
     let qaHps = [50]                 // default 1 item, sum = 50
+    let recHps = [10, 10, 10, 10]    // default 4 items
+    let swHps = [25, 25, 25, 25]     // default 4 items
 
     if (configRows.length > 0) {
       const cfg = configRows[0]
@@ -434,6 +449,15 @@ router.get('/class-record', async (req, res) => {
         weightWw = Number(cfg.weight_ww)
         weightPt = Number(cfg.weight_pt)
         weightQa = Number(cfg.weight_qa)
+      }
+      if (cfg.split_pt !== undefined && cfg.split_pt !== null) {
+        splitPt = Boolean(cfg.split_pt)
+      }
+      if (cfg.weight_rec !== undefined && cfg.weight_rec !== null) {
+        weightRec = Number(cfg.weight_rec)
+      }
+      if (cfg.weight_sw !== undefined && cfg.weight_sw !== null) {
+        weightSw = Number(cfg.weight_sw)
       }
       try {
         const parsedWw = JSON.parse(cfg.ww_hps)
@@ -447,6 +471,23 @@ router.get('/class-record', async (req, res) => {
         const parsedQa = JSON.parse(cfg.qa_hps)
         if (Array.isArray(parsedQa) && parsedQa.length > 0) qaHps = parsedQa.map(n => Math.max(1, Number(n) || 1))
       } catch {}
+      try {
+        if (cfg.rec_hps) {
+          const parsedRec = JSON.parse(cfg.rec_hps)
+          if (Array.isArray(parsedRec) && parsedRec.length > 0) recHps = parsedRec.map(n => Math.max(1, Number(n) || 1))
+        }
+      } catch {}
+      try {
+        if (cfg.sw_hps) {
+          const parsedSw = JSON.parse(cfg.sw_hps)
+          if (Array.isArray(parsedSw) && parsedSw.length > 0) swHps = parsedSw.map(n => Math.max(1, Number(n) || 1))
+        }
+      } catch {}
+    }
+
+    if (weightRec + weightSw !== weightPt) {
+      weightRec = Math.round(weightPt * 0.4)
+      weightSw = weightPt - weightRec
     }
 
     // Fetch enrolled students
@@ -475,7 +516,7 @@ router.get('/class-record', async (req, res) => {
     // Build learners list
     const learners = students.map(st => {
       const g = gradeMap.get(st.id)
-      let rawObj = { ww: [], pt: [], qa: [] }
+      let rawObj = { ww: [], pt: [], qa: [], rec: [], sw: [] }
       if (g?.raw_scores) {
         try {
           const parsed = JSON.parse(g.raw_scores)
@@ -483,18 +524,25 @@ router.get('/class-record', async (req, res) => {
             rawObj.ww = Array.isArray(parsed.ww) ? parsed.ww : []
             rawObj.pt = Array.isArray(parsed.pt) ? parsed.pt : []
             rawObj.qa = Array.isArray(parsed.qa) ? parsed.qa : []
+            rawObj.rec = Array.isArray(parsed.rec) ? parsed.rec : []
+            rawObj.sw = Array.isArray(parsed.sw) ? parsed.sw : []
           }
         } catch {}
       }
 
-      const wwScores = wwHps.map((_, idx) => (rawObj.ww[idx] !== undefined ? Number(rawObj.ww[idx]) : 0))
-      const ptScores = ptHps.map((_, idx) => (rawObj.pt[idx] !== undefined ? Number(rawObj.pt[idx]) : 0))
-      const qaScores = qaHps.map((_, idx) => (rawObj.qa[idx] !== undefined ? Number(rawObj.qa[idx]) : 0))
+      const wwScores = wwHps.map((max, idx) => sanitizeScore(rawObj.ww[idx], max))
+      const ptScores = ptHps.map((max, idx) => sanitizeScore(rawObj.pt[idx], max))
+      const qaScores = qaHps.map((max, idx) => sanitizeScore(rawObj.qa[idx], max))
+      const recScores = recHps.map((max, idx) => sanitizeScore(rawObj.rec[idx], max))
+      const swScores = swHps.map((max, idx) => sanitizeScore(rawObj.sw[idx], max))
 
       const calc = calculateLearnerEClassRecord({
         wwScores, wwHps, weightWw,
         ptScores, ptHps, weightPt,
-        qaScores, qaHps, weightQa
+        qaScores, qaHps, weightQa,
+        isPtSplit: splitPt,
+        recScores, recHps, weightRec,
+        swScores, swHps, weightSw
       })
 
       return {
@@ -513,11 +561,22 @@ router.get('/class-record', async (req, res) => {
         pt_hps_total: calc.pt.totalHps,
         pt_ps: calc.pt.ps,
         pt_ws: calc.pt.ws,
+        rec_scores: recScores,
+        rec_total: calc.rec?.totalRaw ?? 0,
+        rec_hps_total: calc.rec?.totalHps ?? 0,
+        rec_ps: calc.rec?.ps ?? 0,
+        rec_ws: calc.rec?.ws ?? 0,
+        sw_scores: swScores,
+        sw_total: calc.sw?.totalRaw ?? 0,
+        sw_hps_total: calc.sw?.totalHps ?? 0,
+        sw_ps: calc.sw?.ps ?? 0,
+        sw_ws: calc.sw?.ws ?? 0,
         qa_scores: qaScores,
         qa_total: calc.qa.totalRaw,
         qa_hps_total: calc.qa.totalHps,
         qa_ps: calc.qa.ps,
         qa_ws: calc.qa.ws,
+        is_pt_split: splitPt,
         initial_grade: calc.initialGrade,
         transmuted_grade: calc.transmutedGrade,
         remarks: calc.remarks,
@@ -538,9 +597,14 @@ router.get('/class-record', async (req, res) => {
         weight_ww: weightWw,
         weight_pt: weightPt,
         weight_qa: weightQa,
+        split_pt: splitPt,
+        weight_rec: weightRec,
+        weight_sw: weightSw,
         ww_hps: wwHps,
         pt_hps: ptHps,
-        qa_hps: qaHps
+        qa_hps: qaHps,
+        rec_hps: recHps,
+        sw_hps: swHps
       },
       students: learners
     })
@@ -576,14 +640,25 @@ router.post('/class-record/save', async (req, res) => {
       return res.status(400).json({ error: '4th Quarter is not available for schools with 3 Quarters (Trimester)' })
     }
 
+    const splitPt = Boolean(req.body?.splitPt)
     const weightWw = parseInt(req.body?.weightWw, 10)
     const weightPt = parseInt(req.body?.weightPt, 10)
     const weightQa = parseInt(req.body?.weightQa, 10)
+    const weightRec = parseInt(req.body?.weightRec, 10)
+    const weightSw = parseInt(req.body?.weightSw, 10)
 
     if (isNaN(weightWw) || isNaN(weightPt) || isNaN(weightQa) || (weightWw + weightPt + weightQa) !== 100) {
       return res.status(400).json({
         error: `Assessment weights must total exactly 100% (currently ${weightWw + weightPt + weightQa}%)`
       })
+    }
+
+    if (splitPt) {
+      if (isNaN(weightRec) || isNaN(weightSw) || (weightRec + weightSw) !== weightPt) {
+        return res.status(400).json({
+          error: `Recitation weight (${weightRec}%) and Seatwork weight (${weightSw}%) must equal Performance Tasks weight (${weightPt}%)`
+        })
+      }
     }
 
     const wwHps = Array.isArray(req.body?.wwHps) && req.body.wwHps.length > 0
@@ -595,6 +670,12 @@ router.post('/class-record/save', async (req, res) => {
     const qaHps = Array.isArray(req.body?.qaHps) && req.body.qaHps.length > 0
       ? req.body.qaHps.map(v => Math.max(1, Number(v) || 1))
       : [50]
+    const recHps = Array.isArray(req.body?.recHps) && req.body.recHps.length > 0
+      ? req.body.recHps.map(v => Math.max(1, Number(v) || 1))
+      : [10, 10, 10, 10]
+    const swHps = Array.isArray(req.body?.swHps) && req.body.swHps.length > 0
+      ? req.body.swHps.map(v => Math.max(1, Number(v) || 1))
+      : [25, 25, 25, 25]
 
     const learners = Array.isArray(req.body?.learners) ? req.body.learners : []
 
@@ -609,22 +690,52 @@ router.post('/class-record/save', async (req, res) => {
       [schoolId, gradeLevel, section, subjectId, quarter, resolvedSchoolYear]
     ))[0]
 
+    const splitPtVal = splitPt ? 1 : 0
+    const recWeightVal = isNaN(weightRec) ? 20 : weightRec
+    const swWeightVal = isNaN(weightSw) ? 30 : weightSw
+
     if (existingConfig) {
-      await run(
-        `UPDATE class_record_configs SET
-           weight_ww = ?, weight_pt = ?, weight_qa = ?,
-           ww_hps = ?, pt_hps = ?, qa_hps = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps), existingConfig.id]
-      )
+      try {
+        await run(
+          `UPDATE class_record_configs SET
+             weight_ww = ?, weight_pt = ?, weight_qa = ?,
+             ww_hps = ?, pt_hps = ?, qa_hps = ?,
+             split_pt = ?, weight_rec = ?, weight_sw = ?, rec_hps = ?, sw_hps = ?,
+             updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps),
+           splitPtVal, recWeightVal, swWeightVal, JSON.stringify(recHps), JSON.stringify(swHps), existingConfig.id]
+        )
+      } catch {
+        await run(
+          `UPDATE class_record_configs SET
+             weight_ww = ?, weight_pt = ?, weight_qa = ?,
+             ww_hps = ?, pt_hps = ?, qa_hps = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps), existingConfig.id]
+        )
+      }
     } else {
       const cfgId = uuidv4()
-      await run(
-        `INSERT INTO class_record_configs
-           (id, school_id, grade_level, section, subject_id, school_year, quarter, weight_ww, weight_pt, weight_qa, ww_hps, pt_hps, qa_hps)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [cfgId, schoolId, gradeLevel, section, subjectId, resolvedSchoolYear, quarter, weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps)]
-      )
+      try {
+        await run(
+          `INSERT INTO class_record_configs
+             (id, school_id, grade_level, section, subject_id, school_year, quarter,
+              weight_ww, weight_pt, weight_qa, ww_hps, pt_hps, qa_hps,
+              split_pt, weight_rec, weight_sw, rec_hps, sw_hps)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [cfgId, schoolId, gradeLevel, section, subjectId, resolvedSchoolYear, quarter,
+           weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps),
+           splitPtVal, recWeightVal, swWeightVal, JSON.stringify(recHps), JSON.stringify(swHps)]
+        )
+      } catch {
+        await run(
+          `INSERT INTO class_record_configs
+             (id, school_id, grade_level, section, subject_id, school_year, quarter, weight_ww, weight_pt, weight_qa, ww_hps, pt_hps, qa_hps)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [cfgId, schoolId, gradeLevel, section, subjectId, resolvedSchoolYear, quarter, weightWw, weightPt, weightQa, JSON.stringify(wwHps), JSON.stringify(ptHps), JSON.stringify(qaHps)]
+        )
+      }
     }
 
     // 2. Upsert learner_grades
@@ -633,17 +744,35 @@ router.post('/class-record/save', async (req, res) => {
       const studentId = String(item.studentId || item.id || '').trim()
       if (!studentId) continue
 
-      const wwScores = wwHps.map((max, idx) => Math.min(max, Math.max(0, Number(item.wwScores?.[idx] ?? item.ww_scores?.[idx]) || 0)))
-      const ptScores = ptHps.map((max, idx) => Math.min(max, Math.max(0, Number(item.ptScores?.[idx] ?? item.pt_scores?.[idx]) || 0)))
-      const qaScores = qaHps.map((max, idx) => Math.min(max, Math.max(0, Number(item.qaScores?.[idx] ?? item.qa_scores?.[idx]) || 0)))
+      const rawWw = item.wwScores ?? item.ww_scores ?? []
+      const rawPt = item.ptScores ?? item.pt_scores ?? []
+      const rawQa = item.qaScores ?? item.qa_scores ?? []
+      const rawRec = item.recScores ?? item.rec_scores ?? []
+      const rawSw = item.swScores ?? item.sw_scores ?? []
+
+      const wwScores = wwHps.map((max, idx) => sanitizeScore(rawWw[idx], max))
+      const ptScores = ptHps.map((max, idx) => sanitizeScore(rawPt[idx], max))
+      const qaScores = qaHps.map((max, idx) => sanitizeScore(rawQa[idx], max))
+      const recScores = recHps.map((max, idx) => sanitizeScore(rawRec[idx], max))
+      const swScores = swHps.map((max, idx) => sanitizeScore(rawSw[idx], max))
 
       const calc = calculateLearnerEClassRecord({
         wwScores, wwHps, weightWw,
         ptScores, ptHps, weightPt,
-        qaScores, qaHps, weightQa
+        qaScores, qaHps, weightQa,
+        isPtSplit: splitPt,
+        recScores, recHps, weightRec: recWeightVal,
+        swScores, swHps, weightSw: swWeightVal
       })
 
-      const rawScoresJson = JSON.stringify({ ww: wwScores, pt: ptScores, qa: qaScores })
+      const rawScoresJson = JSON.stringify({
+        ww: wwScores,
+        pt: ptScores,
+        qa: qaScores,
+        rec: recScores,
+        sw: swScores,
+        split_pt: splitPt
+      })
       const isLocked = item.isLocked ? 1 : 0
 
       const existing = (await query(
@@ -750,15 +879,23 @@ router.get('/class-record/export', async (req, res) => {
     let weightWw = subject.weight_ww !== undefined ? Number(subject.weight_ww) : 30
     let weightPt = subject.weight_pt !== undefined ? Number(subject.weight_pt) : 50
     let weightQa = subject.weight_qa !== undefined ? Number(subject.weight_qa) : 20
+    let splitPt = false
+    let weightRec = 20
+    let weightSw = 30
     let wwHps = [20, 20, 25, 20, 15]
     let ptHps = [25, 25, 25, 25]
     let qaHps = [50]
+    let recHps = [10, 10, 10, 10]
+    let swHps = [25, 25, 25, 25]
 
     if (configRows.length > 0) {
       const cfg = configRows[0]
       weightWw = Number(cfg.weight_ww) || weightWw
       weightPt = Number(cfg.weight_pt) || weightPt
       weightQa = Number(cfg.weight_qa) || weightQa
+      if (cfg.split_pt !== undefined && cfg.split_pt !== null) splitPt = Boolean(cfg.split_pt)
+      if (cfg.weight_rec !== undefined && cfg.weight_rec !== null) weightRec = Number(cfg.weight_rec)
+      if (cfg.weight_sw !== undefined && cfg.weight_sw !== null) weightSw = Number(cfg.weight_sw)
       try {
         const parsedWw = JSON.parse(cfg.ww_hps)
         if (Array.isArray(parsedWw) && parsedWw.length > 0) wwHps = parsedWw.map(n => Math.max(1, Number(n) || 1))
@@ -771,6 +908,23 @@ router.get('/class-record/export', async (req, res) => {
         const parsedQa = JSON.parse(cfg.qa_hps)
         if (Array.isArray(parsedQa) && parsedQa.length > 0) qaHps = parsedQa.map(n => Math.max(1, Number(n) || 1))
       } catch {}
+      try {
+        if (cfg.rec_hps) {
+          const parsedRec = JSON.parse(cfg.rec_hps)
+          if (Array.isArray(parsedRec) && parsedRec.length > 0) recHps = parsedRec.map(n => Math.max(1, Number(n) || 1))
+        }
+      } catch {}
+      try {
+        if (cfg.sw_hps) {
+          const parsedSw = JSON.parse(cfg.sw_hps)
+          if (Array.isArray(parsedSw) && parsedSw.length > 0) swHps = parsedSw.map(n => Math.max(1, Number(n) || 1))
+        }
+      } catch {}
+    }
+
+    if (weightRec + weightSw !== weightPt) {
+      weightRec = Math.round(weightPt * 0.4)
+      weightSw = weightPt - weightRec
     }
 
     const students = await query(
@@ -809,7 +963,7 @@ router.get('/class-record/export', async (req, res) => {
     rows.push([
       esc('Assessment Weights:'),
       esc(`Written Works: ${weightWw}%`),
-      esc(`Performance Tasks: ${weightPt}%`),
+      esc(splitPt ? `Performance Tasks: ${weightPt}% (Recitation: ${weightRec}%, Seatwork: ${weightSw}%)` : `Performance Tasks: ${weightPt}%`),
       esc(`Quarterly Assessment: ${weightQa}%`),
       esc(`Total Weight: ${weightWw + weightPt + weightQa}%`)
     ])
@@ -819,8 +973,18 @@ router.get('/class-record/export', async (req, res) => {
     const headerRow = [esc('#'), esc("LEARNER'S FULL NAME"), esc('DEPED LRN'), esc('SEX')]
     wwHps.forEach((_, idx) => headerRow.push(esc(`WW ${idx + 1}`)))
     headerRow.push(esc('TOTAL WW'), esc('HPS WW'), esc('PS WW (%)'), esc(`WS WW (${weightWw}%)`))
-    ptHps.forEach((_, idx) => headerRow.push(esc(`PT ${idx + 1}`)))
-    headerRow.push(esc('TOTAL PT'), esc('HPS PT'), esc('PS PT (%)'), esc(`WS PT (${weightPt}%)`))
+
+    if (splitPt) {
+      recHps.forEach((_, idx) => headerRow.push(esc(`REC ${idx + 1}`)))
+      headerRow.push(esc('TOTAL REC'), esc('HPS REC'), esc('PS REC (%)'), esc(`WS REC (${weightRec}%)`))
+      swHps.forEach((_, idx) => headerRow.push(esc(`SW ${idx + 1}`)))
+      headerRow.push(esc('TOTAL SW'), esc('HPS SW'), esc('PS SW (%)'), esc(`WS SW (${weightSw}%)`))
+      headerRow.push(esc(`TOTAL PT WS (${weightPt}%)`))
+    } else {
+      ptHps.forEach((_, idx) => headerRow.push(esc(`PT ${idx + 1}`)))
+      headerRow.push(esc('TOTAL PT'), esc('HPS PT'), esc('PS PT (%)'), esc(`WS PT (${weightPt}%)`))
+    }
+
     qaHps.forEach((_, idx) => headerRow.push(esc(`QA ${idx + 1}`)))
     headerRow.push(esc('TOTAL QA'), esc('HPS QA'), esc('PS QA (%)'), esc(`WS QA (${weightQa}%)`))
     headerRow.push(esc('INITIAL GRADE'), esc('QUARTER GRADE'), esc('REMARKS'))
@@ -831,9 +995,23 @@ router.get('/class-record/export', async (req, res) => {
     const wwHpsTotal = wwHps.reduce((a, b) => a + b, 0)
     wwHps.forEach(h => hpsRow.push(esc(h)))
     hpsRow.push(esc(wwHpsTotal), esc(wwHpsTotal), esc('100.00'), esc(Number(weightWw).toFixed(2)))
-    const ptHpsTotal = ptHps.reduce((a, b) => a + b, 0)
-    ptHps.forEach(h => hpsRow.push(esc(h)))
-    hpsRow.push(esc(ptHpsTotal), esc(ptHpsTotal), esc('100.00'), esc(Number(weightPt).toFixed(2)))
+
+    if (splitPt) {
+      const recHpsTotal = recHps.reduce((a, b) => a + b, 0)
+      recHps.forEach(h => hpsRow.push(esc(h)))
+      hpsRow.push(esc(recHpsTotal), esc(recHpsTotal), esc('100.00'), esc(Number(weightRec).toFixed(2)))
+
+      const swHpsTotal = swHps.reduce((a, b) => a + b, 0)
+      swHps.forEach(h => hpsRow.push(esc(h)))
+      hpsRow.push(esc(swHpsTotal), esc(swHpsTotal), esc('100.00'), esc(Number(weightSw).toFixed(2)))
+
+      hpsRow.push(esc(Number(weightPt).toFixed(2)))
+    } else {
+      const ptHpsTotal = ptHps.reduce((a, b) => a + b, 0)
+      ptHps.forEach(h => hpsRow.push(esc(h)))
+      hpsRow.push(esc(ptHpsTotal), esc(ptHpsTotal), esc('100.00'), esc(Number(weightPt).toFixed(2)))
+    }
+
     const qaHpsTotal = qaHps.reduce((a, b) => a + b, 0)
     qaHps.forEach(h => hpsRow.push(esc(h)))
     hpsRow.push(esc(qaHpsTotal), esc(qaHpsTotal), esc('100.00'), esc(Number(weightQa).toFixed(2)))
@@ -847,7 +1025,7 @@ router.get('/class-record/export', async (req, res) => {
       rows.push([esc(`--- ${groupLabel} (${list.length}) ---`)])
       list.forEach((st, idx) => {
         const g = gradeMap.get(st.id)
-        let rawObj = { ww: [], pt: [], qa: [] }
+        let rawObj = { ww: [], pt: [], qa: [], rec: [], sw: [] }
         if (g?.raw_scores) {
           try {
             const parsed = JSON.parse(g.raw_scores)
@@ -855,24 +1033,41 @@ router.get('/class-record/export', async (req, res) => {
               rawObj.ww = Array.isArray(parsed.ww) ? parsed.ww : []
               rawObj.pt = Array.isArray(parsed.pt) ? parsed.pt : []
               rawObj.qa = Array.isArray(parsed.qa) ? parsed.qa : []
+              rawObj.rec = Array.isArray(parsed.rec) ? parsed.rec : []
+              rawObj.sw = Array.isArray(parsed.sw) ? parsed.sw : []
             }
           } catch {}
         }
-        const wwScores = wwHps.map((_, i) => (rawObj.ww[i] !== undefined ? Number(rawObj.ww[i]) : 0))
-        const ptScores = ptHps.map((_, i) => (rawObj.pt[i] !== undefined ? Number(rawObj.pt[i]) : 0))
-        const qaScores = qaHps.map((_, i) => (rawObj.qa[i] !== undefined ? Number(rawObj.qa[i]) : 0))
+        const wwScores = wwHps.map((max, i) => sanitizeScore(rawObj.ww[i], max))
+        const ptScores = ptHps.map((max, i) => sanitizeScore(rawObj.pt[i], max))
+        const qaScores = qaHps.map((max, i) => sanitizeScore(rawObj.qa[i], max))
+        const recScores = recHps.map((max, i) => sanitizeScore(rawObj.rec[i], max))
+        const swScores = swHps.map((max, i) => sanitizeScore(rawObj.sw[i], max))
 
         const calc = calculateLearnerEClassRecord({
           wwScores, wwHps, weightWw,
           ptScores, ptHps, weightPt,
-          qaScores, qaHps, weightQa
+          qaScores, qaHps, weightQa,
+          isPtSplit: splitPt,
+          recScores, recHps, weightRec,
+          swScores, swHps, weightSw
         })
 
         const r = [esc(idx + 1), esc(st.name), esc(st.lrn || ''), esc(st.gender || '')]
         wwScores.forEach(s => r.push(esc(s)))
         r.push(esc(calc.ww.totalRaw), esc(calc.ww.totalHps), esc(calc.ww.ps.toFixed(2)), esc(calc.ww.ws.toFixed(2)))
-        ptScores.forEach(s => r.push(esc(s)))
-        r.push(esc(calc.pt.totalRaw), esc(calc.pt.totalHps), esc(calc.pt.ps.toFixed(2)), esc(calc.pt.ws.toFixed(2)))
+
+        if (splitPt) {
+          recScores.forEach(s => r.push(esc(s)))
+          r.push(esc(calc.rec?.totalRaw ?? 0), esc(calc.rec?.totalHps ?? 0), esc((calc.rec?.ps ?? 0).toFixed(2)), esc((calc.rec?.ws ?? 0).toFixed(2)))
+          swScores.forEach(s => r.push(esc(s)))
+          r.push(esc(calc.sw?.totalRaw ?? 0), esc(calc.sw?.totalHps ?? 0), esc((calc.sw?.ps ?? 0).toFixed(2)), esc((calc.sw?.ws ?? 0).toFixed(2)))
+          r.push(esc((calc.pt.ws).toFixed(2)))
+        } else {
+          ptScores.forEach(s => r.push(esc(s)))
+          r.push(esc(calc.pt.totalRaw), esc(calc.pt.totalHps), esc(calc.pt.ps.toFixed(2)), esc(calc.pt.ws.toFixed(2)))
+        }
+
         qaScores.forEach(s => r.push(esc(s)))
         r.push(esc(calc.qa.totalRaw), esc(calc.qa.totalHps), esc(calc.qa.ps.toFixed(2)), esc(calc.qa.ws.toFixed(2)))
         r.push(esc(calc.initialGrade.toFixed(2)), esc(calc.transmutedGrade), esc(calc.remarks))
