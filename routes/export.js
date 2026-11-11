@@ -588,9 +588,10 @@ router.post('/sf2', async (req, res) => {
       return eDates.length ? Math.min(...eDates.map(Number)) : null
     }
     function isTransferredOut(entry) {
-      return /transferred\s*out/i.test(String(entry?.remarks || ''))
+      return /\btransfe?r+(?:ed)?[\s\-_/]*out\b|\bt\s*\/\s*o\b/i.test(String(entry?.remarks || ''))
     }
     function calcEntryAbsent(entry) {
+      if (isTransferredOut(entry)) return 0
       const enrollDay = getEnrollDay(entry)
       let absent = 0
       for (const sd of schoolDays) {
@@ -604,15 +605,17 @@ router.post('/sf2', async (req, res) => {
       return absent
     }
     function calcEntryPresent(entry) {
+      if (isTransferredOut(entry)) return 0
       return Math.max(0, effectiveDays - calcEntryAbsent(entry))
     }
-    function sumAbsent(el) { return el.reduce((s, e) => s + calcEntryAbsent(e), 0) }
-    function sumPresent(el) { return el.reduce((s, e) => s + calcEntryPresent(e), 0) }
+    function sumAbsent(el) { return el.filter(e => !isTransferredOut(e)).reduce((s, e) => s + calcEntryAbsent(e), 0) }
+    function sumPresent(el) { return el.filter(e => !isTransferredOut(e)).reduce((s, e) => s + calcEntryPresent(e), 0) }
     function daySum(el, dn) {
       const sd = schoolDays.find(d => d.day === dn)
       if (sd && sd.isHoliday && !sd.isCountedHoliday) return ''
       let count = 0
       for (const e of el) {
+        if (isTransferredOut(e)) continue
         const enrollDay = getEnrollDay(e)
         if (enrollDay !== null && dn < enrollDay) continue
         if (!isStudentCountedOnDate({ year, month, day: dn, transferOutDate: e.transferOutDate, remarks: e.remarks })) continue
@@ -650,21 +653,30 @@ router.post('/sf2', async (req, res) => {
       setVal(newWs, row, NUM_COL, 'n', i + 1)
       addMerge(newWs, row, 2, row, 3)
       setVal(newWs, row, NAME_COL, 's', entry.name)
-      const days = entry.days || {}
-      for (const [dayStr, status] of Object.entries(days)) {
-        const dayNum = parseInt(dayStr, 10)
-        const col = dateColMap[dayNum]
-        const sd = schoolDays.find(d => d.day === dayNum)
-        if (col === undefined || !status || (sd && sd.isHoliday)) continue
-        const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : (status === 'A' || status === 'x' || status === 'X') ? 'x' : status === 'E' ? 'E' : (status === '1' || status === 'P') ? '' : status
-        if (sym) {
-          setVal(newWs, row, col, 's', sym)
-          applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+      if (!isTransferredOut(entry)) {
+        const days = entry.days || {}
+        for (const [dayStr, status] of Object.entries(days)) {
+          const dayNum = parseInt(dayStr, 10)
+          const col = dateColMap[dayNum]
+          const sd = schoolDays.find(d => d.day === dayNum)
+          if (col === undefined || !status || (sd && sd.isHoliday)) continue
+          const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : (status === 'A' || status === 'x' || status === 'X') ? 'x' : status === 'E' ? 'E' : (status === '1' || status === 'P') ? '' : status
+          if (sym) {
+            setVal(newWs, row, col, 's', sym)
+            applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+          }
         }
+        setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
+        addMerge(newWs, row, 30, row, 32)
+        setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
+      } else {
+        for (const col of Object.values(dateColMap)) {
+          delCell(newWs, row, col)
+        }
+        delCell(newWs, row, ABSENT_COL)
+        addMerge(newWs, row, 30, row, 32)
+        delCell(newWs, row, 30)
       }
-      if (!isTransferredOut(entry)) setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
-      addMerge(newWs, row, 30, row, 32)
-      if (!isTransferredOut(entry)) setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
       addMerge(newWs, row, 33, row, 37)
       if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
       row++
@@ -682,21 +694,30 @@ router.post('/sf2', async (req, res) => {
         setVal(newWs, row, NUM_COL, 'n', i + 1)
         addMerge(newWs, row, 2, row, 3)
         setVal(newWs, row, NAME_COL, 's', entry.name)
-        const days = entry.days || {}
-        for (const [dayStr, status] of Object.entries(days)) {
-          const dayNum = parseInt(dayStr, 10)
-          const col = dateColMap[dayNum]
-          const sd = schoolDays.find(d => d.day === dayNum)
-          if (col === undefined || !status || (sd && sd.isHoliday)) continue
-          const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : (status === 'A' || status === 'x' || status === 'X') ? 'x' : status === 'E' ? 'E' : (status === '1' || status === 'P') ? '' : status
-          if (sym) {
-            setVal(newWs, row, col, 's', sym)
-            applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+        if (!isTransferredOut(entry)) {
+          const days = entry.days || {}
+          for (const [dayStr, status] of Object.entries(days)) {
+            const dayNum = parseInt(dayStr, 10)
+            const col = dateColMap[dayNum]
+            const sd = schoolDays.find(d => d.day === dayNum)
+            if (col === undefined || !status || (sd && sd.isHoliday)) continue
+            const sym = status === 'T' ? '◤' : status === 'H' ? '◢' : (status === 'A' || status === 'x' || status === 'X') ? 'x' : status === 'E' ? 'E' : (status === '1' || status === 'P') ? '' : status
+            if (sym) {
+              setVal(newWs, row, col, 's', sym)
+              applyStyle(newWs, row, col, { font: { name: 'Trebuchet MS', sz: 48 }, alignment: { horizontal: 'center', vertical: 'center' } })
+            }
           }
+          setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
+          addMerge(newWs, row, 30, row, 32)
+          setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
+        } else {
+          for (const col of Object.values(dateColMap)) {
+            delCell(newWs, row, col)
+          }
+          delCell(newWs, row, ABSENT_COL)
+          addMerge(newWs, row, 30, row, 32)
+          delCell(newWs, row, 30)
         }
-        if (!isTransferredOut(entry)) setVal(newWs, row, ABSENT_COL, 'n', calcEntryAbsent(entry))
-        addMerge(newWs, row, 30, row, 32)
-        if (!isTransferredOut(entry)) setVal(newWs, row, 30, 'n', calcEntryPresent(entry))
         addMerge(newWs, row, 33, row, 37)
         if (entry.remarks) setVal(newWs, row, REMARKS_COL, 's', entry.remarks)
         row++

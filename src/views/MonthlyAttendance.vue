@@ -390,7 +390,7 @@
                     v-else-if="!isHolidayColumn(d)"
                     :class="['day-cell', { weekend: isWeekend(d), excluded: isExcluded(d) }]"
                   >
-                    <select v-if="!isDisabled(d)"
+                    <select v-if="!isDisabled(d) && !isTransferredOutRemark(entry.remarks)"
                             :value="dayDisplay(entry, d)"
                             @change="updateDay(entry, d, $event.target.value)"
                             class="day-select">
@@ -1049,7 +1049,7 @@ function getHolidayLabel(d) {
 }
 
 function isTransferredOutRemark(remarks) {
-  return /transferred\s*out/i.test(String(remarks || ''))
+  return /\btransfe?r+(?:ed)?[\s\-_/]*out\b|\bt\s*\/\s*o\b/i.test(String(remarks || ''))
 }
 
 function isDisabled(d) {
@@ -1096,9 +1096,10 @@ function dayTotal(entries, day, gender) {
   if (!filtered.length) return 0
   let count = 0
   for (const e of filtered) {
+    if (isTransferredOutRemark(e.remarks)) continue
     const enrollDay = enrollmentDay(e)
     if (enrollDay !== null && day < enrollDay) continue
-    if (!isStudentCountedOnDate({ year: form.year, month: form.month, day, transferOutDate: e.transferOutDate })) continue
+    if (!isStudentCountedOnDate({ year: form.year, month: form.month, day, transferOutDate: e.transferOutDate, remarks: e.remarks })) continue
     const s = e.days ? e.days[String(day)] : null
     if (!s || s === '◤' || s === 'T' || s === 'E') count++
     else if (s === '◢' || s === 'H') count += 0.5
@@ -1118,6 +1119,7 @@ function dayDisplay(entry, d) {
 }
 
 function entryAbsent(entry) {
+  if (isTransferredOutRemark(entry?.remarks)) return 0
   const enrollDay = enrollmentDay(entry)
   let count = 0
   for (let d = 1; d <= daysInMonth.value; d++) {
@@ -1131,17 +1133,18 @@ function entryAbsent(entry) {
 }
 
 function entryPresent(entry) {
+  if (isTransferredOutRemark(entry?.remarks)) return 0
   return Math.max(0, effectiveSchoolDays.value - entryAbsent(entry))
 }
 
 function sumPresent(gender) {
-  const entries = entriesByGender(gender)
+  const entries = entriesByGender(gender).filter(e => !isTransferredOutRemark(e.remarks))
   const total = entries.reduce((sum, e) => sum + entryPresent(e), 0)
   return Math.round(total * 10) / 10
 }
 
 function sumAbsent(gender) {
-  const entries = entriesByGender(gender)
+  const entries = entriesByGender(gender).filter(e => !isTransferredOutRemark(e.remarks))
   const total = entries.reduce((sum, e) => sum + entryAbsent(e), 0)
   return total
 }
@@ -1159,8 +1162,8 @@ const genderGroups = computed(() => {
     label: 'BOYS',
     entries: boys,
     total: (d) => dayTotal(boys, d, 'all'),
-    sumPresent: boys.reduce((s, e) => s + entryPresent(e), 0),
-    sumAbsent: boys.reduce((s, e) => s + entryAbsent(e), 0)
+    sumPresent: boys.filter(e => !isTransferredOutRemark(e.remarks)).reduce((s, e) => s + entryPresent(e), 0),
+    sumAbsent: boys.filter(e => !isTransferredOutRemark(e.remarks)).reduce((s, e) => s + entryAbsent(e), 0)
   })
 
   // Always include GIRLS
@@ -1168,8 +1171,8 @@ const genderGroups = computed(() => {
     label: 'GIRLS',
     entries: girls,
     total: (d) => dayTotal(girls, d, 'all'),
-    sumPresent: girls.reduce((s, e) => s + entryPresent(e), 0),
-    sumAbsent: girls.reduce((s, e) => s + entryAbsent(e), 0)
+    sumPresent: girls.filter(e => !isTransferredOutRemark(e.remarks)).reduce((s, e) => s + entryPresent(e), 0),
+    sumAbsent: girls.filter(e => !isTransferredOutRemark(e.remarks)).reduce((s, e) => s + entryAbsent(e), 0)
   })
 
   // If any unassigned gender learners exist, keep them visible so totals are never lost
@@ -1178,8 +1181,8 @@ const genderGroups = computed(() => {
       label: 'UNASSIGNED GENDER',
       entries: unassigned,
       total: (d) => dayTotal(unassigned, d, 'all'),
-      sumPresent: unassigned.reduce((s, e) => s + entryPresent(e), 0),
-      sumAbsent: unassigned.reduce((s, e) => s + entryAbsent(e), 0)
+      sumPresent: unassigned.filter(e => !isTransferredOutRemark(e.remarks)).reduce((s, e) => s + entryPresent(e), 0),
+      sumAbsent: unassigned.filter(e => !isTransferredOutRemark(e.remarks)).reduce((s, e) => s + entryAbsent(e), 0)
     })
   }
 
@@ -1204,7 +1207,7 @@ const summaryData = computed(() => {
   const mInit = mCount - lateM
   const fInit = fCount - lateF
   const tInit = mInit + fInit
-  const isTransferredOut = (r) => /transferred\s*out/i.test(String(r || ''))
+  const isTransferredOut = (r) => isTransferredOutRemark(r)
   const mTransferredOut = boys ? boys.entries.filter(e => isTransferredOut(e.remarks)).length : 0
   const fTransferredOut = girls ? girls.entries.filter(e => isTransferredOut(e.remarks)).length : 0
   const otherTransferredOut = record.value.entries.filter(e => !['male', 'female'].includes(normalizeGender(e.gender)) && isTransferredOut(e.remarks)).length
@@ -1234,9 +1237,9 @@ const summaryData = computed(() => {
       total: tReg ? Math.floor(((mPresent + fPresent) / sd / tReg) * 100 * 100) / 100 : 0
     },
     absent5: {
-      m: boys ? boys.entries.filter(e => hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays) })).length : 0,
-      f: girls ? girls.entries.filter(e => hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays) })).length : 0,
-      total: record.value.entries.filter(e => hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays) })).length
+      m: boys ? boys.entries.filter(e => !isTransferredOutRemark(e.remarks) && hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays), remarks: e.remarks })).length : 0,
+      f: girls ? girls.entries.filter(e => !isTransferredOutRemark(e.remarks) && hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays), remarks: e.remarks })).length : 0,
+      total: record.value.entries.filter(e => !isTransferredOutRemark(e.remarks) && hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays), remarks: e.remarks })).length
     }
   }
 })
@@ -1654,7 +1657,7 @@ function initSummaryEdits() {
   const lateM = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'male').length
   const lateF = entries.filter(e => e.late_enrollee && normalizeGender(e.gender) === 'female').length
 
-  const isTransferredOut = (r) => /transferred\s*out/i.test(String(r || ''))
+  const isTransferredOut = (r) => isTransferredOutRemark(r)
   const mTransferredOut = entries.filter(e => isTransferredOut(e.remarks) && normalizeGender(e.gender) === 'male').length
   const fTransferredOut = entries.filter(e => isTransferredOut(e.remarks) && normalizeGender(e.gender) === 'female').length
 

@@ -8,7 +8,7 @@ import { ensureEnrollmentStatusColumn, addEnrollmentEvent } from './students.js'
 const router = Router()
 
 export function isTransferredOutRemark(remarks) {
-  return /transferred\s*out/i.test(String(remarks || ''))
+  return /\btransfe?r+(?:ed)?[\s\-_/]*out\b|\bt\s*\/\s*o\b/i.test(String(remarks || ''))
 }
 
 export async function markStudentTransferredOut(studentId, schoolId, grade, section, remarks, year, month, actor) {
@@ -630,7 +630,8 @@ router.put('/:recordId/entry', async (req, res) => {
       days,
       excludedDates: excluded,
       includeSaturdays: rec.include_saturdays === true || Number(rec.include_saturdays) === 1,
-      schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
+      schoolDaysOverride: curSummary.schoolDays || curSummary.school_days,
+      remarks: entry.remarks
     })
     const present = totals.present
     const absent = totals.absent
@@ -663,7 +664,7 @@ router.put('/:recordId/settings', async (req, res) => {
     const record = g.record
     const excluded = JSON.parse(record.excluded_dates || '[]')
     const curSummary = JSON.parse(record.summary_data || '{}')
-    const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [record.id])
+    const entries = await query('SELECT student_id, days, remarks FROM monthly_entries WHERE record_id = ?', [record.id])
     await run('UPDATE monthly_records SET include_saturdays=? WHERE id=?', [includeSaturdays ? 1 : 0, record.id])
     for (const entry of entries) {
       const days = typeof entry.days === 'string' ? JSON.parse(entry.days || '{}') : (entry.days || {})
@@ -673,7 +674,8 @@ router.put('/:recordId/settings', async (req, res) => {
         days,
         excludedDates: excluded,
         includeSaturdays,
-        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
+        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days,
+        remarks: entry.remarks
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, record.id, entry.student_id])
     }
@@ -691,8 +693,21 @@ router.put('/:recordId/remarks', async (req, res) => {
     if (!g) return
     const { recordId } = req.params
     const { studentId, remarks } = req.body
-    await run('UPDATE monthly_entries SET remarks=? WHERE record_id=? AND student_id=?',
-      [remarks, recordId, studentId])
+    const meRows = await query('SELECT days FROM monthly_entries WHERE record_id = ? AND student_id = ?', [recordId, studentId])
+    const curDays = JSON.parse(meRows[0]?.days || '{}')
+    const curExcluded = JSON.parse(g.record.excluded_dates || '[]')
+    const curSumm = JSON.parse(g.record.summary_data || '{}')
+    const entryTotals = calculateMonthlyEntryTotals({
+      year: g.record.year,
+      month: g.record.month,
+      days: curDays,
+      excludedDates: curExcluded,
+      includeSaturdays: g.record.include_saturdays === true || Number(g.record.include_saturdays) === 1,
+      schoolDaysOverride: curSumm.schoolDays || curSumm.school_days,
+      remarks
+    })
+    await run('UPDATE monthly_entries SET remarks=?, present=?, absent=? WHERE record_id=? AND student_id=?',
+      [remarks, entryTotals.present, entryTotals.absent, recordId, studentId])
 
     let withdrawn = false
     let student = null
@@ -790,7 +805,7 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
 
     // Recalculate stored totals immediately so excluding/restoring a date
     // stays consistent with the values displayed by the monthly sheet.
-    const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [recordId])
+    const entries = await query('SELECT student_id, days, remarks FROM monthly_entries WHERE record_id = ?', [recordId])
     const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     for (const entry of entries) {
       const days = typeof entry.days === 'string' ? JSON.parse(entry.days || '{}') : (entry.days || {})
@@ -800,7 +815,8 @@ router.put('/:recordId/excluded-dates', async (req, res) => {
         days,
         excludedDates,
         includeSaturdays,
-        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
+        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days,
+        remarks: entry.remarks
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
     }
@@ -845,7 +861,7 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
 
     await run('UPDATE monthly_records SET excluded_dates=?, summary_data=? WHERE id=?', [JSON.stringify(merged), JSON.stringify(curSummary), recordId])
 
-    const entries = await query('SELECT student_id, days FROM monthly_entries WHERE record_id = ?', [recordId])
+    const entries = await query('SELECT student_id, days, remarks FROM monthly_entries WHERE record_id = ?', [recordId])
     const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
     for (const entry of entries) {
       const days = typeof entry.days === 'string' ? JSON.parse(entry.days || '{}') : (entry.days || {})
@@ -855,7 +871,8 @@ router.post('/:recordId/sync-calendar', async (req, res) => {
         days,
         excludedDates: merged,
         includeSaturdays,
-        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days
+        schoolDaysOverride: curSummary.schoolDays || curSummary.school_days,
+        remarks: entry.remarks
       })
       await run('UPDATE monthly_entries SET present=?, absent=? WHERE record_id=? AND student_id=?', [totals.present, totals.absent, recordId, entry.student_id])
     }

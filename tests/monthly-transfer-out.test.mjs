@@ -1,11 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { isTransferredOutRemark } from '../routes/monthly.js'
+import { calculateMonthlyEntryTotals, hasMonthlyConsecutiveAbsences } from '../lib/monthly-calendar.js'
 
 test('isTransferredOutRemark identifies TRANSFERRED OUT in various cases and formats', () => {
   assert.equal(isTransferredOutRemark('TRANSFERRED OUT'), true)
   assert.equal(isTransferredOutRemark('Transferred Out'), true)
   assert.equal(isTransferredOutRemark('transferred out'), true)
+  assert.equal(isTransferredOutRemark('transfered out'), true)
+  assert.equal(isTransferredOutRemark('Transfered Out'), true)
+  assert.equal(isTransferredOutRemark('TRANSFERED OUT'), true)
+  assert.equal(isTransferredOutRemark('transfered-out'), true)
+  assert.equal(isTransferredOutRemark('T/O'), true)
+  assert.equal(isTransferredOutRemark('t/o'), true)
+  assert.equal(isTransferredOutRemark('T / O'), true)
+  assert.equal(isTransferredOutRemark('T/O - Transfer to Manila'), true)
   assert.equal(isTransferredOutRemark('  transferred   out  '), true)
   assert.equal(isTransferredOutRemark('TRANSFERRED OUT - Moved to Manila High School'), true)
   assert.equal(isTransferredOutRemark('Transferred Out on 2026-10-15'), true)
@@ -15,6 +24,7 @@ test('isTransferredOutRemark identifies TRANSFERRED OUT in various cases and for
   assert.equal(isTransferredOutRemark(undefined), false)
   assert.equal(isTransferredOutRemark('TRANSFERRED IN'), false)
   assert.equal(isTransferredOutRemark('Transferred in from other school'), false)
+  assert.equal(isTransferredOutRemark('transfer in'), false)
   assert.equal(isTransferredOutRemark('Late enrollee'), false)
   assert.equal(isTransferredOutRemark('Dropped out'), false)
 })
@@ -71,4 +81,26 @@ test('registered learners count never becomes negative even when transferred out
   const transferredOut = 2 // e.g. Manual override or edge case
   const regM = Math.max(0, mCount - transferredOut)
   assert.equal(regM, 0)
+})
+
+test('calculateMonthlyEntryTotals returns 0 present and 0 absent for transferred out entries', () => {
+  const totals = calculateMonthlyEntryTotals({
+    year: 2026,
+    month: 8,
+    days: { 3: 'A', 4: 'A', 5: 'A' },
+    remarks: 'transfered out'
+  })
+  assert.equal(totals.present, 0)
+  assert.equal(totals.absent, 0)
+  assert.equal(totals.total, 0)
+})
+
+test('hasMonthlyConsecutiveAbsences returns false for transferred out entries', () => {
+  const res = hasMonthlyConsecutiveAbsences({
+    year: 2026,
+    month: 8,
+    days: { 3: 'A', 4: 'A', 5: 'A', 6: 'A', 7: 'A' },
+    remarks: 'T/O'
+  })
+  assert.equal(res, false)
 })
