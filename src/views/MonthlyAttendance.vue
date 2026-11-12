@@ -373,7 +373,7 @@
                 <td :colspan="totalCols">{{ group.label }}</td>
               </tr>
               <tr v-for="(entry, idx) in group.entries" :key="entry.studentId" :class="{ 'is-transferred-out': isTransferredOutRemark(entry.remarks) }">
-                <td class="no-col">{{ isTransferredOutRemark(entry.remarks) ? '' : (startNum(gi) + idx) }}</td>
+                <td class="no-col">{{ entryNumber(gi, idx) }}</td>
                 <td class="name-col">{{ entry.name }}</td>
                 <template v-for="d in daysInMonth" :key="d">
                   <td
@@ -1247,9 +1247,23 @@ const summaryData = computed(() => {
 function startNum(gi) {
   let n = 1
   for (let i = 0; i < gi; i++) {
-    n += genderGroups.value[i].entries.length
+    n += genderGroups.value[i].entries.filter(e => !isTransferredOutRemark(e.remarks)).length
   }
   return n
+}
+
+function entryNumber(gi, idx) {
+  const group = genderGroups.value[gi]
+  if (!group) return ''
+  const entry = group.entries[idx]
+  if (!entry || isTransferredOutRemark(entry.remarks)) return ''
+  let activeBefore = 0
+  for (let i = 0; i < idx; i++) {
+    if (!isTransferredOutRemark(group.entries[i]?.remarks)) {
+      activeBefore++
+    }
+  }
+  return startNum(gi) + activeBefore
 }
 
 async function openMonthly() {

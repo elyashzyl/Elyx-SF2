@@ -86,6 +86,12 @@ test('SF2 export endpoint generates compliant workbook with correct glyphs and r
         days: {}
       },
       {
+        name: 'Villanueva, Carlos',
+        gender: 'Male',
+        lrn: '123456789004',
+        days: { '1': 'P' }
+      },
+      {
         name: 'Cruz, Maria',
         gender: 'Female',
         lrn: '123456789002',
@@ -157,4 +163,27 @@ test('SF2 export endpoint generates compliant workbook with correct glyphs and r
   const numCell = ws[XLSX.utils.encode_cell({ r: pedroRow, c: 0 })]
   const numVal = numCell ? numCell.v : ''
   assert.equal(numVal === '' || numVal === null || numVal === undefined, true, `Transferred out learner number must be blank, got: ${numVal}`)
+
+  // Verify that active student Carlos Villanueva (after Pedro) has adjusted sequence number 2
+  let carlosRow = null
+  let juanRow = null
+  let mariaRow = null
+  for (const [cellKey, cellVal] of Object.entries(ws)) {
+    if (cellKey.startsWith('!')) continue
+    const val = String(cellVal.v || '')
+    if (val.includes('Abalos, Juan')) juanRow = XLSX.utils.decode_cell(cellKey).r
+    if (val.includes('Villanueva, Carlos')) carlosRow = XLSX.utils.decode_cell(cellKey).r
+    if (val.includes('Cruz, Maria')) mariaRow = XLSX.utils.decode_cell(cellKey).r
+  }
+  assert.ok(juanRow !== null, 'Juan Abalos row must exist')
+  assert.ok(carlosRow !== null, 'Carlos Villanueva row must exist')
+  assert.ok(mariaRow !== null, 'Maria Cruz row must exist')
+
+  const juanNum = ws[XLSX.utils.encode_cell({ r: juanRow, c: 0 })]?.v
+  const carlosNum = ws[XLSX.utils.encode_cell({ r: carlosRow, c: 0 })]?.v
+  const mariaNum = ws[XLSX.utils.encode_cell({ r: mariaRow, c: 0 })]?.v
+
+  assert.equal(juanNum, 1, `First active male should be 1, got: ${juanNum}`)
+  assert.equal(carlosNum, 2, `Active male following transferred out should adjust to 2, got: ${carlosNum}`)
+  assert.equal(mariaNum, 1, `First active female should be 1, got: ${mariaNum}`)
 })

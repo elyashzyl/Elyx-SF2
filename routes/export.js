@@ -647,13 +647,14 @@ router.post('/sf2', async (req, res) => {
 
     // ── Write male students ──
     let row = maleSectionStart
+    let maleSeq = 1
     for (let i = 0; i < maleCount; i++) {
       const entry = maleEntriesAll[i]
       addMerge(newWs, row, 0, row, 1)
       if (isTransferredOut(entry)) {
         delCell(newWs, row, NUM_COL)
       } else {
-        setVal(newWs, row, NUM_COL, 'n', i + 1)
+        setVal(newWs, row, NUM_COL, 'n', maleSeq++)
       }
       addMerge(newWs, row, 2, row, 3)
       setVal(newWs, row, NAME_COL, 's', entry.name)
@@ -693,13 +694,14 @@ router.post('/sf2', async (req, res) => {
     // ── Write female students (only if any exist) ──
     if (femaleCount > 0) {
       row = femaleSectionStart
+      let femaleSeq = 1
       for (let i = 0; i < femaleCount; i++) {
         const entry = femaleEntriesAll[i]
         addMerge(newWs, row, 0, row, 1)
         if (isTransferredOut(entry)) {
           delCell(newWs, row, NUM_COL)
         } else {
-          setVal(newWs, row, NUM_COL, 'n', i + 1)
+          setVal(newWs, row, NUM_COL, 'n', femaleSeq++)
         }
         addMerge(newWs, row, 2, row, 3)
         setVal(newWs, row, NAME_COL, 's', entry.name)

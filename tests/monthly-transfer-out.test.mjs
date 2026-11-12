@@ -105,7 +105,7 @@ test('hasMonthlyConsecutiveAbsences returns false for transferred out entries', 
   assert.equal(res, false)
 })
 
-test('student row number is blank for transferred out entries and numbered for active entries', () => {
+test('student row number is blank for transferred out entries and sequentially adjusted for active entries', () => {
   const entries = [
     { studentId: 'm1', name: 'Boy One', remarks: '' },
     { studentId: 'm2', name: 'Boy Two', remarks: 'TRANSFERRED OUT' },
@@ -113,12 +113,13 @@ test('student row number is blank for transferred out entries and numbered for a
     { studentId: 'm4', name: 'Boy Four', remarks: '' }
   ]
 
-  const rowNumbers = entries.map((entry, idx) => (
-    isTransferredOutRemark(entry.remarks) ? '' : (idx + 1)
+  let seq = 1
+  const rowNumbers = entries.map(entry => (
+    isTransferredOutRemark(entry.remarks) ? '' : seq++
   ))
 
   assert.equal(rowNumbers[0], 1)
   assert.equal(rowNumbers[1], '')
   assert.equal(rowNumbers[2], '')
-  assert.equal(rowNumbers[3], 4)
+  assert.equal(rowNumbers[3], 2)
 })

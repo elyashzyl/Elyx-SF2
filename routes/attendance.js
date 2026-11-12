@@ -794,11 +794,12 @@ router.get('/monthly/excel', async (req, res) => {
     wsData.push(r5)
 
     // Student data rows
+    let seq = 1
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
       const row = Array(maxCol).fill(null)
       const isTransferOut = /\btransfe?r+(?:ed)?[\s\-_/]*out\b|\bt\s*\/\s*o\b/i.test(String(r.remark || ''))
-      row[colNo] = isTransferOut ? '' : `${i + 1}.`
+      row[colNo] = isTransferOut ? '' : `${seq++}.`
       row[colName] = r.name
       for (let j = 0; j < dates.length; j++) {
         const status = r.dayStatus[dates[j].date] || ''
