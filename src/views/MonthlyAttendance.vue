@@ -488,15 +488,15 @@
               </tr>
               <tr>
                 <td class="summary-label">Average Daily Attendance</td>
-                <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_m" @change="onSummaryChange('ada')" class="summary-input" /></td>
-                <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_f" @change="onSummaryChange('ada')" class="summary-input" /></td>
-                <td><input type="number" step="0.1" v-model.number="summaryEdits.ada_t" @change="saveSummary" class="summary-input" /></td>
+                <td><input type="number" step="0.01" v-model.number="summaryEdits.ada_m" @change="onSummaryChange('ada')" class="summary-input" /></td>
+                <td><input type="number" step="0.01" v-model.number="summaryEdits.ada_f" @change="onSummaryChange('ada')" class="summary-input" /></td>
+                <td><input type="number" step="0.01" v-model.number="summaryEdits.ada_t" @change="saveSummary" class="summary-input" /></td>
               </tr>
               <tr>
                 <td class="summary-label">Percentage of Attendance</td>
-                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_m" @change="saveSummary" class="summary-input" />%</td>
-                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_f" @change="saveSummary" class="summary-input" />%</td>
-                <td><input type="number" step="0.1" v-model.number="summaryEdits.pct_t" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.01" v-model.number="summaryEdits.pct_m" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.01" v-model.number="summaryEdits.pct_f" @change="saveSummary" class="summary-input" />%</td>
+                <td><input type="number" step="0.01" v-model.number="summaryEdits.pct_t" @change="saveSummary" class="summary-input" />%</td>
               </tr>
               <tr>
                 <td class="summary-label">Number of students absent for 5 consecutive days</td>
@@ -1201,9 +1201,9 @@ const summaryData = computed(() => {
   const mPresent = boys ? boys.sumPresent : 0
   const fPresent = girls ? girls.sumPresent : 0
   const sd = effectiveSchoolDays.value || 1
-  const mADA = Math.floor((mPresent / sd) * 100) / 100
-  const fADA = Math.floor((fPresent / sd) * 100) / 100
-  const tADA = Math.floor(((mPresent + fPresent) / sd) * 100) / 100
+  const mADA = Math.round((mPresent / sd) * 100) / 100
+  const fADA = Math.round((fPresent / sd) * 100) / 100
+  const tADA = Math.round((mADA + fADA) * 100) / 100
   const mInit = mCount - lateM
   const fInit = fCount - lateF
   const tInit = mInit + fInit
@@ -1232,9 +1232,9 @@ const summaryData = computed(() => {
     },
     avgDailyAttendance: { m: mADA, f: fADA, total: tADA },
     pctAttendance: {
-      m: mReg ? Math.floor((mPresent / sd / mReg) * 100 * 100) / 100 : 0,
-      f: fReg ? Math.floor((fPresent / sd / fReg) * 100 * 100) / 100 : 0,
-      total: tReg ? Math.floor(((mPresent + fPresent) / sd / tReg) * 100 * 100) / 100 : 0
+      m: mReg ? Math.round((mADA / mReg) * 100 * 100) / 100 : 0,
+      f: fReg ? Math.round((fADA / fReg) * 100 * 100) / 100 : 0,
+      total: tReg ? Math.round((tADA / tReg) * 100 * 100) / 100 : 0
     },
     absent5: {
       m: boys ? boys.entries.filter(e => !isTransferredOutRemark(e.remarks) && hasMonthlyConsecutiveAbsences({ year: form.year, month: form.month, days: e.days, excludedDates: record.value.excluded_dates, includeSaturdays: Boolean(record.value.include_saturdays), remarks: e.remarks })).length : 0,
@@ -1434,6 +1434,9 @@ function onSummaryChange(field) {
     summaryEdits.pct_enr_t = summaryEdits.enr_t > 0
       ? Math.round((summaryEdits.reg_t / summaryEdits.enr_t) * 1000) / 10
       : (summaryEdits.reg_t > 0 ? 100 : 0)
+    summaryEdits.pct_m = summaryEdits.reg_m > 0 ? Math.round(((Number(summaryEdits.ada_m) || 0) / summaryEdits.reg_m) * 100 * 100) / 100 : 0
+    summaryEdits.pct_f = summaryEdits.reg_f > 0 ? Math.round(((Number(summaryEdits.ada_f) || 0) / summaryEdits.reg_f) * 100 * 100) / 100 : 0
+    summaryEdits.pct_t = summaryEdits.reg_t > 0 ? Math.round(((Number(summaryEdits.ada_t) || 0) / summaryEdits.reg_t) * 100 * 100) / 100 : 0
   } else if (field === 'late') {
     summaryEdits.late_t = (Number(summaryEdits.late_m) || 0) + (Number(summaryEdits.late_f) || 0)
   } else if (field === 'nls') {
@@ -1455,12 +1458,18 @@ function onSummaryChange(field) {
     summaryEdits.pct_enr_t = summaryEdits.enr_t > 0
       ? Math.round((summaryEdits.reg_t / summaryEdits.enr_t) * 1000) / 10
       : (summaryEdits.reg_t > 0 ? 100 : 0)
+    summaryEdits.pct_m = summaryEdits.reg_m > 0 ? Math.round(((Number(summaryEdits.ada_m) || 0) / summaryEdits.reg_m) * 100 * 100) / 100 : 0
+    summaryEdits.pct_f = summaryEdits.reg_f > 0 ? Math.round(((Number(summaryEdits.ada_f) || 0) / summaryEdits.reg_f) * 100 * 100) / 100 : 0
+    summaryEdits.pct_t = summaryEdits.reg_t > 0 ? Math.round(((Number(summaryEdits.ada_t) || 0) / summaryEdits.reg_t) * 100 * 100) / 100 : 0
   } else if (field === 'transfer_in') {
     summaryEdits.transfer_in_t = (Number(summaryEdits.transfer_in_m) || 0) + (Number(summaryEdits.transfer_in_f) || 0)
   } else if (field === 'abs5') {
     summaryEdits.abs5_t = (Number(summaryEdits.abs5_m) || 0) + (Number(summaryEdits.abs5_f) || 0)
   } else if (field === 'ada') {
     summaryEdits.ada_t = Math.round(((Number(summaryEdits.ada_m) || 0) + (Number(summaryEdits.ada_f) || 0)) * 100) / 100
+    summaryEdits.pct_m = summaryEdits.reg_m > 0 ? Math.round(((Number(summaryEdits.ada_m) || 0) / summaryEdits.reg_m) * 100 * 100) / 100 : 0
+    summaryEdits.pct_f = summaryEdits.reg_f > 0 ? Math.round(((Number(summaryEdits.ada_f) || 0) / summaryEdits.reg_f) * 100 * 100) / 100 : 0
+    summaryEdits.pct_t = summaryEdits.reg_t > 0 ? Math.round(((Number(summaryEdits.ada_t) || 0) / summaryEdits.reg_t) * 100 * 100) / 100 : 0
   }
   saveSummary()
 }

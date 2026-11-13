@@ -689,7 +689,8 @@ router.post('/sf2', async (req, res) => {
     }
 
     // ── Write BOYS TOTAL ──
-    writeSummaryRow(maleTotalRow, maleEntriesAll, `MALE | ${maleCount}`, maleCount)
+    const activeMaleCount = maleEntriesAll.filter(e => !isTransferredOut(e)).length
+    writeSummaryRow(maleTotalRow, maleEntriesAll, `MALE | ${activeMaleCount}`, activeMaleCount)
 
     // ── Write female students (only if any exist) ──
     if (femaleCount > 0) {
@@ -736,7 +737,8 @@ router.post('/sf2', async (req, res) => {
       }
     }
     // ── Write GIRLS TOTAL ──
-    writeSummaryRow(femaleTotalRow, femaleEntriesAll, `FEMALE | ${femaleCount}`, femaleCount)
+    const activeFemaleCount = femaleEntriesAll.filter(e => !isTransferredOut(e)).length
+    writeSummaryRow(femaleTotalRow, femaleEntriesAll, `FEMALE | ${activeFemaleCount}`, activeFemaleCount)
 
     // ── Write COMBINED TOTAL ──
     addMerge(newWs, combinedTotalRow, 0, combinedTotalRow, 1)
@@ -896,12 +898,12 @@ router.post('/sf2', async (req, res) => {
     const regF = sd.reg_f != null ? Number(sd.reg_f) : Math.max(0, femaleCount - toF2)
     const regT = sd.reg_t != null ? Number(sd.reg_t) : (regM + regF)
 
-    const mADA = effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays) * 100) / 100 : 0
-    const fADA = effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays) * 100) / 100 : 0
-    const tADA = effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays) * 100) / 100 : 0
-    const mPct = regM > 0 && effectiveDays > 0 ? Math.floor((mTotalPresent / effectiveDays / regM) * 100 * 100) / 100 : 0
-    const fPct = regF > 0 && effectiveDays > 0 ? Math.floor((fTotalPresent / effectiveDays / regF) * 100 * 100) / 100 : 0
-    const tPct = regT > 0 && effectiveDays > 0 ? Math.floor(((mTotalPresent + fTotalPresent) / effectiveDays / regT) * 100 * 100) / 100 : 0
+    const mADA = sd.ada_m != null ? Number(sd.ada_m) : (effectiveDays > 0 ? Math.round((mTotalPresent / effectiveDays) * 100) / 100 : 0)
+    const fADA = sd.ada_f != null ? Number(sd.ada_f) : (effectiveDays > 0 ? Math.round((fTotalPresent / effectiveDays) * 100) / 100 : 0)
+    const tADA = sd.ada_t != null ? Number(sd.ada_t) : Math.round((mADA + fADA) * 100) / 100
+    const mPct = sd.pct_m != null ? Number(sd.pct_m) : (regM > 0 && effectiveDays > 0 ? Math.round((mADA / regM) * 100 * 100) / 100 : 0)
+    const fPct = sd.pct_f != null ? Number(sd.pct_f) : (regF > 0 && effectiveDays > 0 ? Math.round((fADA / regF) * 100 * 100) / 100 : 0)
+    const tPct = sd.pct_t != null ? Number(sd.pct_t) : (regT > 0 && effectiveDays > 0 ? Math.round((tADA / regT) * 100 * 100) / 100 : 0)
 
     // ── Compute late/enrolment values for summary section ──
     const lateM = sd.late_m != null ? sd.late_m : 0
@@ -1144,9 +1146,9 @@ router.post('/sf2', async (req, res) => {
     descRow(newWs, S + 9, S + 10, 'Registered Learners as of end of month', S9_ITALIC_CENTER_WRAP)
     valCols(newWs, S + 9, S + 10, regM, regF, regT)
     // Percentage of Enrolment (rows 61-62)
-    const pctEnrM = sd.pct_enr_m != null ? sd.pct_enr_m : (initM > 0 ? Math.round((regM / initM) * 100) : (regM > 0 ? 100 : 0))
-    const pctEnrF = sd.pct_enr_f != null ? sd.pct_enr_f : (initF > 0 ? Math.round((regF / initF) * 100) : (regF > 0 ? 100 : 0))
-    const pctEnrT = sd.pct_enr_t != null ? sd.pct_enr_t : (initT > 0 ? Math.round((regT / initT) * 100) : (regT > 0 ? 100 : 0))
+    const pctEnrM = sd.pct_enr_m != null ? sd.pct_enr_m : (initM > 0 ? Math.round((regM / initM) * 1000) / 10 : (regM > 0 ? 100 : 0))
+    const pctEnrF = sd.pct_enr_f != null ? sd.pct_enr_f : (initF > 0 ? Math.round((regF / initF) * 1000) / 10 : (regF > 0 ? 100 : 0))
+    const pctEnrT = sd.pct_enr_t != null ? sd.pct_enr_t : (initT > 0 ? Math.round((regT / initT) * 1000) / 10 : (regT > 0 ? 100 : 0))
     descRow(newWs, S + 11, S + 12, 'Percentage of Enrolment as of end of month', S9_ITALIC_CENTER_WRAP)
     valCols(newWs, S + 11, S + 12, `${pctEnrM}%`, `${pctEnrF}%`, `${pctEnrT}%`)
     // ADA (rows 63-64)

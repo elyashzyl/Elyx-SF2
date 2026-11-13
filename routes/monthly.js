@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { query, run } from '../db.js'
 import { requireRole, resolveScopeSchool, actingUser, assertValidClass, audit } from './_context.js'
-import { calculateMonthlyEntryTotals } from '../lib/monthly-calendar.js'
+import { calculateMonthlyEntryTotals, listMonthlySchoolDays } from '../lib/monthly-calendar.js'
 import { ensureEnrollmentStatusColumn, addEnrollmentEvent } from './students.js'
 
 const router = Router()
@@ -11,12 +11,24 @@ export function isTransferredOutRemark(remarks) {
   return /\btransfe?r+(?:ed)?[\s\-_/]*out\b|\bt\s*\/\s*o\b/i.test(String(remarks || ''))
 }
 
-export async function markStudentTransferredOut(studentId, schoolId, grade, section, remarks, year, month, actor) {
+export async function markStudentTransferredOut(studentId, schoolId, grade, section, remarks, year, month, actor, studentName = '') {
   try {
     await ensureEnrollmentStatusColumn()
     let students = await query('SELECT * FROM students WHERE id = ?', [studentId])
     if (!students || students.length === 0) {
-      students = await query('SELECT * FROM students WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND school_id = ?', [studentId, schoolId])
+      if (schoolId) {
+        students = await query('SELECT * FROM students WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND (school_id = ? OR school_id = "" OR school_id IS NULL)', [studentId, schoolId])
+      } else {
+        students = await query('SELECT * FROM students WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [studentId])
+      }
+    }
+    if ((!students || students.length === 0) && studentName) {
+      if (schoolId) {
+        students = await query('SELECT * FROM students WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND (school_id = ? OR school_id = "" OR school_id IS NULL)', [studentName, schoolId])
+      }
+      if (!students || students.length === 0) {
+        students = await query('SELECT * FROM students WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [studentName])
+      }
     }
     if (!students || students.length === 0) return null
     const student = students[0]
@@ -63,6 +75,12 @@ export async function markStudentTransferredOut(studentId, schoolId, grade, sect
         { type: 'student', id: student.id, name: student.name, schoolId: effectiveSchoolId },
         `Withdrawn "${student.name}" via Monthly SF2 remarks: ${reason}`
       )
+    } else {
+      try {
+        await run("UPDATE students SET enrollment_status = 'withdrawn' WHERE id = ?", [student.id])
+      } catch (err) {
+        if (!/unknown column 'enrollment_status'/i.test(String(err.message || ''))) throw err
+      }
     }
 
     return student
@@ -108,6 +126,23 @@ export async function recalculateRecordSummary(recordId) {
   curSummary.pct_enr_m = enrM > 0 ? Math.round((curSummary.reg_m / enrM) * 1000) / 10 : (curSummary.reg_m > 0 ? 100 : 0)
   curSummary.pct_enr_f = enrF > 0 ? Math.round((curSummary.reg_f / enrF) * 1000) / 10 : (curSummary.reg_f > 0 ? 100 : 0)
   curSummary.pct_enr_t = enrT > 0 ? Math.round((curSummary.reg_t / enrT) * 1000) / 10 : (curSummary.reg_t > 0 ? 100 : 0)
+
+  const excluded = JSON.parse(record.excluded_dates || '[]')
+  const includeSaturdays = record.include_saturdays === true || Number(record.include_saturdays) === 1
+  const schoolDays = listMonthlySchoolDays(record.month, record.year, excluded, includeSaturdays)
+  const customDays = Number(curSummary.schoolDays || curSummary.school_days)
+  const effectiveDays = (customDays > 0) ? customDays : (schoolDays.length || 1)
+
+  const mPresent = mEntries.filter(e => !isTransferredOutRemark(e.remarks)).reduce((sum, e) => sum + (Number(e.present) || 0), 0)
+  const fPresent = fEntries.filter(e => !isTransferredOutRemark(e.remarks)).reduce((sum, e) => sum + (Number(e.present) || 0), 0)
+
+  curSummary.ada_m = effectiveDays > 0 ? Math.round((mPresent / effectiveDays) * 100) / 100 : 0
+  curSummary.ada_f = effectiveDays > 0 ? Math.round((fPresent / effectiveDays) * 100) / 100 : 0
+  curSummary.ada_t = Math.round((curSummary.ada_m + curSummary.ada_f) * 100) / 100
+
+  curSummary.pct_m = curSummary.reg_m > 0 ? Math.round((curSummary.ada_m / curSummary.reg_m) * 100 * 100) / 100 : 0
+  curSummary.pct_f = curSummary.reg_f > 0 ? Math.round((curSummary.ada_f / curSummary.reg_f) * 100 * 100) / 100 : 0
+  curSummary.pct_t = curSummary.reg_t > 0 ? Math.round((curSummary.ada_t / curSummary.reg_t) * 100 * 100) / 100 : 0
 
   await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSummary), recordId])
   return curSummary
@@ -548,27 +583,13 @@ router.post('/', async (req, res) => {
           entry.remarks,
           year,
           month,
-          me
+          me,
+          entry.name
         )
       }
     }
 
-    // Synchronize registered counts in summary_data with the newly saved entries (accounting for transferred out)
-    const mSavedCount = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'male').length
-    const fSavedCount = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'female').length
-    const otherSavedCount = sortedEntriesToSave.filter(e => !['male', 'female'].includes((e.gender || '').toLowerCase())).length
-    const mTransferred = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'male' && isTransferredOutRemark(e.remarks)).length
-    const fTransferred = sortedEntriesToSave.filter(e => (e.gender || '').toLowerCase() === 'female' && isTransferredOutRemark(e.remarks)).length
-    const otherTransferred = sortedEntriesToSave.filter(e => !['male', 'female'].includes((e.gender || '').toLowerCase()) && isTransferredOutRemark(e.remarks)).length
-    const latestRec = (await query('SELECT summary_data FROM monthly_records WHERE id = ?', [recordId]))[0]
-    const curSum = JSON.parse(latestRec?.summary_data || '{}')
-    curSum.transfer_out_m = Math.max(Number(curSum.transfer_out_m) || 0, mTransferred)
-    curSum.transfer_out_f = Math.max(Number(curSum.transfer_out_f) || 0, fTransferred)
-    curSum.transfer_out_t = (Number(curSum.transfer_out_m) || 0) + (Number(curSum.transfer_out_f) || 0) + otherTransferred
-    curSum.reg_m = Math.max(0, mSavedCount - curSum.transfer_out_m)
-    curSum.reg_f = Math.max(0, fSavedCount - curSum.transfer_out_f)
-    curSum.reg_t = curSum.reg_m + curSum.reg_f
-    await run('UPDATE monthly_records SET summary_data = ? WHERE id = ?', [JSON.stringify(curSum), recordId])
+    await recalculateRecordSummary(recordId)
 
     const updated = await query('SELECT * FROM monthly_records WHERE id = ?', [recordId])
     await audit(
@@ -712,6 +733,8 @@ router.put('/:recordId/remarks', async (req, res) => {
     let withdrawn = false
     let student = null
     if (isTransferredOutRemark(remarks)) {
+      const meRowsForName = await query('SELECT student_name FROM monthly_entries WHERE record_id = ? AND student_id = ?', [recordId, studentId])
+      const sName = meRowsForName[0]?.student_name || ''
       student = await markStudentTransferredOut(
         studentId,
         g.record.school_id,
@@ -720,24 +743,10 @@ router.put('/:recordId/remarks', async (req, res) => {
         remarks,
         g.record.year,
         g.record.month,
-        g.me
+        g.me,
+        sName
       )
-      if (!student) {
-        const meRows = await query('SELECT student_name FROM monthly_entries WHERE record_id = ? AND student_id = ?', [recordId, studentId])
-        if (meRows[0]?.student_name) {
-          student = await markStudentTransferredOut(
-            meRows[0].student_name,
-            g.record.school_id,
-            g.record.grade,
-            g.record.section,
-            remarks,
-            g.record.year,
-            g.record.month,
-            g.me
-          )
-        }
-      }
-      withdrawn = true
+      if (student) withdrawn = true
     }
 
     const updatedSummary = await recalculateRecordSummary(recordId)

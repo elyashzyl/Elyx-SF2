@@ -240,18 +240,20 @@ function effectiveDate(value) {
 
 export async function resequenceEnrollmentEvents(studentId, schoolId, tx = null) {
   const runner = tx || { query, run }
+  const schoolClause = schoolId ? '(school_id = ? OR school_id = "" OR school_id IS NULL)' : '1=1'
+  const schoolParams = schoolId ? [studentId, schoolId] : [studentId]
   const events = await runner.query(
-    'SELECT id FROM student_enrollment_events WHERE student_id = ? AND school_id = ? ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC',
-    [studentId, schoolId]
+    `SELECT id FROM student_enrollment_events WHERE student_id = ? AND ${schoolClause} ORDER BY effective_on ASC, event_sequence ASC, created_at ASC, id ASC`,
+    schoolParams
   )
   for (let i = 0; i < events.length; i++) {
     await runner.run('UPDATE student_enrollment_events SET event_sequence = ? WHERE id = ?', [i + 1, events[i].id])
   }
   const latest = (await runner.query(`
     SELECT grade, section, status FROM student_enrollment_events
-    WHERE student_id = ? AND school_id = ?
+    WHERE student_id = ? AND ${schoolClause}
     ORDER BY effective_on DESC, event_sequence DESC, created_at DESC, id DESC
-    LIMIT 1`, [studentId, schoolId]))[0]
+    LIMIT 1`, schoolParams))[0]
   if (latest) {
     try {
       await runner.run('UPDATE students SET grade = ?, section = ?, enrollment_status = ? WHERE id = ?',

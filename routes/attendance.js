@@ -803,12 +803,12 @@ router.get('/monthly/excel', async (req, res) => {
       row[colName] = r.name
       for (let j = 0; j < dates.length; j++) {
         const status = r.dayStatus[dates[j].date] || ''
-        row[colFirstDate + j] = status === 'x' ? 'x' : ''
+        row[colFirstDate + j] = isTransferOut ? '' : (status === 'x' ? 'x' : '')
       }
       const ac = r.absentCount % 1 === 0 ? r.absentCount : r.absentCount.toFixed(1)
       const pc = r.presentCount % 1 === 0 ? r.presentCount : r.presentCount.toFixed(1)
-      row[colAbsent] = ac
-      row[colPresent] = pc
+      row[colAbsent] = isTransferOut ? '' : ac
+      row[colPresent] = isTransferOut ? '' : pc
       row[colRemarks] = r.remark
       wsData.push(row)
     }

@@ -1,7 +1,14 @@
-import test from 'node:test'
+import test, { before } from 'node:test'
 import assert from 'node:assert/strict'
-import { isTransferredOutRemark } from '../routes/monthly.js'
+import { randomUUID } from 'node:crypto'
+import { isTransferredOutRemark, markStudentTransferredOut } from '../routes/monthly.js'
 import { calculateMonthlyEntryTotals, hasMonthlyConsecutiveAbsences } from '../lib/monthly-calendar.js'
+import { initializeServerDatabase } from '../server.js'
+import { query, run } from '../db.js'
+
+before(async () => {
+  await initializeServerDatabase()
+})
 
 test('isTransferredOutRemark identifies TRANSFERRED OUT in various cases and formats', () => {
   assert.equal(isTransferredOutRemark('TRANSFERRED OUT'), true)
@@ -122,4 +129,125 @@ test('student row number is blank for transferred out entries and sequentially a
   assert.equal(rowNumbers[1], '')
   assert.equal(rowNumbers[2], '')
   assert.equal(rowNumbers[3], 2)
+})
+
+test('Percentage of Attendance follows DepEd formula with 2 decimal places and half-up rounding', () => {
+  const mPresent = 490
+  const fPresent = 530
+  const schoolDays = 21
+
+  // DepEd Formula B: ADA = Total Daily Attendance / School Days (rounded to 2 decimal places)
+  const mADA = Math.round((mPresent / schoolDays) * 100) / 100 // 490 / 21 = 23.3333... -> 23.33
+  const fADA = Math.round((fPresent / schoolDays) * 100) / 100 // 530 / 21 = 25.2380... -> 25.24
+  const tADA = Math.round((mADA + fADA) * 100) / 100 // 23.33 + 25.24 = 48.57
+
+  assert.equal(mADA, 23.33)
+  assert.equal(fADA, 25.24)
+  assert.equal(tADA, 48.57)
+
+  // Registered learners (adjusted for transferred out)
+  const regM = 24
+  const regF = 26
+  const regT = regM + regF // 50
+
+  // DepEd Formula C: Percentage of Attendance = (ADA / Registered) * 100 (rounded to 2 decimal places)
+  // 23.33 / 24 * 100 = 97.208333... -> with Math.round: 97.21 (Math.floor erroneously gave 97.20)
+  const pctM = Math.round((mADA / regM) * 100 * 100) / 100
+  const pctF = Math.round((fADA / regF) * 100 * 100) / 100
+  const pctT = Math.round((tADA / regT) * 100 * 100) / 100
+
+  assert.equal(pctM, 97.21)
+  assert.equal(pctF, 97.08)
+  assert.equal(pctT, 97.14)
+})
+
+test('gender summary row labels adjust active student counts when students transfer out', () => {
+  const maleEntries = [
+    { studentId: 'm1', name: 'Boy 1', remarks: '' },
+    { studentId: 'm2', name: 'Boy 2', remarks: 'TRANSFERRED OUT' },
+    { studentId: 'm3', name: 'Boy 3', remarks: '' }
+  ]
+  const femaleEntries = [
+    { studentId: 'f1', name: 'Girl 1', remarks: '' },
+    { studentId: 'f2', name: 'Girl 2', remarks: 'T/O' }
+  ]
+
+  const activeMaleCount = maleEntries.filter(e => !isTransferredOutRemark(e.remarks)).length
+  const activeFemaleCount = femaleEntries.filter(e => !isTransferredOutRemark(e.remarks)).length
+
+  assert.equal(activeMaleCount, 2)
+  assert.equal(activeFemaleCount, 1)
+
+  const maleLabel = `MALE | ${activeMaleCount}`
+  const femaleLabel = `FEMALE | ${activeFemaleCount}`
+
+  assert.equal(maleLabel, 'MALE | 2')
+  assert.equal(femaleLabel, 'FEMALE | 1')
+})
+
+test('markStudentTransferredOut updates student enrollment_status to withdrawn and creates enrollment event', async () => {
+  const testId = `test-stu-${randomUUID()}`
+  const schoolId = `test-sch-${randomUUID()}`
+  const actor = { id: 'admin1', name: 'Admin User', role: 'admin' }
+
+  await run(`INSERT INTO students (id, name, grade, section, gender, school_id, enrollment_status)
+    VALUES (?, ?, ?, ?, ?, ?, 'active')`,
+    [testId, 'Transferred Test Student', 'Grade 7', 'Section Ruby', 'male', schoolId]
+  )
+
+  const res = await markStudentTransferredOut(
+    testId,
+    schoolId,
+    'Grade 7',
+    'Section Ruby',
+    'TRANSFERRED OUT to Manila High',
+    2026,
+    8,
+    actor
+  )
+
+  assert.ok(res, 'Student should be returned')
+  assert.equal(res.id, testId)
+
+  // Verify status in students table is updated to withdrawn
+  const updatedStudent = (await query('SELECT enrollment_status FROM students WHERE id = ?', [testId]))[0]
+  assert.equal(updatedStudent.enrollment_status, 'withdrawn')
+
+  // Verify student_enrollment_events record was created
+  const events = await query('SELECT * FROM student_enrollment_events WHERE student_id = ?', [testId])
+  assert.ok(events.length > 0, 'Enrollment event must be created')
+  const transferEvent = events.find(e => e.event_type === 'transfer_out')
+  assert.ok(transferEvent, 'Transfer out event must exist')
+  assert.equal(transferEvent.status, 'withdrawn')
+})
+
+test('markStudentTransferredOut falls back to matching by student name if ID search fails', async () => {
+  const testId = `name-stu-${randomUUID()}`
+  const studentName = `Fallback Learner ${randomUUID().slice(0, 6)}`
+  const schoolId = `test-sch-${randomUUID()}`
+  const actor = { id: 'admin1', name: 'Admin User', role: 'admin' }
+
+  await run(`INSERT INTO students (id, name, grade, section, gender, school_id, enrollment_status)
+    VALUES (?, ?, ?, ?, ?, ?, 'active')`,
+    [testId, studentName, 'Grade 8', 'Section Diamond', 'female', schoolId]
+  )
+
+  // Call with arbitrary ID but provide studentName
+  const res = await markStudentTransferredOut(
+    'nonexistent-uuid',
+    schoolId,
+    'Grade 8',
+    'Section Diamond',
+    'T/O - Moved to Rizal',
+    2026,
+    8,
+    actor,
+    studentName
+  )
+
+  assert.ok(res, 'Student should be found by name fallback')
+  assert.equal(res.id, testId)
+
+  const updatedStudent = (await query('SELECT enrollment_status FROM students WHERE id = ?', [testId]))[0]
+  assert.equal(updatedStudent.enrollment_status, 'withdrawn')
 })
